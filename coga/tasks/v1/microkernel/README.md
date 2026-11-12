@@ -15,7 +15,7 @@ checkout). The whole group gates `v1/43`: the "Open command placements" table
 in `coga-dev/microkernel` must be empty before publication. This supersedes the
 2026-10-27 deferral; the decision is recorded in `coga-dev/current-direction`.
 
-The [refresh](refresh-the-microkernel-designs-against-current-ma.md) now
+The [refresh](01-refresh-the-microkernel-designs-against-current-ma.md) now
 proposes revised scopes against `main` at `49b34b229` (2026-11-12). Each child
 contains its four-question premise check, source inventory, proposed boundary,
 objective contribution, and concrete simplifications. Earlier designs and
@@ -75,15 +75,15 @@ Use those criteria for each child's design and implementation evidence.
 
 | Ticket | Current-main verdict and proposed remainder | Objectives advanced |
 | --- | --- | --- |
-| [Checkout declaration](declare-each-workflow-step-s-checkout-policy-in-th.md) | Not shipped. Own the step field, freeze/validation, selection, legacy fallback and workflow guidance; launch only consumes it | Hackability, ticket ownership, simpler policy |
-| [Launch decomposition](launch-decomposition.md) | Part shipped: the CLI/service split is done. Focus on the shared session boundary, generic stateless command semantics and removal of caller-specific duplication | All three |
-| [Editable packaged behavior](make-packaged-behavior-discoverable-and-editable.md) | New gap ticket. Resolve effective sources and obtain complete local overrides, including implementation behind wheel shims | All three |
-| [Recurring recipes](gigantic-refactor-move-recurring-recipes-out-of-co.md) | Distribution prerequisite shipped; five job moves remain. Audit all 12 entries and propose a second pass on two command adapters | Ticket ownership, hackability, simpler registry/reporting |
-| [Read/report commands](read-report-commands-as-ticket-workflows.md) | Rendering partly shared already. Move report policy only after a generic stateless path preserves read-only behavior | All three |
-| [Support commands](support-commands-boundary.md) | Secret inspection is an edge candidate; uninstall needs a bounded recovery proof before an ordinary alias can replace it | Ticket ownership, hackability, fewer redundant wrappers |
-| [Residual commands](residual-command-surfaces.md) | Guided authoring and skill tooling remain; assign the previously unowned `recurring promote` row here | All three |
-| [Work orchestration](work-orchestration-commands-to-tickets.md) | Retire already moved. Remaining queue/FYI policy must use shared admission and completion primitives | All three |
-| [Lifecycle operations](lifecycle-verbs-to-ticket-operations.md) | Prepared writes partly delivered. Retain proven transition/completion operations; separate bulk/procedure policy where useful | Smaller kernel responsibility, editable procedure, less duplicate state handling |
+| [Checkout declaration](02-declare-each-workflow-step-s-checkout-policy-in-th.md) | Not shipped. Own the step field, freeze/validation, selection, legacy fallback and workflow guidance; launch only consumes it | Hackability, ticket ownership, simpler policy |
+| [Launch decomposition](03-launch-decomposition.md) | Part shipped: the CLI/service split is done. Focus on the shared session boundary, generic stateless command semantics and removal of caller-specific duplication | All three |
+| [Recurring recipes](04-gigantic-refactor-move-recurring-recipes-out-of-co.md) | Distribution prerequisite shipped; five job moves remain. Audit all 12 entries and propose a second pass on two command adapters | Ticket ownership, hackability, simpler registry/reporting |
+| [Editable packaged behavior](05-make-packaged-behavior-discoverable-and-editable.md) | New gap ticket. Resolve effective sources and obtain complete local overrides, including implementation behind wheel shims | All three |
+| [Read/report commands](06-read-report-commands-as-ticket-workflows.md) | Rendering partly shared already. Move report policy only after a generic stateless path preserves read-only behavior | All three |
+| [Support commands](07-support-commands-boundary.md) | Secret inspection is an edge candidate; uninstall needs a bounded recovery proof before an ordinary alias can replace it | Ticket ownership, hackability, fewer redundant wrappers |
+| [Residual commands](08-residual-command-surfaces.md) | Guided authoring and skill tooling remain; assign the previously unowned `recurring promote` row here | All three |
+| [Work orchestration](09-work-orchestration-commands-to-tickets.md) | Retire already moved. Remaining queue/FYI policy must use shared admission and completion primitives | All three |
+| [Lifecycle operations](10-lifecycle-verbs-to-ticket-operations.md) | Prepared writes partly delivered. Retain proven transition/completion operations; separate bulk/procedure policy where useful | Smaller kernel responsibility, editable procedure, less duplicate state handling |
 
 The refresh parent accounts for this whole table and its own handoff; the new
 accessibility draft is included in scope review, not silently added to execution.
