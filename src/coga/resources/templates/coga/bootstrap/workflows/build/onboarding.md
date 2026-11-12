@@ -75,7 +75,10 @@ the handoff really is launchable:
 
 - implementation work: `coga create "<title>" --workflow
   code/design-then-implement` (the ticket is intentionally thin, so its first
-  step turns the what+why into a reviewed spec);
+  step turns the what+why into a reviewed spec); in a one-agent repo — only
+  one agent configured under `[agents.*]` in `coga/coga.toml` and
+  `coga.local.toml`, or three or more with no `peer =` on the main agent — use
+  `--workflow code/with-self-review` instead;
 - decide/evaluate work: `coga create "<title>" --workflow draft-for-human`
   (the agent prepares the decision material and the human owns the judgment).
 
