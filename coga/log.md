@@ -10914,3 +10914,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 11:41 v1 [v1/microkernel/refresh-the-microkernel-designs-against-current-ma] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-12 11:41 v1 [v1/microkernel/refresh-the-microkernel-designs-against-current-ma] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-11-12 12:33 v1 [v1/microkernel/make-packaged-behavior-discoverable-and-editable] [human:nicktoper] created (status=draft)
+2026-11-12 12:36 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
