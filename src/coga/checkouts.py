@@ -48,7 +48,7 @@ from coga.autoclose import (
 from coga.blackboard import update_blackboard_under_barrier
 from coga.checkout_policy import CheckoutPolicy, select_checkout_policy
 from coga.compose import CheckoutNotice
-from coga.oscompat import lock_dir, lock_fd, unlock_fd, process_is_running
+from coga.oscompat import lock_dir, lock_fd, unlock_fd
 from coga.config import Config
 from coga.logfile import log_path
 from coga.tasks import TaskRef
@@ -887,17 +887,29 @@ def orientation_lock_paths(root: Path) -> tuple[Path, Path]:
     return lock_root / f"{checkout}.lock", lock_root / f"{checkout}.json"
 
 
+@contextmanager
+def chat_session_lock(cfg: Config, root: Path) -> Iterator[None]:
+    """Serialize guard admission and receipt access across nested Coga roots.
+
+    Use the Git checkout's identity, like the occupancy guard, rather than
+    the configured Coga root. Callers needing the ordinary state lock take
+    it first; admission and cleanup only need this short receipt lock.
+    """
+    with git.state_lock(replace(cfg, repo_root=root)):
+        yield
+
+
 def install_chat_session(cfg: Config, root: Path) -> ChatSession:
     """Record the guard holder's identity; replaces any earlier chat's receipt.
 
-    Called with the orientation guard already held, under the state lock, so
-    a newly admitted guard never exposes a previous session's receipt.
+    Called with the orientation guard acquired under `chat_session_lock`,
+    so a newly admitted guard never exposes a previous session's receipt.
     Reserving the name creates no branch.
     """
     _, receipt = orientation_lock_paths(root)
     token = secrets.token_hex(6)
     session = ChatSession(token, root.resolve(), os.getpid(), f"coga/chat-{token}", receipt)
-    with git.state_lock(cfg):
+    with chat_session_lock(cfg, root):
         _write_chat_receipt(session, created=None)
     return session
 
@@ -905,7 +917,7 @@ def install_chat_session(cfg: Config, root: Path) -> ChatSession:
 def clear_chat_session(cfg: Config, session: ChatSession) -> None:
     """Remove this session's receipt (never its branch) at guard release."""
     try:
-        with git.state_lock(cfg):
+        with chat_session_lock(cfg, session.root):
             data = _load_json(session.receipt)
             if isinstance(data, dict) and data.get("session") == session.session:
                 session.receipt.unlink()
@@ -987,10 +999,6 @@ def _guard_is_held(lock: Path) -> Iterator[bool]:
         os.close(fd)
 
 
-def _pid_alive(pid: int) -> bool:
-    return process_is_running(pid)
-
-
 @dataclass(frozen=True)
 class ChatPreparation:
     kind: Literal["prepared", "reused", "exempt"]
@@ -1018,7 +1026,7 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
     if root is None:
         raise CheckoutPreparationError("session", "not a Git checkout; there is no chat guard")
     lock, receipt = orientation_lock_paths(root)
-    with git.state_lock(cfg), _guard_is_held(lock) as held:
+    with git.state_lock(cfg), chat_session_lock(cfg, root), _guard_is_held(lock) as held:
         data = _load_json(receipt)
         if not held or not isinstance(data, dict):
             raise CheckoutPreparationError(
@@ -1028,7 +1036,6 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
             data.get("session") != session_id
             or data.get("root") != str(root.resolve())
             or not isinstance(data.get("pid"), int)
-            or not _pid_alive(data["pid"])
         ):
             raise CheckoutPreparationError(
                 "session",
@@ -1036,6 +1043,8 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
                 "does not adopt an earlier chat's branch — recover it under "
                 "coga/checkouts/launch-boundary",
             )
+        # The held guard proves liveness. The recorded PID is diagnostic:
+        # an agent in another PID namespace cannot inspect its supervisor.
         session = ChatSession(
             session_id, root.resolve(), data["pid"], str(data["branch"]), receipt
         )
@@ -1060,9 +1069,9 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
                 "coga/checkouts manually",
             )
     _, control_oid = _prove_control(cfg, "entry")
-    with git.state_lock(cfg):
+    with git.state_lock(cfg), chat_session_lock(cfg, root), _guard_is_held(lock) as held:
         data = _load_json(receipt)
-        if not isinstance(data, dict) or data.get("session") != session_id:
+        if not held or not isinstance(data, dict) or data.get("session") != session_id:
             raise CheckoutPreparationError("session", "the chat ended during preparation")
         reserved = data.get("reserved_oid")
         created = data.get("created_oid")
@@ -1146,6 +1155,7 @@ __all__ = [
     "TicketCheckoutPlan",
     "chat_notice",
     "chat_prepare_command",
+    "chat_session_lock",
     "clear_chat_session",
     "confirm_ticket_checkout",
     "enter_ticket_checkout",

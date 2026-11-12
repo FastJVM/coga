@@ -24,6 +24,14 @@ bypass a live session. A guard failure refuses rather than assuming the
 checkout is free. Agent subprocesses can still publish their ticket and log
 updates while it is held.
 
+The held lock and matching checkout/session receipt prove the chat is live.
+The recorded supervisor PID is diagnostic only: an agent in a separate PID
+namespace may not be able to see that process. Guard acquisition and receipt
+replacement are serialized with receipt readers across the whole checkout,
+including nested Coga roots, so a new chat cannot lend its guard to a stale
+receipt. Preparation rechecks the guard after refreshing control and before
+creating or switching branches. A receipt without a held guard never suffices.
+
 `--prompt-report`, delegated bootstrap sessions, other launch targets,
 Git-disabled and non-Git workspaces do not acquire this guard. It coordinates
 direct chats running this version, not older supervisors, other launch types,
