@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: c750910b-e9f7-4980-986a-272c400d8767
 ---
 
 ## Description
@@ -129,66 +128,97 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: fix-checkouts-attachment-claim-size-exceptions
 
-## Handoff (implement → peer-review)
+## Implementation
 
-Pushed `fix-checkouts-attachment-claim-size-exceptions` (2 commits on
-merge-base 6dc3745d0, current origin/main). Docs-only change:
+Claude implemented the two topic corrections and fixed the same stale claim
+in `code/open-pr`, as required by the knowledge sync rule. Size exceptions
+were chosen because detailed procedures already live in leaves and the
+remaining lifecycle/recovery contracts benefit from staying together.
 
-- Item 1 (ks-14): `coga/checkouts` "Stranded ticket writes" no longer says
-  `ticket.py`/attachments under `coga/tasks/` stay in the diff. It now says a
-  sweep on the feature checkout adopts their committed copies to control,
-  links `coga/state-publication#control-versus-feature-checkouts`
-  (Committed-state boundary, the owner), and routes those edits to the live
-  task in the primary checkout. Code basis: `git._publish_locked` sets
-  `adopt_only = git._routine_state_areas(cfg, root)` off control and
-  `git._candidates` adopts committed paths only within those areas.
-- Same stale claim was restated in `skills/code/open-pr/SKILL.md`
-  (dirty-clone recovery bullet, which links the section); fixed in the same
-  PR per AGENTS.md (owner and summarizing surface change together).
-- Item 2 (ca-03): chose a closing `Size exception:` sentence over a split for
-  `checkouts/SKILL.md` (now 213 lines, ~12.3 KB) and
-  `checkouts/launch-boundary/SKILL.md` (174 lines, ~11.2 KB). The procedures
-  already live in leaves; the remaining parent text is the lifecycle map, and
-  launch-boundary keeps recovery next to the conditions it re-proves.
-- Open PRs #1199 and #1197 touch `checkouts/SKILL.md` (and #1199
-  `launch-boundary/SKILL.md`); they were still open at implement time, so
-  whichever lands second needs a small rebase. My hunks are at the end of
-  each file.
-- Known, unrelated: full suite has 3 failures that reproduce identically on
-  origin/main 6dc3745d0, all from README.md linking the deleted ticket
-  `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`
-  (`test_packaging::test_context_navigation_has_no_broken_links` and both
-  `test_git::test_final_package_edits_never_escape_a_mutating_cli_sweep`
-  params, which run that check in a subprocess). Already recorded on
-  `decide-the-dream-scans-corpus-and-fix-the-known-co`; root cause tracked by
-  draft `make-retro-check-inbound-doc-links-before-deleting`.
+## Peer review
+
+Codex completed a direct, independent review of Claude's implementation.
+Reviewed final head `34117676a871257d4fd470c85ed3bd946b6ae334` against
+base `7fad5e7a250634d74c1d18ff4832166dcdb5e4ea`; no must-fix findings
+and no review fixes needed. Read all three changed files, the owning
+`coga/state-publication` committed-state boundary, `coga/knowledge` size
+policy, and `git._publish_locked`, `_candidates`, and `_routine_state_areas`.
+The existing committed-state regression covers the sibling `ticket.py` too.
+Both closing size-exception sentences satisfy the policy. No remaining stale
+claim was found in the searched live source, docs, skills, or tests; archives
+were excluded.
+
+Rebased both implementation commits onto fetched main before review and tests,
+then fetched again before publication: main remained at the reviewed base.
+Pushed the rebased branch with `--force-with-lease` and manually returned this
+checkout to clean `main` before writing this handoff. No PR exists yet; the
+next step runs the mechanical `coga open-pr` command.
+
+Full-suite receipt on the final head: `.venv/bin/python -m pytest -q -p
+no:cacheprovider` → 3 failed, 4763 passed, 33 skipped in 719.02s. Environment:
+Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic x86_64, Python 3.12.12.
+All three failures are the known README link to deleted ticket
+`document-the-remedy-for-a-bloated-blackboard-sibli`: navigation plus both
+`test_final_package_edits_never_escape_a_mutating_cli_sweep` parameters.
+Implement had reproduced them on main `6dc3745d0`; README, affected tests,
+and publication code are unchanged from that base to this reviewed base.
+Already tracked by `make-retro-check-inbound-doc-links-before-deleting`
+and recorded on `decide-the-dream-scans-corpus-and-fix-the-known-co`.
+`git diff --check origin/main...HEAD` passed. No new tests are warranted for
+these prose corrections. Terminal rendering and native Windows checks are
+inapplicable because no runtime, executable template, or platform behavior
+changed. Python 3.11 was not exercised; the receipt uses 3.12.12.
+Control-side handoff validation also passed with no issues:
+`coga validate --task fix-the-checkouts-topics-attachment-claim-and-add --json`
+on main `7fad5e7a250634d74c1d18ff4832166dcdb5e4ea`.
+
+PRs #1199 and #1197 remain open and edit these checkout topics; reconcile
+with whichever lands first. The failed suite requires a `deep` recommendation
+although this independent review found no defect in the current diff.
 
 ## PR
 
 ```yaml
 title: Correct checkouts attachment claim and add size exceptions
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under megalaunch; both commits authored in this session.
-head: 498ca088fa0930c6f7603ae5be467e1c5ce896b7
-base: 6dc3745d03f231e59591d9c18a74cead8338b882
+author_evidence: Implement handoff identifies Claude Code (claude-opus-5-5); both implementation commits carry Claude Opus 5.5 coauthor trailers. Codex performed the separate peer-review session.
+head: 34117676a871257d4fd470c85ed3bd946b6ae334
+base: 7fad5e7a250634d74c1d18ff4832166dcdb5e4ea
 depth: deep
-rationale: Docs-only wording change, but the full-suite receipt is failed (3 pre-existing main failures from a broken README link), which forces deep; reviewers only need to read the two changed paragraphs and two closing sentences.
-implementation: Replaces the stale stay-in-the-diff claim for ticket.py and task attachments in coga/checkouts and code/open-pr with the committed-state boundary link and routes those edits to the live task; appends Size exception sentences to checkouts and checkouts/launch-boundary.
-deviations: Also edits skills/code/open-pr/SKILL.md, which restated the same stale claim; the ticket named only the checkouts topic.
-limitations: Open PRs 1199 and 1197 edit the same checkouts files and will need a rebase against whichever merges second. Size exceptions chosen over a split.
+rationale: Bounded documentation correction with completed independent review and no must-fix findings; the full suite still has three existing broken-README-link failures, requiring deep.
+implementation: Corrects the ticket.py and task-attachment publication claim in coga/checkouts and code/open-pr, links the owning committed-state boundary, and adds closing Size exception sentences to checkouts and checkouts/launch-boundary.
+deviations: Also corrects skills/code/open-pr/SKILL.md because it restated the stale claim; the ticket named only the checkouts topics.
+limitations: PRs 1199 and 1197 remain open on the same topics and may require reconciliation when either merges. Size exceptions were chosen over splitting. No runtime or platform behavior changed, so terminal and native Windows checks are inapplicable; Python 3.11 was not exercised.
 files:
   src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Correct the attachment claim with a state-publication link and add the closing Size exception sentence.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Add the closing Size exception sentence required by coga/knowledge.
-  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Drop the same stale attachment claim from the dirty-clone recovery bullet.
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Correct the same stale attachment claim in dirty-clone recovery and retain the pointer to checkouts.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; independent peer review is the next workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 34117676a871257d4fd470c85ed3bd946b6ae334
+  base: 7fad5e7a250634d74c1d18ff4832166dcdb5e4ea
+  detail: Direct independent Codex review completed on the final rebased diff; checked all changed files against publication code and owning topics, with no must-fix findings. No fixes or commits followed review.
 checks:
+  - command: coga validate --task fix-the-checkouts-topics-attachment-claim-and-add --json
+    status: passed
+    head: 7fad5e7a250634d74c1d18ff4832166dcdb5e4ea
+    base: 7fad5e7a250634d74c1d18ff4832166dcdb5e4ea
+    detail: Control-side live-ticket validation returned ok_count 1 and no issues; this checks handoff structure, not feature code.
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 34117676a871257d4fd470c85ed3bd946b6ae334
+    base: 7fad5e7a250634d74c1d18ff4832166dcdb5e4ea
+    detail: 3 failed, 4763 passed, 33 skipped in 719.02s on Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic x86_64, Python 3.12.12. All failures trace to README linking deleted document-the-remedy-for-a-bloated-blackboard-sibli.md (navigation and both final-package-publication parameters). Implement reproduced these on main 6dc3745d0; relevant baseline files remain unchanged.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 34117676a871257d4fd470c85ed3bd946b6ae334
+    base: 7fad5e7a250634d74c1d18ff4832166dcdb5e4ea
+    detail: No whitespace errors in the final branch diff.
   - command: .venv/bin/python -m pytest -q -p no:cacheprovider
     status: failed
     head: 498ca088fa0930c6f7603ae5be467e1c5ce896b7
     base: 6dc3745d03f231e59591d9c18a74cead8338b882
-    detail: 3 failed, 4763 passed, 33 skipped in 688.32s (Linux x86_64, Python 3.12.12, pytest 9.1.1). All 3 reproduce unchanged on origin/main 6dc3745d0 (README link to deleted ticket document-the-remedy-for-a-bloated-blackboard-sibli.md); none touch the changed files.
+    detail: Historical implement receipt before rebase; 3 failed, 4763 passed, 33 skipped in 688.32s on Linux x86_64, Python 3.12.12. Same three failures reproduced on that main baseline. Superseded for current-head verification by the peer-review run above.
 ```
