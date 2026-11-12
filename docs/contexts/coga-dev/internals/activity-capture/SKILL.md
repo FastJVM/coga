@@ -115,6 +115,11 @@ in-window `user` line carrying the launch marker; otherwise usage is
 unknown. A discussion launch (`coga chat`, `coga ticket`) passes its prompt
 through `--append-system-prompt`, so the marker never reaches the transcript
 and that case stays unknown.
+Known open (2026-11-06, unfixed, no ticket filed): the Claude transcript root
+is hard-coded to `~/.claude/projects` (`usage._claude_project_dir` uses
+`Path.home()`) and ignores Claude Code's `CLAUDE_CONFIG_DIR`. A user with that
+override set gets every Claude session recorded `unknown` with no other
+diagnostic; it is unsupported until fixed, unlike `CODEX_HOME` below.
 
 **Provably empty.** When the pinned transcript itself exists, every nonblank
 line parses as JSON, and it has no in-window assistant usage, the record is
@@ -154,6 +159,19 @@ and is never a candidate, so a resumed Codex session stays unknown. `token_count
 last event is taken and never summed, which makes resume and compaction
 double-counting a non-issue. Mapping: `cached_input_tokens` → cache-read,
 reasoning folded into output, cache-create null (Codex exposes no split).
+
+**A missing Codex rollout can be legitimate.** Codex creates a thread, its
+rollout and a `~/.codex/history.jsonl` entry only once a turn is submitted. A
+launch that exits first — an argument-parse failure (`exit_code: 2` in under
+0.4s), a process that never initialised (no `logs_2.sqlite` rows), or,
+inferred from version boundaries, a human accepting Codex's startup update
+prompt and exiting — leaves no rollout, so `unknown` with
+`codex rollout not found for cwd` is the correct record, not a matcher miss
+(verified 2026-11-04). To tell it apart from a filter rejection without reading
+transcript content: parse only the first-line `session_meta` of every rollout
+under the root, match its timestamp or mtime against the session window
+±120s, attribute each hit to its launch by `session_id` in `coga/log.md`, and
+check `history.jsonl` for prompts submitted in the window.
 
 Ambiguity is never resolved by guessing: mis-attributing tokens is worse than
 an unknown row.
