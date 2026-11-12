@@ -10756,3 +10756,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1208 (skill-update-detached-head) ready for review: https://github.com/FastJVM/coga/pull/1208
 2026-11-11 22:02 v1 [correct-state-publication-internals-for-pending-pu] [human:nicktoper] created (status=draft)
 2026-11-11 22:02 v1 [fix-the-checkouts-topics-attachment-claim-and-add] [human:nicktoper] created (status=draft)
+2026-11-11 22:02 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [human:nicktoper] created (status=draft)
