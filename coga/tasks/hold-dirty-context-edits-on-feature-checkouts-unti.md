@@ -34,43 +34,93 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
 ---
 
 ## Description
 
-The end-of-command sweep (`sync_coga_state` in `src/coga/git.py`) publishes every dirty eligible file under the Coga roots to control, even when invoked from a feature checkout. With `[layout] contexts = "docs/contexts"`, an in-progress context edit on a feature branch lands on main before review. Observed 2026-11-11: commit 39e20683e "Sync coga state" carried an unreviewed `coga-dev/current-direction` paragraph from branch `add-code-agent-merge-workflow` describing a workflow that existed only in that branch's uncommitted files. coga/state-publication already documents this as the "pre-review publication hazard" and relies on the human committing first.
+The end-of-command sweep (`sync_coga_state` in `src/coga/git.py`) publishes every dirty eligible file under the Coga roots to control, even when invoked from a feature checkout. With `[layout] contexts = "docs/contexts"`, an in-progress context edit on a feature branch lands on main before review. Observed 2026-11-11: commit 39e20683e "Sync coga state" carried an unreviewed `coga-dev/current-direction` paragraph from branch `add-code-agent-merge-workflow` describing a workflow that existed only in that branch's uncommitted files. coga/state-publication documents this as the "pre-review publication hazard" and today relies on the human committing first.
 
-Proposal: on a feature or detached checkout, treat dirty contexts, skills, workflows, and shared config the way committed ones already are: they wait for merge. Keep publishing the runtime state that must land promptly (ticket, log, recurring blackboards, machine-written siblings).
+**Decision (owner, 2026-11-11, attended design session):** on a feature or detached checkout, dirty knowledge files — contexts, skills, workflows, shared config, recurring definitions — are **held for merge**, exactly as committed ones already are. Runtime state that must land promptly (tickets and everything else under the task directory, the log, recurring blackboards and machine-written siblings) keeps publishing. The change is **universal** (no `[git]`/`[layout]` policy key), and guided authoring gets **no exception**.
 
-This narrows a deliberate rule. Today instruction edits "land directly" with no separate knowledge PR (coga/state-publication "The Coga roots"), and guided authoring publishes them as one guarded transaction. The design must state why feature checkouts become the exception. It must also decide whether the change is universal or a per-repo policy (`[layout]`/`[git]`). The friction is sharpest in repos like this one, whose contexts live in `docs/contexts` and are updated "in the same PR" (AGENTS.md). Repos on the default `coga/contexts` may still want direct publication.
+Why feature checkouts become the exception to "instruction edits land directly" (coga/state-publication "The Coga roots"): that rule was decided for edits made where Coga state lives, on control. On a feature checkout a knowledge edit is presumptively part of the branch's reviewed work. A committed copy already waits for merge. Today's outcome turns on whether the author remembered to commit before the next sweeping command, and forgetting publishes unreviewed instructions that every later launch composes. Holding the dirty copy makes "dirty" and "committed" agree on feature checkouts. Direct publication stays available by making the edit on control. The cost: a repo on the default `coga/contexts` that edits knowledge on a feature branch and wants it to land directly now sees it held, and checkout return refuses until the file is committed on the branch or redone on control.
 
-### Design questions
+### Acceptance criteria
 
-- Which path classes keep publishing from a feature checkout, and which wait for merge.
-- **Checkout return.** coga/checkouts/launch-boundary "Preparation and return" step 1 sweeps every dirty file before switching to control. A held file left dirty either blocks `git switch` or travels onto control, where the next sweep publishes it anyway, so holding would only delay the hazard. Decide whether return refuses, requires a commit, or does something else. Direct chat's clean-checkout requirement before `prepare-checkout` (coga/checkouts/chat) has the same interaction.
-- **Recurring templates publish whole-template.** A runtime blackboard write makes the whole template directory publishable. Define what happens to a dirty definition or `ticket.py` beside a blackboard that keeps publishing.
-- How `coga run publish-state PATH` treats an explicitly named held file.
-- Whether guided authoring (`coga ticket`) on a feature checkout needs an exception.
-- How a held file is reported so it is never silently stranded.
+- [ ] On a feature checkout (symbolic HEAD ≠ configured control) or a detached HEAD, a sweep (`sync_coga_state`) with a dirty context (including a relocated contexts root), skill, workflow, `coga.toml`, or `context.md` leaves that file off control, while the ticket and log writes from the same command land in the same publication.
+- [ ] Under the recurring directory on such a checkout: a dirty exact state-only carrier `ticket.md`, a definition `ticket.md` whose region above the blackboard fence equals control's copy, and a `RUNTIME_STATE_FILES` sibling (`retires.md`) publish. A `ticket.py`, runbook, `jobs.toml`, a definition `ticket.md` whose above-fence region changed or that control lacks, and a deleted `ticket.md` are held.
+- [ ] A held definition `ticket.md` is held whole, including any blackboard change in the same file, and is reported.
+- [ ] Each publish call that holds files writes one stderr report naming every held path (repo-relative) with the remedy (commit it on this branch for review, or redo the edit on control). It writes the report once, not once per push retry, and also when nothing else publishes. A dirty held-class file whose bytes and mode already equal control is not reported.
+- [ ] A control checkout's publication is unchanged: dirty knowledge still lands directly.
+- [ ] `coga run publish-state PATH` naming a held file exits 1, stderr names the path as held for merge, and the task/log writes that came with it are not published, matching today's committed-file behavior. The no-path form exits 0 after publishing routine state and prints the held report.
+- [ ] Guided authoring (`coga ticket`) on a feature checkout that authored a held-class file refuses the whole transaction through its existing `require_paths` refusal: nothing publishes, edits stay on disk, the command exits non-zero, the sweep is withheld, and the message names the held file and the remedy.
+- [ ] Checkout return (and launch entry) from a feature checkout with a dirty held file refuses with exit 75 under the existing launch-boundary refusal contract. The refusal's blocking entry for that path says it is held for merge and gives the remedy. Chaining stops and the end sweep is withheld, as for any return refusal. A test proves the file was not published by the preceding step-1 sweep.
+- [ ] Direct chat: the pre-`prepare-checkout` clean-checkout requirement on control is unchanged. A chat that leaves a held file dirty on its `coga/chat-<id>` branch ends with the existing exit-75 return refusal naming that file.
+- [ ] Tests: `tests/test_git.py` (path classes, report, control unchanged, detached HEAD, recurring cases), `tests/test_publish_state.py` (named held file exits 1 with no accompanying publish; no-path form), `tests/test_checkouts.py` (return refusal names the held file, no publication), `tests/test_authoring.py` (authoring refusal). `python -m pytest` passes.
+- [ ] The same PR updates every surface listed under *Proposed shape → Docs*, and `coga validate --json` passes.
 
-### Done when
+### Proposed shape
 
-- A sweep from a feature checkout leaves a dirty context or skill off control, while the ticket and log writes from the same command still land.
-- Every held file is named on stderr (fail loud).
-- `coga run publish-state PATH` on a held file exits 1 and does not publish the task/log writes that came with it, matching today's committed-file behavior.
-- Checkout return and direct chat behave as the approved design specifies, with tests.
-- Tests cover these cases in `tests/test_git.py`, `tests/test_publish_state.py`, and `tests/test_checkouts.py` as appropriate.
-- The same PR updates every surface that states or cites the hazard: coga/state-publication ("The Coga roots", "When Coga publishes", "Control versus feature checkouts" including the "Pre-review publication hazard" paragraph, "Strict publication on demand"); coga/checkouts ("Start, work, end" and "Which checkout you invoke Coga from"); coga/checkouts/launch-boundary "Preparation and return" step 1; coga/checkouts/chat; and `code/self-qa/SKILL.md` "Gotchas". If the design chooses a per-repo policy, add it to the config docs too.
+**1. Classification (`src/coga/git.py`).** Add one predicate that decides whether a dirty path publishes from a non-control checkout, for example `_publishes_from_feature(cfg, root, base, rel) -> bool`:
+
+- `True` when `_in_areas(rel, _routine_state_areas(cfg, root))`, which covers the task directory (all files, including `tasks/recurring/` periods, attachments, and a task-directory `ticket.py`) and the log. Reuse it rather than restating those paths.
+- Under `recurring_dir(cfg)`, `True` for:
+  - a direct child `<name>/<f>` with `f` in `recurring_state.RUNTIME_STATE_FILES`;
+  - a direct child `<name>/ticket.md` whose working copy is an exact carrier (`recurring_state.carrier_problem(text) is None`);
+  - a direct child `<name>/ticket.md` whose working text above the first `BLACKBOARD_FENCE` line (CRLF-normalized, as `carrier_problem` does) equals the same region of `tree_bytes(root, base, rel)`. Both copies must exist and contain a fence.
+- `False` for everything else under the roots. Held paths are therefore defined as "under the roots and not routine", not as an enumerated list of knowledge directories. In the root layout this also holds ordinary source files on a feature branch.
+
+**2. Selection.** `_publish_locked` already computes `adopt_only` from `symbolic_head(root) == control`. On a non-control checkout it also builds the predicate above (bound to `cfg`, `root`, and the attempt's `base`). It passes the predicate to `_candidates`, which drops failing **dirty** paths from `_dirty_paths` before the symlink filter and returns them separately as `held`. Held paths are not exempted for being named explicitly in `pathspecs`; authoring passes explicit paths and must still be held. The committed-path branch keeps its `adopt_only` filter unchanged. Prepared and pending ticket rels are under the task directory and are unaffected.
+
+**3. Required-file refusal.** In `_publish_locked`'s `require_paths` loop, a required rel that is in `held` and differs from control (same `_tree_entry` comparison) raises `GitError` with a held-specific message, for example `"<rel>: held for merge on a feature checkout and differs from control; commit it on this branch for review, or redo the edit on <control>"`. Other exclusions keep the existing ignore-rules message. Raising before any tree is built is what gives publish-state and authoring their refuse-everything behavior. `publish_state._publish_state` and `authoring.finalize_authored` need no logic change beyond surfacing that text.
+
+**4. Reporting.** Report held paths that differ from the base's `_tree_entry` once per `publish()` call: from the first attempt in `_publish_locked`, or collected and written by `publish()`. Use stderr lines prefixed `[git] held for merge (<branch>|detached HEAD):`, then one remedy line. Do not append to `coga/log.md`; that write would itself publish. `coga status` already lists such files through `feature_sync_plan` (`manual`, "differs from control"/"not on control"). Verify that and leave it unchanged.
+
+**5. Checkout return annotation.** `_plan_preparation` already refuses a dirty roots file that is not on the pinned control (`_published_proof`). When HEAD is not control and a blocking rel fails the step-1 predicate, render its blocking reason as held for merge with the remedy instead of the bare proof text. Do not change the decision logic, only the reason text. The predicate's `base` here is the pinned commit.
+
+**6. Docs (same PR; package copies under `src/coga/resources/templates/coga/bootstrap/`).**
+- `contexts/coga/state-publication/SKILL.md`:
+  - "The Coga roots": direct landing applies from control; feature checkouts hold dirty knowledge.
+  - "When Coga publishes": the sweep bullet; the guided-authoring bullet gets the feature-checkout refusal; "Ordinary manual edits".
+  - "Control versus feature checkouts": replace the "Pre-review publication hazard" paragraph with the held-for-merge rule: path classes, the recurring whole-file rule, the report, and that return refuses. Keep a short heading or anchor so `code/self-qa` can cite it.
+  - "Strict publication on demand": a named held file refuses.
+- `contexts/coga/checkouts/SKILL.md`: "Start, work, end" step 2 ("left dirty, the sweep publishes it" becomes "is held and blocks return"); "Direct chat"; "Which checkout you invoke Coga from".
+- `contexts/coga/checkouts/launch-boundary/SKILL.md` "Preparation and return" step 1: on a feature checkout the sweep lands routine state only, and step 3 refuses held files with the held remedy.
+- `contexts/coga/checkouts/chat/SKILL.md` "Preparing the chat's branch": commit intended PR knowledge before the chat ends; dirty held files are not published and make return refuse.
+- `skills/code/self-qa/SKILL.md` "Gotchas": re-point the citation to the new anchor and wording.
+- `docs/contexts/coga-dev/internals/state-publication/SKILL.md`: add this owner decision (2026-11-11) beside the 2026-10-07 one, and describe the predicate.
+- Grep for remaining restatements before finishing: "land directly", "sweep publishes", "Pre-review publication hazard", "publication hazard". Also check `coga/checkouts/manual`. No config docs, since there is no policy key.
+
+**Order of work:** the predicate and its unit tests, then selection/required/report in `_publish_locked` with `test_git.py` cases, then publish-state and authoring tests, then the return annotation and `test_checkouts.py`, then docs.
+
+### Out of scope
+
+- A per-repo `[git]`/`[layout]` policy key (owner chose universal).
+- Changing the committed-state boundary (`adopt_only`). For example, committed recurring blackboards still wait for merge.
+- Any change on a control checkout.
+- Moving held edits automatically: no stash, auto-commit, or transplant to control.
+- New `coga status` output, beyond verifying the existing `feature_sync_plan` report covers held files.
+- Writing held-file notices to `coga/log.md`.
+- Splitting guided authoring's transaction, or giving it a bypass.
 
 ## Context
 
 ### Key facts and sources
 
-- Direct publication of instruction edits is intentional today: coga/state-publication "The Coga roots" and "When Coga publishes" (guided authoring). On a feature checkout, only *committed* changes are held, by the `adopt_only` filter (`_routine_state_areas`, set in `_publish_locked`). Dirty files come from `_dirty_paths` in `_candidates` and are never filtered. See "Control versus feature checkouts".
-- Checkout return sweeps dirty files before switching: coga/checkouts/launch-boundary "Preparation and return".
-- Packaged sources live under `src/coga/resources/templates/coga/bootstrap/contexts/coga/` (state-publication, checkouts, checkouts/launch-boundary, checkouts/chat) and `.../skills/code/self-qa/`.
+- Direct publication of instruction edits is an owner decision of 2026-10-07 (`docs/contexts/coga-dev/internals/state-publication/SKILL.md`; user contract in coga/state-publication#the-coga-roots and #when-coga-publishes). This ticket narrows it for non-control checkouts only.
+- `src/coga/git.py`:
+  - `_publish_locked` sets `adopt_only = None if symbolic_head(root) == control else _routine_state_areas(cfg, root)` and passes it to `_candidates`, which applies it only to the committed `base..HEAD` diff. Dirty paths from `_dirty_paths` are never filtered today; that is the bug.
+  - `_routine_state_areas` returns the task-directory prefix and the log path.
+  - `_publish_locked`'s `required` loop raises `GitError("…required file is excluded from publication…")` before any tree is built. That refusal is the mechanism publish-state and authoring rely on.
+- Callers that pass `require_paths`:
+  - `publish_state._publish_state` passes `coga_root_paths(cfg)` as paths and the named files as `require_paths`.
+  - `authoring.finalize_authored` passes the exact changed files as both paths and `require_paths`. A `GitError` there becomes `AuthoringError` (edits kept, sweep withheld).
+- Checkout return/entry: `prepare_control_checkout` → `_plan_preparation`. For each status entry under `_state_areas`, `_published_proof` must show the file is already on the pinned control, or the path is added to `blocking` and the result is `refused` ("uncommitted changes would be lost…"). A held file can therefore never ride a switch onto `main`. Only the reason text changes.
+- Recurring files: `src/coga/recurring_state.py`. `STATE_MARKER`, `CARRIER_PREFIX`, and `carrier_problem()` define the exact state-only carrier. `RUNTIME_STATE_FILES = {"retires.md"}` is the recognized runtime sibling set, and anything else in a parent directory is definition material. In this repo every `coga/recurring/<name>/ticket.md` is a carrier. `coga/recurring/jobs.toml` is job-enablement config (`recurring.JOBS_FILE`).
+- `taskfile.BLACKBOARD_FENCE` is the fence line. `taskfile.split_body` splits a parsed body; the predicate compares raw text above the fence, frontmatter included.
+- `feature_sync_plan` / `_feature_sync_obstacle` (`git.py`, used by `views.py`) already report feature-checkout dirty roots files that differ from control under `coga status`.
+- Packaged doc sources: `src/coga/resources/templates/coga/bootstrap/contexts/coga/{state-publication,checkouts,checkouts/launch-boundary,checkouts/chat}/SKILL.md` and `.../skills/code/self-qa/SKILL.md`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -159,6 +209,23 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design step (2026-11-11)
+
+Spec written under `## Description` (Acceptance criteria / Proposed shape / Out of scope) and `## Context`. The owner was present and decided:
+- **Universal**, no policy key. Dirty knowledge on a feature or detached checkout is held, the same as committed knowledge.
+- **Guided authoring gets no exception.** Its existing `require_paths` refusal rejects the whole transaction.
+
+Findings that shaped the design:
+- Checkout return needs no new decision logic. `_plan_preparation` already refuses any dirty roots file not on pinned control, so a held file can't ride a switch onto main. Only the refusal reason text gains a held-for-merge remedy.
+- publish-state and authoring get exit-1, nothing-published behavior for free from the `required` loop in `_publish_locked` once `_candidates` drops held dirty paths, provided explicit pathspecs are not exempt from the hold.
+- Recurring dir: classify per file. Carrier, blackboard-only change to a definition `ticket.md` (above-fence region equals control's), or `RUNTIME_STATE_FILES` publishes. Everything else is held whole.
+
+## Open Questions
+
+1. **Definition `ticket.md` blackboard-only writes from a feature checkout.** The spec publishes them when the above-fence region equals control's. Recurring runs normally execute on control or the temporary control worktree, so this case is rare. The simpler alternative holds every non-carrier `ticket.md` on a feature checkout. Proposed: keep the comparison. It is a few lines and avoids a spurious return refusal.
+2. **No log line for held files.** The spec reports on stderr only, because a log write on a feature checkout would itself publish, and `coga status` already lists the files. Confirm stderr plus status plus return refusal is enough to satisfy "never silently stranded".
+3. **Root layout.** With "held = under the roots and not routine", a repo whose Coga root is the checkout also stops publishing dirty source files from feature branches. That looks like a strict improvement, but it is a visible change for root-layout repos. Confirm.
 
 ## Evaluator review
 
