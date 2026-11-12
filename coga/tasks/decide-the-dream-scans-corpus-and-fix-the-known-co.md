@@ -123,3 +123,25 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/decide-the-dream-scans-corpus
+
+## Decision
+
+Include package `bootstrap/skills/**` in both Dream scans; delete the
+template's "Known corpus limitation" paragraph (the losing side). Reasons:
+- The owner already decided it: the 2026-10-14 monthly-audit request (see
+  commit 5c2caadca, ticket body) says Dream "should also lift the known
+  corpus limitation that both scans exclude bootstrap/skills/**".
+- The dream template's own Phase-scan step 2 says "In the Coga source repo
+  apply no exclusion", and scan-protocol Rule B says "In the Coga source repo
+  every Coga-owned file is in the corpus" — the paragraph contradicts both.
+- After the package-definition cutover there is no live copy of packaged
+  skills, so excluding them leaves ~300 KB of shipped skills with no scan.
+- The paragraph's "knowledge scan owns tickets and coga/workflows/**" is also
+  stale: the knowledge-scan skill adds package contexts/skills/workflows and
+  recurring/** in coga-source runs.
+Cost: ~303 KB of packaged skill Markdown ≈ 2 more 150 KB shards per scan,
+within existing shard mechanics.
