@@ -7663,8 +7663,11 @@ def test_checkout_diagnostics_use_pinned_control_and_literal_rename_paths(git_re
     git_repo.git("push", "upstream", "trunk")
     from dataclasses import replace
     cfg = replace(load_config(git_repo.coga_os), git_remote="upstream", git_control_branch="trunk")
-    old = "coga/old [ab].md"
-    new = "coga/new [ab] '$draft'.md"
+    # Task-directory attachments: routine state that publishes from a feature
+    # checkout (knowledge there would be held for merge).
+    old = "coga/tasks/old [ab].txt"
+    new = "coga/tasks/new [ab] '$draft'.txt"
+    (git_repo.root / old).parent.mkdir(parents=True, exist_ok=True)
     (git_repo.root / old).write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("--literal-pathspecs", "add", "--", old)
     git_repo.git("commit", "-m", "seed")

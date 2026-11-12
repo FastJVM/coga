@@ -23,8 +23,10 @@ withholds the final sweep, preserving the session's edits. Each time it:
    lands any dirty file under the Coga roots — tickets, log, recurring
    templates, contexts, skills, workflows, config — that the session or
    script did not publish, plus eligible committed state such as a hand
-   commit on local `main` whose control copy has not moved since. Only what
-   publication cannot land stays unpublished. Working state can land while
+   commit on local `main` whose control copy has not moved since. On a
+   feature checkout it lands routine state only; other files are
+   [held for merge](../../state-publication/SKILL.md#held-for-merge-on-feature-checkouts)
+   and reported. Only what publication cannot land stays unpublished. Working state can land while
    a distinct staged version keeps the checkout dirty; control publication
    preserves that index before staging any selected landed files
    ([state publication](../../state-publication/SKILL.md#control-versus-feature-checkouts)).
@@ -52,7 +54,9 @@ withholds the final sweep, preserving the session's edits. Each time it:
    A staged copy must equal HEAD's or the published one. Deletions and both
    sides of a rename count separately. Symlinks, submodules, and mode
    changes refuse even with equal bytes. Ignored files are never candidates;
-   one the move would overwrite refuses.
+   one the move would overwrite refuses. Off control, a file step 1 held for
+   merge is named as held, with the remedy: commit it on the branch for
+   review, or redo the edit on control.
 4. **Mutates only after full proof.** The whole plan is re-observed just
    before the first write; changed evidence refuses. Then proven tracked
    paths are restored to HEAD, proven untracked files removed, HEAD switched

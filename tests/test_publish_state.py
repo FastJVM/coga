@@ -312,6 +312,52 @@ def test_publish_state_refusal_does_not_sweep_state_without_required_recurring(
 
 
 @pytest.mark.parametrize("detached", [False, True])
+def test_publish_state_refuses_a_named_dirty_file_held_for_merge(git_repo, detached) -> None:
+    """A dirty context on a feature checkout is held like a committed one:
+    naming it refuses the whole call, including the task and log writes."""
+    from coga.logfile import append_log, log_path
+
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    if detached:
+        git_repo.git("checkout", "--detach")
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("pending review\n", encoding="utf-8", newline="\n")
+    task = git_repo.coga_os / "tasks" / "demo.md"
+    task.write_text(_RESTRICTED_TICKET, encoding="utf-8", newline="\n")
+    append_log(cfg, "demo", "agent:claude", "pending handoff")
+    paths = (context, task, log_path(cfg))
+    before = [path.read_bytes() for path in paths]
+    control = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    result = _publish_cli(*(str(path) for path in paths))
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "coga/contexts/team/SKILL.md: held for merge" in result.stderr
+    assert "commit it on this branch for review, or redo the edit on 'main'" in result.stderr
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == control
+    assert [path.read_bytes() for path in paths] == before
+
+
+def test_publish_state_without_paths_publishes_routine_state_and_reports_held(git_repo) -> None:
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("pending review\n", encoding="utf-8", newline="\n")
+    task = git_repo.coga_os / "tasks" / "demo.md"
+    task.write_text(_RESTRICTED_TICKET, encoding="utf-8", newline="\n")
+
+    result = _publish_cli()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "[git] held for merge (feature/x): coga/contexts/team/SKILL.md" in result.stderr
+    assert git_repo.origin_tracks("coga/tasks/demo.md")
+    assert not git_repo.origin_tracks("coga/contexts/team/SKILL.md")
+
+
+@pytest.mark.parametrize("detached", [False, True])
 def test_publish_state_accepts_committed_recurring_already_identical_to_control(git_repo, detached):
     template = git_repo.coga_os / "recurring" / "weekly" / "ticket.py"
     template.parent.mkdir(parents=True)

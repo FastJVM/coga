@@ -77,9 +77,12 @@ the merge ("untracked working tree files would be overwritten"). Prefer merge
 over rebase for a branch that is already pushed, so it needs no force-push.
 
 When `coga status` instead lists files that differ, are staged, have another
-mode, or are deleted, do not use the command. Publish the differing state
-first (`coga run publish-state`), then check again. Otherwise reconcile those
-files by hand as in [Preserve both sides](#preserve-both-sides).
+mode, or are deleted, do not use the command. Publish differing routine state
+(tickets, the log) first (`coga run publish-state`), then check again. A file
+[held for merge](../../state-publication/SKILL.md#held-for-merge-on-feature-checkouts)
+cannot be published from the branch: commit it on the branch for review, or
+redo it on control. Otherwise reconcile those files by hand as in
+[Preserve both sides](#preserve-both-sides).
 
 ## Verify and escalate
 

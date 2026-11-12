@@ -56,6 +56,34 @@ instruction edits land directly, and Git history is the record and the
 correction mechanism. The user contract is
 [coga/state-publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md).
 
+Owner decision (2026-11-11): that direct landing applies from a control
+checkout. On a feature or detached checkout, dirty knowledge is held for
+merge exactly as committed knowledge already was, universally (no policy key)
+and with no guided-authoring exception. The decision followed an unreviewed
+`coga-dev/current-direction` paragraph that a feature branch's uncommitted
+files had swept onto control; whether an edit waited for review had turned
+on whether its author remembered to commit first. The accepted cost is that
+a knowledge edit made on a branch can only land by merge or by redoing it on
+control, and checkout return refuses until it is committed.
+`git._publishes_from_feature(cfg, root, base, rel)` is the one predicate.
+It is true for `_routine_state_areas` (the task directory and log) and,
+directly under `recurring_dir(cfg)/<name>/`, for a `RUNTIME_STATE_FILES`
+sibling, an exact carrier `ticket.md` where `base` has none or has a carrier
+(`recurring_state.carrier_problem`), or a `ticket.md` whose CRLF-normalized
+text above the first `BLACKBOARD_FENCE` line equals `base`'s. It is false for
+everything else. `_publish_locked` binds it to each attempt's control base
+when HEAD is not control. `_candidates` drops failing dirty paths into
+`held`, even when named explicitly. The `require_paths` loop raises a
+held-specific `GitError` for a held required file that differs from control,
+which gives `publish-state` and authoring their refuse-everything result.
+Each attempt collects held paths whose `_tree_entry` differs from its base;
+`publish` writes one stderr report when it returns or raises. A recurring
+file can first become held after a rejected push refetches a changed control
+definition, so limiting collection to the first attempt would miss it.
+`_plan_preparation` evaluates the same
+predicate against the pinned commit, but only to word a blocking entry as
+held. Its decision logic is unchanged.
+
 ## The end-of-command sweep
 
 `cli.main` calls `_sweep_coga_state` after a command returns or raises, except
@@ -97,7 +125,8 @@ checkout return. The sweep:
   unignored path there (new, modified, deleted, or renamed) plus eligible
   committed state (a hand commit whose control copy has not moved since;
   only task-directory state and the log on a feature or detached checkout,
-  through `_routine_state_areas`), so a clean checkout can still
+  through `_routine_state_areas`). On a feature or detached checkout dirty
+  paths pass `_publishes_from_feature` or are held (above), so a clean checkout can still
   publish; clean state behind control is never republished, and a committed
   path whose control copy moved beyond its provenance stays unselected until
   the operator rebases. Overlapping roots are one pathspec, so nothing is

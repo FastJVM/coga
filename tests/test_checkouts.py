@@ -1629,6 +1629,28 @@ def test_chat_publishes_routine_state_before_preparing_reviewed_work(
     assert _control(git_repo, context.relative_to(git_repo.root).as_posix()) == "Routine knowledge.\n"
 
 
+def test_chat_leaving_held_knowledge_dirty_ends_with_the_return_refusal(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context_rel = context.relative_to(git_repo.root).as_posix()
+    branch: list[str] = []
+
+    def chat(seen: dict) -> None:
+        session = launch_module._CHAT_SESSION.get()
+        assert _run_recipe(git_repo, "--session", session.session).exit_code == 0
+        branch.append(_head(git_repo))
+        context.parent.mkdir(parents=True)
+        context.write_text("Uncommitted reviewed knowledge.\n", encoding="utf-8", newline="\n")
+
+    launch_env(_Agent(git_repo, [chat]))
+    assert _main(monkeypatch, "chat") == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert _head(git_repo) == branch[0]
+    assert not git_repo.origin_tracks(context_rel)
+    assert f"{context_rel} (held for merge on {branch[0]!r}" in capsys.readouterr().err
+
+
 def test_failed_state_publication_does_not_prepare_a_chat_branch(git_repo, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     cfg = load_config(git_repo.coga_os)
     with launch_module._orientation_checkout_guard(cfg):
@@ -1891,6 +1913,40 @@ def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
     assert _launch(ref.id_slug).exit_code == 0
     assert relaunch.seen[0]["step"] == "1 (implement)"
     assert (clone / "staged.py").read_text(encoding="utf-8") == "staged\n"
+
+
+def test_return_refuses_a_held_context_without_publishing_it(
+    git_repo, launch_env
+) -> None:  # type: ignore[no-untyped-def]
+    """Owner decision 2026-11-11: a context left dirty on the feature checkout
+    is held for merge. The step-1 sweep lands only the ticket handoff, and
+    return refuses, naming the held file and its remedy."""
+    ref = _task(git_repo, "code/with-self-review")
+    rel = _rel(git_repo, ref)
+    context = load_config(git_repo.coga_os).contexts_root / "team" / "SKILL.md"
+    context_rel = context.relative_to(git_repo.root).as_posix()
+
+    def edit_knowledge(seen: dict) -> None:
+        context.parent.mkdir(parents=True)
+        context.write_text("branch knowledge\n", encoding="utf-8", newline="\n")
+        _handoff(git_repo, ref, "context drafted")
+
+    agent = _Agent(git_repo, [edit_knowledge])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    branch = agent.seen[0]["head"]
+    assert _head(git_repo) == branch
+    assert len(agent.seen) == 1
+    assert "context drafted" in _control(git_repo, rel)
+    assert context_rel not in git_repo.git("ls-tree", "-r", "--name-only", "main", cwd=git_repo.origin)
+    output = result.output + (result.stderr or "")
+    assert (
+        f"{context_rel} (held for merge on {branch!r}: not on control; commit it "
+        "on this branch for review, or redo the edit on 'main')"
+    ) in output
+    assert context.read_text(encoding="utf-8") == "branch knowledge\n"
 
 
 # --- review regressions (PR #1068) ----------------------------------------------
