@@ -14,7 +14,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 agent: claude
 contexts:
 - coga-dev/principles
@@ -266,6 +266,18 @@ Only planning state and the open-row ownership pointer changed. No production
 code, child status/step/workflow, configuration or manually edited log is part
 of this refresh. Owner acceptance of the proposal does not advance child gates;
 use each child's existing lifecycle/launch when the scope is accepted.
+
+## Owner decision — 2026-11-12
+
+The owner accepted the refresh as proposed ("yes to all"):
+
+- the child scope map and the proposed execution order in the group README
+- the new `05-make-packaged-behavior-discoverable-and-editable` draft
+- the bounded core exceptions with their named reasons
+- the full-local-fork maintenance tradeoff
+
+Acceptance does not activate or advance any child; each proceeds through its
+own lifecycle/launch.
 
 ## Verification
 
