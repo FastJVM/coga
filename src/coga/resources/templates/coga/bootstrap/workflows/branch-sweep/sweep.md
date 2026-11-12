@@ -10,8 +10,12 @@ steps:
 
 ## sweep
 
-Script-backed recurring task. `coga launch` runs the period task's reserved
-`ticket.py`, which calls `coga.branchsweep.sweep_branches`: prune missing-worktree
+Kept for compatibility: the packaged `branch-sweep` template is `scope: clone`
+and names no workflow, so its runs create no period task and never enter this
+lifecycle ([coga/recurring/scheduling](context:coga/recurring/scheduling) owns
+scope). This step serves only a period task from a pre-clone-scope definition.
+There `coga launch` runs the reserved `ticket.py`, which runs the `branch-sweep`
+recipe (`coga.branchsweep.sweep_branches`) and bumps the task: prune missing-worktree
 registrations, enumerate local/remote branches and live worktrees, skip the
 configured control branch, the checked-out branch, the shared skill-update
 branch, and any branch a
@@ -22,8 +26,12 @@ live worktree preserves both refs and reports `skipped-worktree-pinned`;
 incomplete worktree state fails the sweep. Every deletion first passes the
 retirement-tag publication gate in
 [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep). A failed archive keeps
-the refs and worktree and makes the recipe fail with a recorded reason. The
-run's report lands on this period task's blackboard.
+the refs and worktree and makes the recipe fail with a recorded reason. Such a
+legacy run's report lands on the period task's blackboard; a clone-scoped run
+keeps it in the clone's `.coga/recurring-clone/branch-sweep.log` and the run
+record. The full sweep, including the clone-owned `retires.md` settlement, is
+owned by the `coga/branch-sweep/sweep` skill and
+the `recurring/branch-sweep` template.
 
 ## No other-agent code review
 
