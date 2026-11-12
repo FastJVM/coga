@@ -417,6 +417,11 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-48-give-coga-build-tickets-a-self-review-work-5d47f4
+
+
 ## Evaluator review
 
 **Resolved 2026-11-11 (owner review-design, ad-hoc chat):** both must-fix
