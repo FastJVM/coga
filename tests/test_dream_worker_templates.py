@@ -760,3 +760,11 @@ def test_retro_hands_pr_fyis_to_the_caller() -> None:
 
     assert "**Hand PR FYIs to the caller.** Do not run `coga slack` here" in retro
     assert "hand each PR's one-line Slack FYI to the caller (step 12)" in retro
+
+
+def test_dream_phase4_defers_inbound_reference_rule_to_retro() -> None:
+    norm = " ".join(DREAM_PROMPT.read_text(encoding="utf-8").split())
+
+    assert "Retro also searches tracked files for durable references" in norm
+    assert "leaves in the run's reference-pin PR, not by direct delete" in norm
+    assert "The skill's **Inbound references** section owns the rule." in norm

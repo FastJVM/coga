@@ -132,9 +132,32 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
     # The forbidden moves: marker-only PR, and any PR for a no-knowledge ticket.
     assert "open a marker-only PR" in text
     assert "no `## Pruned` bookkeeping" in text
-    assert "open any\n  PR at all for a no-durable-knowledge ticket" in text
+    assert "open any\n  PR for a no-durable-knowledge ticket other than the run's reference-pin PR" in text
 
     # The old bundled-deletion machinery is gone.
     assert "delete-only prune PR" not in text
     assert "folded into a knowledge PR" not in text
     assert "no-new-durable-knowledge" not in text
+
+
+def test_retro_repoints_inbound_references_before_deleting() -> None:
+    text = RETRO_SKILL.read_text(encoding="utf-8")
+    norm = " ".join(text.split())
+
+    # A durable link to a deleted ticket must not land on the control branch.
+    assert "### Inbound references" in text
+    assert "git grep -n -F -e '<tasks-root>/<slug>'" in text
+    assert "':!<tasks-root>' ':!<coga-os>/log.md'" in text
+    assert "commit permalink of the fresh control-branch tip" in norm
+    assert "Never add a new live-tree link to a source task you are deleting" in norm
+    assert "land a deletion that leaves a live-tree reference to the deleted task" in norm
+
+    # Knowledge-bearing sources repoint in their knowledge PR; referenced
+    # no-knowledge sources leave in one reference-pin PR, not by direct delete.
+    assert "Repointed files do not count toward the per-PR knowledge-file limit" in norm
+    assert "it does not take the direct delete" in norm
+    assert "one reference-pin PR" in norm
+    assert "`codex/retro-pin-references`" in text
+    assert "pr <theme | pin-references>" in text
+    assert "- Repointed references:" in text
+    assert "Re-run the inbound-reference search against each branch" in norm

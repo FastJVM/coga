@@ -64,7 +64,9 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
    ordinary `coga delete {slug}` from an independent clone. Both land the
    direct `Ticket: {slug} — deleted` commit on the remote control branch
    without refreshing the operator's checkout, with no PR and no marker.
-   Recovery is via `git restore`.
+   The exception is a ticket that some tracked file still links. It leaves in
+   a reference-pin PR that repoints the link to a commit permalink (the skill's
+   **Inbound references**). Recovery is via `git restore`.
 
    After the subagent returns or terminates, read `progress.md`. Without its
    `complete` line, record a partial outcome and retain the run directory and
