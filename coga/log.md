@@ -10759,3 +10759,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 22:02 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [human:nicktoper] created (status=draft)
 2026-11-11 22:02 v1 [replace-activity-capture-s-union-safe-description] [human:nicktoper] created (status=draft)
 2026-11-11 22:02 v1 [remove-the-fixed-uninstall-hint-hazard-from-the-go] [human:nicktoper] created (status=draft)
+2026-11-11 22:02 v1 [update-the-testing-topic-s-stale-helper-reference] [human:nicktoper] created (status=draft)
