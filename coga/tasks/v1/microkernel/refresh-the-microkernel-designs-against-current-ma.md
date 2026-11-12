@@ -21,6 +21,8 @@ step: 1 (agent-produces)
 
 The microkernel tickets were parked on 2026-10-27 and pulled back into v1 on 2026-11-12 because hackability is a base promise of the open-source 1.0: a contributor (Zach) got lost trying to change the peer-review behavior. Their designs and inventories are stale (launch.py is now 4,577 lines; launch-decomposition still cites 3,782). Run the _v2/README premise check on every ticket in v1/microkernel/ against current main, refresh each design's inventory and proposed boundary, flag what already shipped or no longer applies, and propose the execution order and which ticket owns the workflow-declared checkout policy. The owner decides the refreshed scope before any child implementation resumes.
 
+Judge every design against the group's three objectives in `v1/microkernel/README.md` ("Objectives"): hackable without touching the package, as much behavior as possible in the ticket, and simplification along the way. For each child, state which objective it advances and drop or defer work that advances none.
+
 ## Context
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.

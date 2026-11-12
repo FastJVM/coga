@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-10-27.
+Last updated: 2026-11-12.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -22,16 +22,20 @@ is `coga status` and the ticket bodies; stage posture is
   Retro runs while the operator keeps working in the main tree. Revisit if
   those worktrees leak or become operator-visible noise. Contract:
   [`coga/checkouts`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md).
-- **V1 prioritizes first users; architectural cleanup is parked (2026-10-27).**
+- **V1 ships for first users and ships hackable (2026-10-27, amended 2026-11-12).**
   The owner requires easy installation and working first-task paths on macOS
   and native Windows, a finished README with matching user documentation, and
   the existing release and PostHog evidence. Usage reporting and commit/log
   work remain in scope. The [numbered execution queue](../../../../coga/tasks/v1/README.md)
-  owns the retained tickets and order. Microkernel cleanup, its hackability
-  demo, further context restructuring, and Dream fixes are parked under
-  `coga/tasks/_v2/`. This supersedes the October 16 requirement to empty the
-  open-command-placements table before v1. The kernel boundary itself remains
-  unchanged; [`coga-dev/microkernel`](../microkernel/SKILL.md) owns it.
+  owns the retained tickets and order. On 2026-11-12 the owner pulled the
+  microkernel cleanup and the recurring-recipes refactor back into v1
+  (`coga/tasks/v1/microkernel/`), reversing their 2026-10-27 deferral:
+  hackability is a base promise of the open-source release, and a contributor
+  could not customize the peer-review step without finding a package-only
+  workflow and a hidden core checkout table. The open-command-placements table
+  must be empty before v1 again. Its hackability demo, further context
+  restructuring, and Dream fixes stay parked under `coga/tasks/_v2/`. The
+  kernel boundary itself is unchanged; [`coga-dev/microkernel`](../microkernel/SKILL.md) owns it.
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the

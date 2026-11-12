@@ -7,8 +7,9 @@ validates, or scans anything here. `ls` and git are the way to browse it.
 
 The owner retained the [numbered v1 queue](../v1/README.md) for first users,
 including usage reports and commit/log work, and deferred the tickets below.
-Microkernel cleanup, its demo, further context cleanup, and Dream fixes are
-not v1 release gates. Existing designs, attachments, and lifecycle fields are
+Its demo, further context cleanup, and Dream fixes are not v1 release gates.
+The microkernel cleanup and the recurring-recipes refactor were pulled back into
+`v1/microkernel/` on 2026-11-12. Existing designs, attachments, and lifecycle fields are
 preserved as parked history; the pull-forward rules below still apply.
 
 - [Add a failed terminal status](add-a-failed-terminal-status.md)
@@ -24,7 +25,6 @@ preserved as parked history; the pull-forward rules below still apply.
 - [Dream runs a full documentation consistency audit once a month](dream-runs-a-full-documentation-consistency-audit.md)
 - [Dream's own blackboard trips large-blackboard every run](dream-s-own-blackboard-trips-large-blackboard-ever.md)
 - [Drop bundled-skill twin rows from the skill-update report](drop-bundled-skill-twin-rows-from-the-skill-update.md)
-- [Gigantic refactor: move recurring recipes out of core](gigantic-refactor-move-recurring-recipes-out-of-co.md)
 - [in init add a telemetry true message](in-init-add-a-telemetry-true-message.md)
 - [Checkout exclusivity lock](launch-locks/checkout-exclusivity-lock/ticket.md)
 - [Ticket ownership lock](launch-locks/ticket-ownership-lock/ticket.md)
@@ -35,12 +35,6 @@ preserved as parked history; the pull-forward rules below still apply.
 - [Recruit first users](marketing/recruit-first-users.md)
 - [Put into words why I would keep using Coga](marketing/why-i-would-keep-using-coga.md)
 - [Match Dream report headings only in the blackboard](match-dream-report-headings-only-in-the-blackboard.md)
-- [Decompose launch into substrate plus ticket orchestration](microkernel/launch-decomposition.md)
-- [Move lifecycle verbs to ticket operations](microkernel/lifecycle-verbs-to-ticket-operations.md)
-- [Classify read and report commands under the small-core rule](microkernel/read-report-commands-as-ticket-workflows.md)
-- [Classify residual command surfaces](microkernel/residual-command-surfaces.md)
-- [Classify support commands under the small-core rule](microkernel/support-commands-boundary.md)
-- [Move work orchestration commands to tickets](microkernel/work-orchestration-commands-to-tickets.md)
 - [Move the non-executable-script validate contract into a shipped user topic](move-the-non-executable-script-validate-contract-i.md)
 - [Name unlaunched created periods when the recurring sweep stops early](name-unlaunched-created-periods-when-the-recurring.md)
 - [Name where ticket checkout reservation receipts live in git-refresh](name-where-ticket-checkout-reservation-receipts-li.md)

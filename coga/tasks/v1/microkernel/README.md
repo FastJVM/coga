@@ -1,19 +1,44 @@
 # Microkernel
 
-Parked group for the microkernel cleanup: settling the permanent home
-of every in-package command head that has no ratified kernel justification.
-Pull a child ticket forward only after the owner's decision and the v2 premise check.
+V1 group for the microkernel cleanup: settling the permanent home
+of every in-package command head that has no ratified kernel justification,
+so that Coga is hackable and extensible at the edge.
 
 ## Status
 
-Deferred to v2 by the owner on 2026-10-27, together with the hackability demo.
-This supersedes the October 16 v1 requirement; the current decision is recorded
-in `coga-dev/current-direction`. These designs must be refreshed before reuse.
+Pulled back into v1 by the owner on 2026-11-12: hackability is a base promise
+of the open-source 1.0, and a contributor got lost customizing the peer-review
+step (the bundled workflow lived only in the package, and the hidden
+`checkout_policy.py` table silently dropped a customized step to manual
+checkout). The whole group gates `v1/43`: the "Open command placements" table
+in `coga-dev/microkernel` must be empty before publication. This supersedes the
+2026-10-27 deferral; the decision is recorded in `coga-dev/current-direction`.
+
+The designs below are stale. `refresh-the-microkernel-designs-against-current-ma`
+runs the premise check and refreshes every design first; no child
+implementation resumes before the owner accepts that refresh.
 
 At the October 16 pull-forward, each draft was
 premise-checked against `main` @ `5d72ffe6e` with the `_v2/README.md`
 procedure, reusing Dream 2026-W39 findings F46-F49 and F53 and the W40
 correction to F49; each ticket's blackboard records its own outcome.
+
+## Objectives (owner, 2026-11-12)
+
+1. **Hackable.** A user can change any shipped behavior without touching the
+   package: copy the owning file into their repo, edit it, and everything else
+   keeps working. One command tells them where that file lives. First
+   acceptance test: starting from a fresh repo, make the peer-review step work
+   with a single agent without help (the case a contributor got stuck on).
+2. **As much as possible in the ticket.** Behavior lives with the ticket that
+   uses it (its body, workflow, skills, and `ticket.py`) rather than in core,
+   so extending Coga means editing a ticket and the kernel surface needed to
+   run it shrinks.
+3. **Simplify on the way.** Each move deletes duplicated mechanics, redundant
+   wrappers, and obsolete paths (see "Reduction objective"); relocation alone
+   is not the goal.
+
+These objectives decide scope: work that advances none of them waits.
 
 ## The boundary
 
@@ -29,7 +54,7 @@ This parked group's completion criterion is an empty "Open command placements" t
 (command ticket, `ticket.py`, `src/coga_edge/`, alias) or carries a written
 co-versioning proof.
 
-It is not a v1 release prerequisite.
+It is a v1 release prerequisite (owner decision 2026-11-12).
 
 ## Reduction objective
 
@@ -70,6 +95,11 @@ for the proposed change and leaves implementation to its reviewed follow-up.
 
 ## Child tickets and order
 
+0. `v1/microkernel/refresh-the-microkernel-designs-against-current-ma` —
+   premise-check and refresh every design below; goes first.
+0. `v1/microkernel/declare-each-workflow-step-s-checkout-policy-in-th` —
+   move step checkout policy from `checkout_policy.py` into workflow files.
+   Independent of the command heads; may run in parallel with the refresh.
 1. `v1/microkernel/launch-decomposition` — split
    `src/coga/commands/launch.py` into executor substrate plus caller policy.
    Goes first: the others need a stable executor API. Paused at the owner's
@@ -92,10 +122,10 @@ Tickets 3-6 can run in parallel once 1 lands.
 ## Related work
 
 - `v1/microkernel/gigantic-refactor-move-recurring-recipes-out-of-co` (in progress) moves
-  single-ticket recurring jobs out of `runner.RECIPES`. It owns the recipe
-  registry; these tickets own command heads. Neither edits the other's
+  single-ticket recurring jobs out of `runner.RECIPES`; part of this group since
+  2026-11-12. It owns the recipe registry; the tickets above own command heads. Neither edits the other's
   surface.
-- `_v2/marketing/demo-hackability-ask-claude-to-add-a-command-live` depends on
+- `_v2/marketing/demo-hackability-ask-claude-to-add-a-command-live` (still parked) depends on
   this set: the demo shows a new command landing entirely at the edge.
 
 ## History
@@ -108,3 +138,5 @@ Tickets 3-6 can run in parallel once 1 lands.
 - 2026-10-16: pulled forward into v1 and renamed from `cleanup-core-commands/`
   to `microkernel/`; older log lines and tickets use the old slugs.
 - 2026-10-27: parked under `v1/microkernel/` to focus v1 on first users.
+- 2026-11-12: pulled back into v1 as `v1/microkernel/` with the recurring-recipes
+  refactor; the whole group gates the 1.0.

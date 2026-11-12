@@ -9,7 +9,8 @@ for current status.
 The release must work on macOS and native Windows, install easily, and have a
 finished README with matching user documentation. Linux verification remains
 in the existing clean-install matrix. Usage reporting and commit/log work
-remain in v1. Microkernel work, its hackability demo, further context cleanup,
+remain in v1. Since 2026-11-12 the [microkernel group](microkernel/README.md)
+is also in v1, so Coga ships hackable. Its hackability demo, further context cleanup,
 Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 
 ## Execution order
@@ -70,6 +71,8 @@ Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 | 48 | [Give coga build tickets a self-review workflow in one-agent repos](48-give-coga-build-tickets-a-self-review-workflow-in.md) |
 | 49 | [Make coga's built-in commands agent-agnostic](49-make-coga-s-built-in-commands-agent-agnostic.md) |
 | 50 | [Make adding a third agent one registry edit](50-make-adding-a-third-agent-one-registry-edit.md) |
+| | **Hackability: microkernel** (pulled back 2026-11-12; land before 43) |
+| 51 | [Microkernel group](microkernel/README.md): refresh the designs first, declare checkout policy in workflow files, move recurring recipes out of core, then settle every open command placement |
 
 ## Dependencies and release evidence
 
@@ -84,7 +87,9 @@ Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 - 38 and 39 must preserve the audit consumers documented in their designs;
   finish usage accounting before accepting log retention.
 - 40 fixes the proof prerequisites; 41 supplies the live PostHog evidence.
-- 43 is the final product-delivery step: completed v1 fixes, macOS/native Windows
+- 51 must leave the `coga-dev/microkernel` "Open command placements" table
+  empty before 43.
+- 43 is the final product-delivery step: completed v1 fixes, the microkernel group, macOS/native Windows
   first-task evidence, README/docs acceptance, release tests, and PostHog proof
   precede publication. Verify the public 1.0 artifact afterwards. The public
   launch is no longer a v1 step (parked in `_v2/marketing/build-the-launch-plan`,
