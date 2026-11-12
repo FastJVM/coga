@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 4e8120b9-82c0-4db7-aeaa-d94576c6c71e
 ---
 
 ## Description
@@ -155,28 +154,64 @@ reason. Related follow-up:
 ticket fixes the retro process. The broken README link itself still needs a
 fix.
 
+## Peer review
+
+Codex completed a direct, independent review of Claude's implementation;
+no must-fix findings. Reviewed final head
+`2871620edb8a57c77246923d208a0eb7e43cae0d` against base
+`df560206b664e107852ef583ebe5dfa5cd00dfb2` after rebasing onto current main.
+The only diff is the opening paragraph of `coga/workflows`. Confirmed the
+wording against `update.FRESH_SCAFFOLDS`, init's `copy_fresh_templates` call,
+the template ignore rules, `paths.resolve_workflow_path`, the bundled
+`direct/body` definition, and `coga/init`. No runtime or rendered interface
+changed, so no interactive surface check applies.
+
+Full suite on the final head: 4763 passed, 33 skipped, 3 failed in 720.77s.
+The failures are exactly the pre-existing broken README link and the two
+publication-sweep cases that execute that navigation test. Confirmed the
+link is still in current main's README and its target is absent from main.
+No new failures. Linux Pop!_OS 24.04 LTS, Python 3.12.12; this is not a
+Python 3.11 receipt. No native Windows receipt is required for this prose-only
+correction, which changes no packaging or install behavior.
+
+Final fetch confirmed main remained at the reviewed base. Rebased branch
+pushed with `--force-with-lease`; checkout returned cleanly to main before
+writing this handoff. PR #1197 remains open and edits the same topic; preserve
+both changes if it lands first. PR preparation uses `deep` because failed
+checks require that recommendation even when the failures predate this diff.
+
 ## PR
 
 ```yaml
 title: Correct coga/workflows claim that init seeds workflows
-author: claude (Claude Code, claude-opus-5-5)
-head: 42bcd1729944f15127a444e1ff069b6b3b312e0d
-base: 8ab0f010ede0c723d5b3eed20870be9318f45fd2
-review_depth: light
-review_depth_rationale: one-paragraph documentation correction in a shipped topic, verified against update.FRESH_SCAFFOLDS; no behavior change
-implementation: Replaced the sentence claiming coga init seeds workflows (including direct/body) with the package-resolution fact and the init template-only copy.
-deviations: none
-limitations: Overlaps PR #1197's edits to the same file; a rebase may be needed after #1197 merges.
+author: claude
+author_evidence: Implement handoff identifies Claude Code (claude-opus-5-5); implementation commit credits Claude Opus 5.5.
+head: 2871620edb8a57c77246923d208a0eb7e43cae0d
+base: df560206b664e107852ef583ebe5dfa5cd00dfb2
+depth: deep
+rationale: One-paragraph documentation correction with completed independent review and no findings, but the required full suite has three pre-existing failures, so failed-check policy requires deep.
+implementation: Explains that shipped workflows including direct/body resolve from the package and init copies only the ignored workflow authoring starter.
+deviations: None.
+limitations: PR 1197 remains open and edits the same topic. The full suite is not green because main's README links to a deleted ticket. Verification used Python 3.12.12, not 3.11.
 files:
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: corrected the stale claim about init seeding workflows
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Correct the stale opening-paragraph claim about init seeding workflows.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 2871620edb8a57c77246923d208a0eb7e43cae0d
+  base: df560206b664e107852ef583ebe5dfa5cd00dfb2
+  detail: Direct review completed after rebase with no must-fix findings; checked init scaffolds, ignore rules, local-first package resolution, bundled direct/body, and the owning init topic. Claude implemented; Codex reviewed.
 checks:
-  - command: .venv/bin/python -m pytest -q
-    tree: d8a7a7eaf (pre-rebase; the rebase onto 8ab0f010e changed only this ticket file under coga/tasks, and the source tree is identical)
-    result: 3 failed, 4763 passed, 33 skipped
-    failures: test_packaging::test_context_navigation_has_no_broken_links plus two test_git sweep cases that run it in a subprocess; pre-existing README link to a deleted ticket, also present on origin/main
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_git.py
-    tree: 42bcd1729
-    result: 3 failed, 389 passed, 1 skipped (same three pre-existing failures)
-review: not yet run; peer-review is the next workflow step
+  - command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q
+    status: failed
+    head: 2871620edb8a57c77246923d208a0eb7e43cae0d
+    base: df560206b664e107852ef583ebe5dfa5cd00dfb2
+    detail: '4763 passed, 33 skipped, 3 failed in 720.77s; Linux Pop!_OS 24.04 LTS, Python 3.12.12. Failures: test_context_navigation_has_no_broken_links and both test_final_package_edits_never_escape_a_mutating_cli_sweep cases. All trace to main README linking to deleted coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md, matching implementation baseline.'
+  - command: git diff --check origin/main...fix-workflows-topic-init-claim
+    status: passed
+    head: 2871620edb8a57c77246923d208a0eb7e43cae0d
+    base: df560206b664e107852ef583ebe5dfa5cd00dfb2
+    detail: No whitespace errors.
 ```
 
