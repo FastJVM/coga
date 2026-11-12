@@ -1,6 +1,6 @@
 # Coga
 
-**Build better. Go deeper. With your agents.**
+**Build with your agents. Hack your system.**
 
 Claude Code and Codex can plan, investigate, and implement tasks. But a software project outlives any agent session. Assumptions change, and a discovery in one task can overturn the next. Important constraints get buried in conversations and working notes—even when those records are saved. Finding and re-explaining them to each new agent takes work.
 
