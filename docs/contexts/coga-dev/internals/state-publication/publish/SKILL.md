@@ -10,7 +10,7 @@ Part of [coga-dev/internals/state-publication](../SKILL.md).
 ## `publish` and its wrappers
 
 `git.publish(cfg, paths, message, *, expect=None, guard=None,
-fast_forward=True, require_paths=(), log_mutation=None)` returns `True` (pushed), `False` (control already held
+fast_forward=True, require_paths=(), log_mutation=None, remember=False)` returns `True` (pushed), `False` (control already held
 the tree), or `None` (soft-skipped). Soft-skips write one stderr line and
 nothing else: `[git].enabled = false`, not a git repo, git unavailable, or the
 control branch missing locally and on the remote
@@ -61,7 +61,12 @@ control branch missing locally and on the remote
    the write stays dirty.
 
 Wrappers: `sync_task_state(cfg, task_path, *, message, expect=None,
-strict=False, command=None)` publishes one task plus the log; `sync_log(cfg, *, message)`
+strict=False, command=None, prepared=None)` publishes one task plus the log;
+with a fresh `PreparedTicket`, its control bytes become the ticket's `expect`
+and the publish runs with `remember=True`, so a retryable failure or refusal
+records that expectation in
+`.coga/pending-publication.json` for the session-teardown retry and sweep to
+reuse ([remembered expectations](../../git-regressions/SKILL.md)); `sync_log(cfg, *, message)`
 publishes the log alone with `require_paths` naming that log (stateless launches,
 usage records). It preserves `publish`'s `True`/`False` distinction for newly
 published versus already-held state and returns `None` on a reported failure

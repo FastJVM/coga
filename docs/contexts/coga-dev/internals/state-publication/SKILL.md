@@ -162,9 +162,14 @@ boundary is identical with or without launch metadata, on control and
 feature checkouts.
 
 Cancellation has two later publication opportunities. `commands.mark.canceled`
-publishes the transition, then emits the done sentinel before the child CLI's
-exit sweep. The PTY supervisor can interrupt that sweep; its `done` outcome
-is a teardown cause, not proof of child CLI completion
+publishes the transition and requests the done sentinel, but `cli.main` runs
+dispatch and its end-of-command boundary inside
+`repl_supervisor.deferred_done_marker`: the sentinel is written only after the
+child CLI's `_sweep_coga_state` and `_warn_unpublished_log_lines` return, and
+the live `<sentinel>.pending-<pid>` file keeps the terminal-ticket backstop
+from tearing the session down meanwhile. Coga's own teardown therefore does
+not interrupt that sweep; an external kill still can, and the supervisor's
+`done` outcome is a teardown cause, not proof of child CLI completion
 ([agent spawn](../agent-spawn/SKILL.md#the-supervisor)). After teardown and log
 publication, `commands.ticket._run_authoring_session` still finalizes the
 interview, and the outer `cli.main` reaches its own sweep. A finalizer refusal
@@ -175,7 +180,9 @@ and that earlier publication is not rolled back.
 
 `tests/test_ticket.py`'s cancellation regression and its
 `tests/fixtures/authoring_cancellation.py` stub gate sentinel observation on
-the child sweep boundary (or completed child exit). They assert the outer
+the child sweep boundary (or completed child exit). The interrupted variant
+models an external kill by releasing the held marker early from inside the
+child sweep, since the deferred marker would otherwise wait for it. They assert the outer
 exit, remote bytes, retained files, and recovery diagnostics, including a
 local remote that rejects the sibling handoff. Interrupting only the child
 sweep is insufficient to explain a missing handoff when the outer sweep
@@ -200,7 +207,11 @@ A publication failure inside an agent's sandbox (no network, read-only
 launch` runs outside the sandbox and retries at checkout return and in its
 exit sweep, when its own access permits; a refused return withholds that
 sweep and leaves [strict recovery](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#recovering-a-failed-publication)
-to the operator. There is deliberately no deferred-publication state. A
+to the operator. There is deliberately no deferred-publication queue: no
+background job or later session replays a failed write on its own. The one
+retained record, `.coga/pending-publication.json`, only pins a prepared
+lifecycle publish's expectation for the next ordinary publish of that path
+([remembered expectations](../git-regressions/SKILL.md)). A
 hand commit of retained state on control realigns when it is state-only and
 otherwise refuses with the rebase remedy (`tests/test_git.py`, the
 realignment block). Diagnose recurring `[git] sync failed` lines from the
