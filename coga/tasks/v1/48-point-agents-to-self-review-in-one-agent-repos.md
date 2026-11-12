@@ -1,6 +1,6 @@
 ---
-title: 48 Point agents to self-review in one-agent repos
-status: draft
+title: Point agents to self-review in one-agent repos
+status: active
 owner: zach
 workflow:
   name: code/with-review
@@ -24,13 +24,50 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
 
+Coga ships three workflows with `other-agent` steps: `code/with-review`,
+`code/design-then-implement`, and `docs/with-review`. In a repo where no peer
+agent resolves (one declared agent, or three or more with no `peer =`) those
+steps can never run. One-agent repos are now the norm on single-agent machines
+(v1/20), yet `coga build` hands every starter implementation ticket
+`code/design-then-implement` and Dream files `code/with-review` drafts.
 
+We need a simple prose change so the agent picking a workflow first checks
+`[agents.*]` in `coga/coga.toml` (and `coga.local.toml`). If only one agent is
+configured, or three or more with no `peer =` on the main agent, it uses
+`code/with-self-review` instead. With exactly two agents no `peer =` is needed,
+so a missing `peer =` alone is not the signal. The change should be a few lines.
 
-## Context
+### Prose to add
+
+Add this section near the top of each peer workflow's body, verbatim:
+
+```markdown
+## Before choosing this workflow
+
+This workflow needs a second agent to review the code. Check `[agents.*]` in
+`coga/coga.toml` and `coga.local.toml`. If only one agent is configured — or
+three or more with no `peer =` on the main agent — use `code/with-self-review`
+instead.
+```
+
+### Acceptance criteria
+
+- `src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md`
+  and `.../workflows/code/design-then-implement.md` carry the section above.
+- `src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md`,
+  where it tells the build agent to create implementation tickets with
+  `--workflow code/design-then-implement`, adds one clause: in a one-agent repo
+  (as defined above), use `code/with-self-review` instead.
+- `src/coga/resources/templates/coga/recurring/dream/ticket.md` adds the same
+  clause wherever it files `code/with-review` drafts.
+- Out of scope: `docs/with-review` (there is no docs self-review workflow to
+  point to), and any Python or `coga create` behavior change. Prose only.
+- `python -m pytest` and `coga validate` pass.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
