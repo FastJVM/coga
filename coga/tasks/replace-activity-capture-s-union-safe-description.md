@@ -126,6 +126,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1221
 branch: replace-activity-capture-s-union-safe-description
 
 ## Handoff (implement)
