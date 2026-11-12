@@ -79,6 +79,7 @@ src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKIL
 src/coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py
+src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/review-design/SKILL.md
@@ -108,6 +109,7 @@ src/coga/resources/templates/coga/bootstrap/workflows/blocker-reminders/run.md
 src/coga/resources/templates/coga/bootstrap/workflows/branch-sweep/sweep.md
 src/coga/resources/templates/coga/bootstrap/workflows/brief-for-human.md
 src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md
+src/coga/resources/templates/coga/bootstrap/workflows/code/agent-merge.md
 src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md
 src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md
 src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md

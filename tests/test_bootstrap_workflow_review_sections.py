@@ -22,9 +22,14 @@ CHECKOUT_BEARING_WORKFLOWS = (
 
 # Packaged workflows with an `other-agent` peer-review step.
 PEER_REVIEW_WORKFLOWS = (
+    "code/agent-merge.md",
     "code/with-review.md",
     "docs/with-review.md",
 )
+
+
+AGENT_MERGE = BOOTSTRAP_WORKFLOWS / "code/agent-merge.md"
+MERGE_PR_SKILL = TEMPLATES / "bootstrap/skills/code/merge-pr/SKILL.md"
 
 
 def _review_section(name: str) -> str:
@@ -99,3 +104,41 @@ def test_every_workflow_has_other_agent_review_or_says_why_not(path: Path) -> No
     # The rationale lives in a real H2 that names no step, so it is framing
     # only and never composes into a launched prompt.
     assert "\n## No other-agent code review\n" in path.read_text(encoding="utf-8")
+
+
+def test_agent_merge_mirrors_with_review_except_the_final_step() -> None:
+    merge = Workflow.load(AGENT_MERGE)
+    review = Workflow.load(BOOTSTRAP_WORKFLOWS / "code/with-review.md")
+
+    assert merge.steps[:-1] == review.steps[:-1]
+    final = merge.steps[-1]
+    assert (final.name, final.assignee, final.skills) == (
+        "merge", "agent", ("code/merge-pr",)
+    )
+    assert all(step.assignee != "owner" for step in merge.steps)
+
+
+def test_agent_merge_section_names_coga_retire_as_the_closing_act() -> None:
+    text = AGENT_MERGE.read_text(encoding="utf-8")
+    merge = " ".join(text.split("\n## merge\n", 1)[1].split())
+
+    # A bump close disposes of nothing, so the branch outlives `done`.
+    assert "`done` is not the end of the ticket" in merge
+    assert "`coga retire <slug>`" in merge
+    assert "`bootstrap/retire/ticket.md`" in merge
+    assert "`autoclose-merged`" in merge
+
+
+def test_merge_pr_skill_refuses_instead_of_forcing() -> None:
+    text = " ".join(MERGE_PR_SKILL.read_text(encoding="utf-8").split())
+
+    # The merge is pinned to the reviewed, verified head and never bypasses
+    # protection or defers to a scheduled merge.
+    assert "--match-head-commit <verified-head>" in text
+    assert "never pass `--admin`" in text
+    assert "Do not pass `--auto` or `--delete-branch`" in text
+    assert "viewerDefaultMergeMethod" in text
+    assert "escalate per your launch mode" in text
+    assert "`coga bump <slug>" in text
+    # A shared step skill refers to the preceding steps by skill, not name.
+    assert "`peer-review` step" not in text

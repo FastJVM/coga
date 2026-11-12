@@ -37,8 +37,19 @@ class CheckoutPolicy:
     step: str | None = None
 
 
-_CODE = ("code/design-then-implement", "code/with-review", "code/with-self-review")
-_ALL = (*_CODE, "docs/with-review")
+_CODE = (
+    "code/agent-merge",
+    "code/design-then-implement",
+    "code/with-review",
+    "code/with-self-review",
+)
+# Workflows whose final step is the owner-held PR `review`.
+_OWNER_REVIEWED = (
+    "code/design-then-implement",
+    "code/with-review",
+    "code/with-self-review",
+    "docs/with-review",
+)
 _INLINE: tuple[str, ...] = ()
 
 # (workflow, step) -> (accepted step-skill shapes, entry policy). An empty
@@ -51,25 +62,30 @@ _ROWS: dict[tuple[str, str], tuple[tuple[tuple[str, ...], ...], CheckoutPolicyKi
     ("code/design-then-implement", "review-design"): ((_INLINE,), "control"),
     **{(wf, "implement"): ((("code/implement",),), "create-or-reuse") for wf in _CODE},
     ("docs/with-review", "implement"): ((_INLINE,), "create-or-reuse"),
+    **{
+        (wf, "peer-review"): ((("code/peer-review",),), "reuse-required")
+        for wf in ("code/agent-merge", "code/design-then-implement")
+    },
     # Older `code/with-review` snapshots carry empty skills and consume the
     # live inline `## peer-review`, which points at the same skill.
-    ("code/design-then-implement", "peer-review"): (
-        (("code/peer-review",),), "reuse-required"
-    ),
     ("code/with-review", "peer-review"): (
         (("code/peer-review",), _INLINE), "reuse-required"
     ),
     ("docs/with-review", "peer-review"): ((_INLINE,), "reuse-required"),
     ("code/with-self-review", "self-qa"): ((("code/self-qa",),), "reuse-required"),
-    ("code/design-then-implement", "open-pr"): ((("code/open-pr",),), "control"),
-    ("code/with-review", "open-pr"): ((("code/open-pr",),), "control"),
+    **{
+        (wf, "open-pr"): ((("code/open-pr",),), "control")
+        for wf in ("code/agent-merge", "code/design-then-implement", "code/with-review")
+    },
     ("docs/with-review", "open-pr"): ((_INLINE,), "control"),
     ("code/with-self-review", "pr"): ((("code/open-pr",),), "control"),
+    # The agent merge re-runs verification at the reviewed head before merging.
+    ("code/agent-merge", "merge"): ((("code/merge-pr",),), "reuse-required"),
     # Owner-held PR review, reached only through an explicit assist. Older
     # frozen snapshots carry empty skills and consume the live `## review`.
     **{
         (wf, "review"): ((("code/address-pr-comments",), _INLINE), "reuse-required")
-        for wf in _ALL
+        for wf in _OWNER_REVIEWED
     },
 }
 

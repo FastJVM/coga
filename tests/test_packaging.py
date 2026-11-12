@@ -98,6 +98,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "design-then-implement.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-self-review.md",
+    "coga/resources/templates/coga/bootstrap/workflows/code/"
+    "agent-merge.md",
     "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "with-review.md",
     # …and the code/* skills those workflows reference.
@@ -109,6 +111,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py",
+    "coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
