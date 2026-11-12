@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -420,6 +420,92 @@ ordinary ticket.
 ## Dev
 
 branch: coga/v1-48-give-coga-build-tickets-a-self-review-work-5d47f4
+
+## Implement handoff (2026-11-11)
+
+Implemented the spec as written (Proposed shape items 1–9) in one commit,
+`4f4adf45a` on the branch above, rebased on main `8ab0f010e` and pushed.
+
+- `bump.py`: `PeerAgentUnresolvable(OperatorResolutionError)` (main,
+  candidates, ambiguous; `str(exc)` unchanged), `peer_refusal_text()`,
+  `unresolvable_peer_refusal()` (every step, effective role, resolve once).
+- `create.py`: peer check right after workflow load/skill check; the step-1
+  resolve stays but every `mkdir` now runs after it (no residue, retryable).
+  New `select_workflow()`. `commands/create.py`: `--fallback-workflow`
+  (exit 2 without `--workflow`); substitution line echoed only after
+  `create_task` succeeds.
+- `mark.py`: `PeerWorkflowUnavailable(WorkflowError)` raised in
+  `_assert_operator_resolves` (whole frozen workflow) before the
+  current-step resolve, so `prepare_active` refuses on every activation path.
+  `commands/mark.active`, `launch._prepare_auto_activate`,
+  `launch._prospective_assist_ticket` catch it before `WorkflowError`.
+- `recurring_autofix.autofix_workflow()` now calls `select_workflow`.
+- Prose: onboarding, Dream, bootstrap/ticket, first-task, workflows,
+  with-self-review, design-then-implement (peer-review note), and
+  coga-dev/codebase/gotchas.
+- Decision: activation's peer check runs before the current-step
+  `resolve_operator`, so even a step-1 `other-agent` shows the short refusal;
+  the existing `test_mark_active_refuses_an_unresolvable_step_one_role`
+  assertion was updated to the new text.
+- Not done (optional per spec): end-to-end no-write tests for megalaunch,
+  recurring runner, `coga unblock`; only the subclass relation is pinned.
+- Open question (interviewer deterministic check) unchanged: prose only.
+
+Pre-existing failures, reproduced identically on an `origin/main` worktree
+(not caused by this change; not fixed here):
+`test_config.py::test_layout_contexts_cyclic_root_rejected`,
+`test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`,
+`test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+(both params), `test_packaging.py::test_context_navigation_has_no_broken_links`
+(README links the missing ticket
+`coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`).
+
+## PR
+
+```yaml
+title: Refuse peer workflows without a peer before writing; add --fallback-workflow
+author: claude
+author_evidence: Implement session ran in Claude Code on Claude Opus 5.5 (claude-opus-5-5); see implement handoff.
+head: 4f4adf45ab3c42cefd9e643cb106b7b414301297
+base: 8ab0f010ede0c723d5b3eed20870be9318f45fd2
+depth: deep
+rationale: Changes create and activation refusal ordering and adds a CLI option across create, mark, launch and recurring paths; no code review has run yet.
+implementation: Typed peer-resolution failure and a whole-workflow peer check shared by create (before any mkdir) and prepare_active (before any write); create --fallback-workflow and select_workflow, also used by recurring autofix; short refusal text in mark active and launch; shipped prose steers coga build, Dream and the ticket interviewer to code/with-self-review when no peer resolves.
+deviations: None from the spec. Activation checks peers before the current-step resolve, so a step-1 other-agent refusal now uses the short text (one existing test assertion updated).
+limitations: Megalaunch, recurring runner and coga unblock rely on PeerWorkflowUnavailable subclassing WorkflowError; no end-to-end no-write tests for them. Five full-suite failures exist identically on main. Windows VM behavior walk is the owner's.
+files:
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Note that create_task and prepare_active check peer resolution before writing.
+  src/coga/bump.py: PeerAgentUnresolvable, peer_refusal_text and unresolvable_peer_refusal.
+  src/coga/commands/create.py: --fallback-workflow option, usage error, post-success substitution line.
+  src/coga/commands/mark.py: Short refusal for PeerWorkflowUnavailable in mark active.
+  src/coga/create.py: Pre-write peer check, mkdir moved after all refusals, select_workflow.
+  src/coga/launch.py: Short launch refusal for PeerWorkflowUnavailable on auto-activate and assist paths.
+  src/coga/mark.py: PeerWorkflowUnavailable and whole-workflow peer check in activation.
+  src/coga/recurring_autofix.py: autofix_workflow uses the shared selector.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Lead with code/with-self-review; peer review needs two agents.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Document the pre-write refusal and --fallback-workflow.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md: Interviewer avoids other-agent workflows when no peer resolves.
+  src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md: Starter implementation drafts pass --fallback-workflow code/with-self-review.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Peer-review note describes the create/activation refusal.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Mention refusal and the build/Dream fallback.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Dream code drafts pass --fallback-workflow code/with-self-review.
+  tests/test_bootstrap_ticket_skill_template.py: Pin interviewer peer guidance.
+  tests/test_bootstrap_workflow_review_sections.py: Pin fallback flag on build and Dream code-draft commands.
+  tests/test_create.py: Create refusal and fallback across all agent shapes, no-residue directory retry, step-1 ordering, select_workflow.
+  tests/test_launch.py: Launch refusal before writing on grouped and non-grouped paths.
+  tests/test_mark.py: Byte-identical mark active refusal (bare ref and late frozen step), subclass check, updated step-1 assertion.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; the workflow's peer-review step has not run yet. Design approval is not code review.
+checks:
+  - command: python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 4f4adf45ab3c42cefd9e643cb106b7b414301297
+    base: 8ab0f010ede0c723d5b3eed20870be9318f45fd2
+    detail: "5 failed, 4794 passed, 33 skipped in 426s; Linux 6.18.33.2-microsoft-standard-WSL2 (WSL2), Python 3.14.4, 2026-11-12T07:01Z. All 5 failures reproduce identically on origin/main 8ab0f010e (see handoff); none touch this change."
+```
 
 
 ## Evaluator review
