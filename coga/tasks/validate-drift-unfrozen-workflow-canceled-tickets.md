@@ -15,9 +15,8 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 agent: claude
-launch_generation: ed0c48f3-8352-4562-9c19-7a1ec8b34965
 ---
 
 ## Description
@@ -119,3 +118,26 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Brief (step 1, 2026-11-12)
+
+**Goal:** empty the `unfrozen-workflow` class in `coga validate --json` by retiring the canceled tickets that never got a frozen workflow. The other way to close is to record an accepted-warning decision in a context.
+
+**Live members (re-checked this step; same 7 as the Dream run):** all are `status: canceled`, and none has a `## Dev` branch, worktree, or PR, so retire has no checkout or branch to dispose of.
+- fix-git-sync-failure (code/with-self-review)
+- implement-the-include-allowlist-that-url-skill-upd (code/with-review)
+- parse-agents-rejects-cogalocaltoml (code/with-review)
+- stop-creating-linked-worktrees-for-coga-retire (code/design-then-implement)
+- ticket-sync-fails-with-read-only-git-inside-agent (code/with-review)
+- v1/42-idea-piece (draft-for-human)
+- v1/pr-are-only-when-ready-for-review (docs/with-review)
+
+**Steps for the human:**
+1. Optional: read each ticket's cancellation reason and blackboard. Decide whether anything should be kept as a fresh ticket rather than retired.
+2. For each slug, run `coga retire <slug>`. Each run creates and launches a one-shot Retro task (`retro/done-ticket`). To queue all 7 and run them later through megalaunch, add `--no-launch`.
+3. Each Retro either opens a PR (knowledge edit plus source-task deletion) or deletes the task directly with `coga delete`. Review and merge any Retro PRs.
+4. Bump this ticket to verify-read-only.
+
+**Irreversible action:** deleting the source tickets. Retro deletes them directly or through its PR. You can recover them with `git restore` or from history, but their cancellation context then lives only in git history and in whatever Retro extracted.
+
+**Done check:** `coga validate --json` reports no `kind: unfrozen-workflow` entries, and the 7 task files are gone from `coga/tasks/` on main. If any are kept on purpose, record the tag line `validate-drift: unfrozen-workflow`, the decision, the rationale, and the scope in a context before closing.
