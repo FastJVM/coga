@@ -24,9 +24,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 95e0dd3e-b848-44b9-85b9-d300fe11ec3c
 ---
 
 ## Description
@@ -170,21 +169,82 @@ two `test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
 cases fail because they run that test in a subprocess. README is identical on
 origin/main, so the failure is on main as well. No follow-up ticket exists yet.
 
+## Peer review
+
+Direct independent review **completed** by Codex of Claude's implementation,
+after the unconditional fetch/rebase. Reviewed head
+`f345dda7c20bcc4401779a06c49d22c5a5f87220`, base
+`c9af0740896b518fcf320c555fc121faededd769`. No must-fix findings; no review
+fixes or nested reviewer were needed.
+
+- Checked both signature additions, fresh prepared-ticket expectations,
+  pending/rejected persistence and retry/sweep reuse against `git.py` and
+  the owning git-regressions topic. Checked marker ordering and the live-PID
+  backstop against `cli.main`, `commands.mark.canceled`,
+  `repl_supervisor`, and the synchronized cancellation fixture and tests.
+- PR #1199 remains open, but its control ticket records completed peer review
+  on `e4e72af3dd542e079798354b40407bce44f0dbff`; the requested review
+  prerequisite is satisfied. Its overlapping publication-selection work is
+  separate from these corrections; whichever branch merges second must
+  reconcile the two topics.
+- Full Linux suite on the reviewed head: **4763 passed, 33 skipped, 3 failed
+  in 764.05s**. Every failure is the existing README link to the deleted
+  `document-the-remedy-for-a-bloated-blackboard-sibli.md` ticket: navigation
+  directly, plus both package-publication tests' nested navigation runs.
+  README is identical to main and deletion commit `61388855a` precedes this
+  branch. No unrelated fix was added. Exact receipt below.
+- Docs-only diff: no terminal surface or platform behavior changed, so native
+  Windows and manual terminal checks are inapplicable. Python used was 3.12.12;
+  no Python 3.11 receipt is claimed.
+- The fetch immediately after the suite matched the reviewed base. A later
+  handoff fetch reached `107f69c6c4bb7af1ab9605f842320e60fddf13cd`, changing
+  only another ticket and the log; neither reviewed topics nor executable
+  files changed. Preserved and byte-verified this handoff in
+  `/tmp/coga-state-publication-peer-review-ticket-9779674d.md`, fast-forwarded
+  main, and restored it. The review and test receipts retain their actual
+  head/base. Diff whitespace check passed; rebased branch pushed with
+  `--force-with-lease`, and this manual session returned to main.
+  Ready for the mechanical PR-opening step; failed baseline checks require
+  the disclosed `deep` recommendation.
+
 ## PR
 
 ```yaml
 title: Correct state-publication internals for remembered expectations and the deferred done marker
-author: claude (Claude Code, claude-opus-5-5), manual megalaunch session
-head: 9e5e64d927ff8561149fa749b0d943e44733b492
-base: 9f2a2a8897f408fb9571604e3a2155aa82227227
-review_depth: light — docs-only, two coga-dev (local-only) topics; each claim checked against git.publish, git.sync_task_state, cli.main, repl_supervisor.deferred_done_marker and the cancellation fixture
+author: claude
+author_evidence: Claude Code (claude-opus-5-5) authored the implementation, as recorded in the implement handoff; Codex performed the independent peer review and rebase without implementation changes.
+head: f345dda7c20bcc4401779a06c49d22c5a5f87220
+base: c9af0740896b518fcf320c555fc121faededd769
+depth: deep
+rationale: Bounded documentation corrections independently reviewed with no findings, but the full suite has three pre-existing README navigation failures, so failed-check evidence requires deep review.
+implementation: Corrects the no-deferred-state claim to distinguish a replay queue from remembered lifecycle expectations; adds remember/prepared wrapper parameters and retry reuse; explains deferred done-marker ordering and the cancellation fixture's external-kill model.
+deviations: None; only the two requested local development topics changed.
+limitations: The existing README dead link prevents a green full-suite receipt. PR 1199 remains open and overlaps these topics; the second merge must reconcile them. Native Windows and manual terminal checks are inapplicable to this documentation-only change; Python 3.11 was not run.
 files:
   docs/contexts/coga-dev/internals/state-publication/SKILL.md: items 1 and 3 (pending-publication record; deferred done marker ordering and fixture framing)
   docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: item 2 (remember/prepared signatures and the retry/sweep reuse sentence)
 checks:
-  - command: .venv/bin/python -m pytest -q
-    tree: uncommitted working tree identical to the committed head 9e5e64d92 (only these two files were changed; committed right after)
-    result: 4763 passed, 33 skipped, 3 failed in 723.71s
-    failures: test_packaging::test_context_navigation_has_no_broken_links and 2x test_git::test_final_package_edits_never_escape_a_mutating_cli_sweep — the pre-existing README dead link above, unrelated to this diff
-review: not run yet; peer-review is the next workflow step
+  - command: env TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/home/n/.codex/tmp/coga-state-publication-peer-review-9779674d > /tmp/coga-state-publication-peer-review-9779674d.log 2>&1
+    status: failed
+    head: f345dda7c20bcc4401779a06c49d22c5a5f87220
+    base: c9af0740896b518fcf320c555fc121faededd769
+    detail: >-
+      Pop!_OS 24.04 LTS, Linux, Python 3.12.12; 4763 passed, 33 skipped,
+      3 failed in 764.05s. test_packaging.py::test_context_navigation_has_no_broken_links
+      and test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep[dirty-package]
+      and [committed-package] all fail on the same pre-existing README link to the deleted
+      coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md. README is unchanged
+      from main; the deletion predates the branch. No new failure was found.
+  - command: git diff --check c9af0740896b518fcf320c555fc121faededd769 f345dda7c20bcc4401779a06c49d22c5a5f87220
+    status: passed
+    head: f345dda7c20bcc4401779a06c49d22c5a5f87220
+    base: c9af0740896b518fcf320c555fc121faededd769
+    detail: No whitespace errors in the committed two-topic diff.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: f345dda7c20bcc4401779a06c49d22c5a5f87220
+  base: c9af0740896b518fcf320c555fc121faededd769
+  detail: Direct review completed of Claude's two-topic diff against the implementation and owning contracts; no must-fix findings. No implementation changes were made during peer review.
 ```
