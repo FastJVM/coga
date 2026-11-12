@@ -10753,3 +10753,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1205 (pr-preparation-yaml) ready for review: https://github.com/FastJVM/coga/pull/1205
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1206 (sync-failure-attribution) ready for review: https://github.com/FastJVM/coga/pull/1206
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1207 (sandboxed-quiescence-evidence) ready for review: https://github.com/FastJVM/coga/pull/1207
+2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1208 (skill-update-detached-head) ready for review: https://github.com/FastJVM/coga/pull/1208
