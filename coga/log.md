@@ -10707,3 +10707,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 17:19 v1 [hold-dirty-context-edits-on-feature-checkouts-unti] [human:nicktoper] activated (draft → active)
 2026-11-11 18:48 v1 [commit-journal/activate-trim-log-in-this-repo-after-retention-mer] [human:nicktoper] task done
 2026-11-11 18:48 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-11 18:50 v1 [recurring/skill-update] [system] started (active → in_progress) via coga launch
