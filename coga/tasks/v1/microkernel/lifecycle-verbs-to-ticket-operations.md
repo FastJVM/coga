@@ -4,6 +4,7 @@ status: active
 owner: nicktoper
 agent: codex
 contexts:
+- coga-dev/microkernel/objectives
 - coga-dev/principles
 - coga-dev/testing
 - coga-dev/project-stage
@@ -48,6 +49,114 @@ step: 1 (design)
 
 ## Description
 
+Separate lifecycle policy and user interaction from the smallest shared
+transition operations that preserve ticket state, publication and supervised
+completion. Reassess `block`, `unblock` and `owner` against the clarified
+objectives; inspect `mark`/`bump` as their kernel dependency, not as a blanket
+reason to keep every surrounding command in core. This proposal awaits owner
+scope review and does not change any lifecycle contract by itself.
+
+### Objectives advanced
+
+Ticket ownership and hackability: bulk selection, prompts and procedure policy
+can live in command tickets. Simplification: converge on the existing prepared
+write primitives and remove repeated command scaffolding. A classification
+that merely rubber-stamps today's heads is insufficient.
+
+### Premise check against main
+
+Snapshot: `49b34b229` (2026-11-12); physical lines include blanks/comments.
+
+1. All subjects remain: `commands/block.py` (106), `unblock.py` (293),
+   `owner.py` (148), with `commands/common.py` (190) and `mark.py` support.
+2. The October description of two independent blocker/status writes is
+   obsolete. `prepare_lifecycle_ticket`/`reconcile_lifecycle_ticket` now
+   prepare against control; `block` changes the ask and status in one prepared
+   write. `_apply_unblock` also resolves asks with its prepared transition.
+3. The required guarantees are carried below; no retired task supplies a
+   missing spec. Prior reasoning and review remain under Superseded designs.
+4. Shared reconciliation already shipped; do not create another transaction
+   abstraction to replace it. `owner` still holds its distinct strict
+   compare/write/audit/publication transaction and remains an open placement.
+
+### Proposed boundary and retained primitives
+
+| Surface | Current invariant | Proposed disposition |
+| --- | --- | --- |
+| `mark` / `bump` | Status/step eligibility, operator/owner gates, expected-task/step checks, publication and supervised completion | Retain generic kernel operations for this pass; challenge policy around them, not their guards |
+| `block` | Ask and status prepared together; actor/assist identity; targeted done marker after the write | Retain the guarded operation; move presentation/procedure only through an equivalent completion boundary |
+| Single-task `unblock` | Resolve-only for an in-progress task or paused period; otherwise activation; fresh preparation and conflict refusal | Retain the shared operation; separate `--all` selection and interactive questioning as edge policy |
+| `owner` | Lock across preparation, eligibility, prospective validation, local byte check, write, audit and strict expected-control publication | Recommend keeping this bounded operation co-versioned; decide separately whether its CLI adapter needs a permanent head |
+
+The `owner` proposal preserves concurrent edits, refuses active claims and an
+own supervised reassignment, and distinguishes definite-failure rollback,
+uncertain publication retention and documented Git soft-skips. Do not describe
+these heads as having identical guard coverage or one uniform transaction.
+
+A direct alias to a bootstrap script is not yet a semantics-preserving
+replacement for a session-ending operation: `launch_script.run_script_phase`
+clears the outer supervisor, expected-task/step and sentinel environment.
+Do not restore that whole environment to make a move appear to work. The
+launch sibling owns any narrow, verified completion seam; keep current direct
+operations until its tests prove identity, attribution and termination.
+
+For each proposed edge head, put argument handling and procedure beside its
+ticket and invoke the existing shared operation. If exposing it would only
+add an equally specific wrapper with no customization or simplification gain,
+defer that extraction and record the reason. Avoid a new generic mutation
+language solely to reduce the number of top-level command names.
+
+### Acceptance and reduction evidence
+
+- [ ] Name the actual primitive and guard coverage for every head; record the
+      reviewed retained/moved boundary in `coga-dev/microkernel`.
+- [ ] Settle the open `owner` row with the concrete transaction proof above
+      or a tested equivalent, not registration as justification.
+- [ ] Preserve prepared control reconciliation, blocker answers, status/step
+      behavior, launch/owner/assist gates, audit and notifications, exit 75,
+      and completion signaling from inside an actual supervised session.
+- [ ] Any `unblock --all` move preserves per-ticket rechecks after prompts,
+      conflict reporting and the rest of the batch; no interactive lock is held.
+- [ ] Report real duplicate/policy removal and whole-system counts; preserving
+      a proven primitive is an explicit boundary decision, not a claimed deletion.
+- [ ] Cover commands, owner, mark/bump, Git conflicts and done-marker tests;
+      apply the full-suite and platform-sensitive receipts in `coga-dev/testing`.
+
+## Context
+
+Read the attached publication contract and `coga-dev/microkernel/objectives`.
+User owners now live under
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/`: `lifecycle`,
+`tickets`, `workflows`, `state-publication`, `notifications` and
+`notifications/producers`. Update only the owning package definition when a
+contract changes; the local-only microkernel topic records placement.
+
+The transaction audit and bounded reductions can proceed after parent scope
+review without waiting for a cosmetic launch split. Moving session-ending
+heads depends on the launch completion seam. Bulk policy belongs here;
+queue scheduling belongs to work orchestration. Drop the old two-write blocker
+inventory and mandatory archive/twin updates; defer pure head renaming.
+
+<!-- coga:blackboard -->
+
+## Refresh handoff — 2026-11-12
+
+The body now carries the current-main inventory and proposed boundary.
+The parent refresh owns scope approval; this ticket's existing role,
+status and workflow step are unchanged. No implementation was resumed.
+The earlier design and review evidence remain below for deliberate reading.
+
+## Superseded designs
+
+### 2026-11-12 — Design before the current-main refresh
+
+Superseded by: the refreshed Description and Context above, proposed for owner review.
+Reason: source, distribution and caller boundaries changed; the owner clarified
+the objectives in `coga-dev/microkernel/objectives`. Historical commands,
+paths, approvals and test receipts below are evidence, not current instructions.
+
+#### Description
+
 Settle the placement of the lifecycle heads that sit in the kernel by
 registration rather than by the launch-closure test: `coga block` /
 `coga unblock`, and the `coga owner` head (a `mark`-shaped locked write of
@@ -64,7 +173,7 @@ it with reasons and move the head to the edge without changing semantics.
 keeps them in the kernel because launch calls them mid-flight, and the owner
 confirmed that boundary for v1 on 2026-10-16.
 
-### Acceptance criteria
+##### Acceptance criteria
 
 - [ ] Apply the group's [reduction objective](README.md#reduction-objective):
       identify redundant wrappers or duplicated state-write scaffolding in
@@ -96,7 +205,7 @@ confirmed that boundary for v1 on 2026-10-16.
 - [ ] Tests cover the changed surface; the full suite and
       `coga validate --json` pass.
 
-## Context
+#### Context
 
 Group: read `coga/tasks/v1/microkernel/README.md`, "Reduction objective".
 Report production-code counts at named before/after revisions across core,
@@ -107,7 +216,7 @@ must identify its boundary gain and name a follow-up for deferred reduction.
 The group's historical archive-audit instruction does not authorize archive
 access or add an archive deliverable to this ticket.
 
-### Current source and remaining review (2026-10-28)
+##### Current source and remaining review (2026-10-28)
 
 - `src/coga/commands/block.py`, `block`, combines
   `blackboard.append_blocker` with `mark.mark_blocked` and the task-scoped
@@ -130,7 +239,7 @@ access or add an archive deliverable to this ticket.
   `commands.bump._assert_supervised_step_is_current` belongs to the
   out-of-scope `bump` head, not automatically to every lifecycle command.
 
-### Launch dependency
+##### Launch dependency
 
 The group originally ordered `v1/microkernel/launch-decomposition` first. At
 this premise check that ticket is paused at its owner `review-design` gate,
@@ -150,7 +259,7 @@ Out of scope: `mark`, `bump`, `create`, `skill *`, launch execution and script
 completion semantics. This ticket originated under
 `v2/cleanup-core-commands/` and returned to v1 scope on 2026-10-16.
 
-### Required reads and owning topics
+##### Required reads and owning topics
 
 The following topics are cited rather than attached; read the named sections.
 Editing targets must be opened from disk. Update any changed contract and its
@@ -205,7 +314,3 @@ selects wheel-owned edge code, first read
 for implementation; core must never import the edge implementation.
 
 Previous ref: `microkernel/lifecycle-verbs-to-ticket-operations` (renamed 2026-10-27); earlier audit lines retain that ref. Parked by the owner for v2; this work does not gate v1.
-
-<!-- coga:blackboard -->
-
-The blackboard is a notepad to be written to often as the human and agent works through a task.
