@@ -10709,3 +10709,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 18:48 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-11 18:50 v1 [recurring/skill-update] [system] started (active → in_progress) via coga launch
 2026-11-11 18:50 v1 [recurring/skill-update] [system] launched as a script (ticket.py)
+2026-11-11 18:50 v1 [recurring/skill-update] [system] task done
