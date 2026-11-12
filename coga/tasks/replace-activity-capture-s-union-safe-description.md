@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 55f36d0a-1d31-470b-9344-6c9a96c69f42
 ---
 
 ## Description
@@ -127,3 +126,43 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: replace-activity-capture-s-union-safe-description
+
+## Handoff (implement)
+
+- Changed `docs/contexts/coga-dev/internals/activity-capture/SKILL.md`
+  ("Capture point and gates" bullet): dropped "(its union-safe path)"; now says
+  the log is not a union path and lands through the event-aware publisher,
+  linking `../spool-merge/SKILL.md#mergeunion-files` (the "`merge=union` files"
+  section that states "The audit log is no longer a union path").
+- PR #1200 (still open) edits the same file but not this bullet; no textual
+  overlap expected.
+- Pre-existing failures on origin/main fc756a9cd (reproduced there, unrelated):
+  `tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep[dirty-package]`,
+  `[committed-package]`, and
+  `tests/test_packaging.py::test_context_navigation_has_no_broken_links`
+  (README.md links missing `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`).
+- Env note: system `python` lacks `tomlkit`; tests ran with `.venv/bin/python`.
+
+## PR
+
+```yaml
+title: Drop union-safe wording for activity-capture log publication
+author:
+  agent: claude
+  model: claude-opus-5-5
+head: 8ed61b6aa75dbbaedc2f2dfcb531529872589140
+base: fc756a9cdb78c80d7275d9cde52a87fa94affa7e
+review_depth: light
+review_depth_rationale: one-sentence doc correction in a local-only coga-dev topic; no code or shipped resource changed
+implementation: replaced the stale "(its union-safe path)" claim with a statement that the log is not a union path plus a link to coga-dev/internals/spool-merge "merge=union files"
+deviations: none
+limitations: none
+files:
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: corrects the stale union-safe description of log publication
+checks:
+  - command: .venv/bin/python -m pytest -q
+    head: 8ed61b6aa75dbbaedc2f2dfcb531529872589140
+    result: 3 failed, 4763 passed, 33 skipped
+    note: all 3 failures reproduce on origin/main fc756a9cd without this change (see handoff)
+review: not run; peer-review is the next workflow step
+```
