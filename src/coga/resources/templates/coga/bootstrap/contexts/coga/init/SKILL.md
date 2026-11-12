@@ -111,19 +111,45 @@ gets one note naming what needs it. Each install runs only on a yes, so an
 invocation that must exit changes nothing on the machine. Agent CLIs are not
 in that set: Coga never installs one or says where to get one. Init runs
 before any `coga.toml` exists, so it scans the machine for them rather than
-reading config. When exactly one agent CLI resolves and it is not
-the packaged default (`claude`), init asks whether to make it the default
-agent. On a yes it writes `default_agent = "<type>"` into the new `coga.toml`
-and leaves the `[agents.*]` table order alone (the `default_agent` comment in
-`coga.toml` explains the key). It also repoints delivered tickets that name
-the old default, such as the onboarding ticket's `agent:`. Both happen before
-the commit. If the edit would not parse back to the same config plus that one
-key, init skips it and prints a warning. With neither agent CLI resolving, or
-with both, init asks nothing. A non-interactive init never prompts, installs
-nothing and stays offline. The printed next steps are: put `coga` on `PATH`
-if it is missing; state that agent-backed commands need an agent CLI when the
-scan found none; then `coga build` (empty repo) or `coga ticket "<title>"`
-(filled repo).
+reading config. In an interactive terminal it prints that scan, before
+anything is written: a heading, then one row per agent CLI Coga can drive
+carrying the display name, the binary, and whether that binary was found. Every
+supported agent appears in every state, so a machine with none installed reads
+a complete list rather than an absence, and a machine with several still sees
+the list. The rows come from `coga.dependencies.AGENT_CLIS`, which is also
+where the next steps get their agent names. The scan asks nothing and writes
+nothing; an agent that was not found is named with its binary so you can
+install it or put it on `PATH`.
+
+That one `PATH` read is also what configures the repo, so the rows you read are
+the agents your `coga.toml` ends up declaring. Before the commit, init comments
+out the `[agents.*]` table of every supported agent whose binary it did not
+find. The table stays in the file, so enabling that agent later is uncommenting
+a block rather than writing one. No `default_agent` key is written: the default
+is the first table the file still declares, which is the first agent found. Init
+also repoints delivered tickets that name the old default, such as the
+onboarding ticket's `agent:`, at that agent. A machine with one agent CLI
+therefore needs no config edit to start working.
+
+Found nothing? Every agent table is commented out. That is the honest state —
+no agent is configured — and the next steps say to install an agent CLI and
+uncomment its `[agents.*]` table. Until you do, `coga validate` reports the
+onboarding ticket's `agent:` as unknown, and the message names the table to
+restore.
+
+The rewrite is all or nothing. If the result would not parse back to exactly the
+expected declarations, or the write fails, init keeps the packaged `coga.toml`
+untouched, declaring every supported agent, stamps nothing into delivered
+tickets, and prints a warning saying so. A non-interactive init prints no scan,
+configures nothing and leaves the packaged file as it shipped: a scripted run
+saw no scan to act on. Init asks no agent question in any case.
+
+The printed next steps are: put `coga` on `PATH` if it is missing; state that
+agent-backed commands need an agent CLI when the scan found none, naming the
+table to uncomment when there is one; then `coga build` (empty repo) or
+`coga ticket "<title>"` (filled repo). The `coga build` line offers only the
+agents `coga.toml` declares, so a one-agent repo is given no `--agent`
+alternative.
 
 ## Clone of a repo that already uses Coga
 
@@ -139,8 +165,10 @@ coga init --user <your-name>
 This path stages and commits nothing, never writes `recurring/jobs.toml`,
 and never restores or reseeds a shipped definition or recurring state. After
 validating the name and Git preconditions, it makes the same optional CLI
-install/login offers as a fresh init, but never changes the default agent: the
-committed `coga.toml` is team config. It then wires the agent skill links
+install/login offers as a fresh init, but never scans or rewrites `coga.toml`:
+the committed file is team config, and the scan is about this machine. A
+teammate's declared agents are not yours to comment out. It then wires the
+agent skill links
 before saving your name. If that fails, it exits non-zero and leaves the local
 config untouched. Fix the reported path and re-run; correct links
 from an earlier attempt are reused. Then it writes `user`. A missing file

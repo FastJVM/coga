@@ -8,11 +8,11 @@ feature is used (a softer, deferred failure at the point of need).
 `coga init` reads `required_at_init` to decide what to enforce before doing
 anything, and `offer_install` / `packages` to offer installing a missing tool
 through the machine's package manager. Agent CLIs are separate: `AGENT_CLIS`
-is the supported scan order, and Coga resolves the configured `cli` only at
-the point of need. Coga never installs an agent CLI or names an agent
-installer; a missing one is a `coga.toml` fix. The `coga/init` topic
-summarizes the same set for humans and points here. Keeping the list here
-means the init check and the docs can't drift.
+holds one `AgentCLI` record per supported agent in scan order, and Coga
+resolves the configured `cli` only at the point of need. Coga never installs
+an agent CLI or names an agent installer; a missing one is a `coga.toml` fix.
+The `coga/init` topic summarizes the same set for humans and points here.
+Keeping the list here means the init check and the docs can't drift.
 """
 
 from __future__ import annotations
@@ -40,6 +40,31 @@ class Dependency:
     required_at_init: bool
     offer_install: bool | None = None
     packages: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AgentCLI:
+    """One agent CLI Coga knows how to drive.
+
+    `name` is both the binary Coga scans PATH for and the `[agents.<name>]`
+    type the shipped `coga.toml` declares — one string, because the packaged
+    template's `[agents.claude]` sets `cli = "claude"` and `[agents.codex]`
+    sets `cli = "codex"`, so the two are equal for every agent Coga ships.
+    Split them when a supported agent's binary first differs from its table
+    name. `label` is the vendor's display name; `display` falls back to `name`,
+    which is what keeps a label-less entry total by construction — no caller
+    repeats a `.get`.
+
+    The record carries no install URL and no `packages`: Coga installs no
+    agent CLI, so there is nothing here that could install anything.
+    """
+
+    name: str
+    label: str = ""
+
+    @property
+    def display(self) -> str:
+        return self.label or self.name
 
 
 DEPENDENCIES: tuple[Dependency, ...] = (
@@ -116,8 +141,29 @@ PACKAGE_MANAGERS: dict[str, tuple[str, ...]] = {
 NEEDS_ROOT = frozenset({"apt-get", "dnf", "pacman"})
 
 # Agent CLIs Coga knows how to drive, in stable scan order; the first is the
-# shipped `coga.toml`'s default agent.
-AGENT_CLIS: tuple[str, ...] = ("claude", "codex")
+# shipped `coga.toml`'s default agent. One record per agent feeds both the
+# init scan and init's next-steps labels, so a fourth agent is one edit here
+# rather than one per reader. There is deliberately no derived
+# `tuple[str, ...]` alias: two public names for one list is the split these
+# records exist to close.
+AGENT_CLIS: tuple[AgentCLI, ...] = (
+    AgentCLI("claude", "Claude Code"),
+    AgentCLI("codex", "Codex"),
+)
+
+
+def agent_label(name: str) -> str:
+    """The display name for agent type `name`, or `name` itself.
+
+    Takes a plain string rather than a record because callers hold an agent
+    type that may not be in the registry at all: a repo's `default_agent` can
+    name any agent its `coga.toml` declares. An unregistered type reads under
+    its own name instead of raising.
+    """
+    for agent in AGENT_CLIS:
+        if agent.name == name:
+            return agent.display
+    return name
 
 
 def agent_cli_missing_message(name: str, cli: str) -> str:
