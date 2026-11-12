@@ -4,6 +4,7 @@ status: paused
 owner: nicktoper
 agent: codex
 contexts:
+- coga-dev/microkernel/objectives
 - coga-dev/principles
 - coga/launch
 - coga/script-tickets
@@ -41,6 +42,134 @@ step: 2 (review-design)
 
 ## Description
 
+Finish separating the generic ticket executor from the procedures that use
+it. The CLI/service split already shipped; the remaining work is in
+`src/coga/launch.py`, its consumers, and the boundary between stateless command
+tickets and stateful workflow execution. This is the 2026-11-12 scope proposal
+for owner review, not approval to resume the paused implementation.
+
+### Objectives advanced
+
+Ticket ownership: callers should own their procedure and defaults. Hackability:
+a customized ticket must use the same executor without adding a core case.
+Simplification: remove duplicated preparation and command-specific branches;
+a module split alone does not complete this ticket.
+
+### Premise check against main
+
+Snapshot: `49b34b229` (2026-11-12); physical line counts include blanks and
+comments, exclude tests/docs, and describe inventory rather than promised savings.
+
+1. The subject exists: the large shared runtime remains.
+2. The old path and API inventory drifted. `commands/launch.py` is now a
+   100-line adapter; `launch.py` is the 4,577-line service. `launch_script.py`
+   is 620 lines. `agent_session.py` and `script_session.py` do not exist.
+3. The prior plan is retained under Superseded designs. Its substance is
+   restated here; retired tickets and archived audit pages are not dependencies.
+4. Part shipped in `b3007ef2e`: the plain Python launch API, result/error
+   boundary and thin Typer adapter. Drop that extraction from remaining work.
+   Production callers now import `coga.launch`, not `commands.launch`.
+
+### Current responsibility inventory
+
+| Surface | Current responsibility | Proposed boundary |
+| --- | --- | --- |
+| `launch.launch`, `_LaunchInvocation`, `LaunchResult`, `LaunchBail` | Target admission, preparation, workflow chaining, refresh and outcomes | Generic supervisor; preserve the public seam rather than creating a second launch service |
+| `spawn_agent_session`, `AgentSessionResult`, `build_agent_command`, command representability and usage helpers | One composed agent process; shared with authoring and megalaunch | Extract a cohesive session module and move its real callers in the same change |
+| `launch_script.script_entry_point`, `run_script_phase`, `run_script_chain` | Exact `ticket.py` classifier, execution, refresh and handoff | Keep the existing classifier; split raw execution only if it removes duplication or lifecycle coupling |
+| `checkout_policy.select_checkout_policy` (145 lines), `checkouts.py` (1,159 lines) | Select policy from shipped names/instruction equality; perform shared Git mechanics | The dedicated checkout-policy ticket owns declaration and compatibility; this ticket consumes its result |
+| `DISCUSSION_BOOTSTRAP_TICKETS`, `_bootstrap_kickoff`, direct-chat and onboarding cases | Named procedure defaults and special behavior | Move defaults to their owning ticket/caller where possible; retain the actual chat lock/receipt and admission guarantees in shared machinery |
+| `launch_recurring_period`, `launch_with_before_spawn`, `settle_delegated_period` | Recurring leases, publication and held-child admission | Keep explicit typed contracts; queue selection and scheduling remain caller policy |
+| `_format_prompt_report`, push-auth preflight, agent skill-view refresh | Diagnostics and execution readiness | Reports belong to the read/report sibling; support classification belongs to the support sibling; required point-of-use checks remain enforced |
+
+Callers to migrate together with any session extraction: `commands/ticket.py`,
+both megalaunch modules, `recurring_runner.py`, and the packaged
+`bootstrap/retire/ticket.py`. `cli.py` also consumes `checkout_guard_scope`.
+Several callers still use private service helpers; eliminate those dependencies
+through the existing shared operations, not forwarding imports in command files.
+
+### Proposed changes and contracts
+
+1. Retain one generic supervisor and expose the one-session executor already
+   shared by real callers. Reduce its caller-specific setup only where the
+   callers can converge without losing their admission/publication semantics.
+   No plugin host, phase registry, or new callback framework.
+2. Establish the minimal stateless command-ticket execution contract needed
+   by the read/report and customization tickets. Today `launch` loads a user
+   config and its CLI exit normally sweeps state; a read command currently
+   needs neither publication nor a configured user. A blind alias therefore
+   changes behavior. Design explicit generic invocation policy for this
+   distinction, with no command-name allowlist, before migrating those heads.
+   Source inspection/help must remain usable with dirty state, no agent/TTY,
+   and no Git writes. A write command retains its publication boundary.
+3. Coordinate the narrow completion seam with lifecycle and orchestration.
+   Script launch clears the outer supervisor/expected-task environment. A
+   nested command ticket cannot silently become `block`, `bump`, or a
+   bootstrap-completing `slack` call. Preserve the existing completion
+   primitives until a reviewed equivalent proves identity and termination.
+4. Keep stateful script behavior intact: a script completes its own step
+   through the lifecycle CLI; exit zero alone never advances or finishes it.
+   An unchanged open step falls through to the agent. Skills never supply
+   executable launch plugins, inline scripts, or a static script/agent flag.
+5. Preserve native Windows console/Job Object behavior, POSIX supervision,
+   environment isolation, secret injection/redaction, startup publication,
+   assist receipts, recurring leases and released launch claims. The old
+   "no locks exist" inventory is obsolete: direct chat has a checkout guard.
+
+### Acceptance and reduction evidence
+
+- [ ] Thin command adapter remains thin; no duplicate public launch API or
+      compatibility re-export is added.
+- [ ] Caller policy is editable beside its ticket where selected by design;
+      each retained named special case has its concrete invariant recorded.
+- [ ] Read-only stateless dispatch and write dispatch have explicit, tested
+      config, stream, exit, publication and checkout behavior.
+- [ ] At least one real dependency/duplicate path is removed; report the
+      whole-system evidence required by `coga-dev/microkernel/objectives`.
+- [ ] Existing launch, restart, script, authoring, megalaunch, recurring,
+      environment and supervisor tests exercise the moved boundaries. Use the
+      full-suite and native Windows receipts required by `coga-dev/testing`.
+- [ ] Update `coga/launch`, `coga/script-tickets`, the checkouts/publication
+      owners and local source map where their contracts actually change.
+
+## Context
+
+The owning scope is this ticket; workflow checkout declaration belongs solely
+to `declare-each-workflow-step-s-checkout-policy-in-th`. Its implementation can
+precede the session extraction. Read/report and customization depend only on
+the stateless contract they need; recipe job moves need no new session API.
+
+Read `coga-dev/microkernel`, `coga-dev/internals/agent-spawn`,
+`coga-dev/internals/state-publication`, and `coga-dev/testing`. User contracts
+resolve under `src/coga/resources/templates/coga/bootstrap/contexts/`, including
+`coga/launch`, `coga/script-tickets`, `coga/checkouts` and
+`coga/state-publication`; edit their package owners if behavior changes.
+
+Drop the already-shipped Typer/service split, removed `project` caller,
+skill-backed script resolution, automatic script completion, duplicate live
+definitions and archive-audit editing from this implementation scope. Defer
+cosmetic file splits and broad renames that advance none of the objectives.
+
+<!-- coga:blackboard -->
+
+## Refresh handoff — 2026-11-12
+
+The body now carries the current-main inventory and proposed boundary.
+The parent refresh owns scope approval; this ticket's existing role,
+status and workflow step are unchanged. No implementation was resumed.
+The earlier design and review evidence remain below for deliberate reading.
+
+## Superseded designs
+
+### 2026-11-12 — Design before the current-main refresh
+
+Superseded by: the refreshed Description and Context above, proposed for owner review.
+Reason: source, distribution and caller boundaries changed; the owner clarified
+the objectives in `coga-dev/microkernel/objectives`. Historical commands,
+paths, approvals and test receipts below are evidence, not current instructions.
+
+#### Description
+
 `src/coga/commands/launch.py` is currently both the `coga launch` Typer command
 and the shared runtime used by task launches, `coga ticket`, and `coga
 megalaunch`. Its 3,782 lines (1,179 when this was designed) combine target/status policy, workflow
@@ -65,7 +194,7 @@ removal of launch-adjacent compatibility policy then proceed through the
 existing sibling tickets instead of being folded into a new all-purpose
 executor API.
 
-## Context
+#### Context
 
 Directory index: `microkernel/README`.
 
@@ -89,7 +218,7 @@ Classify each responsibility as:
 Out of scope: moving `create`, moving `skill *`, or implementing lifecycle
 verb migration unless it is required to prove the launch split.
 
-### Acceptance criteria
+##### Acceptance criteria
 
 - [ ] Apply the group's [reduction objective](README.md#reduction-objective):
       re-inventory the current launch modules and callers, then identify
@@ -142,9 +271,9 @@ verb migration unless it is required to prove the launch split.
       `docs/archive/cli-extension-audit.md` describe the new source boundary. Any
       changed shipped context is updated in both the live and packaged copies.
 
-### Proposed shape
+##### Proposed shape
 
-#### Responsibility classification
+###### Responsibility classification
 
 **Executor substrate that stays in Python**
 
@@ -205,7 +334,7 @@ verb migration unless it is required to prove the launch split.
   change accidentally. Their classification above prevents the new substrate
   API from treating those CLI choices as permanent core concepts.
 
-#### Source changes
+###### Source changes
 
 1. Add `src/coga/agent_session.py`. Move `AgentSessionResult`, agent argv and
    discussion-template construction, oversized-prompt argv handling,
@@ -240,7 +369,7 @@ verb migration unless it is required to prove the launch split.
    its trust/process hooks; lifecycle and caller policy are dependencies used
    by launch today, not permanent user-facing core commands.
 
-### Out of scope
+##### Out of scope
 
 - Moving or redesigning `create`, `skill *`, secret acquisition, prompt
   composition order, the PTY watcher protocol, usage-log schema, or git sync
@@ -258,11 +387,9 @@ verb migration unless it is required to prove the launch split.
 
 Previous ref: `microkernel/launch-decomposition` (renamed 2026-10-27); earlier audit lines retain that ref. Parked by the owner for v2; this work does not gate v1.
 
-<!-- coga:blackboard -->
-
 Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.
 
-## Design findings
+#### Design findings
 
 - `src/coga/commands/launch.py` currently mixes three layers: a shared
   single-agent session runner, deterministic ticket/workflow supervision, and
@@ -289,12 +416,12 @@ Created under `v2/cleanup-core-commands/` as part of the command-surface breakdo
   sibling tickets provide their follow-up homes; this ticket should expose the
   seam without folding those policies into the executor.
 
-## Open Questions
+#### Open Questions
 
 None. The owner review should confirm the deliberately behavior-preserving
 first PR and the follow-up ownership recorded in the spec.
 
-## Premise check (2026-10-16, pull-forward to v1)
+#### Premise check (2026-10-16, pull-forward to v1)
 
 - Subject exists and is undelivered (Dream W39 F53): no
   `src/coga/agent_session.py`, `script_session.py` or `src/coga/launch.py`.
@@ -315,7 +442,7 @@ first PR and the follow-up ownership recorded in the spec.
 - Status is still `paused` from the 2026-07-27 park; resume with
   `coga mark active` when ready.
 
-## Design-step verification
+#### Design-step verification
 
 - Read the live ticket, `docs/vision.md`, the composed Coga contexts,
   `src/coga/commands/launch.py`, `commands/launch_script.py`, `compose.py`,
