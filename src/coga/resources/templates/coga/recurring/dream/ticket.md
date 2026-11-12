@@ -232,14 +232,6 @@ leaf completed and the de-duplicated findings across all attempts total zero,
 or `partial` when any active leaf did not complete. Superseding a shard changes
 the coverage check; it never discards findings that shard already appended.
 
-### Known corpus limitation
-
-Both scans currently exclude package-backed `bootstrap/skills/**`.
-The knowledge scan owns tickets and `coga/workflows/**`; the contract
-audit adds recurring templates, `README.md`, `docs/*.md`,
-`CLAUDE.md`/`AGENTS.md` and treats `coga/tasks/` as history. Correcting
-this limitation requires a corpus decision for both scans.
-
 ### Phase 2 — knowledge scan
 
 Shard this phase to subagents using the `bootstrap/dream/scan/knowledge-scan`
