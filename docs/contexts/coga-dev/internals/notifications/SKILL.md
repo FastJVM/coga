@@ -117,6 +117,8 @@ down, so grep for the real call before editing a producer row:
   `launch_script.py`; `dream_validate_drift.py`; `commands/megalaunch.py`;
   `autoclose.py` `_report_retire_followups` and `_report_followup`;
   `coga_edge/phone_home.py` `_receipt` (`record_failure=False`);
+  the repo-local `coga/recurring/usage-report/ticket.py` (`important=True,
+  fatal=False`);
   `recurring_autofix.py` `run_autofix` and `run_autofix_analyze_recipe`.
   Downstream sweeps on `src/coga/reminders.py` ride `coga slack`.
 - Outcome: `mark.py` `mark_done`, `mark_canceled`, and `mark_paused` when the

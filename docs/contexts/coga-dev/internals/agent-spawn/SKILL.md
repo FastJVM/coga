@@ -158,7 +158,14 @@ The full line goes into a fresh `COGA_BATCH_<uuid>` child variable, and the
 wrapper runs the system `cmd.exe /d /e:on /v:off /s /c "%COGA_BATCH_<uuid>%"`
 as a raw command line. One expansion means percent sequences in values stay
 literal. The literal and expanded shell lines are bounded at 8,191, the value
-at 32,767. Raw CR/LF in any other batch argument refuses by role.
+at 32,767. Raw CR/LF in any other batch argument refuses by role. The
+transport is lossless only up to the shim: it cannot repair a shim that
+re-parses its own path. npm's cmd-shim does `SET dp0=%~dp0` unquoted, so an
+install directory containing `&` or `^` breaks it (`?\ was unexpected at this
+time`), as does a shim that embeds its literal directory in batch source. Treat
+such a failure as a shim limit, not a transport bug;
+`tests/test_repl_supervisor_nt.py`'s npm-shaped directory omits only those two
+characters for this reason.
 
 `launch.agent_command_refusal` plans the pointer form at the callers'
 preflight: launch's `_prepare_agent` before lifecycle writes, `coga ticket`
