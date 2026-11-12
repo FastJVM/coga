@@ -500,3 +500,10 @@ trial had:
   which the CE trial never got to.
 - `/knowledge`, `/powers`, `/sandbox`, `/checkpoint`, `/rewind` — unplanned
   surface area. Out of scope unless a lap runs into them.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New skill: per-lap version, cost, and fabrication checks in hands-on trials
