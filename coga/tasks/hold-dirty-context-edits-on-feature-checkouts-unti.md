@@ -42,9 +42,35 @@ agent: claude
 
 The end-of-command sweep (`sync_coga_state` in `src/coga/git.py`) publishes every dirty eligible file under the Coga roots to control, even when invoked from a feature checkout. With `[layout] contexts = "docs/contexts"`, an in-progress context edit on a feature branch lands on main before review. Observed 2026-11-11: commit 39e20683e "Sync coga state" carried an unreviewed `coga-dev/current-direction` paragraph from branch `add-code-agent-merge-workflow` describing a workflow that existed only in that branch's uncommitted files. coga/state-publication already documents this as the "pre-review publication hazard" and relies on the human committing first.
 
-Proposal: on a feature or detached checkout, treat dirty contexts, skills, workflows, and shared config the way committed ones already are: they wait for merge. Keep publishing the runtime state that must land promptly (ticket, log, recurring blackboards, machine-written siblings). Design questions: the exact set of path classes that keep publishing from a feature checkout; how `coga run publish-state` with an explicit path interacts; whether guided authoring (`coga ticket`) on a feature checkout needs an exception; and how to report a held file so it is not silently stranded. Update coga/state-publication (drop or narrow the hazard paragraph) and coga/checkouts in the same PR, with tests in tests/test_checkouts.py or the git publication tests.
+Proposal: on a feature or detached checkout, treat dirty contexts, skills, workflows, and shared config the way committed ones already are: they wait for merge. Keep publishing the runtime state that must land promptly (ticket, log, recurring blackboards, machine-written siblings).
+
+This narrows a deliberate rule. Today instruction edits "land directly" with no separate knowledge PR (coga/state-publication "The Coga roots"), and guided authoring publishes them as one guarded transaction. The design must state why feature checkouts become the exception. It must also decide whether the change is universal or a per-repo policy (`[layout]`/`[git]`). The friction is sharpest in repos like this one, whose contexts live in `docs/contexts` and are updated "in the same PR" (AGENTS.md). Repos on the default `coga/contexts` may still want direct publication.
+
+### Design questions
+
+- Which path classes keep publishing from a feature checkout, and which wait for merge.
+- **Checkout return.** coga/checkouts/launch-boundary "Preparation and return" step 1 sweeps every dirty file before switching to control. A held file left dirty either blocks `git switch` or travels onto control, where the next sweep publishes it anyway, so holding would only delay the hazard. Decide whether return refuses, requires a commit, or does something else. Direct chat's clean-checkout requirement before `prepare-checkout` (coga/checkouts/chat) has the same interaction.
+- **Recurring templates publish whole-template.** A runtime blackboard write makes the whole template directory publishable. Define what happens to a dirty definition or `ticket.py` beside a blackboard that keeps publishing.
+- How `coga run publish-state PATH` treats an explicitly named held file.
+- Whether guided authoring (`coga ticket`) on a feature checkout needs an exception.
+- How a held file is reported so it is never silently stranded.
+
+### Done when
+
+- A sweep from a feature checkout leaves a dirty context or skill off control, while the ticket and log writes from the same command still land.
+- Every held file is named on stderr (fail loud).
+- `coga run publish-state PATH` on a held file exits 1 and does not publish the task/log writes that came with it, matching today's committed-file behavior.
+- Checkout return and direct chat behave as the approved design specifies, with tests.
+- Tests cover these cases in `tests/test_git.py`, `tests/test_publish_state.py`, and `tests/test_checkouts.py` as appropriate.
+- The same PR updates every surface that states or cites the hazard: coga/state-publication ("The Coga roots", "When Coga publishes", "Control versus feature checkouts" including the "Pre-review publication hazard" paragraph, "Strict publication on demand"); coga/checkouts ("Start, work, end" and "Which checkout you invoke Coga from"); coga/checkouts/launch-boundary "Preparation and return" step 1; coga/checkouts/chat; and `code/self-qa/SKILL.md` "Gotchas". If the design chooses a per-repo policy, add it to the config docs too.
 
 ## Context
+
+### Key facts and sources
+
+- Direct publication of instruction edits is intentional today: coga/state-publication "The Coga roots" and "When Coga publishes" (guided authoring). On a feature checkout, only *committed* changes are held, by the `adopt_only` filter (`_routine_state_areas`, set in `_publish_locked`). Dirty files come from `_dirty_paths` in `_candidates` and are never filtered. See "Control versus feature checkouts".
+- Checkout return sweeps dirty files before switching: coga/checkouts/launch-boundary "Preparation and return".
+- Packaged sources live under `src/coga/resources/templates/coga/bootstrap/contexts/coga/` (state-publication, checkouts, checkouts/launch-boundary, checkouts/chat) and `.../skills/code/self-qa/`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
