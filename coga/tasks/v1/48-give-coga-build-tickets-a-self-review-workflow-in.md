@@ -382,6 +382,50 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Evaluator review
+
+Verdict: not ready for implementation until the two must-fix findings below
+are resolved. The overall peer-resolution boundary and activation exception
+shape match the current resolver and `prepare_active` seams.
+
+### Must fix before implementation
+
+1. **The proposed create guard still runs after a durable filesystem write for
+   directory-form tasks.** Proposed Shape item 4 replaces the current step-1
+   resolver block in `create.create_task`, but that block is below task-path
+   allocation: `create_task` has already called `task_dir.mkdir(parents=True)`
+   when `force_directory=True` (and has already created parent directories for
+   file-form tasks). `recurring._create_at_slug` creates every period task with
+   `force_directory=True` and catches `ValueError`; an unresolvable peer
+   workflow would therefore leave an empty task directory, and the next retry
+   would fail at `Task directory already exists` instead of re-evaluating the
+   workflow. This contradicts the stated “refuse before writing” outcome and
+   makes a failed recurring create non-retryable. Move the whole-workflow
+   check above path allocation (after the workflow is loaded and checked), or
+   specify an equally atomic cleanup, and add a directory-form no-residue/retry
+   acceptance test.
+
+2. **The substitution line is emitted before the fallback is known to have
+   succeeded.** Proposed Shape item 5 says to echo the substitution and then
+   call `create_task`. But the acceptance criteria explicitly cover a fallback
+   that is itself unresolvable; `select_workflow` returns that fallback and
+   `substituted=True`, then the later whole-workflow guard refuses it. The CLI
+   would print `using ... instead of ...` even though it created nothing. Emit
+   the line only after `create_task` succeeds, or make selection validate the
+   fallback before it reports a successful substitution. Pin the failure case
+   to produce the fallback refusal without the success line.
+
+### Optional recommendations
+
+- Add focused end-to-end assertions for the named megalaunch, recurring-runner,
+  and `coga unblock` activation callers. Their current `WorkflowError` catches
+  should accept the proposed subclass, but the test plan currently proves only
+  direct mark/launch behavior and does not independently pin their no-write
+  guarantee.
+- The open `coga ticket` question does not need to block this change: the
+  proposed interviewer guidance plus the activation backstop is a coherent
+  boundary, provided the shipped skill wording is tested.
+
 ## Design status (2026-11-11)
 
 Spec written under `## Description` / `## Context` in an attended design
