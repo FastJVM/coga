@@ -146,14 +146,6 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   A new agent-session entry point must run `launch.agent_command_refusal()`
   before any checkout, publication or draft write, so a Windows command line
   that cannot be represented refuses before effects, with the sweep withheld.
-- **Known open: uninstall recovery hints use POSIX syntax on Windows.**
-  `commands/uninstall.py::_uninstall_via_tool` displays its env overrides as
-  `VAR=value` prefixes (`shlex.quote`) in the "Uninstalling global package"
-  line and in the manual-removal hint printed when the tool is not on PATH.
-  `cmd` and PowerShell cannot paste that form. The subprocess call itself is
-  correct because it passes `env=` directly. Found during the native Windows
-  port. The fix is owned by
-  `v1/15-uninstall-recovery-hints-use-posix-env-syntax-on-w`.
 - **Retired-ticket searches span two trees.** Tasks lived under
   `relay-os/tasks/` before the relay → coga rename (`d0645a197`, #454); add
   `':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'`
