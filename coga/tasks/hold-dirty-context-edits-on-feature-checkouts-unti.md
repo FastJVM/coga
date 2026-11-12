@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -229,43 +229,25 @@ Findings that shaped the design:
 
 ## Evaluator review
 
-**Verdict: ready with edits.** The diagnosis is right and the workflow fits. The ticket still misses one structural interaction (checkout return) and doesn't admit it reverses a documented design choice.
+**Verdict: resolve two must-fix findings before implementation.** The revised spec addresses the prior review's policy, checkout-proof, recurring whole-file, documentation, and objective acceptance concerns. Its body regions compose correctly. The remaining issues are a definition-removal escape through carrier recognition and a contradictory command exit contract.
 
-**Claim accuracy (checked against the code)**
-- Correct. In `src/coga/git.py`, `_candidates` takes every path from `_dirty_paths` under the pathspecs. The `adopt_only` filter (`_routine_state_areas`, set in `_publish_locked` when HEAD is not control) applies only to the committed `base..HEAD` diff. So dirty contexts publish from a feature checkout, and committed ones wait for merge.
-- `git show --stat 39e20683e` confirms the incident: it touches only `docs/contexts/coga-dev/current-direction/SKILL.md`.
+### Must fix
 
-**Assumptions to question before launch**
-1. **This is deliberate today.** coga/state-publication "The Coga roots" says there is no separate knowledge PR and instruction edits "land directly". Guided authoring (`coga ticket`) publishes context, skill, workflow and config edits as one guarded transaction. The ticket should say it narrows that rule for feature checkouts, and give the reason. The real friction is repo-specific: this repo puts contexts in `docs/contexts`, which AGENTS.md says to update "in the same PR". The design should consider whether this should be a per-repo `[layout]`/`[git]` policy rather than a universal change. Adopting repos on the default `coga/contexts` may want direct publication.
-2. **Checkout return is not addressed.** coga/checkouts/launch-boundary step 1 sweeps every dirty file before switching to `main`. If held files stay dirty, `git switch` either refuses or carries them onto control, and the next sweep there publishes them anyway. Holding would then delay the hazard instead of removing it. The design must say whether return refuses, requires a commit, or something else. Direct chat's "requires a clean checkout" before `prepare-checkout` (coga/checkouts/chat) has the same problem.
-3. **Recurring templates are whole-file and whole-template.** The hazard paragraph notes that a runtime blackboard write makes the whole template publishable. "Keep publishing blackboards" therefore needs a rule for dirty template definitions and `ticket.py` in the same directory.
-4. **More docs to update.** Besides state-publication and checkouts, these restate or cite the hazard:
-   - `code/self-qa/SKILL.md`, which names "Pre-review publication hazard"
-   - coga/checkouts step 2 ("left dirty, the sweep publishes it") and "Which checkout you invoke Coga from"
-   - coga/checkouts/launch-boundary step 1
+1. **Carrier recognition can publish removal of a recurring definition.** Proposed shape 1 accepts a working `ticket.md` whenever `recurring_state.carrier_problem(text) is None`, without checking what control holds. Consider control and HEAD containing a full local recurring definition, with the feature checkout replacing it, uncommitted, with `recurring_state.render_carrier(...)`. The predicate accepts the working carrier and publishes away the schedule, workflow, and instructions. This contradicts the intent to hold recurring definition changes, including deletions. Evidence: `src/coga/recurring_state.py`'s `carrier_problem` checks only the incoming prefix and fence count; `inspect_parent_dir` distinguishes a full local definition from a carrier; `src/coga/git.py`'s `_guard` permits replacement when control equals the HEAD provenance, so it supplies no later defense. Restrict the unconditional carrier case to a missing control path or an existing exact control carrier; replacing a control definition with a carrier must be held whole. Add an objective criterion and regression for that conversion while retaining coverage for initial carrier creation and carrier blackboard updates. If definition-to-carrier conversion is intentionally allowed before review, the owner must explicitly accept that exception instead.
 
-   Name them all so the same-PR rule is checkable.
+2. **Ordinary checkout return does not have the asserted exit-75 contract.** The checkout-return criterion groups return and launch entry as exit 75, but Proposed shape 5 allows only reason-text changes and the criterion describes this as existing behavior. Evidence: `src/coga/launch.py`'s `_LaunchCheckoutBoundary.settle` returns `False`, withholds the sweep, and says the session's own result stands; `_LaunchInvocation._supervise_steps` stops chaining after a successful child without converting its result to 75. `_launch` applies that conversion specifically to an otherwise successful direct chat. `contexts/coga/checkouts/launch-boundary/SKILL.md`, "Preparation and return", likewise distinguishes entry exit 75 from ordinary return's preserved session result. Narrow acceptance to entry exit 75, ordinary return preserving its session result while stopping chaining/withholding the sweep, and direct chat's existing conditional exit 75 (preexisting nonzero results remain unchanged). Alternatively, explicitly scope and justify a launch-result change, with source and tests; it is not obtained through the proposed annotation alone.
 
-**Clarity and done criteria**
-- A cold agent can start: the problem, the incident, the code entry points and the open questions are concrete.
-- "Done" is not testable as written. Add invariants a reviewer can check, for example:
-  - after a sweep from a feature checkout, a dirty context or skill is absent from control
-  - the ticket and log still land
-  - a held file is reported on stderr (fail loud)
-  - `coga run publish-state PATH` on a held file exits 1 without publishing the task/log writes that came with it, matching the committed-file behavior
-  - checkout return behaves as the design specifies
-- Point tests at `tests/test_git.py` and `tests/test_publish_state.py` as well as `tests/test_checkouts.py`.
+### Optional recommendations
 
-**Workflow fit:** Good. The open questions make design-then-implement the right choice. The owner `review-design` gate matters because this reverses a documented choice.
+- Add `contexts/coga/checkouts/reconciliation/SKILL.md`, "Sync a feature branch with control", to the docs pass. Its differing-file remedy currently starts with `coga run publish-state`; after this change that command cannot land held knowledge. Point such files to committing/review or manual reconciliation, preserving the existing proof requirements.
+- Qualify the status claim: `git.feature_sync_plan` returns `None` for detached HEAD and when no remote-tracking control ref exists. Keeping status unchanged is coherent, but stderr and the boundary refusal carry the diagnostic in those cases.
+- Name existing tests to revise as well as new tests to add: `tests/test_git.py::test_sweep_publishes_every_eligible_file_under_the_coga_roots`, `test_sweep_publishes_dirty_recurring_runtime_files`, and `test_prepare_cleans_a_published_context_and_skill_from_a_feature_checkout` currently encode the publication behavior being changed. Preserve their control cases. Git mode/line-ending coverage also falls under the native Windows receipt requirement in `coga-dev/testing` before merge.
 
-**Contexts:** I don't recommend attaching coga/state-publication whole. Most of it covers prepared transactions, human review and recovery, which this ticket doesn't touch. Do this instead:
-- In `## Context`, cite the exact anchors: state-publication#the-coga-roots, #when-coga-publishes (guided authoring), #control-versus-feature-checkouts, #strict-publication-on-demand; checkouts/launch-boundary step 1.
-- Copy in the two facts that drive the design: direct publication is intentional, and checkout return sweeps dirty files.
+### Checked claims and scope
 
-The code/design skill already tells the agent to read referenced files. The implement step edits these files, so it will read them regardless.
+- `_candidates` currently filters only committed adoption through `adopt_only`; dirty paths bypass it. `_publish_locked` performs the required-file check before tree construction, supporting strict publish-state and authoring's whole-finalization refusal. `authoring.finalize_authored` and `commands.ticket._run_authoring_session` surface the error and withhold the sweep as described.
+- `_plan_preparation` uses `_published_proof` before cleanup, so a differing held regular file already refuses without new checkout decision logic. Preserve staged-version and nonregular-file diagnostics when adding the held remedy.
+- The predicate has two real core consumers (publication selection and checkout annotation), fitting the microkernel rule. This remains one coherent PR; no policy key or guided-authoring exception is needed to implement the owner's recorded decision.
+- The frozen workflow matches packaged `code/design-then-implement`: this evaluation hands findings to owner `review-design`, which resolves findings and the preserved Open Questions. The body is sufficiently concrete to implement after the two corrections; no additional attached context is necessary.
 
-**Scope:** One coherent change, no split needed. If the owner prefers the per-repo policy route (point 1), that becomes the design's answer, not a sibling ticket.
-
-**Prompt size (~5,364 tokens):** No layer is over 40%. `workflow_skill` code/design is about 25% and `task_context` about 24%. Almost all of `task_context` is the template guide comment, which the template says to keep, so this ticket adds only about 360 tokens of its own content. Shrinking that comment is a template-level trim, not a fix for this ticket. Adding ~150 words of cited Context costs far less than attaching state-publication (~3,760 words).
-
-**Minor:** The slug is truncated ("…-unti"). Cosmetic only.
+Reviewed source, tests, workflow, and owning documentation against `f12937d9388457ecd8db9dd53887333003a40ea3` (fetched `origin/main`). No implementation or ticket-body edits were made; no tests were run for this design-only review.
