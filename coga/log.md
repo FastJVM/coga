@@ -10764,3 +10764,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 22:03 v1 [validate-drift-unfrozen-workflow-canceled-tickets] [human:nicktoper] created (status=draft)
 2026-11-11 22:03 v1 [validate-drift-stuck-in-progress-in-progress-ticke] [human:nicktoper] created (status=draft)
 2026-11-11 22:03 v1 [validate-drift-large-blackboard-live-ticket-blackb] [human:nicktoper] created (status=draft)
+2026-11-11 22:05 v1 [make-retro-check-inbound-doc-links-before-deleting] [human:nicktoper] created (status=draft)
