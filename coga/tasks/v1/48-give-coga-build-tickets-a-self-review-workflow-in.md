@@ -39,11 +39,35 @@ step: 1 (design)
 
 ## Description
 
-`coga build` creates its starter tickets with `code/design-then-implement`, whose evaluate-design and peer-review steps go to the other agent. In a repo that declares one agent, those steps cannot resolve: `coga validate` reports `unresolvable-step-assignee` and the ticket stalls at the hand-off. One-agent repos are now the norm on single-agent machines (v1/20).
+Coga ships three workflows with `other-agent` steps: `code/with-review`, `code/design-then-implement`, and `docs/with-review`. In a repo with one declared agent those steps cannot resolve (`coga validate` reports `unresolvable-step-assignee`) and the ticket stalls at the hand-off. `coga build` hands every starter implementation ticket `code/design-then-implement`, and nothing stops a user (or the `coga ticket` interview) from picking a peer workflow either: `coga create` and activation each check only one step. One-agent repos are now the norm on single-agent machines (v1/20). Keep shipping the peer workflows, but stop defaulting to them and warn when one is picked that cannot finish.
 
-Done when `coga build`, in a repo with one declared agent, gives its tickets a workflow with no `other-agent` step (for example `code/with-self-review`), and two-agent repos keep today's workflow.
+1. **Single-agent defaults.** When no peer resolves, `coga build` gives implementation tickets `code/with-self-review`, as does dream when it files code drafts (autofix already does this); with a resolvable peer they keep today's workflows. Decide when the tickets are created, against the config at that moment — not at `init`, which is too early: a user typically inits, notices only one agent is enabled, and adds a second before `coga build`. Decision tickets keep `draft-for-human`. Shipped examples (e.g. the `coga/first-task` walkthrough) lead with a workflow that works in a one-agent repo.
+2. **Warn, don't refuse.** `coga create --workflow <wf>` and activation (`coga mark active`, first `coga launch` of a draft) print one short advisory line and still succeed when a *remaining* step of the workflow is `other-agent` and no peer resolves for the ticket's (prospective) main agent.
+
+Done when, with tests for each repo shape: in a one-agent repo, `coga build` and dream tickets carry `code/with-self-review`, and `coga create --workflow code/design-then-implement` plus activation of such a ticket each print the warning once and succeed; a three-or-more-agent repo without `peer =` gets its own warning text; a two-agent repo (with or without `peer =`) sees no warning and keeps today's workflows; megalaunch and recurring activations print nothing.
 
 ## Context
+
+### Decisions from authoring (2026-11-11)
+
+- **Warnings over removal.** Removing the peer workflows from the package was considered and rejected as riskier (see blackboard, Superseded designs). `coga validate` keeps `unresolvable-step-assignee` as an error and bump/launch still refuse at the peer step itself — both unchanged. `coga create` keeps refusing when step 1 itself cannot resolve (existing behavior).
+- **Trigger is "no peer resolves", not "`peer =` unset".** `bump.resolve_other_agent` resolves `[agents.<main>].peer` if set, else the single other configured agent; it raises for one agent, or three or more with no `peer =`. A two-agent repo without `peer =` resolves fine and must not warn. `recurring_autofix.autofix_workflow` already makes this exact call (with `allow_prospective_default=True`) to fall back to `code/with-self-review`; extract a shared helper. The per-step check in `validate.py` (its `assignee == "other-agent"` branch) is the existing per-step version. Only steps at or after the current step count, so a ticket reactivated past its peer steps does not warn.
+- **Warning text.** Short, and derived from the resolution failure rather than a bare agent count:
+  - one agent: `⚠ code/design-then-implement is a two-agent workflow, and this repo has one agent. Use code/with-self-review, or declare a second agent in coga.toml.`
+  - three or more, no `peer =`: `⚠ code/design-then-implement needs a second agent, but coga.toml has no peer = to pick one. Set one, or use code/with-self-review.`
+  - For `docs/with-review` (no docs self-review workflow ships), drop the `code/with-self-review` suggestion and say only to declare a second agent.
+  Follow the existing `⚠` advisory style (`mark._warn_if_state_not_advanced`) and match the existing "code/with-self-review without a peer agent" hint text in `commands/mark.py` / `commands/bump.py`. One line per command, not per step.
+- **Print only from the command layer.** `mark.prepare_active` is documented as pure preparation and runs several times per launch (operator probe, assist prospective, real activation), plus from `mark_active`, megalaunch, and the recurring runner. Compute the advisory in a pure helper that *returns* the text; echo it from `commands/create.py`, `commands/mark.py`, and exactly one point in direct launch. Never echo inside `prepare_active` or `create.create_task` (library callers such as autofix stay quiet).
+- **How `coga build` decides.** `coga build` is the alias `launch coga-build`; its agent follows `src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md` ("Create each ticket as a draft, non-interactively"), which hard-codes `--workflow code/design-then-implement`. Prefer giving the agent a cheap CLI signal of whether a peer resolves over prose that parses `coga.toml` + `coga.local.toml`; the design step picks. The create-time warning is the backstop. Update that file's `## No other-agent code review` note too.
+- **No new workflows.** Accepted cost: `code/with-self-review` has no `design` step or owner design gate, so a thin `coga build` ticket in a one-agent repo goes straight to implement.
+
+### Where things live
+
+- `create.create_task` (existing step-1 `resolve_operator` check); `mark.prepare_active` → `_assert_operator_resolves` (checks only the current step).
+- Dream's packaged `src/coga/resources/templates/coga/recurring/dream/ticket.md` files `code/with-review` drafts.
+- `bootstrap/ticket` skill (`src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md`): tell the interviewer not to pick a workflow with `other-agent` steps when no peer resolves.
+- Docs to update in the same PR (edited, so cited not attached): `coga/workflows` ("Roles are the routing" and the bundled-workflow paragraph), `coga/first-task` (example uses `code/with-review`), `code/with-self-review.md`'s `## No other-agent code review`, and `coga/tickets/authoring` if it documents `create`/`mark active` output.
+- Tests: `tests/test_commands.py`, `tests/test_validate.py`, `tests/test_recurring_autofix.py` already build one- and two-agent configs for `unresolvable-step-assignee`; reuse those fixtures.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -132,3 +156,9 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Superseded designs
+
+### 2026-11-11 — Stop shipping peer-review workflows
+
+Remove `code/with-review`, `code/design-then-implement`, and `docs/with-review` from the package (this repo keeping local copies), with no warnings. Rejected as unsafe after cold review: steps without `skills:` reload their instructions from the workflow file by name, so two-agent adopters' in-flight tickets would lose instructions on upgrade; `checkout_policy._changed_section` compares against the shipped copy, so this repo's local copies would degrade to `manual` checkout; and the change touched ~40 files.
