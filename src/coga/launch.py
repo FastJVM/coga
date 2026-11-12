@@ -76,7 +76,6 @@ from coga.github_preflight import check_git_auth, check_git_remote
 from coga import checkouts
 from coga import git
 from coga import pr_assist
-from coga.checkout_policy import select_checkout_policy
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import run_script_chain, script_entry_point
 from coga.logfile import append_log, log_path
@@ -2292,8 +2291,6 @@ class _LaunchInvocation:
         launch without a sweep or a return over state it did not start.
         """
         assert isinstance(self.ref, TaskRef)
-        policy = select_checkout_policy(self.cfg, ticket)
-        _report(f"Launch: checkout policy {policy.kind} — {policy.reason}")
 
         def compose(
             plan: checkouts.TicketCheckoutPlan,
@@ -2308,6 +2305,11 @@ class _LaunchInvocation:
             return current, notice, prompt
 
         try:
+            # Every frozen `checkout:` is validated here, before any branch is
+            # reserved, created or switched; only the boundary's earlier
+            # normalization to control can precede this refusal.
+            policy = checkouts.select_ticket_policy(self.cfg, ticket, "policy")
+            _report(f"Launch: checkout policy {policy.kind} — {policy.reason}")
             plan = checkouts.plan_ticket_checkout(
                 self.cfg, self.ref, ticket, policy,
                 source_bytes=self.source_ticket_bytes if self.group_startup else None,

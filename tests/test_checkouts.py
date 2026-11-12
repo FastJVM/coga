@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import typing
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from dataclasses import replace
@@ -21,6 +22,7 @@ from conftest import append_test_usage as _usage_record
 from coga import checkouts
 from coga import git as coga_git
 from coga import launch as launch_module
+from coga import checkout_policy
 from coga.checkout_policy import select_checkout_policy
 from coga.cli import app
 from coga.compose import CheckoutNotice, compose_prompt_report
@@ -31,17 +33,20 @@ from coga.repl_supervisor import ReplOutcome
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket
-from coga.workflow import Workflow
+from coga.workflow import CHECKOUT_POLICIES, Workflow
 
 
 # --- policy -------------------------------------------------------------------
 
 
-def _frozen(workflow: str, step: str, *, skills=None, drop=()) -> Ticket:  # type: ignore[no-untyped-def]
+def _frozen(workflow: str, step: str, *, skills=None, drop=(), legacy=True) -> Ticket:  # type: ignore[no-untyped-def]
+    """A frozen ticket at `step`; `legacy` strips `checkout:` as pre-field snapshots lack it."""
     frozen = Workflow.load(bootstrap_workflow_path(None, workflow)).freeze()  # type: ignore[arg-type]
     frozen["steps"] = [s for s in frozen["steps"] if s["name"] not in drop]
     for entry in frozen["steps"]:
         entry.pop("requires", None) if drop else None
+        if legacy:
+            entry.pop("checkout", None)
     names = [s["name"] for s in frozen["steps"]]
     index = names.index(step)
     if skills is not None:
@@ -85,7 +90,82 @@ SHIPPED_ROWS = [
 @pytest.mark.parametrize(("workflow", "step", "kind"), SHIPPED_ROWS)
 def test_policy_maps_every_shipped_step(git_repo, workflow, step, kind) -> None:  # type: ignore[no-untyped-def]
     cfg = load_config(git_repo.coga_os)
-    assert select_checkout_policy(cfg, _frozen(workflow, step)).kind == kind
+    policy = select_checkout_policy(cfg, _frozen(workflow, step))
+    assert policy.kind == kind
+    assert "(legacy snapshot)" in policy.reason
+
+
+@pytest.mark.parametrize(("workflow", "step", "kind"), SHIPPED_ROWS)
+def test_packaged_declarations_freeze_the_legacy_selection(git_repo, workflow, step, kind) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    ticket = _frozen(workflow, step, legacy=False)
+    assert ticket.current_step()["checkout"] == kind
+    policy = select_checkout_policy(cfg, ticket)
+    assert policy == checkout_policy.CheckoutPolicy(
+        kind, f"step {step!r} of workflow {workflow!r} declares checkout: {kind}", step
+    )
+
+
+def test_every_other_packaged_workflow_freezes_manual() -> None:
+    root = bootstrap_workflow_path(None, "code/with-review").parents[1]  # type: ignore[arg-type]
+    declared = {w for w, _, _ in SHIPPED_ROWS}
+    seen = set()
+    for path in sorted(root.rglob("*.md")):
+        workflow = Workflow.load(path)
+        seen.add(workflow.name)
+        for entry in workflow.freeze()["steps"]:
+            if workflow.name in declared:
+                assert (workflow.name, entry["name"], entry["checkout"]) in SHIPPED_ROWS
+            else:
+                assert entry["checkout"] == "manual", (workflow.name, entry)
+    assert declared <= seen
+
+
+def test_kind_literal_matches_the_workflow_vocabulary() -> None:
+    assert typing.get_args(checkout_policy.CheckoutPolicyKind) == CHECKOUT_POLICIES
+
+
+def test_declared_policy_ignores_names_skills_roles_and_gates(git_repo) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    ticket = _frozen("code/with-review", "implement", legacy=False)
+    step = ticket.current_step()
+    step.update(
+        name="anything", skills=["custom/skill-that-does-not-resolve"],
+        assignee="owner", checkout="reuse-required",
+    )
+    step.pop("requires")
+    ticket.frontmatter["workflow"]["name"] = "mine/custom"
+    ticket.frontmatter["step"] = "1 (anything)"
+    policy = select_checkout_policy(cfg, ticket)
+    assert policy.kind == "reuse-required"
+    assert policy.reason == "step 'anything' of workflow 'mine/custom' declares checkout: reuse-required"
+    # `manual` beside `requires: branch` stays manual; the gate is separate.
+    step.update(checkout="manual", requires="branch")
+    assert select_checkout_policy(cfg, ticket).kind == "manual"
+
+
+@pytest.mark.parametrize("bad", ["branch", 3, "", None])
+def test_invalid_declared_policy_raises(git_repo, bad) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    ticket = _frozen("code/with-review", "implement", legacy=False)
+    ticket.current_step()["checkout"] = bad
+    with pytest.raises(checkout_policy.CheckoutPolicyError, match="must be one of"):
+        select_checkout_policy(cfg, ticket)
+    assert checkout_policy.invalid_checkout_declarations(ticket) == [
+        f"step 'implement' of workflow 'code/with-review' declares checkout {bad!r}, "
+        f"which must be one of {list(CHECKOUT_POLICIES)}"
+    ]
+    with pytest.raises(checkouts.CheckoutPreparationError, match="stopped at policy"):
+        checkouts.select_ticket_policy(cfg, ticket, "policy")
+
+
+def test_invalid_later_step_refuses_before_selection(git_repo) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    ticket = _frozen("code/with-review", "implement", legacy=False)
+    ticket.frontmatter["workflow"]["steps"][-1]["checkout"] = "branch"
+    assert select_checkout_policy(cfg, ticket).kind == "create-or-reuse"
+    with pytest.raises(checkouts.CheckoutPreparationError, match="step 'review'.*'branch'"):
+        checkouts.select_ticket_policy(cfg, ticket, "policy")
 
 
 def test_policy_supports_older_frozen_snapshots(git_repo) -> None:  # type: ignore[no-untyped-def]
@@ -116,8 +196,16 @@ def test_policy_refuses_contradictory_step_skills(git_repo, skills) -> None:  # 
 def test_policy_names_custom_workflows_manual(git_repo) -> None:  # type: ignore[no-untyped-def]
     cfg = load_config(git_repo.coga_os)
     ref = _task(git_repo, "code")
-    policy = select_checkout_policy(cfg, read_ticket(ref))
+    ticket = read_ticket(ref)
+    policy = select_checkout_policy(cfg, ticket)
     assert policy.kind == "manual"
+    assert policy.reason.endswith("declares checkout: manual")
+    # The same custom step in a legacy snapshot is outside the closed table.
+    for entry in ticket.frontmatter["workflow"]["steps"]:
+        entry.pop("checkout")
+    policy = select_checkout_policy(cfg, ticket)
+    assert policy.kind == "manual"
+    assert "(legacy snapshot)" in policy.reason
     assert "not a shipped step" in policy.reason
 
 
@@ -1123,7 +1211,7 @@ def test_interrupted_linkage_publication_retries_the_same_reservation(
 @pytest.mark.parametrize("stage", ["entry", "launch audit"])
 @pytest.mark.parametrize(
     "change",
-    ["workflow", "step-name", "step-skills", "assignee", "skill-body", "inline-body"],
+    ["workflow", "step-name", "step-skills", "assignee", "checkout", "skill-body", "inline-body"],
 )
 def test_launch_refuses_a_refreshed_step_contract(
     git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, stage: str, change: str
@@ -1134,6 +1222,14 @@ def test_launch_refuses_a_refreshed_step_contract(
             config.write('\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n')
     ref = _task(git_repo, workflow)
     rel = _rel(git_repo, ref)
+    if change in {"skill-body", "inline-body"}:
+        # Instruction bytes select only a legacy snapshot's entry; a declared
+        # `checkout:` is unaffected by them.
+        legacy = read_ticket(ref)
+        for entry in legacy.workflow["steps"]:
+            entry.pop("checkout")
+        ref.ticket_path.write_text(legacy.render(), encoding="utf-8", newline="\n")
+        coga_git.sync_task_state(load_config(git_repo.coga_os), ref.path, message="legacy")
     real_prove = checkouts._prove_control
     changed_path: list[str] = []
     changed_bytes: list[str] = []
@@ -1150,6 +1246,8 @@ def test_launch_refuses_a_refreshed_step_contract(
                 current.current_step()["skills"] = ["code/self-qa"]
             elif change == "assignee":
                 current.current_step()["assignee"] = "owner"
+            elif change == "checkout":
+                current.current_step()["checkout"] = "manual"
             if change == "skill-body":
                 path = "coga/skills/code/implement/SKILL.md"
                 text = bootstrap_skill_path(cfg, "code/implement").read_text(encoding="utf-8") + "\nChanged.\n"
@@ -2312,3 +2410,159 @@ def test_notice_asks_to_push_only_when_there_is_a_branch(git_repo) -> None:  # t
     assert "Push your branch and run `coga bump` last." in (
         checkouts.ticket_notice(cfg, switched).return_owner
     )
+
+
+# --- declared checkout policy -------------------------------------------------
+
+
+def _publish_local(git_repo, files: dict[str, str]) -> None:  # type: ignore[no-untyped-def]
+    for rel, text in files.items():
+        path = git_repo.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8", newline="\n")
+        git_repo.git("add", "--", rel)
+    git_repo.git("commit", "-m", "Local customization")
+    git_repo.git("push", "origin", "main")
+
+
+def test_customized_peer_review_keeps_its_declared_checkout(git_repo, launch_env) -> None:  # type: ignore[no-untyped-def]
+    """The contributor's acceptance case: a renamed single-agent peer review."""
+    cfg = load_config(git_repo.coga_os)
+    shipped = bootstrap_workflow_path(cfg, "code/with-review").read_text(encoding="utf-8")
+    custom = shipped.replace("name: code/with-review", "name: team/solo-review", 1).replace(
+        "  - name: peer-review\n    assignee: other-agent\n",
+        "  - name: peer-review\n    assignee: agent\n",
+    )
+    assert custom.count("team/solo-review") == 1 and "assignee: agent\n    checkout: reuse-required" in custom
+    skill = bootstrap_skill_path(cfg, "code/peer-review").read_text(encoding="utf-8")
+    workflow_rel = "coga/workflows/team/solo-review.md"
+    skill_rel = "coga/skills/code/peer-review/SKILL.md"
+    _publish_local(git_repo, {
+        workflow_rel: custom,
+        skill_rel: skill + "\nReview alone, as the implementing agent.\n",
+    })
+    ref = _task(git_repo, "team/solo-review")
+    rel = _rel(git_repo, ref)
+    frozen = read_ticket(ref).workflow["steps"]
+    assert [s["checkout"] for s in frozen] == [
+        "create-or-reuse", "reuse-required", "control", "reuse-required"
+    ]
+    branch: list[str] = []
+
+    def implement(seen: dict) -> None:
+        branch.append(seen["head"])
+        assert seen["head"].startswith("coga/")
+        assert "Checkout policy: create-or-reuse — step 'implement' of workflow 'team/solo-review' declares checkout: create-or-reuse." in seen["prompt"]
+        (git_repo.root / "feature.py").write_text("print('work')\n", encoding="utf-8", newline="\n")
+        git_repo.git("add", "feature.py")
+        git_repo.git("commit", "-m", "Implement feature")
+        _handoff(git_repo, ref, "implemented")
+        _bump(git_repo, ref.id_slug)
+
+    def peer_review(seen: dict) -> None:
+        assert seen["head"] == branch[0]
+        assert "reused and switched" in seen["prompt"]
+        assert "declares checkout: reuse-required" in seen["prompt"]
+        assert "Review alone, as the implementing agent." in seen["prompt"]
+
+    agent = _Agent(git_repo, [implement, peer_review])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == 0, result.output
+    assert [s["step"] for s in agent.seen] == ["1 (implement)", "2 (peer-review)"]
+    assert "step: 2 (peer-review)" in _control(git_repo, rel)
+
+    # Live edits never reach the frozen ticket: drop the field, edit the skill.
+    _publish_local(git_repo, {
+        workflow_rel: custom.replace("    checkout: reuse-required\n", "", 1),
+        skill_rel: skill + "\nAnother local edit.\n",
+    })
+    cfg = load_config(git_repo.coga_os)
+    policy = select_checkout_policy(cfg, read_ticket(ref))
+    assert policy.kind == "reuse-required"
+    later = _task(git_repo, "team/solo-review", title="After the edit")
+    assert read_ticket(later).workflow["steps"][1]["checkout"] == "manual"
+
+
+def _publish_frozen_checkout(git_repo, ref: TaskRef, index: int, value: object) -> None:  # type: ignore[no-untyped-def]
+    ticket = read_ticket(ref)
+    ticket.workflow["steps"][index]["checkout"] = value
+    ref.ticket_path.write_text(ticket.render(), encoding="utf-8", newline="\n")
+    coga_git.sync_task_state(load_config(git_repo.coga_os), ref.path, message="corrupt")
+
+
+@pytest.mark.parametrize(
+    ("index", "value", "start"),
+    [(0, "branch", "main"), (0, 3, "main"), (-1, "branch", "main"), (-1, "branch", "feature/x")],
+)
+def test_invalid_frozen_checkout_refuses_before_any_branch(
+    git_repo, launch_env, index: int, value: object, start: str
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    _publish_frozen_checkout(git_repo, ref, index, value)
+    if start != "main":
+        git_repo.checkout_branch(start)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code != 0, result.output
+    assert "checkout preparation stopped at policy" in result.output
+    assert f"checkout {value!r}" in result.output
+    assert "must be one of" in result.output
+    assert agent.seen == []
+    # Only the launch boundary's normalization to control precedes the refusal.
+    assert _head(git_repo) == "main" and _dirty(git_repo) == []
+    assert git_repo.git("branch", "--list", "coga/*").strip() == ""
+    assert "## Dev" not in read_blackboard(ref.ticket_path)
+
+
+def test_validate_reports_an_invalid_frozen_checkout(git_repo) -> None:  # type: ignore[no-untyped-def]
+    from coga.validate import validate_task
+
+    ref = _task(git_repo, "code/with-self-review")
+    _publish_frozen_checkout(git_repo, ref, 1, "branch")
+    issues = [
+        i for i in validate_task(load_config(git_repo.coga_os), ref.id_slug).issues
+        if i.kind == "bad-shape" and "checkout" in i.message
+    ]
+    assert [(i.severity, i.message) for i in issues] == [(
+        "error",
+        "workflow step #2 checkout 'branch' must be one of "
+        "['control', 'create-or-reuse', 'reuse-required', 'manual']",
+    )]
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_manual_notice_names_the_kind_for_declared_and_legacy_steps(
+    git_repo, launch_env, legacy: bool
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code")
+    if legacy:
+        ticket = read_ticket(ref)
+        for entry in ticket.workflow["steps"]:
+            entry.pop("checkout")
+        ref.ticket_path.write_text(ticket.render(), encoding="utf-8", newline="\n")
+        coga_git.sync_task_state(load_config(git_repo.coga_os), ref.path, message="legacy")
+    expected = (
+        "Checkout policy: manual — step 'implement' of workflow 'code' has no frozen "
+        "checkout: (legacy snapshot); it is not a shipped step"
+        if legacy else
+        "Checkout policy: manual — step 'implement' of workflow 'code' declares checkout: manual."
+    )
+
+    def check(seen: dict) -> None:
+        assert seen["head"] == "main"
+        assert "did not set up a branch" in seen["prompt"]
+        assert expected in " ".join(seen["prompt"].split())
+
+    agent = _Agent(git_repo, [check])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == 0, result.output
+    assert len(agent.seen) == 1

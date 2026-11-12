@@ -47,6 +47,7 @@ do not rewrite a live snapshot or advance it by editing YAML. Frozen example:
             - code/implement
           assignee: agent                  # Role: owner, agent, or other-agent (the configured peer).
           requires: branch                 # Optional completion gate: branch or pr.
+          checkout: create-or-reuse        # Entry checkout: control, create-or-reuse, reuse-required, manual.
     step: 1 (implement)                    # One-based position plus name; CLI removes this on completion.
 
 An omitted step assignee inherits the previous role; the first defaults to

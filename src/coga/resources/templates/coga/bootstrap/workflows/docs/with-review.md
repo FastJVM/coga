@@ -5,13 +5,17 @@ steps:
   - name: implement
     assignee: agent
     requires: branch
+    checkout: create-or-reuse
   - name: peer-review
     assignee: other-agent
+    checkout: reuse-required
   - name: open-pr
     assignee: agent
     requires: pr
+    checkout: control
   - name: review
     assignee: owner
+    checkout: reuse-required
     skills:
       - code/address-pr-comments
 ---

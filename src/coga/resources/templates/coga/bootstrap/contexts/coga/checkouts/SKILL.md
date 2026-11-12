@@ -1,6 +1,6 @@
 ---
 name: coga/checkouts
-description: The complete checkout lifecycle — which checkout each shipped step starts in, launch's branch preparation and handoff, and which checkout to invoke Coga from; reconciliation, the launch boundary, direct chat, the manual procedure, and the sandbox clone live in its leaves.
+description: The complete checkout lifecycle — which checkout each step starts in (its frozen `checkout:`), launch's branch preparation and handoff, and which checkout to invoke Coga from; reconciliation, the launch boundary, direct chat, the manual procedure, and the sandbox clone live in its leaves.
 ---
 
 # Feature checkouts
@@ -47,34 +47,71 @@ policy, including documentation, ticket edits, and ad-hoc work.
 
 ### Which checkout a step starts in
 
-Launch maps the frozen current step of a shipped workflow to its entry
-checkout. It is a closed table, not a step-name heuristic:
+The frozen step declares its entry. A workflow step may set `checkout:` to one
+of four values ([definition format](../workflows/SKILL.md#definition-format)):
 
-| Workflow | Current step | Entry |
+- `control` — run from a clean control checkout; no branch.
+- `create-or-reuse` — create the task branch, or reuse the recorded one.
+- `reuse-required` — reuse the recorded `branch:`; refuse without one.
+- `manual` — launch prepares and returns control but sets up no branch and
+  says so; the agent follows this topic itself. An omitted field means
+  `manual`.
+
+Freezing writes the explicit value on every step, so a declared policy is
+authoritative: workflow name, step name, skills, a local edit of the step's
+skill or section, `assignee:` and `requires:` do not change it. Customize the
+procedure and its instructions freely; the checkout follows the declaration.
+The field is data for the shared mechanics below and never bypasses
+occupancy, Git, owner-gate or assist checks. Roles and completion gates stay
+independent: a `manual` step that `requires: branch` still needs its
+`branch:` before bump.
+
+Every frozen `checkout:` value is validated before launch reserves, creates or
+switches a branch; only the [launch boundary](launch-boundary/SKILL.md)'s
+initial normalization to control precedes that refusal. An invalid value,
+on any step, stops the launch and is a `coga validate` error. If the
+ticket's workflow or step changes on control while launch prepares, launch
+refuses before spawning; retry it.
+
+The packaged workflows declare:
+
+| Workflow | Step | `checkout:` |
 | --- | --- | --- |
-| `code/design-then-implement` | `design`, `evaluate-design`, `review-design` | control |
-| all five shipped code/docs workflows | `implement` | create or reuse the recorded branch |
-| `code/agent-merge`, `code/design-then-implement`, `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
-| `code/with-self-review` | `self-qa` | reuse the recorded branch |
-| `code/agent-merge`, `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | control |
-| `code/with-self-review` | `pr` | control |
-| `code/agent-merge` | `merge` | reuse the recorded branch |
-| all but `code/agent-merge` | owner-held `review` (an explicit assist) | reuse the recorded branch |
+| `code/design-then-implement` | `design`, `evaluate-design`, `review-design` | `control` |
+| all five packaged code/docs workflows | `implement` | `create-or-reuse` |
+| `code/agent-merge`, `code/design-then-implement`, `code/with-review`, `docs/with-review` | `peer-review` | `reuse-required` |
+| `code/with-self-review` | `self-qa` | `reuse-required` |
+| `code/agent-merge`, `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | `control` |
+| `code/with-self-review` | `pr` | `control` |
+| `code/agent-merge` | `merge` | `reuse-required` |
+| all but `code/agent-merge` | owner-held `review` (an explicit assist) | `reuse-required` |
 
-A row applies only when the step's instructions are the shipped ones: its
-step skill, or its inline `## <step>` section, equals the packaged copy
-(older frozen snapshots of the same workflows match too; a step skill's CRLF
-checkout, as Git for Windows' `core.autocrlf` produces, still equals it). Anything else — a
-custom workflow, a local edit of the consumed skill or section, extra or
-replaced step skills — gets **manual**: launch still prepares and returns
-control, but sets up no branch and says so. Ticket-wide `skills:`,
-completion gates, and roles never select entry behavior. If the ticket's
-workflow or step changes on control while launch prepares, launch refuses
-before spawning; retry it.
+Every other packaged workflow omits the field and freezes `manual`.
 
-Older `code/with-review` snapshots consume an inline `peer-review` section
-that delegates to `code/peer-review`. Both that section and the resolved
-skill must match the packaged copies for launch to reuse the branch.
+A repo-local copy of a workflow wins over the package. A local copy written
+before `checkout:` existed therefore freezes `manual` for new tickets, even
+when its name and skills match a packaged code workflow. Declare the policies
+in the local definition to restore branch preparation; existing tickets keep
+their snapshots.
+
+#### Legacy snapshots
+
+A frozen step **without** a `checkout` key was frozen before the field
+existed. For those only, launch keeps the earlier closed table: the packaged
+entry above applies when the qualified workflow and step match, and the
+instructions the step consumes (its resolved step skill, or its live inline
+`## <step>` section) equal the packaged copy. A CRLF checkout of the skill,
+as Git for Windows' `core.autocrlf` produces, still matches. Older
+`code/with-review` snapshots consume an inline `peer-review` section that
+delegates to `code/peer-review`; both must match. Anything else gets
+`manual`. The runtime notice and launch report say `legacy snapshot` when
+this path selected the entry.
+
+No command rewrites a frozen ticket to add `checkout:`. The fallback may be
+deleted only in a reviewed change after no live ticket in supported repos
+carries a code/docs snapshot without `checkout:`, or after an explicitly
+reviewed migration of those snapshots. Do not rewrite snapshots merely to
+delete it.
 
 ### In a launched session
 

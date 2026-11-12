@@ -217,8 +217,9 @@ The user contracts are [coga/checkouts](../../../../../src/coga/resources/templa
 - **Re-preflight after refresh.** After each control refresh during
   preparation, the ticket's status, step and complete frozen workflow must
   still match the copy already routed and preflighted, and
-  `checkout_policy.select_checkout_policy` is re-run on the refreshed
-  instructions. A changed workflow or policy refuses before further branch
+  `checkouts.select_ticket_policy` re-validates every frozen `checkout:` and
+  re-selects the policy (for a legacy snapshot, from the refreshed
+  instructions). A changed workflow or policy refuses before further branch
   work or spawn, even with an unchanged status and step index. New blackboard
   notes and the preparation's own linkage publication do not change that
   contract.

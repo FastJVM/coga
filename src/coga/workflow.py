@@ -41,6 +41,16 @@ VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset(
     {"owner", "agent", "other-agent"}
 )
 
+# Checkout entry policies a step may declare under `checkout:` (see
+# coga.checkout_policy and `coga/checkouts`). The value is data for the
+# kernel's checkout mechanics; it never changes roles, gates or occupancy.
+# An omitted field means `manual`; freezing always writes the explicit value,
+# so a frozen step *without* the key is a snapshot from before the field.
+CHECKOUT_POLICIES: tuple[str, ...] = (
+    "control", "create-or-reuse", "reuse-required", "manual"
+)
+DEFAULT_CHECKOUT = "manual"
+
 
 @dataclass(frozen=True)
 class WorkflowStep:
@@ -51,6 +61,8 @@ class WorkflowStep:
     # to advance off this step until the named artifact is recorded on the
     # blackboard — e.g. `requires: pr` on the `open-pr` step.
     requires: str | None = None
+    # Checkout entry policy; one of CHECKOUT_POLICIES.
+    checkout: str = DEFAULT_CHECKOUT
 
 
 @dataclass
@@ -118,6 +130,7 @@ class Workflow:
                 entry["assignee"] = step.assignee
             if step.requires:
                 entry["requires"] = step.requires
+            entry["checkout"] = step.checkout
             out["steps"].append(entry)
         return out
 
@@ -171,8 +184,18 @@ def _parse_step(raw: Any, source: Path) -> WorkflowStep:
                 f"{source}: step {name!r} requires {requires!r} must be one of "
                 f"{sorted(known_gate_tokens())} (a registered completion gate)"
             )
+    checkout = raw.get("checkout", DEFAULT_CHECKOUT)
+    if not isinstance(checkout, str) or checkout not in CHECKOUT_POLICIES:
+        raise WorkflowError(
+            f"{source}: step {name!r} checkout {checkout!r} must be one of "
+            f"{list(CHECKOUT_POLICIES)}"
+        )
     return WorkflowStep(
-        name=name, skills=tuple(skills_raw), assignee=assignee, requires=requires
+        name=name,
+        skills=tuple(skills_raw),
+        assignee=assignee,
+        requires=requires,
+        checkout=checkout,
     )
 
 
@@ -191,5 +214,5 @@ def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
 
 __all__ = [
     "Workflow", "WorkflowStep", "WorkflowError", "WorkflowNotFoundError",
-    "VALID_ASSIGNEE_ROLES",
+    "VALID_ASSIGNEE_ROLES", "CHECKOUT_POLICIES", "DEFAULT_CHECKOUT",
 ]

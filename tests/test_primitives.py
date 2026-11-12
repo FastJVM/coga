@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from textwrap import dedent
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from coga.logfile import append_log
 from coga.slugify import slugify
 from coga.taskfile import BLACKBOARD_FENCE, read_blackboard, replace_blackboard
 from coga.ticket import Ticket, TicketError, TicketNotFoundError
-from coga.workflow import Workflow, WorkflowError
+from coga.workflow import CHECKOUT_POLICIES, DEFAULT_CHECKOUT, Workflow, WorkflowError
 
 
 # --- slugify ------------------------------------------------------------------
@@ -149,8 +150,12 @@ def test_workflow_step_assignee_role_token_round_trips(tmp_path: Path) -> None:
     wf = Workflow.load(path)
     assert wf.steps[0].assignee == "agent"
     frozen = wf.freeze()
-    assert frozen["steps"][0] == {"name": "implement", "skills": [], "assignee": "agent"}
-    assert frozen["steps"][1] == {"name": "review", "skills": [], "assignee": "owner"}
+    assert frozen["steps"][0] == {
+        "name": "implement", "skills": [], "assignee": "agent", "checkout": "manual"
+    }
+    assert frozen["steps"][1] == {
+        "name": "review", "skills": [], "assignee": "owner", "checkout": "manual"
+    }
 
 
 def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:
@@ -189,7 +194,8 @@ def test_workflow_step_requires_gate_round_trips(tmp_path: Path) -> None:
     assert wf.steps[1].requires is None
     frozen = wf.freeze()
     assert frozen["steps"][0] == {
-        "name": "open-pr", "skills": [], "assignee": "agent", "requires": "pr"
+        "name": "open-pr", "skills": [], "assignee": "agent", "requires": "pr",
+        "checkout": "manual",
     }
     # A step without a gate carries no `requires` key at all.
     assert "requires" not in frozen["steps"][1]
@@ -209,6 +215,44 @@ def test_workflow_rejects_unknown_requires_gate(tmp_path: Path) -> None:
     ).lstrip(), encoding="utf-8", newline="\n")
     with pytest.raises(WorkflowError, match="completion gate"):
         Workflow.load(path)
+
+
+def test_workflow_step_checkout_round_trips_after_requires(tmp_path: Path) -> None:
+    path = tmp_path / "wf.md"
+    path.write_text(dedent(
+        """
+        ---
+        name: wf
+        steps:
+          - name: implement
+            checkout: create-or-reuse
+            requires: branch
+          - name: review
+        ---
+        """
+    ).lstrip(), encoding="utf-8", newline="\n")
+    wf = Workflow.load(path)
+    assert [s.checkout for s in wf.steps] == ["create-or-reuse", DEFAULT_CHECKOUT]
+    frozen = wf.freeze()
+    # Freezing writes the explicit policy on every step, after `requires:`.
+    assert list(frozen["steps"][0]) == ["name", "skills", "requires", "checkout"]
+    assert frozen["steps"][0]["checkout"] == "create-or-reuse"
+    assert frozen["steps"][1]["checkout"] == "manual"
+
+
+@pytest.mark.parametrize("bad", ["branch", "", 3, None, ["control"]])
+def test_workflow_rejects_unknown_checkout_policy(tmp_path: Path, bad: object) -> None:
+    path = tmp_path / "wf.md"
+    path.write_text(
+        "---\nname: wf\nsteps:\n  - name: implement\n    checkout: "
+        + json.dumps(bad) + "\n---\n",
+        encoding="utf-8", newline="\n",
+    )
+    with pytest.raises(WorkflowError) as exc:
+        Workflow.load(path)
+    message = str(exc.value)
+    assert "'implement'" in message and repr(bad) in message
+    assert str(list(CHECKOUT_POLICIES)) in message
 
 
 # --- log ----------------------------------------------------------------------
