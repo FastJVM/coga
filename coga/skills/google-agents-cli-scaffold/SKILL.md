@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v1.12.0
+    github-ref: refs/tags/v1.13.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 486884783abc1e1bf43bc9ade9bbe671d016631f
+    github-tree-sha: 801766e832e0830fa9d24a0e4d98593cd395f55c
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.12.0
+    version: 1.13.0
 name: google-agents-cli-scaffold
 ---
 # Project Scaffolding Guide
@@ -129,9 +129,9 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 | `adk_go` | Go | Agent Runtime, Cloud Run, GKE | Standard ADK Go agent; A2A protocol built in |
 
 > **`adk_python` and `adk_go` are the only built-in templates.** `adk_python` is the default, so a Go project
-> needs `--agent adk_go` explicitly. `adk` is accepted as an alias for `adk_python`.
-> Other frameworks ship as template repos you scaffold
-> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.12.0`, with nothing installed. First-party
+> needs `--agent adk_go`. `adk` is an alias for `adk_python`.
+> Other frameworks and third-party templates ship as template repos you scaffold
+> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.13.0`, with nothing installed. First-party
 > templates live in `extensions/` (`langchain/template`, `claude/template`); see
 > `/google-agents-cli-workflow` → `references/extension.md` to publish your own. Capabilities
 > beyond the template — retrieval, sandboxed execution, memory, OAuth, guardrails — are
