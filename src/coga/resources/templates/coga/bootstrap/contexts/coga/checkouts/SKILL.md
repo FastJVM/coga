@@ -204,6 +204,8 @@ under `coga/tasks/` do not stay in the diff either: the task directory is
 routine state, so a sweeping command run on the feature checkout adopts their
 committed branch copies to control (the committed-state boundary in
 [coga/state-publication](../state-publication/SKILL.md#control-versus-feature-checkouts)).
+Make those changes in the primary checkout's live task, like an authored body
+change.
 
 Size exception: the launched lifecycle, the per-step checkout map, and the
 invocation and stranded-write rules stay together because each step's
