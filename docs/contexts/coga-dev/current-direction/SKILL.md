@@ -91,8 +91,10 @@ is `coga status` and the ticket bodies; stage posture is
 - **Thin tickets are designed before they are built.** Use
   `code/design-then-implement` (design → cold evaluation → owner
   `review-design` gate) for one- or two-sentence tickets and
-  `code/with-review` when the spec is clear. Both have the other agent review
-  the code; `code/with-self-review` is the single-agent fallback. Contract:
+  `code/with-review` when the spec is clear, or `code/agent-merge` when the
+  owner has opted out of the PR gate and audits after the merge. All three
+  have the other agent review the code; `code/with-self-review` is the
+  single-agent fallback. Contract:
   [`coga/workflows`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **Capability-gap detection stays judgment-based.** Unresolved skill refs are
   already errors (`coga validate` `broken-skill`, composition hard-fails); a
