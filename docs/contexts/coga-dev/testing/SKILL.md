@@ -126,8 +126,7 @@ is their hand-run counterpart: a first-time user installs on a fresh
   launched ticket. Add new launch-owned variables to `TASK_ENV_KEYS`; do not
   add per-test `delenv` opt-outs. `tests/test_env_isolation.py` proves it.
 - **Do not pin to live dogfooded state.** Files under `coga/` mutate as the
-  repo is used. Strip runtime fields (see `_strip_runtime_state` in
-  `tests/test_autoclose_sweep.py`) or freeze the period; assert structure.
+  repo is used. Strip runtime fields or freeze the period; assert structure.
 - **Fixture shell scripts must be portable.** Avoid GNU-only `sed -i`,
   `readlink -f`, `date -d`; prefer Python or `sed ... > tmp && mv tmp file`.
 - **Stand in for a tool interpreter with an `exec` wrapper, not a symlink.**
@@ -159,6 +158,17 @@ is their hand-run counterpart: a first-time user installs on a fresh
   This repository keeps `.gitignore` LF because Git for Windows can interpret
   CR-only blank ignore lines as matches; this does not change init's policy
   for adopting repositories.
+- **A test that models an agent must fake one of the agent seams.** Fake
+  `shutil.which` (installed agent), `subprocess.run` (the agent run), or
+  `coga.launch.run_with_done_marker`. The Windows planner resolves the agent
+  against the child's PATH/PATHEXT and spawns it through `ProcessTree`, so
+  without a fake a native run starts the real installed `claude.exe`; native
+  runs once found about 126 orchestration tests doing so. The autouse
+  `tests/conftest.py` `_windows_agent_spawn_follows_test_fakes` keeps the
+  bare CLI name while one of those seams is faked and routes the no-console,
+  ungated Windows spawn through a faked `subprocess.run`, matching POSIX. Only
+  `tests/test_repl_supervisor_nt.py`, which owns the real Windows spawn
+  contract, is exempt.
 - **`coga.config` and `coga.launch` share one `subprocess` module
   object.** Use one argv-dispatching mock on `coga.config.subprocess.run`.
 - `hatchling` is a tracked test extra, not a runtime dependency, because
