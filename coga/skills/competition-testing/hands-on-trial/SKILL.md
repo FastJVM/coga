@@ -63,6 +63,12 @@ codebase, so it is judged against the hand-driven laps. Keep the scratch
 project without a Git remote so an unattended mode stays local and cannot
 push or open PRs.
 
+Record the tool's exact version, and any mode or generation it runs in, at
+the start of every lap: a fresh install can default to an older generation,
+and auto-update can make a later lap a different product from the first.
+When the tool meters usage, record the balance before lap 1 and the usage
+per lap so the write-up can compare costs and explain any trial limits.
+
 ## Controls
 
 Every tool in this space is prompt files over the same model. When the tool
@@ -70,6 +76,10 @@ asks a sharp question or catches a gap, give the same input to the bare model
 with no plugin before crediting the tool. What a tool controls is whether it
 asks, when, in what format, and with what posture. Record an observation as
 unattributed until the control has run.
+
+Before logging that the tool fabricated a result (for example "tests pass" on
+a VM without the runtime), have the human list the project's build and
+dependency artifacts: a tool may carry its own bundled runtime.
 
 ## Artifacts
 
