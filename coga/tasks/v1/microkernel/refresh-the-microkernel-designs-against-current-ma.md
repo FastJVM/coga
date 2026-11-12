@@ -14,11 +14,11 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 agent: claude
 contexts:
-  - coga-dev/principles
-  - coga-dev/microkernel/objectives
+- coga-dev/principles
+- coga-dev/microkernel/objectives
 ---
 
 ## Description
