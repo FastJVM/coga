@@ -17,6 +17,7 @@ from coga.blackboard import (
     prelaunch_blackboard_synthesis_reason_text,
     read_blockers,
     render_blackboard,
+    resolve_blockers_text,
 )
 from coga.config import Config, load_config
 
@@ -70,6 +71,40 @@ def test_blocker_resolution_examples_cannot_resolve_a_live_ask(example: str) -> 
     assert blocker.id == "live"
     assert not blocker.resolved
     assert blocker.answer is None
+
+
+@pytest.mark.parametrize("ending", ["", "\n"])
+def test_resolve_blockers_targets_records_and_preserves_inert_text(ending: str) -> None:
+    ask = "- [ ] [2026-09-18 12:00] [claude] id=same {reason}\n"
+    legacy = "- [2026-09-18 12:00] [claude] Legacy dependency\n"
+    example = "```markdown\n" + ask.format(reason="Finished dependency") + legacy + "```\n"
+    archive = "## Superseded designs\n" + ask.format(reason="Finished dependency") + legacy
+    answered = (
+        "- [x] [2026-09-18 12:00] [claude] id=answered Old ask\n"
+        "  resolved: [2026-09-18 13:00] [human:marc] Prior answer\n"
+    )
+    text = (
+        ask.format(reason="Finished dependency")
+        + ask.format(reason="Unfinished dependency")
+        + example + archive + "## Blockers\n" + legacy + answered
+        + "## Superseded designs\nArchived tail" + ending
+    )
+    finished, unfinished, old, already_answered = parse_blockers_text(text)
+
+    resolved = resolve_blockers_text(
+        text, "system", {finished: "Finished A", old: "Finished legacy"}
+    )
+
+    blockers = parse_blockers_text(resolved)
+    assert [b.resolved for b in blockers] == [True, False, True, True]
+    assert [b.answer for b in blockers] == ["Finished A", None, "Finished legacy", "Prior answer"]
+    assert blockers[1] == unfinished
+    assert blockers[3] == already_answered
+    assert example in resolved
+    assert archive in resolved
+    assert answered in resolved
+    assert resolved.endswith("Archived tail" + ending)
+    assert resolve_blockers_text(resolved, "system", {finished: "New answer"}) == resolved
 
 
 def test_blockers_archive_boundaries_and_duplicate_sections() -> None:

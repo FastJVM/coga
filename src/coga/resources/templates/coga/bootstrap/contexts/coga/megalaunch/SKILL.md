@@ -104,16 +104,22 @@ same order; a selection filters it, so pick order never sets run order. `coga va
 After a bare sweep, megalaunch re-lists the blocked tickets inside the same
 owner filter and directory scope. Draining another owner's tickets answers
 nothing on their behalf: only blockers whose named dependency has finished
-resolve. An open blocker whose text contains a
-complete path-qualified task ref is satisfied when that task is `done` or was
-seen earlier in the run and has since disappeared. The ticket is recaptured
-as exact bytes, its activation prepared, and activation plus an automatic
-blocker answer publish as one exact mutation before the launch claim; the
-prompt therefore never carries the blocker preamble. An unactivatable ticket
-keeps its ask and stays `blocked`; a lost publication restores it, an
-uncertain one retains evidence. Each task drains at most once per run; after
-any actual launch the walk restarts from the oldest blocked ticket, and a
-pass without a launch ends it.
+resolve, under the [dependency contract](../lifecycle/SKILL.md#dependencies-and-supersession).
+The ticket and its open asks are recaptured as exact bytes before selecting
+satisfied entries. Each selected entry gets an automatic answer naming its
+finished dependency; other entries keep their asks and answers untouched.
+Partial resolutions publish against that exact snapshot with status still
+`blocked`, and consume no launch attempt. Such a ticket can be reconsidered
+after another launch finishes more work.
+
+When no open asks would remain, activation is prepared first, then all
+remaining targeted answers and activation publish as one exact mutation before
+the launch claim; the prompt therefore never carries the blocker preamble.
+An unactivatable ticket keeps its remaining asks and stays `blocked`. For
+partial resolutions and activation alike, a lost publication restores the
+source ticket; an uncertain one retains evidence. Each task drains into a
+launch at most once per run; after any actual launch the walk restarts from
+the oldest blocked ticket, and a pass without a launch ends it.
 
 ## Budget, agent, scope, summary
 

@@ -8,7 +8,8 @@ that has since crashed or been torn down mid-step — resumes, exactly like a
 manual `coga launch <slug>`. After that pass, a fixed-point dependency drain
 re-lists the same owner's blocked tickets: when an open blocker names a known
 task that is now done (or was deleted after finishing), megalaunch resolves
-the ask with an explicit automatic answer and relaunches the dependent. Each
+that ask with an explicit automatic answer. The dependent relaunches only
+when no open asks remain. Each
 drain launch restarts the walk; a full pass with no launch ends the run.
 
 An **explicit selection** (the `--pick` picker or `--relaunch`) runs only the
@@ -68,7 +69,7 @@ from coga.blackboard import (
     Blocker,
     open_blockers,
     parse_blockers_text,
-    resolve_open_blockers,
+    resolve_blockers_text,
     update_blackboard_under_barrier,
 )
 from coga.launch import (
@@ -92,7 +93,7 @@ from coga.config import (
 )
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
-from coga.logfile import first_activity_map, retract_log_lines
+from coga.logfile import append_log, first_activity_map, retract_log_lines
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.mark import (
     BlackboardNeedsSynthesis,
@@ -469,12 +470,12 @@ def _drain_satisfied_blockers(
     a finished task may legitimately be retired and removed before its
     dependent reaches this drain.
 
-    Each task is drained at most once per run. Its prospective activation is
-    validated first, then activation and blocker resolution publish from one
-    exact ticket snapshot. A ticket that cannot activate keeps its open ask;
-    the combined write also makes the resolved bytes the next launch claim's
-    control revision. The explicit per-run set prevents a newly-created
-    blocker from relaunching the same task forever.
+    Partial resolutions publish from an exact snapshot, keeping the task
+    blocked. Once every remaining ask is satisfied, prospective activation
+    validates first, then activation and resolution publish together. A ticket
+    that cannot activate keeps its remaining asks. The resolved bytes become
+    the next launch claim's control revision. Each task may launch from the
+    drain at most once, preventing a new blocker from relaunching it forever.
     """
     # `filter_tasks_under` accepts a human-friendly leading/trailing slash and
     # normalizes it for the main queue. Apply the same normalization to the
@@ -525,9 +526,10 @@ def _drain_satisfied_blockers(
                         _operator_name(cfg, ref, ticket),
                     ),
                 )
-            dependency = _finished_blocker_dependency(blockers, known)
-            if dependency is None:
+            resolutions = _finished_blocker_dependencies(blockers, known)
+            if not resolutions:
                 continue
+            dependency = ", ".join(dict.fromkeys(resolutions.values()))
             if max_tasks is not None and attempted >= max_tasks:
                 return results
 
@@ -591,8 +593,8 @@ def _drain_satisfied_blockers(
                 for blocker in parse_blockers_text(blocker_text)
                 if not blocker.resolved
             ]
-            dependency = _finished_blocker_dependency(blockers, known)
-            if dependency is None:
+            resolutions = _finished_blocker_dependencies(blockers, known)
+            if not resolutions:
                 detail = (
                     "; ".join(blocker.reason for blocker in blockers)
                     or "status is blocked"
@@ -608,14 +610,40 @@ def _drain_satisfied_blockers(
                 )
                 continue
 
+            dependency = ", ".join(dict.fromkeys(resolutions.values()))
+            answers = {
+                blocker: (
+                    "Coga megalaunch automatically resolved this blocker after "
+                    f"dependency {finished} finished."
+                )
+                for blocker, finished in resolutions.items()
+            }
+            if any(blocker not in answers for blocker in blockers):
+                failure = _publish_partial_dependency_resolution(
+                    cfg, ref, ticket, source_bytes=captured, answers=answers
+                )
+                if failure is not None:
+                    drained_slugs.add(ref.id_slug)
+                    _replace_result(results, failure)
+                else:
+                    remaining = "; ".join(
+                        blocker.reason for blocker in blockers if blocker not in answers
+                    )
+                    _replace_result(
+                        results,
+                        _result(
+                            ref, "skipped-unresolved-blocker", remaining,
+                            _operator_name(cfg, ref, ticket),
+                        ),
+                    )
+                # A later launch may finish another dependency. Partial
+                # progress does not consume the task's one drain launch.
+                continue
+
             drained_slugs.add(ref.id_slug)
-            answer = (
-                "Coga megalaunch automatically resolved this blocker after "
-                f"dependency {dependency} finished."
-            )
 
             # Validate the prospective activation before either local write.
-            # The durable helper then publishes activation and this answer as
+            # The durable helper then publishes activation and these answers as
             # one exact transaction; a refused activation leaves the blocked
             # ticket and its actionable ask untouched.
             prepared = _prepare_for_launch(cfg, ref, ticket)
@@ -632,7 +660,7 @@ def _drain_satisfied_blockers(
                 ),
                 prepared=prepared,
                 source_bytes=captured,
-                blocker_resolution=("system", answer),
+                blocker_resolution=("system", answers),
             )
             if failure is not None:
                 _replace_result(results, _as_drained(failure, dependency))
@@ -696,24 +724,28 @@ def _drain_satisfied_blockers(
     return results
 
 
-def _finished_blocker_dependency(
+def _finished_blocker_dependencies(
     blockers: list[Blocker], known_refs: dict[str, TaskRef]
-) -> str | None:
-    """The first exact task ref named by a blocker that is now finished."""
+) -> dict[Blocker, str]:
+    """Map each satisfied open blocker record to its exact finished task refs."""
     slugs = sorted(known_refs, key=lambda slug: (-len(slug), slug))
+    finished: dict[str, bool] = {}
+    resolutions: dict[Blocker, str] = {}
     for blocker in blockers:
-        for slug in slugs:
-            if not _reason_names_task(blocker.reason, slug):
-                continue
-            try:
-                dependency = read_ticket(known_refs[slug])
-            except TicketNotFoundError:
-                return slug
-            except TicketError:
-                continue
-            if dependency.status == "done":
-                return slug
-    return None
+        if blocker.resolved:
+            continue
+        named = [slug for slug in slugs if _reason_names_task(blocker.reason, slug)]
+        for slug in named:
+            if slug not in finished:
+                try:
+                    finished[slug] = read_ticket(known_refs[slug]).status == "done"
+                except TicketNotFoundError:
+                    finished[slug] = True
+                except TicketError:
+                    finished[slug] = False
+        if named and all(finished[slug] for slug in named):
+            resolutions[blocker] = ", ".join(named)
+    return resolutions
 
 
 def _reason_names_task(reason: str, slug: str) -> bool:
@@ -1725,6 +1757,55 @@ def _prepare_for_launch(
     return prospective
 
 
+def _publish_partial_dependency_resolution(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    source_bytes: bytes,
+    answers: dict[Blocker, str],
+) -> MegalaunchResult | None:
+    """Publish satisfied asks against exact bytes, retaining `blocked`.
+
+    Match activation's recovery: restore a definitely refused write, retain
+    an uncertain one as evidence, and never overwrite a changed local ticket.
+    """
+    with git.state_lock(cfg):
+        log_before = _log_bytes(cfg)
+        written: bytes | None = None
+        try:
+            written = update_blackboard_under_barrier(
+                cfg, ref.ticket_path,
+                lambda region: resolve_blockers_text(region, "system", answers),
+                expected_bytes=source_bytes,
+            )
+            append_log(
+                cfg, ref.id_slug, "megalaunch",
+                "resolved finished dependency blockers (still blocked)",
+            )
+            git.sync_task_state(
+                cfg, ref.path,
+                message=f"Ticket: {ref.id_slug} — dependency asks resolved",
+                expect={ref.ticket_path: source_bytes},
+                strict=True,
+            )
+        except git.UncertainPublishError as exc:
+            return _result(
+                ref, "failed",
+                "dependency resolution publication outcome is uncertain; "
+                f"local state retained for reconciliation — {exc}",
+                _operator_name(cfg, ref, ticket),
+            )
+        except (OSError, UnicodeError, TaskFileError, git.GitError) as exc:
+            if written is not None:
+                _restore_ticket_bytes(cfg, ref, source_bytes, log_before=log_before)
+            return _result(
+                ref, "failed", f"could not publish dependency resolutions: {exc}",
+                _operator_name(cfg, ref, ticket),
+            )
+    return None
+
+
 def _activate_for_launch(
     cfg: Config,
     ref: TaskRef,
@@ -1733,7 +1814,7 @@ def _activate_for_launch(
     log_message: str | None = None,
     prepared: Ticket | None = None,
     source_bytes: bytes | None = None,
-    blocker_resolution: tuple[str, str] | None = None,
+    blocker_resolution: tuple[str, dict[Blocker, str]] | None = None,
 ) -> MegalaunchResult | None:
     """Commit a picked or dependency-drained ticket to `active`.
 
@@ -1747,8 +1828,9 @@ def _activate_for_launch(
     `mark_active` therefore sees an already-prepared `active` ticket (so it
     cannot freeze a changed workflow definition) and the write is refused
     before it happens if a peer changed the ticket meanwhile. A dependency
-    drain also supplies an actor/answer pair: after activation validates and
-    writes, its blocker update joins the same exact control publication. Thus
+    drain also supplies an actor and answers by blocker record: after
+    activation validates and writes, its blocker update joins the same exact
+    control publication. Thus
     the next launch claim builds on resolved bytes rather than a local-only
     edit. A refused or failed publication restores the source bytes; an
     unknown one keeps the local write for reconciliation.
@@ -1791,16 +1873,18 @@ def _activate_for_launch(
                     sync_state=not strict_activation and blocker_resolution is None,
                 )
                 if blocker_resolution is not None:
-                    actor, answer = blocker_resolution
+                    actor, answers = blocker_resolution
                     try:
-                        resolved = resolve_open_blockers(
-                            ref.ticket_path, actor=actor, answer=answer
+                        resolved = update_blackboard_under_barrier(
+                            cfg, ref.ticket_path,
+                            lambda region: resolve_blockers_text(region, actor, answers),
+                            expected_bytes=ticket.render().encode("utf-8"),
                         )
                     except (OSError, UnicodeError, TaskFileError) as exc:
                         raise git.GitError(
                             f"could not resolve dependency blocker: {exc}"
                         ) from exc
-                    if not resolved:
+                    if resolved is None or open_blockers(ref.ticket_path):
                         raise git.GitError(
                             "dependency blocker changed before its guarded resolution"
                         )
