@@ -1015,3 +1015,10 @@ Recorded: 2026-11-06T06:41:19+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: depth must be merge, skim, or deep.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: write PR-preparation prose as YAML block scalars
