@@ -10746,3 +10746,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 21:14 v1 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-11 21:14 v1 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1200 (codex-claude-capture-unknowns) ready for review: https://github.com/FastJVM/coga/pull/1200
+2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1201 (pytest-temp-roots) ready for review: https://github.com/FastJVM/coga/pull/1201
