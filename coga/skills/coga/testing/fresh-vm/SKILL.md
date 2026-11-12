@@ -140,6 +140,21 @@ popup. `which -a` locates them without running them; an error from
 install walk reveal any popup naturally. Add the tool under test's command
 names to the lookup when testing a competitor.
 
+Measured macOS tool facts (2026-11-03). With the Command Line Tools installed
+(macOS 26.4.1 arm64), `/usr/bin/python3 -V` is Python 3.9.6, `/usr/bin/pip3`
+is the same 118928-byte xcode-select stub as `/usr/bin/python3`, and the CLT
+3.9 stdlib carries no `EXTERNALLY-MANAGED` marker. On a developer workstation
+`python3`, `pip3` and `git` commonly resolve to Anaconda or Homebrew copies
+(`/opt/anaconda3/bin/python3`, `/opt/homebrew/bin/git`), not Apple's, so
+record each tool's absolute resolved path and provider and probe Apple's
+interpreter explicitly with `/usr/bin/python3 -m pip`; a bare
+`pip3 --version` there does not describe the CLT state. Still open, with no
+recorded observation: whether that CLT pip can install uv so uv provisions
+Python 3.11, where a `--user` install puts executables
+(`~/Library/Python/3.9/bin`, probably not on `PATH`), and what a Migration
+Assistant Mac carries. The research ticket scoped to settle these
+(`v1/16`) closed without doing so; treat them as questions, not facts.
+
 **Windows:** open PowerShell in the guest (Start, type PowerShell) and run:
 
 ```powershell
