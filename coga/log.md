@@ -10905,3 +10905,5 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 10:54 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-12 11:24 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [human:zach] created (status=draft)
 2026-11-12 11:25 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [human:zach] activated (draft → active)
+2026-11-12 11:26 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [human:zach] started (active → in_progress) via coga launch
+2026-11-12 11:26 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [human:zach] launched (operator=claude, agent=claude)

@@ -1,6 +1,6 @@
 ---
 title: Point agents to self-review in one-agent repos
-status: active
+status: in_progress
 owner: zach
 workflow:
   name: code/with-review
@@ -154,5 +154,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-48-point-agents-to-self-review-in-one-agent-r-7c4a8d
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
