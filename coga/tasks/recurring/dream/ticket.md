@@ -1252,3 +1252,10 @@ Line 129-130 ("Do not pin to live dogfooded state") tells authors to "Strip runt
   - #1207 sandboxed-quiescence-evidence — commit-journal/activate-trim-log…
   - #1208 skill-update-detached-head — v1/10
   - Direct-deleted (39, no durable knowledge): 7 recurring periods (address-pr-comments, autoclose-merged, blocker-reminders, phone-home, resolve-conflicts, skill-update, usage-report) + 32 others (see git log on main).
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-11-12T05:52:03+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
