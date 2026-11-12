@@ -38,7 +38,7 @@ transition already happened.
 | --- | --- |
 | `coga mark done`, including manual completions with no PR and the `autoclose-merged` sweep's merged-PR closes | flow |
 | `coga mark canceled`, with its required reason | flow |
-| Template parse failures in a recurring scan | important |
+| Templates a recurring scan skipped: parse failures and agent templates refused because no agent can run (for example, no TTY) | important |
 | Recurring period contradiction: failed create sync leaves another ticket copy in place, so the period cannot run as created | important |
 | Watchdog timeout pause | important |
 | Re-escalation of each already-watchdog-paused task on every later sweep, until it completes | important |

@@ -13,7 +13,7 @@ understanding its files and commands, or contributing to Coga itself.
 
 The project README's Get started section is the only install path. The
 native Windows boundary is in
-[coga/launch](../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
+[coga/launch](../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#options-and-exits).
 
 ## Understand
 
