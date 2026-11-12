@@ -10716,3 +10716,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 19:32 v1 [v1/48-give-coga-build-tickets-a-self-review-workflow-in] [human:zach] launched (operator=codex, agent=codex)
 2026-11-11 19:35 v1 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-11 19:35 v1 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
+2026-11-11 19:36 v1 [bootstrap/resolve-conflicts] [agent:claude] slack: resolve-conflicts sweep: 4 open PRs — 0 rebased-pushed, 4 up-to-date, 0 conflict, 0 skipped-dirty, 0 verify-failed, 0 skipped-human-review; none need human attention
