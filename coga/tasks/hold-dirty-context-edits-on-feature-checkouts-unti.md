@@ -1,6 +1,6 @@
 ---
 title: Hold dirty context edits on feature checkouts until merge
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
