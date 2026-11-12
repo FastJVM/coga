@@ -10774,3 +10774,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 22:19 v1 [correct-state-publication-internals-for-pending-pu] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-11 22:20 v1 [correct-state-publication-internals-for-pending-pu] [megalaunch] launched via coga megalaunch
 2026-11-11 22:20 v1 [bootstrap/orient] [human:zach] launched (operator=claude, agent=claude)
+2026-11-11 22:34 v1 [correct-state-publication-internals-for-pending-pu] [agent:claude] advanced to step 2 (peer-review) → codex — Docs fix pushed; 3 test failures come from a README dead link already on main, unrelated to this diff (see blackboard)

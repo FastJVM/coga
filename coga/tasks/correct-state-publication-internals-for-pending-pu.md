@@ -24,9 +24,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: efa25820-a3bd-4a4c-89db-564162283ea3
 ---
 
 ## Description
@@ -132,3 +131,59 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: correct-state-publication-internals-for-pending-pu
+
+## Handoff (implement)
+
+Docs-only change on the branch, commit 9e5e64d92 (pushed):
+
+1. `state-publication/SKILL.md`, "Scratch files and sandboxed publication": the
+   claim "no deferred-publication state" now says there is no replay *queue*.
+   It names `.coga/pending-publication.json` as the one retained record, which
+   only pins a prepared lifecycle publish's expectation, and links
+   `coga-dev/internals/git-regressions`.
+2. `state-publication/publish/SKILL.md`: the quoted signatures now include
+   `remember=False` for `publish` and `prepared=None` for `sync_task_state`. A new
+   sentence says a *fresh* `PreparedTicket` becomes `expect` and publishes with
+   `remember=True`, which is what feeds the teardown retry and the sweep. This
+   follows `git.sync_task_state`, which remembers only when `prepared.fresh`.
+3. `state-publication/SKILL.md`, the cancellation paragraph: `mark canceled`
+   requests the sentinel, but `cli.main` wraps dispatch and the
+   end-of-command boundary in `repl_supervisor.deferred_done_marker`. The
+   sentinel is therefore written after `_sweep_coga_state` and
+   `_warn_unpublished_log_lines`, and `<sentinel>.pending-<pid>` holds off the
+   backstop. The fixture framing now says the interrupted variant models an
+   external kill by releasing the held marker early, matching the comment in
+   `tests/fixtures/authoring_cancellation.py`.
+
+Decision: PR #1199, which edits the same two files, was still OPEN at
+implement time. The ticket asked to wait for its *review*. I went ahead
+because the owner activated this ticket and the hunks are small; whichever PR
+merges second rebases.
+
+Adjacent pre-existing failure, not fixed here: `README.md` (the "ticket is an
+ordinary Markdown file" paragraph) links
+`coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`, which
+61388855a deleted. That breaks
+`tests/test_packaging.py::test_context_navigation_has_no_broken_links`, and the
+two `test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+cases fail because they run that test in a subprocess. README is identical on
+origin/main, so the failure is on main as well. No follow-up ticket exists yet.
+
+## PR
+
+```yaml
+title: Correct state-publication internals for remembered expectations and the deferred done marker
+author: claude (Claude Code, claude-opus-5-5), manual megalaunch session
+head: 9e5e64d927ff8561149fa749b0d943e44733b492
+base: 9f2a2a8897f408fb9571604e3a2155aa82227227
+review_depth: light — docs-only, two coga-dev (local-only) topics; each claim checked against git.publish, git.sync_task_state, cli.main, repl_supervisor.deferred_done_marker and the cancellation fixture
+files:
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: items 1 and 3 (pending-publication record; deferred done marker ordering and fixture framing)
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: item 2 (remember/prepared signatures and the retry/sweep reuse sentence)
+checks:
+  - command: .venv/bin/python -m pytest -q
+    tree: uncommitted working tree identical to the committed head 9e5e64d92 (only these two files were changed; committed right after)
+    result: 4763 passed, 33 skipped, 3 failed in 723.71s
+    failures: test_packaging::test_context_navigation_has_no_broken_links and 2x test_git::test_final_package_edits_never_escape_a_mutating_cli_sweep — the pre-existing README dead link above, unrelated to this diff
+review: not run yet; peer-review is the next workflow step
+```
