@@ -102,9 +102,17 @@ and at replacement compares them again via `expected_bytes`, raising
 cannot lock, an outside editor. The low-level helpers take no lock; callers
 own admission and pass `expected_bytes`.
 
-Lifecycle writes are weaker: `git.write_ticket` serializes but does not
-reread, and `coga mark active` loads the `Ticket` before the lock, so a
-blackboard update landing in between can be overwritten by the old body.
-Megalaunch's strict writes compare source bytes under the lock and are safe.
+Lifecycle commands (`bump`, the `mark` verbs, `block`, `unblock`) commit
+through a prepared ticket transaction: `git.write_ticket(..., prepared=)`
+rereads the file under the lock and raises `TicketChangedError` rather than
+overwrite an edit made after the command read the ticket
+([coga/state-publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#prepared-ticket-transactions)
+owns the contract). Only a `write_ticket` call without `prepared` keeps the
+serialize-without-reread behavior. `owner`, launch startup, and megalaunch's
+and the recurring runner's delegated starts compare source bytes under the
+lock themselves; `create` writes a new file. `mark.mark_in_progress` as
+called from `launch._start_session` and `launch_script.run_script_phase` does
+neither, so a blackboard update landing after those callers read the ticket
+can still be overwritten by the old body.
 Atomic rename gives crash-safety, not serialization
 ([coga-dev/patterns](../../patterns/SKILL.md)).
