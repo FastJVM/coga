@@ -62,7 +62,7 @@ preserved, and the command exits with the recipe's integer code. A non-zero
 exit also records a `## Recipe Failure` section; that reporting contract belongs
 to [coga/recurring](../recurring/SKILL.md). `open-pr` and `delete-task` take a
 task ref; see [PR publication](../pr-publication/SKILL.md) and
-[coga/checkouts](../checkouts/SKILL.md). `autofix-analyze` is covered
+[coga/checkout-cleanup](../checkout-cleanup/SKILL.md#coga-delete-slug). `autofix-analyze` is covered
 in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
 is the strict, exit-coded form of the state sweep for a handoff that must know
 its files reached control (`build/onboarding`); its contract is in
