@@ -252,7 +252,7 @@ verb migration unless it is required to prove the launch split.
       launch service: draft/paused/blocked activation, `active -> in_progress`,
       unresolved-blocker re-block, and successful-script step/done writes.
       The ticket records these as the handoff boundary to
-      `v1/microkernel/lifecycle-verbs-to-ticket-operations` rather than
+      `v1/microkernel/10-lifecycle-verbs-to-ticket-operations` rather than
       declaring the writes executor substrate.
 - [ ] Launch still fails loud, before unsafe mutation where applicable, for an
       unknown target, missing context/skill/script, missing agent/TTY, unresolved
@@ -264,7 +264,7 @@ verb migration unless it is required to prove the launch split.
       expected-task/expected-step guards remain part of lifecycle coordination.
 - [ ] Focused launch, script, restart, ticket, and megalaunch tests pass;
       the full pytest suite, `git diff --check`, and
-      `coga validate --task v1/microkernel/launch-decomposition --json`
+      `coga validate --task v1/microkernel/03-launch-decomposition --json`
       pass.
 - [ ] `coga/launch`, `coga/script-tickets`, `coga-dev/internals/agent-spawn`,
       `coga-dev/codebase`, `coga-dev/microkernel`, and
@@ -299,15 +299,15 @@ verb migration unless it is required to prove the launch split.
   agent-skill-view refresh are start-of-run policy/diagnostics. Keep their
   current behavior during the extraction, but keep them above the executor
   boundary. Their removal or relocation belongs to
-  `v1/microkernel/support-commands-boundary` and the point-of-use
+  `v1/microkernel/07-support-commands-boundary` and the point-of-use
   git/open-PR paths, not `agent_session` or `script_session`.
 - Prompt-report rendering is a read-only compose diagnostic. Keep the existing
   flag as a thin early-return in this PR, and hand its eventual surface to
-  `v1/microkernel/read-report-commands-as-ticket-workflows`.
+  `v1/microkernel/06-read-report-commands-as-ticket-workflows`.
 - Recurring/megalaunch idle and wall-clock defaults, timeout classification,
   and repeated-task selection are caller policy. The session runner accepts
   concrete limits, but choosing them belongs to
-  `v1/microkernel/work-orchestration-commands-to-tickets`.
+  `v1/microkernel/09-work-orchestration-commands-to-tickets`.
 
 **Lifecycle transition boundary**
 
@@ -328,7 +328,7 @@ verb migration unless it is required to prove the launch split.
   runner for `ticket`/`project`; named `bootstrap/orient` and
   `bootstrap/ticket` knowledge must stay in the thin caller/compatibility layer,
   not the executor. Default-alias cleanup belongs to
-  `v1/microkernel/residual-command-surfaces`.
+  `v1/microkernel/08-residual-command-surfaces`.
 - Preserve `--prompt-report`, `--idle-timeout`, `--max-session`, and the hidden
   timeout-return behavior during the structural PR so recurring callers do not
   change accidentally. Their classification above prevents the new substrate
