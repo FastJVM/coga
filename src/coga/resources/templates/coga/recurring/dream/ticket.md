@@ -541,7 +541,8 @@ Report an existing owner instead of opening another proposal. Reuse a PR only
 when its diff or description actually carries the finding; report its link
 and create no duplicate. A shared target path alone is not coverage. If an
 overlapping PR does not carry the finding, file or reuse a scoped
-`code/with-review` draft under the filing rules above. Its description must
+`code/with-review` draft (created with `--fallback-workflow
+code/with-self-review`) under the filing rules above. Its description must
 preserve the finding, source evidence, target, and overlapping PR link so it
 can be handled after that PR's review. An overlap noted only on this run's
 blackboard is not a disposition.
@@ -559,7 +560,8 @@ shipped definition at its package owner, and include the Dream period,
 Validate each affected task with `coga validate --task <slug> --json`; for
 template or shared-contract fixes, compare repo validation before and after
 and account for any remaining issues. If the correction needs a human choice,
-file or reuse a scoped `code/with-review` draft preserving the issue,
+file or reuse a scoped `code/with-review` draft (created with
+`--fallback-workflow code/with-self-review`) preserving the issue,
 remediation, and specific decision needed under the filing rules above.
 These are `pr-required` proposals: never apply them directly on `main` or
 auto-merge them. List each issue's PR or owner draft in the run summary; an
@@ -664,8 +666,10 @@ Route each remaining Phase 2 and Phase 3 finding by class:
   the `gap` and find an open owner or file it; `status: done` alone must not
   suppress follow-up. For an owned gap, create nothing
   and report "already ticketed as `<slug>`". Otherwise create a tracked
-  draft ticket with `coga create "<title>" --workflow code/with-review`
-  under the filing rules above. A gap needs human design judgment about
+  draft ticket with `coga create "<title>" --workflow code/with-review
+  --fallback-workflow code/with-self-review` under the filing rules above
+  (in a repo where no peer agent resolves, create substitutes
+  `code/with-self-review` and says so). A gap needs human design judgment about
   whether and how to add the context, skill, or workflow; a draft ticket is
   where that judgment happens, and unlike a blackboard note it survives this
   task's retirement.

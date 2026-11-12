@@ -27,6 +27,7 @@ from coga.lifecycle import CANCELABLE_STATUSES
 from coga.mark import (
     BlackboardNeedsSynthesis,
     MainAgentUnavailable,
+    PeerWorkflowUnavailable,
     CancellationError,
     RequiredExtensionMissing,
     StrandedProductCode,
@@ -94,6 +95,8 @@ def active(
             f"coga/workflows/) or run `coga ticket {ref.id_slug}` to "
             "fill it in, then retry."
         )
+    except PeerWorkflowUnavailable as exc:
+        _bail(f"Cannot activate {ref.id_slug}: {exc}")
     except WorkflowError as exc:
         _bail(
             f"Cannot activate {ref.id_slug}: its `workflow:` ref could not "

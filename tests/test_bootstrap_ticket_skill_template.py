@@ -162,3 +162,14 @@ def test_bootstrap_ticket_interview_asks_what_done_means() -> None:
     assert "Keep the interview short — 4–6 questions, not a survey." in normalized
     # The cold evaluator checks for it too.
     assert "Is it clear what would count as done" in normalized
+
+
+def test_bootstrap_ticket_skill_avoids_peer_workflows_without_a_peer() -> None:
+    """The interviewer writes a bare `workflow:` that only activation checks,
+    so it must not pick an `other-agent` workflow no peer can run."""
+    normalized = " ".join(BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8").split())
+
+    assert "Do not pick a workflow with `other-agent` steps" in normalized
+    assert "unless a peer agent resolves" in normalized
+    assert "Otherwise use `code/with-self-review`" in normalized
+    assert "activation refuses a workflow whose `other-agent` steps cannot resolve" in normalized

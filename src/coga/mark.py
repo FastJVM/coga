@@ -19,7 +19,12 @@ import typer
 
 from coga import git
 from coga.blackboard import prelaunch_blackboard_synthesis_reason_text
-from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
+from coga.bump import (
+    OperatorResolutionError,
+    resolve_main_agent,
+    resolve_operator,
+    unresolvable_peer_refusal,
+)
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
@@ -393,6 +398,18 @@ class WorkflowMissing(RuntimeError):
     """
 
 
+class PeerWorkflowUnavailable(WorkflowError):
+    """Raised when activation's frozen workflow has an `other-agent` step but
+    no peer agent resolves (one configured agent, or three or more with no
+    `peer =` on the main agent).
+
+    A `WorkflowError` subclass so every activation caller that already renders
+    workflow refusals (megalaunch, the recurring runner, `coga unblock`)
+    refuses it unchanged; `coga mark active` and launch catch it first to print
+    the short refusal instead of the freeze-failure wording.
+    """
+
+
 class MainAgentUnavailable(RuntimeError):
     """Raised when activation cannot settle this ticket's main agent.
 
@@ -502,7 +519,24 @@ def _assert_operator_resolves(cfg: Config, ref: TaskRef, ticket: Ticket) -> None
     `owner` step on a ticket with no owner — fails here rather than surfacing
     later as a launch refusing a step its own snapshot declares. It runs on the
     prospective ticket, so a refusal leaves the stored bytes untouched.
+
+    Every frozen step is checked for a resolvable peer, not only the current
+    one: post-write validation errors on any unresolvable `other-agent` step,
+    so a narrower check would refuse only after writing.
     """
+    frozen = ticket.workflow if isinstance(ticket.workflow, dict) else {}
+    steps = frozen.get("steps")
+    if isinstance(steps, list):
+        name = frozen.get("name")
+        refusal = unresolvable_peer_refusal(
+            cfg,
+            name if isinstance(name, str) and name else "This workflow",
+            steps,
+            ticket.agent,
+            allow_prospective_default="agent" not in ticket.frontmatter,
+        )
+        if refusal:
+            raise PeerWorkflowUnavailable(refusal)
     try:
         resolve_operator(cfg, ref, ticket)
     except OperatorResolutionError as exc:

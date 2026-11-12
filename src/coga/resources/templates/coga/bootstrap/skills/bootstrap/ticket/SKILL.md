@@ -245,8 +245,12 @@ answer.
    can't be activated and `coga validate` errors on a workflow-less active
    ticket — so pick the lightest workflow that matches the shape of the work,
    unless the human explicitly picked one. If the task has an irreversible or
-   outward-facing step, pick a workflow with a human gate before it. If
-   genuinely nothing fits (e.g. pure concept-capture with no sequence of
+   outward-facing step, pick a workflow with a human gate before it. Do not
+   pick a workflow with `other-agent` steps (such as `code/with-review` or
+   `code/design-then-implement`) unless a peer agent resolves: the repo
+   declares exactly two `[agents.*]` types, or the main agent sets `peer =`.
+   Otherwise use `code/with-self-review`; activation refuses a workflow whose
+   `other-agent` steps cannot resolve. If genuinely nothing fits (e.g. pure concept-capture with no sequence of
    steps), tell the human: either the repo needs a new workflow, or the idea
    stays a deliberate workflow-less *draft* (valid, but un-activatable until a
    workflow is added) until it is ready to be a real ticket.
@@ -329,8 +333,9 @@ as `coga/tasks/<slug>.md`; convert it to directory form only when it needs
 attachments. The base prompt's frontmatter rules apply, with this interview's exception:
 
 - For a draft, set `workflow:` to the workflow name you picked (e.g.
-  `code/with-review`). This is required — a ticket with no workflow can't be
-  activated. Write it as a bare string, and first-launch activation freezes
+  `code/with-review`, or `code/with-self-review` when no peer agent
+  resolves — see step 3). This is required — a ticket with no workflow can't
+  be activated. Write it as a bare string, and first-launch activation freezes
   the snapshot and seeds its first step. An existing live ticket keeps its
   frozen snapshot. If repairing malformed metadata to a live status — or
   explicitly changing a live ticket's workflow — write the full frozen

@@ -1495,3 +1495,235 @@ def test_new_ticket_body_does_not_contain_the_extension_marker(
         contexts=[], owner=None, status=None,
     )
     assert "# --- extensions ---" not in Ticket.read(result["path"]).body
+
+
+# --- peer workflows without a resolvable peer ---------------------------------
+#
+# Repo shapes for the `other-agent` role: one agent; two agents with and
+# without `peer =`; three agents with and without `peer =` on the main agent.
+# These use the *packaged* peer workflows: the fixture's local
+# `code/with-review` override has no `other-agent` step, so it is removed.
+
+ONE_AGENT_REFUSAL = (
+    "{wf} is a two-agent workflow, and this repo has one agent. "
+    "Use code/with-self-review, or declare a second agent in coga.toml."
+)
+AMBIGUOUS_REFUSAL = (
+    "{wf} needs a peer agent, but [agents.claude] has no peer = to pick one. "
+    "Set one, or use code/with-self-review."
+)
+PEER_WORKFLOWS = ["code/design-then-implement", "code/with-review", "docs/with-review"]
+AGENT_SHAPES = [
+    pytest.param(["claude"], None, "one", id="one-agent"),
+    pytest.param(["claude", "codex"], None, None, id="two-agents"),
+    pytest.param(["claude", "codex"], "codex", None, id="two-agents-peer"),
+    pytest.param(["claude", "codex", "gemini"], None, "ambiguous", id="three-agents"),
+    pytest.param(["claude", "codex", "gemini"], "codex", None, id="three-agents-peer"),
+]
+
+
+def _configure_agents(repo: Path, agents: list[str], peer: str | None) -> None:
+    text = 'version = 1\ndefault_status = "draft"\n'
+    for name in agents:
+        text += f'\n[agents.{name}]\ncli = "{name}"\nfile = "AGENTS.md"\n'
+        if name == "claude" and peer is not None:
+            text += f'peer = "{peer}"\n'
+    (repo / "coga.toml").write_text(text, encoding="utf-8", newline="\n")
+    override = repo / "workflows" / "code" / "with-review.md"
+    if override.exists():
+        override.unlink()
+
+
+def _expected_refusal(kind: str, wf: str) -> str:
+    text = (ONE_AGENT_REFUSAL if kind == "one" else AMBIGUOUS_REFUSAL).format(wf=wf)
+    if not wf.startswith("code/"):
+        text = text.replace(
+            " Use code/with-self-review, or declare", " Declare"
+        ).replace(" Set one, or use code/with-self-review.", " Set one.")
+    return text
+
+
+def _log_text(repo: Path) -> str:
+    path = repo / "log.md"
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+@pytest.mark.parametrize("workflow", PEER_WORKFLOWS)
+@pytest.mark.parametrize(("agents", "peer", "refusal"), AGENT_SHAPES)
+def test_cli_create_refuses_peer_workflow_before_writing(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    workflow: str,
+    agents: list[str],
+    peer: str | None,
+    refusal: str | None,
+) -> None:
+    monkeypatch.chdir(repo)
+    _configure_agents(repo, agents, peer)
+    log_before = _log_text(repo)
+
+    result = CliRunner().invoke(app, ["create", "Peer work", "--workflow", workflow])
+
+    ticket_path = repo / "tasks" / "peer-work.md"
+    combined = result.output + (result.stderr or "")
+    if refusal is None:
+        assert result.exit_code == 0, combined
+        assert Ticket.read(ticket_path).workflow["name"] == workflow
+        assert "No peer agent resolves" not in combined
+        return
+    assert result.exit_code == 2, combined
+    assert _expected_refusal(refusal, workflow) in " ".join(combined.split())
+    assert not ticket_path.exists()
+    assert not (repo / "tasks").exists()
+    assert _log_text(repo) == log_before
+
+
+@pytest.mark.parametrize(("agents", "peer", "refusal"), AGENT_SHAPES)
+def test_cli_create_fallback_workflow_substitutes_only_without_a_peer(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agents: list[str],
+    peer: str | None,
+    refusal: str | None,
+) -> None:
+    monkeypatch.chdir(repo)
+    _configure_agents(repo, agents, peer)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "create", "Starter work",
+            "--workflow", "code/design-then-implement",
+            "--fallback-workflow", "code/with-self-review",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(repo / "tasks" / "starter-work.md")
+    line = (
+        "No peer agent resolves; using code/with-self-review instead of "
+        "code/design-then-implement."
+    )
+    if refusal is None:
+        assert ticket.workflow["name"] == "code/design-then-implement"
+        assert line not in result.output
+    else:
+        assert ticket.workflow["name"] == "code/with-self-review"
+        assert line in result.output
+
+
+def test_cli_create_unresolvable_fallback_refuses_without_substitution_line(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _configure_agents(repo, ["claude"], None)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "create", "Starter work",
+            "--workflow", "code/design-then-implement",
+            "--fallback-workflow", "docs/with-review",
+        ],
+    )
+
+    combined = result.output + (result.stderr or "")
+    assert result.exit_code == 2, combined
+    assert _expected_refusal("one", "docs/with-review") in " ".join(combined.split())
+    assert "No peer agent resolves" not in combined
+    assert not (repo / "tasks").exists()
+    assert _log_text(repo) == ""
+
+
+def test_cli_create_fallback_workflow_requires_workflow(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+
+    result = CliRunner().invoke(
+        app, ["create", "Starter work", "--fallback-workflow", "code/with-self-review"]
+    )
+
+    combined = result.output + (result.stderr or "")
+    assert result.exit_code == 2, combined
+    assert "--fallback-workflow requires --workflow" in combined
+    assert not (repo / "tasks").exists()
+    assert _log_text(repo) == ""
+
+
+def test_directory_form_peer_refusal_leaves_no_residue_and_retries(
+    repo: Path,
+) -> None:
+    _configure_agents(repo, ["claude"], None)
+    kwargs = dict(
+        title="Period run",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        status="draft",
+        description="Described.",
+        slug_override="recurring/sweep/2026-11-11",
+        force_directory=True,
+    )
+
+    with pytest.raises(ValueError, match="is a two-agent workflow"):
+        create_task(cfg=load_config(repo), **kwargs)
+
+    assert not (repo / "tasks").exists()
+    assert _log_text(repo) == ""
+
+    _configure_agents(repo, ["claude", "codex"], None)
+    created = create_task(cfg=load_config(repo), **kwargs)
+
+    assert Path(created["path"]).is_dir()
+    assert Ticket.read(Path(created["path"]) / "ticket.md").workflow["name"] == (
+        "code/with-review"
+    )
+
+
+def test_create_step_one_refusal_runs_before_any_directory(repo: Path) -> None:
+    _write(
+        repo / "workflows" / "gate.md",
+        """
+        ---
+        name: gate
+        steps:
+          - name: approve
+            assignee: owner
+        ---
+
+        ## approve
+        Approve it.
+        """,
+    )
+    cfg = load_config(repo)
+
+    with pytest.raises(ValueError, match="step 1"):
+        create_task(
+            cfg=cfg,
+            title="Gate",
+            workflow_name="gate",
+            contexts=[],
+            owner=" ",
+            status="draft",
+            directory="v2",
+            force_directory=True,
+        )
+
+    assert not (repo / "tasks").exists()
+
+
+def test_select_workflow_reports_substitution(repo: Path) -> None:
+    from coga.create import select_workflow
+
+    _configure_agents(repo, ["claude"], None)
+    cfg = load_config(repo)
+    assert select_workflow(cfg, "code/with-review", None) == ("code/with-review", False)
+    assert select_workflow(cfg, "code/with-review", "code/with-self-review") == (
+        "code/with-self-review",
+        True,
+    )
+    _configure_agents(repo, ["claude", "codex"], None)
+    assert select_workflow(
+        load_config(repo), "code/with-review", "code/with-self-review"
+    ) == ("code/with-review", False)

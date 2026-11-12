@@ -58,7 +58,10 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   apply the change, pass `ticket_override=...`, then write, log and sync.
   `mark_done`, `mark_canceled`, bump's step advance, the assist freeze, and
   `coga owner` do this; `mark_active`, `mark_in_progress`, `mark_blocked`,
-  and `mark_paused` still validate after writing. The shared finalizers live
+  and `mark_paused` still validate after writing. For the peer case,
+  `create_task` and `prepare_active` call `bump.unresolvable_peer_refusal`
+  over every frozen step before their first write, so a workflow whose
+  `other-agent` cannot resolve refuses with nothing on disk. The shared finalizers live
   in `src/coga/mark.py`; `bump.REWINDABLE_STATUSES` holds the rewind set.
 - **Recipes report to the repo under test.** Pass the discovered root to
   `task_env.blackboard_from_env(coga_os_root)`; it refuses a blackboard

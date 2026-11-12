@@ -17,11 +17,12 @@ For this walk's GitHub PR, start on clean, current `main` (or your configured
 control branch) in a repo with a remote you can push to. Install GitHub CLI
 and run `gh auth login`; Git push credentials must also work.
 
-The example uses `code/with-review`. With the default configuration it needs
-both Claude Code and Codex installed and authenticated, because the second
-agent reviews the first agent's work. If you use only one agent, choose
-`code/with-self-review` in the create command below. It keeps the final human
-PR gate but uses the same agent for implementation and self-review
+The example uses `code/with-self-review`, which works with one agent: it
+keeps the final human PR gate but uses the same agent for implementation and
+self-review. If your repo declares two agents (for example Claude Code and
+Codex, both installed and authenticated), you can use `code/with-review`
+instead, so the second agent reviews the first agent's work. In a one-agent
+repo, `coga create` refuses `code/with-review`
 ([coga/workflows](../workflows/SKILL.md)).
 
 ```sh
@@ -67,7 +68,7 @@ A ticket is one unit of work: a markdown file under `coga/tasks/`
 ([coga/tickets](../tickets/SKILL.md)). Either scaffold one:
 
 ```sh
-coga create "Add a health-check endpoint" --workflow code/with-review
+coga create "Add a health-check endpoint" --workflow code/with-self-review
 ```
 
 then fill in `## Description` and `## Context`, or let an agent interview
@@ -97,8 +98,9 @@ preflight leaves the ticket unchanged ([coga/launch](../launch/SKILL.md)).
 The session is attended: you watch and talk to the agent. It does the step's
 work, records findings on the blackboard using its inline
 guidance, and finishes with `coga bump`.
-For a multi-step workflow such as `code/with-review`, the supervisor then
-starts the next agent step, rotating to the peer agent for review
+For a multi-step workflow, the supervisor then starts the next agent step:
+the same agent's self-review under `code/with-self-review`, or the peer
+agent's review under `code/with-review`
 ([coga/workflows](../workflows/SKILL.md)).
 
 ## 3. Review and merge

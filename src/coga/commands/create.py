@@ -16,6 +16,11 @@ intermediate, it just can't be activated. `coga mark active` refuses a
 ticket with no workflow (workflow-less tickets can never be `coga bump`ed),
 so add a `workflow:` before activating, or pass `--workflow` up front.
 
+A workflow whose `other-agent` steps cannot resolve a peer agent is refused
+before anything is written. `--fallback-workflow` names the workflow to use
+instead in that case, so a caller such as `coga build` can ask for a peer
+workflow and still get a usable ticket in a one-agent repo.
+
 `--description` and `--owner` are optional too, so one command can scaffold a
 described, correctly-owned draft. `--description` fills the ticket's
 `## Description` section; `--owner` sets `owner:` to a coga name instead of
@@ -33,7 +38,7 @@ import typer
 
 from coga import git
 from coga.config import ConfigError, load_config
-from coga.create import create_task, description_structure_problem
+from coga.create import create_task, description_structure_problem, select_workflow
 from coga.paths import RepoResourceUnreadable
 from coga.validate import TaskValidationError
 
@@ -56,6 +61,18 @@ def create(
             "Workflow name (path under coga/workflows/) to attach. "
             "Optional, but a workflow-less draft can't be activated until "
             "one is added."
+        ),
+    ),
+    fallback_workflow: str | None = typer.Option(
+        None,
+        "--fallback-workflow",
+        help=(
+            "Workflow to use instead of --workflow when the --workflow "
+            "choice has an other-agent step and no peer agent resolves "
+            "(one configured agent, or three or more with no peer = on the "
+            "main agent). Prints one line naming the substitution. Requires "
+            "--workflow. Example: --workflow code/design-then-implement "
+            "--fallback-workflow code/with-self-review."
         ),
     ),
     description: str | None = typer.Option(
@@ -82,6 +99,7 @@ def create(
     create_draft(
         title=title,
         workflow=workflow,
+        fallback_workflow=fallback_workflow,
         description=description,
         owner=owner,
     )
@@ -91,6 +109,7 @@ def create_draft(
     *,
     title: str,
     workflow: str | None = None,
+    fallback_workflow: str | None = None,
     description: str | None = None,
     owner: str | None = None,
 ) -> dict[str, object]:
@@ -108,11 +127,17 @@ def create_draft(
     a ticket with no workflow, since a workflow-less ticket can never be
     `coga bump`ed.
 
+    `fallback_workflow` (optional, requires `workflow`) replaces `workflow`
+    when the latter's `other-agent` steps have no resolvable peer; the
+    substitution is reported only after the create succeeds.
+
     `description` (optional) becomes the `## Description` text; `None` or empty
     leaves the section blank. `owner` (optional) is stripped and must not be
     empty; `None` keeps the local `user`. Both are checked before anything is
     written, so a rejected create leaves nothing on disk.
     """
+    if fallback_workflow is not None and not workflow:
+        _bail("--fallback-workflow requires --workflow")
     directory, leaf_title = _split_create_path(title)
     if not leaf_title.strip():
         _bail("title cannot be empty")
@@ -133,7 +158,12 @@ def create_draft(
     except ConfigError as exc:
         _bail(str(exc))
 
+    substituted_from: str | None = None
     try:
+        if workflow and fallback_workflow:
+            chosen, substituted = select_workflow(cfg, workflow, fallback_workflow)
+            if substituted:
+                substituted_from, workflow = workflow, chosen
         result = create_task(
             cfg=cfg,
             title=leaf_title,
@@ -147,6 +177,13 @@ def create_draft(
     except (TaskValidationError, ValueError, RepoResourceUnreadable) as exc:
         _bail(str(exc))
 
+    if substituted_from is not None:
+        # Only after the fallback was actually created: an unusable fallback
+        # refuses inside `create_task`, and claiming a substitution would lie.
+        typer.echo(
+            f"No peer agent resolves; using {workflow} instead of "
+            f"{substituted_from}."
+        )
     slug = result["slug"]
     typer.echo(f"{slug}: created (draft)")
     git.sync_task_state(cfg, result["path"], message=f"Ticket: {slug} — created")

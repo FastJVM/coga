@@ -99,3 +99,21 @@ def test_every_workflow_has_other_agent_review_or_says_why_not(path: Path) -> No
     # The rationale lives in a real H2 that names no step, so it is framing
     # only and never composes into a launched prompt.
     assert "\n## No other-agent code review\n" in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "bootstrap/workflows/build/onboarding.md",
+        "recurring/dream/ticket.md",
+    ],
+)
+def test_generated_code_drafts_fall_back_to_self_review(path: str) -> None:
+    """`coga build` and Dream ask for a peer workflow but must still create a
+    usable draft in a one-agent repo."""
+    text = " ".join((TEMPLATES / path).read_text(encoding="utf-8").split())
+    for line in text.split("coga create")[1:]:
+        command = line.split("`", 1)[0]
+        if "--workflow code/" in command:
+            assert "--fallback-workflow code/with-self-review" in command, command
+    assert "--fallback-workflow code/with-self-review" in text

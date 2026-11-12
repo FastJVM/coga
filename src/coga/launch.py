@@ -83,6 +83,7 @@ from coga.logfile import append_log, log_path
 from coga.paths import RESOURCE_NAMES, RepoResourceUnreadable
 from coga.mark import (
     MainAgentUnavailable,
+    PeerWorkflowUnavailable,
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
     WorkflowMissing,
@@ -2689,6 +2690,8 @@ def _prospective_assist_ticket(
                 f"Cannot launch {ref.id_slug}: it is {ticket.status!r} and has "
                 "no workflow, so there is nothing to activate or advance."
             ) from exc
+        except PeerWorkflowUnavailable as exc:
+            raise ComposeError(f"Cannot launch {ref.id_slug}: {exc}") from exc
         except WorkflowError as exc:
             raise ComposeError(
                 f"Cannot launch {ref.id_slug}: its `workflow:` ref could not "
@@ -2781,6 +2784,8 @@ def _prepare_auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             "in `ticket.md` (see coga/workflows/) or run "
             f"`coga ticket {ref.id_slug}` to fill it in, then retry."
         )
+    except PeerWorkflowUnavailable as exc:
+        _bail(f"Cannot launch {ref.id_slug}: {exc}")
     except WorkflowError as exc:
         _bail(
             f"Cannot launch {ref.id_slug}: its `workflow:` ref could not be "

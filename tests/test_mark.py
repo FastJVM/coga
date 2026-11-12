@@ -361,7 +361,10 @@ def test_mark_active_refuses_an_unresolvable_step_one_role(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 2
-    assert "assignee='other-agent'" in result.output
+    assert (
+        "peer is a two-agent workflow, and this repo has one agent. Declare "
+        "a second agent in coga.toml." in " ".join(result.output.split())
+    )
 
     t = Ticket.read(task_path)
     assert t.status == "draft"
@@ -1548,3 +1551,54 @@ def test_no_transition_restores_removed_metadata(repo: Path) -> None:
         assert result.exit_code == 0, f"{label}: {result.output}"
         assert_clean(label)
     assert Ticket.read(path).status == "done"
+
+
+# --- peer workflows without a resolvable peer ---------------------------------
+
+
+@pytest.mark.parametrize("form", ["bare-ref", "frozen-late-step"])
+def test_mark_active_refuses_unresolvable_peer_workflow_before_writing(
+    repo: Path, form: str
+) -> None:
+    """A one-agent repo refuses to activate a workflow with an `other-agent`
+    step at any frozen position, leaving the ticket byte-identical."""
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+    t = Ticket.read(task_path)
+    if form == "bare-ref":
+        t.frontmatter["workflow"] = "code/design-then-implement"
+        name = "code/design-then-implement"
+    else:
+        # The peer step is the last one, not the step activation would seed.
+        t.frontmatter["workflow"] = {
+            "name": "code",
+            "steps": [
+                {"name": "implement", "skills": [], "assignee": "agent"},
+                {"name": "pr", "skills": []},
+                {"name": "review", "skills": [], "assignee": "other-agent"},
+            ],
+        }
+        name = "code"
+    t.write(task_path)
+    before = task_path.read_bytes()
+    log_before = _read_log(repo)
+
+    result = CliRunner().invoke(app, ["mark", "active", slug])
+
+    combined = " ".join((result.output + (result.stderr or "")).split())
+    assert result.exit_code != 0
+    assert (
+        f"Cannot activate {slug}: {name} is a two-agent workflow, and this "
+        "repo has one agent." in combined
+    )
+    assert "could not be frozen" not in combined
+    assert task_path.read_bytes() == before
+    assert _read_log(repo) == log_before
+
+
+def test_peer_workflow_unavailable_is_a_workflow_error() -> None:
+    """Megalaunch, the recurring runner and `coga unblock` render activation
+    refusals through their `WorkflowError` handling."""
+    from coga.mark import PeerWorkflowUnavailable
+    from coga.workflow import WorkflowError
+
+    assert issubclass(PeerWorkflowUnavailable, WorkflowError)

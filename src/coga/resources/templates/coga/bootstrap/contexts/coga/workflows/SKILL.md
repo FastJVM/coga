@@ -89,7 +89,12 @@ structural error, never a fallback: guessing could skip a human gate. Direct
 launch and megalaunch derive routing from the prepared activation before
 preflight or any durable write. Validation checks every frozen
 `other-agent` step against current config (`unresolvable-step-assignee`),
-using the prospective default agent for drafts. Agent types and `peer` are
+using the prospective default agent for drafts. `coga create --workflow`
+and activation (`coga mark active`, launch auto-activation, megalaunch,
+recurring, `coga unblock`) refuse a workflow with any `other-agent` step
+whose peer cannot resolve — one configured agent, or three or more with no
+`peer =` on the main agent — before writing anything, naming
+`code/with-self-review` for a `code/*` workflow. Agent types and `peer` are
 explained in the shipped `coga.toml` comments ([coga/configuration](../configuration/SKILL.md));
 how launch chains across role changes is [coga/launch](../launch/SKILL.md).
 
@@ -138,7 +143,12 @@ Every shipped code-producing workflow has the other agent review the code:
 `code/with-review` and `code/design-then-implement` freeze an `other-agent`
 `peer-review` step running `code/peer-review` (`docs/with-review` has its own
 prose review). `code/with-self-review` is the deliberate single-agent
-fallback for installs where `other-agent` cannot resolve. A workflow that
+fallback for installs where `other-agent` cannot resolve. A creator that
+prefers a peer workflow but must work in any repo passes both:
+`coga create "<title>" --workflow code/with-review --fallback-workflow
+code/with-self-review` creates the peer workflow when a peer resolves and
+otherwise the fallback, printing one line naming the substitution; `coga
+build` and Dream create their drafts this way. A workflow that
 produces no code says so under `## No other-agent code review` in its body.
 
 `code/with-review` and its siblings freeze `code/address-pr-comments` on an

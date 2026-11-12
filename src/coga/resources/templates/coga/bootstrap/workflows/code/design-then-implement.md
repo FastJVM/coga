@@ -67,8 +67,9 @@ Other-agent step, owned by the `code/peer-review` skill. The `evaluate-design`
 peer reviewed the spec; this step has the main agent's configured peer review
 the code `implement` committed, apply must-fix findings, freshen the branch,
 and prepare `## PR`. Launch reuses the recorded branch. Like
-`evaluate-design`, it fails loud (`unresolvable-step-assignee`) when no peer
-resolves; a single-agent install uses `code/with-self-review` instead.
+`evaluate-design`, it needs a resolvable peer: `coga create` and activation
+refuse this workflow before writing when none resolves, and a single-agent
+install uses `code/with-self-review` instead.
 Tickets frozen before this step existed go straight from `implement` to
 `open-pr` and report that no code review ran.
 

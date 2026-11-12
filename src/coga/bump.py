@@ -33,6 +33,24 @@ class OperatorResolutionError(Exception):
     """
 
 
+class PeerAgentUnresolvable(OperatorResolutionError):
+    """Raised when the `other-agent` role cannot pick a peer for `main`.
+
+    `ambiguous` distinguishes three or more configured agents with no
+    `peer =` on the main agent from a repo with too few agents to have a
+    peer at all. `str(exc)` keeps the resolver's diagnostic text, which
+    `coga validate` embeds in `unresolvable-step-assignee`.
+    """
+
+    def __init__(
+        self, message: str, *, main: str, candidates: Sequence[str], ambiguous: bool
+    ) -> None:
+        super().__init__(message)
+        self.main = main
+        self.candidates = tuple(candidates)
+        self.ambiguous = ambiguous
+
+
 REWINDABLE_STATUSES: frozenset[str] = frozenset({"active", "in_progress", "paused"})
 """Statuses a human rewind (`coga bump --to/--backward`) may move the step of.
 
@@ -172,18 +190,24 @@ def resolve_other_agent(
     others = [name for name in cfg.agents if name != main]
     if len(others) != 1:
         if len(cfg.agents) >= 3:
-            raise OperatorResolutionError(
+            raise PeerAgentUnresolvable(
                 "assignee='other-agent' needs an unambiguous peer for "
                 f"`agent: {main}`. To fix it, add peer = \"<type>\" to "
                 f"[agents.{main}]. "
                 f"Configured agents: {sorted(cfg.agents)}; peer candidates: "
-                f"{sorted(others)}."
+                f"{sorted(others)}.",
+                main=main,
+                candidates=sorted(others),
+                ambiguous=True,
             )
-        raise OperatorResolutionError(
+        raise PeerAgentUnresolvable(
             "assignee='other-agent' needs exactly two configured `[agents.*]` "
             f"types to pick the peer, with `agent: {main}` as one of them. "
             f"Configured agents: {sorted(cfg.agents)}; peer candidates: "
-            f"{sorted(others)}. Fix coga.toml or the ticket's `agent:`."
+            f"{sorted(others)}. Fix coga.toml or the ticket's `agent:`.",
+            main=main,
+            candidates=sorted(others),
+            ambiguous=False,
         )
     return others[0]
 
@@ -205,6 +229,60 @@ def effective_step_role(steps: Sequence[Any], step_index: int) -> str:
         if role:
             return str(role)
     return "owner"
+
+
+SELF_REVIEW_WORKFLOW = "code/with-self-review"
+"""The shipped one-agent counterpart named by peer-workflow refusals."""
+
+
+def peer_refusal_text(workflow_name: str, exc: PeerAgentUnresolvable) -> str:
+    """The short operator-facing refusal for a peer workflow with no peer."""
+    suggest = workflow_name.startswith("code/")
+    if exc.ambiguous:
+        tail = (
+            f" Set one, or use {SELF_REVIEW_WORKFLOW}." if suggest else " Set one."
+        )
+        return (
+            f"{workflow_name} needs a peer agent, but [agents.{exc.main}] has "
+            f"no peer = to pick one.{tail}"
+        )
+    tail = (
+        f" Use {SELF_REVIEW_WORKFLOW}, or declare a second agent in coga.toml."
+        if suggest
+        else " Declare a second agent in coga.toml."
+    )
+    return f"{workflow_name} is a two-agent workflow, and this repo has one agent.{tail}"
+
+
+def unresolvable_peer_refusal(
+    cfg: Config,
+    workflow_name: str,
+    steps: Sequence[Any],
+    agent: Any,
+    *,
+    allow_prospective_default: bool = False,
+) -> str | None:
+    """Return a refusal when any frozen step's `other-agent` role has no peer.
+
+    Walks every step (not just the remaining ones) because `coga validate`
+    errors on any unresolvable frozen step; a narrower check would let the
+    post-write validation refuse after the write. The peer depends only on
+    config and the main agent, so it is resolved once. Failures to resolve the
+    main agent itself are not peer problems and are left to existing refusals.
+    """
+    for idx in range(1, len(steps) + 1):
+        if effective_step_role(steps, idx) != "other-agent":
+            continue
+        try:
+            resolve_other_agent(
+                cfg, agent, allow_prospective_default=allow_prospective_default
+            )
+        except PeerAgentUnresolvable as exc:
+            return peer_refusal_text(workflow_name, exc)
+        except OperatorResolutionError:
+            return None
+        return None
+    return None
 
 
 def operator_for_role(

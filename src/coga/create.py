@@ -8,7 +8,12 @@ from typing import Any
 
 from coga import git
 from coga.blackboard import render_blackboard
-from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
+from coga.bump import (
+    OperatorResolutionError,
+    resolve_main_agent,
+    resolve_operator,
+    unresolvable_peer_refusal,
+)
 from coga.config import Config
 from coga.lifecycle import MAIN_AGENT_REQUIRED_STATUSES, TERMINAL_STATUSES
 from coga.logfile import append_log
@@ -153,6 +158,19 @@ def create_task(
                 for ref in missing_step_skills
             )
             raise ValueError(details)
+        # Refuse a workflow whose `other-agent` steps have no peer before
+        # touching the filesystem: `assert_task_valid` below would refuse it
+        # anyway, but only after the write, and a stranded directory-form
+        # task blocks a recurring retry at the same slug.
+        refusal = unresolvable_peer_refusal(
+            cfg,
+            workflow_name,
+            wf.freeze()["steps"],
+            agent,
+            allow_prospective_default=agent is None,
+        )
+        if refusal:
+            raise ValueError(refusal)
 
     directory = _normalize_create_dir(cfg, directory)
     base_slug = slug_override or slugify(title)
@@ -192,14 +210,12 @@ def create_task(
         task_dir = base_dir / slug
         if task_dir.exists():
             raise ValueError(f"Task directory already exists: {task_dir}")
-        task_dir.mkdir(parents=True)
         ticket_path = task_dir / "ticket.md"
         result_path = task_dir
     else:
         ticket_path = base_dir / f"{slug}.md"
         if ticket_path.exists() or (base_dir / slug).is_dir():
             raise ValueError(f"Task already exists: {ticket_path}")
-        ticket_path.parent.mkdir(parents=True, exist_ok=True)
         result_path = ticket_path
 
     # The TaskRef discovery will report for this new task. Its `id_slug` is the
@@ -254,6 +270,13 @@ def create_task(
                 f"Workflow {workflow_name!r} step 1: {exc}"
             ) from exc
 
+    # Every refusal above runs before the first `mkdir`, so a failed create
+    # leaves no directory behind to block a retry at the same slug.
+    if needs_dir:
+        task_dir.mkdir(parents=True)
+    else:
+        ticket_path.parent.mkdir(parents=True, exist_ok=True)
+
     # Repo-declared extension fields (`[ticket.fields.<name>]`). Seeded
     # with the declared default (or "" if none). Required-but-empty is fine
     # at draft time; `coga mark active` enforces required values at
@@ -292,6 +315,36 @@ def create_task(
     assert_task_valid(cfg, created_ref, action="create")
 
     return {"slug": created_ref.id_slug, "path": result_path}
+
+
+def select_workflow(
+    cfg: Config,
+    workflow_name: str,
+    fallback_name: str | None,
+    *,
+    agent: str | None = None,
+) -> tuple[str, bool]:
+    """Pick `workflow_name`, or `fallback_name` when its peer cannot resolve.
+
+    Returns the workflow to create with and whether it substituted. Only an
+    unresolvable `other-agent` step triggers the fallback, checked against live
+    config with the prospective main agent when `agent` is None. The fallback
+    itself is not pre-validated: `create_task`'s guard is the single place
+    that refuses an unusable workflow.
+    """
+    if not fallback_name:
+        return workflow_name, False
+    wf = Workflow.load(resolve_workflow_path(cfg, workflow_name))
+    refusal = unresolvable_peer_refusal(
+        cfg,
+        workflow_name,
+        wf.freeze()["steps"],
+        agent,
+        allow_prospective_default=agent is None,
+    )
+    if refusal is None:
+        return workflow_name, False
+    return fallback_name, True
 
 
 def is_parked_dir(directory: str | None) -> bool:

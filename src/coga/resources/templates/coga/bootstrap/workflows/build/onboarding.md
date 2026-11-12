@@ -74,8 +74,13 @@ per-ticket authoring interview. Every draft must carry an explicit workflow so
 the handoff really is launchable:
 
 - implementation work: `coga create "<title>" --workflow
-  code/design-then-implement` (the ticket is intentionally thin, so its first
-  step turns the what+why into a reviewed spec);
+  code/design-then-implement --fallback-workflow code/with-self-review` (the
+  ticket is intentionally thin, so its first step turns the what+why into a
+  reviewed spec). `code/design-then-implement` has `other-agent` steps, so in
+  a repo where no peer agent resolves (one configured agent, or three or more
+  with no `peer =`) create substitutes `code/with-self-review` and prints one
+  line saying so. That workflow has no design step: the thin ticket goes
+  straight to implement, so make its what+why concrete enough to build from;
 - decide/evaluate work: `coga create "<title>" --workflow draft-for-human`
   (the agent prepares the decision material and the human owns the judgment).
 
@@ -127,4 +132,6 @@ but exits 0 only when every named file is confirmed on the control branch.
 
 Onboarding writes a vision and draft tickets, not code, so no
 `other-agent` step reviews it. The tickets it generates carry their own
-`code/*` workflow, and that workflow has the other agent review the code.
+`code/*` workflow: where a peer agent resolves, that workflow has the other
+agent review the code; in a one-agent repo, `--fallback-workflow` gives them
+`code/with-self-review`, reviewed by the implementing agent.

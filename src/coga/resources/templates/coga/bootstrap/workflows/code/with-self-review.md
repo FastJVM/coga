@@ -91,8 +91,10 @@ and record for later sweeps.
 This workflow is intentionally reviewed by the same agent that wrote the
 code (`self-qa`). It is the single-agent fallback: on an install where
 `other-agent` cannot resolve a peer (one configured agent type, or three or
-more with no `peer =`), `code/with-review` would fail loud with
-`unresolvable-step-assignee`. A repo with a resolvable peer should use
+more with no `peer =`), `coga create` and activation refuse
+`code/with-review` and `code/design-then-implement` before writing anything.
+`coga build` and Dream pass `--fallback-workflow code/with-self-review`, so
+their drafts land here in such a repo. A repo with a resolvable peer should use
 `code/with-review` or `code/design-then-implement`, whose `peer-review` step
 has the other agent review the code. Recurring autofix falls back to this
 workflow only when no peer resolves (`coga/recurring/autofix`).

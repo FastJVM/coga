@@ -53,9 +53,8 @@ from pathlib import Path
 import typer
 
 from coga import git
-from coga.bump import OperatorResolutionError, resolve_other_agent
 from coga.config import AgentType, Config, ConfigError, scrub_op_auth_env
-from coga.create import create_task
+from coga.create import create_task, select_workflow
 from coga.dependencies import agent_cli_missing_message
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.notification import post
@@ -762,12 +761,12 @@ def demote_headings(body: str) -> str:
 def autofix_workflow(cfg: Config) -> str:
     """`AUTOFIX_WORKFLOW` when the default agent's peer resolves, else the
     single-agent `AUTOFIX_NO_PEER_WORKFLOW`. Peers are live config, so this is
-    decided once, at creation, against this machine's `[agents.*]`."""
-    try:
-        resolve_other_agent(cfg, None, allow_prospective_default=True)
-    except OperatorResolutionError:
-        return AUTOFIX_NO_PEER_WORKFLOW
-    return AUTOFIX_WORKFLOW
+    decided once, at creation, against this machine's `[agents.*]`, through
+    the same selector as `coga create --fallback-workflow`."""
+    chosen, _substituted = select_workflow(
+        cfg, AUTOFIX_WORKFLOW, AUTOFIX_NO_PEER_WORKFLOW
+    )
+    return chosen
 
 
 def create_autofix_ticket(

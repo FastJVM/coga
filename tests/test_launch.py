@@ -8037,3 +8037,56 @@ def test_terminal_status_probe_waits_for_publication_and_caches_blobs(
     now[0] += 5
     assert probe() == "done"
     assert calls == ["rev-parse", "cat-file", "rev-parse"]
+
+
+@pytest.mark.parametrize("grouped", [True, False], ids=["grouped", "non-grouped"])
+def test_launch_refuses_unresolvable_peer_workflow_before_writing(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, grouped: bool
+) -> None:
+    """A draft whose workflow needs a peer refuses on both startup paths
+    before activation writes anything."""
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    t = Ticket.read(ticket_md)
+    t.frontmatter["status"] = "draft"
+    t.frontmatter.pop("step", None)
+    t.frontmatter["workflow"] = "code/with-review"
+    t.write(ticket_md)
+    toml = active_task / "coga.toml"
+    toml.write_text(
+        toml.read_text(encoding="utf-8").replace(
+            '[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n', ""
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    assert list(load_config(active_task).agents) == ["claude"]
+    before = ticket_md.read_bytes()
+    log_before = _read_log(active_task)
+
+    monkeypatch.setattr(
+        launch_module._LaunchInvocation,
+        "_manages_branch_checkout",
+        lambda self: grouped,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_commit_auto_activate",
+        lambda *a, **kw: pytest.fail("activation written"),
+    )
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    combined = " ".join((result.output + (result.stderr or "")).split())
+    assert result.exit_code == 2, combined
+    assert (
+        f"Cannot launch {slug}: code/with-review is a two-agent workflow, and "
+        "this repo has one agent. Use code/with-self-review, or declare a "
+        "second agent in coga.toml." in combined
+    )
+    assert "could not be frozen" not in combined
+    assert calls == []
+    assert ticket_md.read_bytes() == before
+    assert _read_log(active_task) == log_before
