@@ -13,6 +13,7 @@ preserved as parked history; the pull-forward rules below still apply.
 
 - [Add a failed terminal status](add-a-failed-terminal-status.md)
 - [Add an Applying-a-batch-of-verdicts section to the v2 parking README](add-an-applying-a-batch-of-verdicts-section-to-the.md)
+- [Affordable macOS testing on owned Macs and per-minute CI](affordable-macos-testing-on-owned-macs-and-per-min.md) — moved from v1/28 on 2026-11-11, still blocked on a deployed Mac test target and SSH access
 - [autoclose should be script only](autoclose-should-be-script-only.md)
 - [Name cross-repo retire follow-ups with the repo that owns them](autofix/name-cross-repo-retire-follow-ups-with-the-repo-th/ticket.md)
 - [Tear down launched sessions when mark done signal goes unobserved](autofix/tear-down-launched-sessions-when-mark-done-signal/ticket.md)

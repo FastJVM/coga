@@ -46,7 +46,6 @@ Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 | 25 | [Position op as optional](25-position-op-as-optional.md) |
 | 26 | [Make the README install section the only install path](26-make-the-readme-install-section-the-only-install-p.md) |
 | 27 | [Link uninstall from the README](27-link-uninstall-from-the-readme.md) |
-| 28 | [Affordable macOS testing on owned Macs and per-minute CI](28-affordable-macos-testing-on-owned-macs-and-per-min.md) |
 | 29 | [Test and fix install on macOS and Windows](29-test-and-fix-install-on-macos-and-windows/ticket.md) |
 | 30 | [Complete the authenticated clean-install audit](30-complete-the-authenticated-clean-install-audit.md) |
 | 31 | [test-install-on-windows](31-test-install-on-windows.md) |

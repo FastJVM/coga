@@ -48,6 +48,14 @@ Outstanding AWS cleanup belongs to PR #943 and must not wait for this ticket: ho
 
 ## Context
 
+### Parked in v2 — 2026-11-11
+
+The owner moved this ticket from the v1 queue (`v1/28-…`) to `_v2/` while it
+was blocked: no macOS test environment or SSH target exists yet. The
+frontmatter, the blackboard and the `owned-mac-clean-install` branch are kept
+as parked history. To pull it forward, follow the `_v2/README.md` premise check,
+then continue with the resume steps in the owner hold below.
+
 ### Owner hold — 2026-10-07
 
 The owner has not yet deployed a macOS test environment and wants to retain
