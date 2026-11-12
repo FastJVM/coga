@@ -29,7 +29,7 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "## Known Skill Contract" in text
     assert "delete every processed source task" in text
     assert "`pr-required` for knowledge edits and the source-task deletions" in text
-    assert "`direct-delete` for no-durable-knowledge source tasks" in text
+    assert "`direct-delete` for\n  unreferenced no-durable-knowledge source tasks" in text
     assert "resolve `<contexts-dir>` once from `[layout] contexts`" in text
     assert "local `<contexts-dir>/**/SKILL.md`" in text
     assert "snapshot-local `<contexts-dir>/**/SKILL.md`" in text
@@ -105,16 +105,15 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
     """Every done ticket Retro processes is deleted, but by two different
     routes. A ticket that carries durable knowledge is deleted inside its
     theme's reviewable knowledge PR (the marker recorded in the same PR). A
-    ticket with no durable knowledge has no PR to bundle the deletion into, so
-    it is direct-deleted via `coga delete` — no PR, no marker, no `## Pruned`
-    bookkeeping. A processed done ticket never survives the run on disk."""
+    ticket with no durable knowledge uses a reference-pin PR when needed,
+    otherwise direct `coga delete` — no marker, no `## Pruned` bookkeeping. A processed done ticket never survives the run on disk."""
     text = RETRO_SKILL.read_text(encoding="utf-8")
 
     # Knowledge-bearing tickets stay bundled: extracted + deleted in one PR.
     assert "theme's knowledge PR" in text
     assert "delete its directory in the same knowledge" in text
 
-    # Knowledge-less tickets are direct-deleted, not bundled into any PR.
+    # Knowledge-less tickets never ride in a knowledge PR.
     assert "A source task with no new durable knowledge is still deleted" in text
     assert "is direct-deleted via `coga delete`" in text
     assert "`coga delete <slug> --keep-control-checkout`" in text
@@ -132,9 +131,46 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
     # The forbidden moves: marker-only PR, and any PR for a no-knowledge ticket.
     assert "open a marker-only PR" in text
     assert "no `## Pruned` bookkeeping" in text
-    assert "open any\n  PR at all for a no-durable-knowledge ticket" in text
+    assert "open any\n  PR for a no-durable-knowledge ticket other than the run's reference-pin PR" in text
 
     # The old bundled-deletion machinery is gone.
     assert "delete-only prune PR" not in text
     assert "folded into a knowledge PR" not in text
     assert "no-new-durable-knowledge" not in text
+
+
+def test_retro_repoints_inbound_references_before_deleting() -> None:
+    text = RETRO_SKILL.read_text(encoding="utf-8")
+    norm = " ".join(text.split())
+
+    # A durable link to a deleted ticket must not land on the control branch.
+    assert "### Inbound references" in text
+    assert "git grep -n -F -e '<tasks-root>/<slug>'" in text
+    assert "':!<tasks-root>' ':!<coga-os>/log.md'" in text
+    assert "-e '<task-leaf>'" in text
+    assert "../tasks/<task-leaf>.md" in text
+    assert "resolve relative targets from the referring file" in norm
+    assert "Honor the repository's search restrictions" in norm
+    assert "Existing commit permalinks already preserve the source" in norm
+    assert "commit permalink of the fresh control-branch tip" in norm
+    assert "Never add a new live-tree link to a source task you are deleting" in norm
+    assert "land a deletion that leaves a live-tree reference to the deleted task" in norm
+
+    # Knowledge-bearing sources repoint in their knowledge PR; referenced
+    # no-knowledge sources leave in one reference-pin PR, not by direct delete.
+    assert "Repointed files do not count toward the per-PR knowledge-file limit" in norm
+    assert "it does not take the direct delete" in norm
+    assert "one reference-pin PR" in norm
+    assert "`codex/retro-pin-references-<run-id>`" in text
+    assert "pr <theme | pin-references>" in text
+    assert "- Repointed references:" in text
+    assert "Re-run the inbound-reference search against each branch" in norm
+
+
+def test_retro_reference_pin_route_has_no_markers_or_shared_run_branch() -> None:
+    norm = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
+
+    assert "Never reuse another run's branch" in norm
+    assert "its Source omits the Markers bullet (there are no markers)" in norm
+    assert "direct-deleted tickets and any reference-pin PR" in norm
+    assert "otherwise it leaves in the reference-pin PR" in norm
