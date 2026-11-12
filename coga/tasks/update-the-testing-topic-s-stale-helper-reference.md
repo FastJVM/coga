@@ -1,6 +1,6 @@
 ---
 title: Update the testing topic's stale helper reference and Windows agent-fake fixture
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
