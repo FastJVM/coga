@@ -10941,3 +10941,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 14:48 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [human:zach] launched (operator=codex, agent=codex)
 2026-11-12 14:57 v1 [v1/microkernel/02-declare-each-workflow-step-s-checkout-policy-in-th] [human:nicktoper] advanced to step 4 (implement) → claude
 2026-11-12 14:58 v1 [v1/microkernel/02-declare-each-workflow-step-s-checkout-policy-in-th] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-12 15:09 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [agent:codex] advanced to step 3 (open-pr) → claude
