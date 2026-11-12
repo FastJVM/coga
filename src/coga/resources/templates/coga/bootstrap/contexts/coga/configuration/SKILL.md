@@ -22,9 +22,14 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
 ## Choosing an agent
 
-Init supplies definitions for Claude Code and Codex; the default Claude path
-needs no config edit. To use Codex for new tasks, place this top-level setting
-before any `[table]` in `coga/coga.local.toml`:
+Init declares the agents whose CLI it found on `PATH` and comments out the
+`[agents.*]` table of every other supported agent. So with one agent installed
+you need no config edit: that agent is the only declared type and therefore the
+default. To add another, install its CLI and uncomment its table in
+`coga/coga.toml`.
+
+In a repo that declares both, choose which one new tasks get with this
+top-level setting, placed before any `[table]` in `coga/coga.local.toml`:
 
 ```toml
 default_agent = "codex"
@@ -33,6 +38,18 @@ default_agent = "codex"
 This does not change an already activated ticket or select the interviewer
 for `coga chat` and `coga ticket`. Use `coga chat --agent codex` or
 `coga ticket "Your task title" --agent codex` for those sessions.
+
+One limit to know in a repo that declares Codex but not Claude Code. The
+packaged `coga chat` and `coga ticket` tickets pin `agent: claude`, and a
+`--agent` override cannot repair a pin that names an undeclared type, so
+`coga chat` fails there even with `--agent codex`; `coga ticket --agent codex`
+works, because authoring checks the override first. `coga build` works, because
+init points its ticket at the agent it found. Uncommenting `[agents.claude]`
+gets `coga chat` past that routing check, since the pin is a name matched
+against this file — but the session then needs the `claude` binary like any
+other launch. Making those commands agent-agnostic is the real fix and is
+tracked separately.
+
 The comments beside `default_agent` and `[agents.*]` in the
 [shipped configuration](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/coga.toml)
 own precedence and routing details. Workflow roles and peer selection are
