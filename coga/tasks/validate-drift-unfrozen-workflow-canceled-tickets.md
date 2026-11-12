@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: unfrozen-workflow — canceled tickets still carry unfrozen
   workflow refs'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -17,6 +17,7 @@ workflow:
     assignee: agent
 step: 1 (brief-and-hand-off)
 agent: claude
+launch_generation: pending:ed0c48f3-8352-4562-9c19-7a1ec8b34965
 ---
 
 ## Description
