@@ -124,3 +124,12 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: update-testing-topic-stale-helper
+
+## Plan
+
+- Item 1: `_strip_runtime_state` is absent from tests/ and src/ (grep). No current helper replaces it, so drop the parenthetical and keep the rule.
+- Item 2: verified `tests/conftest.py::_windows_agent_spawn_follows_test_fakes` matches the description (seams: `shutil.which`, `subprocess.run`, `launch.run_with_done_marker`; exempts `test_repl_supervisor_nt`). Add a Windows test-writing bullet after the `windows_skip` bullet.
