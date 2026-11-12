@@ -1,6 +1,6 @@
 ---
 title: Dream
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
 ---
 
 ## Description
