@@ -1798,6 +1798,18 @@ def _publish_partial_dependency_resolution(
             )
         except (OSError, UnicodeError, TaskFileError, git.GitError) as exc:
             if written is not None:
+                try:
+                    unchanged = _ticket_bytes(ref) == written
+                except OSError:
+                    unchanged = False
+                if not unchanged:
+                    return _result(
+                        ref, "failed",
+                        "dependency resolution publication failed and the local "
+                        "ticket changed or could not be read; "
+                        f"local state retained for reconciliation — {exc}",
+                        _operator_name(cfg, ref, ticket),
+                    )
                 _restore_ticket_bytes(cfg, ref, source_bytes, log_before=log_before)
             return _result(
                 ref, "failed", f"could not publish dependency resolutions: {exc}",

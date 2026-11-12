@@ -117,7 +117,10 @@ remaining targeted answers and activation publish as one exact mutation before
 the launch claim; the prompt therefore never carries the blocker preamble.
 An unactivatable ticket keeps its remaining asks and stays `blocked`. For
 partial resolutions and activation alike, a lost publication restores the
-source ticket; an uncertain one retains evidence. Each task drains into a
+source ticket; an uncertain one retains evidence. A partial-resolution rollback
+first checks that the local ticket still equals the bytes it wrote. If the
+ticket changed, was deleted, or cannot be read, it retains the current local
+state and reports that reconciliation is needed. Each task drains into a
 launch at most once per run; after any actual launch the walk restarts from
 the oldest blocked ticket, and a pass without a launch ends it.
 

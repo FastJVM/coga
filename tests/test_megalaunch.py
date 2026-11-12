@@ -3541,7 +3541,9 @@ def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
     assert run.counts["completed"] == 1
 
 
-@pytest.mark.parametrize("publication", ["success", "refused", "uncertain"])
+@pytest.mark.parametrize(
+    "publication", ["success", "refused", "uncertain", "local-edit", "local-deletion"]
+)
 def test_megalaunch_partial_dependency_resolution_publication(
     git_repo, monkeypatch: pytest.MonkeyPatch, publication: str
 ) -> None:
@@ -3586,9 +3588,10 @@ def test_megalaunch_partial_dependency_resolution_publication(
     launched = _done_on_spawn(monkeypatch)
     real_sync = git_module.sync_task_state
     attempted = False
+    local_edit: bytes | None = None
 
     def publish_resolution(*args, **kwargs):  # type: ignore[no-untyped-def]
-        nonlocal attempted
+        nonlocal attempted, local_edit
         if kwargs.get("message", "").endswith("dependency asks resolved"):
             attempted = True
             assert kwargs["strict"] is True
@@ -3599,6 +3602,13 @@ def test_megalaunch_partial_dependency_resolution_publication(
                 git_repo.push_competing_commit(ticket_rel, peer.render())
             elif publication == "uncertain":
                 raise git_module.UncertainPublishError("control unreadable after push")
+            elif publication == "local-edit":
+                local_edit = path.read_bytes() + b"\nLocal clarification.\n"
+                path.write_bytes(local_edit)
+                raise git_module.GitError("publication refused after local edit")
+            elif publication == "local-deletion":
+                path.unlink()
+                raise git_module.GitError("publication refused after local deletion")
         return real_sync(*args, **kwargs)
 
     monkeypatch.setattr(git_module, "sync_task_state", publish_resolution)
@@ -3607,11 +3617,21 @@ def test_megalaunch_partial_dependency_resolution_publication(
 
     assert attempted
     assert launched == []
+    remote = Ticket.parse(git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin))
+    assert remote.status == "blocked"
+    if publication in {"local-edit", "local-deletion"}:
+        if publication == "local-edit":
+            assert path.read_bytes() == local_edit
+        else:
+            assert not path.exists()
+        assert [b.resolved for b in parse_blockers_text(remote.body)] == [False, False]
+        assert run.results[0].outcome == "failed"
+        assert "local state retained for reconciliation" in run.results[0].detail
+        assert _log_lines_for(cfg, blocked["slug"], "resolved finished dependency")
+        return
     assert Ticket.read(path).status == "blocked"
     assert Ticket.read(path).launch_generation is None
     local = parse_blockers_text(Ticket.read(path).body)
-    remote = Ticket.parse(git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin))
-    assert remote.status == "blocked"
     if publication == "refused":
         assert path.read_bytes() == before
         assert "Peer clarification." in remote.body
