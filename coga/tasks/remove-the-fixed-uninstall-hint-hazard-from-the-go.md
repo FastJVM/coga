@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 43d48cc7-ac9e-46f8-ad17-906eeb840f57
 ---
 
 ## Description
@@ -127,3 +126,51 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: remove-the-fixed-uninstall-hint-hazard-from-the-go
+
+## Handoff (implement)
+
+- Deleted the "Known open: uninstall recovery hints use POSIX syntax on
+  Windows" bullet from `docs/contexts/coga-dev/codebase/gotchas/SKILL.md`.
+  Verified the fix first: `src/coga/commands/uninstall.py` has
+  `_format_tool_command(..., windows=...)` using `_powershell_literal()` on
+  `_native_windows()`, and `coga/uninstall` documents the PowerShell
+  `$env:UV_TOOL_DIR='<path>'; uv tool uninstall coga` form. No other
+  non-archive doc referenced the owner ticket.
+- PR #1208 (still open) edits the same file but only appends a bullet at the
+  end; the hunks do not overlap.
+- Suite has 3 failures that already exist on main, unrelated to this diff: `README.md` links to the deleted
+  `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`
+  (`test_context_navigation_has_no_broken_links` plus both
+  `test_final_package_edits_never_escape_a_mutating_cli_sweep` cases, which
+  run that test). Already tracked by draft
+  `make-retro-check-inbound-doc-links-before-deleting`; siblings recorded the
+  same receipt.
+- Use `.venv/bin/python`; the shell's `python` lacks `tomlkit`.
+
+## PR
+
+```yaml
+title: Drop fixed uninstall-hint hazard from the gotchas topic
+author: claude
+author_evidence: Implement session ran as claude (claude-opus-5-5) under megalaunch.
+head: 4193ca024b9e33e0e20c18fafd18c3574e5696a9
+base: 08033154298c2f99dbb04c0a271547912ec62776
+depth: skim
+rationale: Eight-line deletion of a stale "Known open" bullet in a local-only dev topic; the fix it described landed in bd4b557b4.
+implementation: Removes the gotchas bullet that named v1/15 as owner of the POSIX-only uninstall recovery hint; the code now renders PowerShell hints on native Windows and coga/uninstall documents both syntaxes.
+deviations: None.
+limitations: Docs-only; no behavior change. The suite still has 3 failures already on main from a README link to a deleted ticket (tracked by make-retro-check-inbound-doc-links-before-deleting).
+files:
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Delete the stale uninstall-hint "Known open" bullet.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review has not run yet; the peer-review step follows.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: failed
+    head: 4193ca024b9e33e0e20c18fafd18c3574e5696a9
+    base: 08033154298c2f99dbb04c0a271547912ec62776
+    detail: '3 failed, 4763 passed, 33 skipped in 671.88s; Pop!_OS 24.04 LTS, Linux 7.2.15, Python 3.12.12. All 3 failures already exist on main: test_context_navigation_has_no_broken_links and both test_final_package_edits_never_escape_a_mutating_cli_sweep cases, from the README link to deleted document-the-remedy-for-a-bloated-blackboard-sibli.md.'
+```

@@ -10837,3 +10837,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 00:33 v1 [remove-the-fixed-uninstall-hint-hazard-from-the-go] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-12 00:33 v1 [remove-the-fixed-uninstall-hint-hazard-from-the-go] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-12 00:33 v1 [remove-the-fixed-uninstall-hint-hazard-from-the-go] [megalaunch] launched via coga megalaunch
+2026-11-12 00:47 v1 [remove-the-fixed-uninstall-hint-hazard-from-the-go] [agent:claude] advanced to step 2 (peer-review) → codex — Stale gotchas bullet deleted; 3 suite failures already on main (README dead link, tracked by make-retro-check-inbound-doc-links-before-deleting)
