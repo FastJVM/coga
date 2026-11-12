@@ -35,7 +35,11 @@ is `coga status` and the ticket bodies; stage posture is
   workflow and a hidden core checkout table. The open-command-placements table
   must be empty before v1 again. Its hackability demo, further context
   restructuring, and Dream fixes stay parked under `coga/tasks/_v2/`. The
-  kernel boundary itself is unchanged; [`coga-dev/microkernel`](../microkernel/SKILL.md) owns it.
+  implemented kernel boundary remains owned by
+  [`coga-dev/microkernel`](../microkernel/SKILL.md). The owner clarified the
+  target as a ticket-centred microkernel with accessible, editable behavior
+  and a simpler program; [microkernel objectives](../microkernel/objectives/SKILL.md)
+  owns that direction, including customization of wheel-delivered behavior.
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the

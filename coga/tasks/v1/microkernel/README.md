@@ -1,8 +1,9 @@
 # Microkernel
 
-V1 group for the microkernel cleanup: settling the permanent home
-of every in-package command head that has no ratified kernel justification,
-so that Coga is hackable and extensible at the edge.
+V1 group for a ticket-centred microkernel: a small executor runs tickets,
+which carry scripts or agent prompts and the workflows and skills they use.
+Most user-facing commands become aliases to those tickets. Settling command
+placement serves that architecture and a program more people can read.
 
 ## Status
 
@@ -23,62 +24,38 @@ premise-checked against `main` @ `5d72ffe6e` with the `_v2/README.md`
 procedure, reusing Dream 2026-W39 findings F46-F49 and F53 and the W40
 correction to F49; each ticket's blackboard records its own outcome.
 
-## Objectives (owner, 2026-11-12)
+## Objectives (owner, clarified 2026-11-12)
 
-1. **Hackable.** A user can change any shipped behavior without touching the
-   package: copy the owning file into their repo, edit it, and everything else
-   keeps working. One command tells them where that file lives. First
-   acceptance test: starting from a fresh repo, make the peer-review step work
-   with a single agent without help (the case a contributor got stuck on).
-2. **As much as possible in the ticket.** Behavior lives with the ticket that
-   uses it (its body, workflow, skills, and `ticket.py`) rather than in core,
-   so extending Coga means editing a ticket and the kernel surface needed to
-   run it shrinks.
-3. **Simplify on the way.** Each move deletes duplicated mechanics, redundant
-   wrappers, and obsolete paths (see "Reduction objective"); relocation alone
-   is not the goal.
-
-These objectives decide scope: work that advances none of them waits.
+The [microkernel objectives](../../../../docs/contexts/coga-dev/microkernel/objectives/SKILL.md)
+own this group's direction: hackable and accessible behavior, as much behavior
+as possible in tickets, and a simpler program people can read. That context
+also owns the fresh-repo peer-review acceptance case and the design criteria.
 
 ## The boundary
 
-The target is the **current** rule in `coga-dev/microkernel`, not the July
-2026 direction that only `create` is irreducibly core. The owner confirmed on
-2026-10-16 that the kernel stays: launch/compose and what launch calls
-mid-flight (`mark`, `bump`, secret injection, notify dispatch), what must
-exist before any launch (`create`, fresh `init`), the `block`/`unblock`
-transitions, the fixed `runner.RECIPES`, and proven co-versioned commands.
+The implemented boundary is owned by `coga-dev/microkernel`. It is the
+starting inventory, not a promise that every existing command, recipe, or
+caller-specific policy must remain in core. The linked objectives
+ask the refresh to propose the smallest useful executor and shared primitives,
+with behavior carried by tickets wherever possible. Preserve the current
+transaction, completion, and failure guarantees when proposing smaller heads
+or moving policy. The owner reviews the concrete retained set before any
+child implementation resumes.
 
-This parked group's completion criterion is an empty "Open command placements" table in
-`coga-dev/microkernel` is empty: every listed head is either moved to the edge
-(command ticket, `ticket.py`, `src/coga_edge/`, alias) or carries a written
-co-versioning proof.
+The "Open command placements" table in `coga-dev/microkernel` must be empty:
+every listed head is moved to a ticket/alias or has a concrete reason to remain
+a generic kernel primitive. Closing the table alone is insufficient: the
+customization path and whole-program simplification must also meet the
+objectives above. Wheel distribution by itself does not make behavior editable.
 
 It is a v1 release prerequisite (owner decision 2026-11-12).
 
 ## Reduction objective
 
-Owner clarification (2026-10-22): alongside settling command placement,
-reduce the kernel's surface and the total code and complexity we maintain.
-Look for duplicated mechanics, redundant wrappers, and obsolete paths that
-can be removed within each ticket's reviewed scope. Reuse existing shared
-primitives; a new abstraction must replace real callers, not add another
-layer around them.
-
-Each design identifies concrete simplifications. Each implementation reports
-before/after evidence at named revisions: production-code size across core,
-edge, and ticket/skill scripts in its scope, plus the entrypoints, dependency
-paths, or duplicate implementations removed. State the counting method and
-report tests, documentation, and packaged copies separately. Distinguish code
-relocated from code deleted or deduplicated: moving it to the edge does not
-reduce the total maintenance burden by itself.
-
-There is no arbitrary line-count quota. Preserve behavior, deterministic
-execution, failure visibility, and meaningful test coverage. A justified
-behavior-preserving extraction may be size-neutral; record its boundary gain
-and hand any deferred simplification to a named sibling or follow-up instead
-of claiming a code reduction. Classification-only work supplies that evidence
-for the proposed change and leaves implementation to its reviewed follow-up.
+The 2026-10-22 reduction objective is retained in the standing context's
+[simplification goal](../../../../docs/contexts/coga-dev/microkernel/objectives/SKILL.md#a-simpler-program-people-can-read)
+and [evaluation criteria](../../../../docs/contexts/coga-dev/microkernel/objectives/SKILL.md#evaluating-a-proposed-change).
+Use those criteria for each child's design and implementation evidence.
 
 ## Ground rules
 

@@ -5,6 +5,11 @@ description: "Coga core placement: the microkernel rule, open command placement 
 
 # Coga microkernel boundary
 
+The [microkernel objectives](objectives/SKILL.md) own the target architecture:
+behavior carried by editable tickets, a small generic command surface, and a
+program more contributors can understand. The rules below describe the current
+boundary; the objectives guide review of its future shape.
+
 ## The microkernel rule
 
 Code earns a permanent home in `src/coga/` in two ways. Existing command

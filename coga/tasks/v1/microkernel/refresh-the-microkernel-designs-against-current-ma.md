@@ -16,13 +16,26 @@ workflow:
     assignee: agent
 step: 1 (agent-produces)
 agent: claude
+contexts:
+  - coga-dev/principles
+  - coga-dev/microkernel/objectives
 ---
 
 ## Description
 
 The microkernel tickets were parked on 2026-10-27 and pulled back into v1 on 2026-11-12 because hackability is a base promise of the open-source 1.0: a contributor (Zach) got lost trying to change the peer-review behavior. Their designs and inventories are stale (launch.py is now 4,577 lines; launch-decomposition still cites 3,782). Run the _v2/README premise check on every ticket in v1/microkernel/ against current main, refresh each design's inventory and proposed boundary, flag what already shipped or no longer applies, and propose the execution order and which ticket owns the workflow-declared checkout policy. The owner decides the refreshed scope before any child implementation resumes.
 
-Judge every design against the group's three objectives in `v1/microkernel/README.md` ("Objectives"): hackable without touching the package, as much behavior as possible in the ticket, and simplification along the way. For each child, state which objective it advances and drop or defer work that advances none.
+Judge every design against the attached `coga-dev/microkernel/objectives`
+context, linked from the group's README. For each child, state which objective
+it advances and drop or defer work that advances none.
+
+### Owner clarification — 2026-11-12
+
+The owner asked to establish the objectives in a standing Coga-dev context
+before continuing the design refresh. Its owner is
+`docs/contexts/coga-dev/microkernel/objectives/SKILL.md`. The refreshed designs
+will apply that direction, including access to editable wheel-delivered
+behavior; detailed scope and execution order still need review.
 
 ## Context
 
@@ -112,4 +125,31 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Current handoff
+
+- Starting checkout: clean `main`, fetched and fast-forward checked at
+  `63e7bb28129de084f7f619c3a8dfa2e8762b1550` on 2026-11-12. No branch or PR is
+  recorded for this planning step; edits are Coga design state on control.
+- The owner redirected this session to the objectives only. Their standing
+  owner is now `coga-dev/microkernel/objectives`, attached above; the group and
+  the current-boundary topic link to it. Command classification, migration
+  order, and child implementation have not been approved by that clarification.
+- The full refresh remains pending. No child design or lifecycle state was
+  edited. Keep this step open for the continuing attended discussion.
+- Preliminary evidence for later verification: `commands/launch.py` is a
+  100-line adapter and `src/coga/launch.py` is the 4,577-line service (the split
+  landed in `b3007ef2e`); edge wheel delivery landed in `bc46823c4`, and the
+  current registry has 12 recipes. These observations are not a completed
+  premise check or an accepted scope.
+
+## Objectives-context verification
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/refresh-the-microkernel-designs-against-current-ma --json`
+  — 1 task OK; no issues or fixes.
+- Read-only checks: the new context resolves through `resolve_context_path`,
+  its links and the group's links to it exist, its header contains only
+  `name` and `description`, and this ticket preserves all CLI-owned fields
+  and exactly one blackboard fence. Context size: 111 lines, about 1,459 tokens.
+- `git diff --check` — clean. Documentation only; behavioral tests are not
+  needed for this objectives note. The overall refresh is not complete, so
+  no workflow transition is requested by this handoff.
