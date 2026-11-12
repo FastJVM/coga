@@ -10891,3 +10891,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 02:12 v1 [make-retro-check-inbound-doc-links-before-deleting] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-12 02:12 v1 [make-retro-check-inbound-doc-links-before-deleting] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-12 02:12 v1 [make-retro-check-inbound-doc-links-before-deleting] [megalaunch] launched via coga megalaunch
+2026-11-12 02:27 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:nicktoper] created (status=draft)
