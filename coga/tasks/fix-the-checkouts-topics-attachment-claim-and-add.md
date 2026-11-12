@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 83e31839-531a-497f-b46f-844a7ff5d451
 ---
 
 ## Description
@@ -129,14 +128,66 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: fix-checkouts-attachment-claim-size-exceptions
 
-## Plan
+## Handoff (implement → peer-review)
 
-- Item 1: replace the stale "`ticket.py` and attachments ... stay in the diff"
-  sentence in `coga/checkouts` "Stranded ticket writes" with a pointer to
-  `coga/state-publication` "Control versus feature checkouts"
-  (Committed-state boundary), which owns the rule (`git._publish_locked` sets
-  `adopt_only = _routine_state_areas(...)`; `git._candidates` adopts there).
-- Item 2: append closing `Size exception:` sentences (no split) to
-  `checkouts/SKILL.md` and `checkouts/launch-boundary/SKILL.md`.
-- PRs #1199 and #1197 are still open and touch the same files; expect a small
-  rebase conflict for whichever lands second.
+Pushed `fix-checkouts-attachment-claim-size-exceptions` (2 commits on
+merge-base 6dc3745d0, current origin/main). Docs-only change:
+
+- Item 1 (ks-14): `coga/checkouts` "Stranded ticket writes" no longer says
+  `ticket.py`/attachments under `coga/tasks/` stay in the diff. It now says a
+  sweep on the feature checkout adopts their committed copies to control,
+  links `coga/state-publication#control-versus-feature-checkouts`
+  (Committed-state boundary, the owner), and routes those edits to the live
+  task in the primary checkout. Code basis: `git._publish_locked` sets
+  `adopt_only = git._routine_state_areas(cfg, root)` off control and
+  `git._candidates` adopts committed paths only within those areas.
+- Same stale claim was restated in `skills/code/open-pr/SKILL.md`
+  (dirty-clone recovery bullet, which links the section); fixed in the same
+  PR per AGENTS.md (owner and summarizing surface change together).
+- Item 2 (ca-03): chose a closing `Size exception:` sentence over a split for
+  `checkouts/SKILL.md` (now 213 lines, ~12.3 KB) and
+  `checkouts/launch-boundary/SKILL.md` (174 lines, ~11.2 KB). The procedures
+  already live in leaves; the remaining parent text is the lifecycle map, and
+  launch-boundary keeps recovery next to the conditions it re-proves.
+- Open PRs #1199 and #1197 touch `checkouts/SKILL.md` (and #1199
+  `launch-boundary/SKILL.md`); they were still open at implement time, so
+  whichever lands second needs a small rebase. My hunks are at the end of
+  each file.
+- Known, unrelated: full suite has 3 failures that reproduce identically on
+  origin/main 6dc3745d0, all from README.md linking the deleted ticket
+  `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`
+  (`test_packaging::test_context_navigation_has_no_broken_links` and both
+  `test_git::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+  params, which run that check in a subprocess). Already recorded on
+  `decide-the-dream-scans-corpus-and-fix-the-known-co`; root cause tracked by
+  draft `make-retro-check-inbound-doc-links-before-deleting`.
+
+## PR
+
+```yaml
+title: Correct checkouts attachment claim and add size exceptions
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under megalaunch; both commits authored in this session.
+head: 498ca088fa0930c6f7603ae5be467e1c5ce896b7
+base: 6dc3745d03f231e59591d9c18a74cead8338b882
+depth: deep
+rationale: Docs-only wording change, but the full-suite receipt is failed (3 pre-existing main failures from a broken README link), which forces deep; reviewers only need to read the two changed paragraphs and two closing sentences.
+implementation: Replaces the stale stay-in-the-diff claim for ticket.py and task attachments in coga/checkouts and code/open-pr with the committed-state boundary link and routes those edits to the live task; appends Size exception sentences to checkouts and checkouts/launch-boundary.
+deviations: Also edits skills/code/open-pr/SKILL.md, which restated the same stale claim; the ticket named only the checkouts topic.
+limitations: Open PRs 1199 and 1197 edit the same checkouts files and will need a rebase against whichever merges second. Size exceptions chosen over a split.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Correct the attachment claim with a state-publication link and add the closing Size exception sentence.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Add the closing Size exception sentence required by coga/knowledge.
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Drop the same stale attachment claim from the dirty-clone recovery bullet.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; independent peer review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 498ca088fa0930c6f7603ae5be467e1c5ce896b7
+    base: 6dc3745d03f231e59591d9c18a74cead8338b882
+    detail: 3 failed, 4763 passed, 33 skipped in 688.32s (Linux x86_64, Python 3.12.12, pytest 9.1.1). All 3 reproduce unchanged on origin/main 6dc3745d0 (README link to deleted ticket document-the-remedy-for-a-bloated-blackboard-sibli.md); none touch the changed files.
+```
