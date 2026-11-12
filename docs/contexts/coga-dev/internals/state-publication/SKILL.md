@@ -76,8 +76,11 @@ when HEAD is not control. `_candidates` drops failing dirty paths into
 `held`, even when named explicitly. The `require_paths` loop raises a
 held-specific `GitError` for a held required file that differs from control,
 which gives `publish-state` and authoring their refuse-everything result.
-The first attempt writes the stderr report, listing held paths whose
-`_tree_entry` differs from base. `_plan_preparation` evaluates the same
+Each attempt collects held paths whose `_tree_entry` differs from its base;
+`publish` writes one stderr report when it returns or raises. A recurring
+file can first become held after a rejected push refetches a changed control
+definition, so limiting collection to the first attempt would miss it.
+`_plan_preparation` evaluates the same
 predicate against the pinned commit, but only to word a blocking entry as
 held. Its decision logic is unchanged.
 

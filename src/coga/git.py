@@ -557,10 +557,12 @@ def publish(
         required = [relative_to_root(root, path) for path in require_paths]
         pending = _load_pending(cfg)
         before = dict(pending)
+        held_paths: set[str] = set()
+        where = symbolic_head(root) or "detached HEAD"
         try:
             return _publish_locked(
                 cfg, root, pathspecs, message, expected, guard, fast_forward,
-                required, log_mutation, pending=pending,
+                required, log_mutation, pending=pending, held_paths=held_paths,
             )
         except StateRegressionError:
             if remember:
@@ -573,6 +575,13 @@ def publish(
         finally:
             if pending != before:
                 _save_pending(cfg, pending)
+            if held_paths:
+                sys.stderr.write("".join(
+                    f"[git] held for merge ({where}): {rel}\n" for rel in sorted(held_paths)
+                ) + (
+                    f"[git] held files are not published from this checkout; "
+                    f"{_held_remedy(cfg.git_control_branch)}.\n"
+                ))
 
 
 def _publishable_root(cfg: Config, message: str) -> Path | None:
@@ -602,6 +611,7 @@ def _publish_locked(
     required: list[str],
     log_mutation: "LogMutation | None" = None,
     *,
+    held_paths: set[str],
     pending: dict[str, dict[str, Any]] | None = None,
 ) -> bool:
     from coga import log_transaction
@@ -635,16 +645,9 @@ def _publish_locked(
             root, pathspecs, base, ancestor, adopt_only, log_rel=log_rel,
             publishes=publishes, held=held,
         )
-        if held and _attempt == 0:
-            reported = _held_report(root, base, held)
-            if reported:
-                where = symbolic_head(root) or "detached HEAD"
-                sys.stderr.write("".join(
-                    f"[git] held for merge ({where}): {rel}\n" for rel in reported
-                ) + (
-                    f"[git] held files are not published from this checkout; "
-                    f"{_held_remedy(control)}.\n"
-                ))
+        # A retry can first hold a recurring file when control's definition
+        # changed. The wrapper reports all attempts once, even on refusal.
+        held_paths.update(_held_report(root, base, held))
         # The pending-expectation record is machine-local even where `.coga/`
         # is not ignored.
         pending_rel = relative_to_root(root, cfg.repo_root / _PENDING_FILE)

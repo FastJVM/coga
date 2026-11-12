@@ -2223,6 +2223,52 @@ def test_held_report_is_written_once_and_skips_files_equal_to_control(
     assert err.count("held files are not published") == 1
 
 
+@pytest.mark.parametrize("required", [False, True])
+def test_held_report_includes_recurring_files_first_held_after_a_push_retry(
+    git_repo, capsys, monkeypatch, required,
+):
+    """A concurrent definition edit makes a blackboard update held on retry;
+    the single report must include it on success and required-file refusal."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    rel = "coga/recurring/weekly/ticket.md"
+    _hand_commit(git_repo, rel, _DEFINITION)
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    parent = git_repo.root / rel
+    parent.write_text(_DEFINITION.replace("cursor 1", "cursor 2"), encoding="utf-8", newline="\n")
+    ticket.write_text(_ticket_text(blackboard="handoff\n"), encoding="utf-8", newline="\n")
+    competing = _DEFINITION.replace("schedule: weekly", "schedule: daily")
+    before_ticket = _control(git_repo, "coga/tasks/demo.md")
+    real_push = git._push
+    attempts = []
+
+    def compete_once(root, remote, refspec):
+        attempts.append(refspec)
+        if len(attempts) == 1:
+            git_repo.push_competing_commit(rel, competing)
+        return real_push(root, remote, refspec)
+
+    monkeypatch.setattr(git, "_push", compete_once)
+
+    if required:
+        with pytest.raises(git.GitError, match=f"{rel}: held for merge"):
+            git.publish(cfg, git.coga_root_paths(cfg), "Publish state", require_paths=[parent])
+        assert len(attempts) == 1
+        assert _control(git_repo, "coga/tasks/demo.md") == before_ticket
+    else:
+        assert git.publish(cfg, git.coga_root_paths(cfg), "Publish state")
+        assert len(attempts) == 2
+        assert "handoff" in _control(git_repo, "coga/tasks/demo.md")
+
+    assert _control(git_repo, rel) == competing
+    assert "cursor 2" in parent.read_text(encoding="utf-8")
+    err = capsys.readouterr().err
+    assert err.count(f"[git] held for merge (feature/x): {rel}\n") == 1
+    assert err.count("held files are not published") == 1
+    assert "commit it on this branch for review, or redo the edit on 'main'" in err
+
+
 # --- object-write failures: where Git was writing, and the recovery -----------
 
 
