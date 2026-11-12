@@ -22,7 +22,9 @@ both Claude Code and Codex installed and authenticated, because the second
 agent reviews the first agent's work. If you use only one agent, choose
 `code/with-self-review` in the create command below. It keeps the final human
 PR gate but uses the same agent for implementation and self-review
-([coga/workflows](../workflows/SKILL.md)).
+([coga/workflows](../workflows/SKILL.md)). Keep the human gate for a first
+task; `code/agent-merge`, where the agents merge the reviewed PR themselves,
+is for later work once you trust the loop.
 
 ```sh
 coga validate            # repo and task structure; non-zero exit on errors

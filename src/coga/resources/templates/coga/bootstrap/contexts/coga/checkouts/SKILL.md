@@ -53,12 +53,13 @@ checkout. It is a closed table, not a step-name heuristic:
 | Workflow | Current step | Entry |
 | --- | --- | --- |
 | `code/design-then-implement` | `design`, `evaluate-design`, `review-design` | control |
-| all four shipped code/docs workflows | `implement` | create or reuse the recorded branch |
-| `code/design-then-implement`, `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
+| all five shipped code/docs workflows | `implement` | create or reuse the recorded branch |
+| `code/agent-merge`, `code/design-then-implement`, `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
 | `code/with-self-review` | `self-qa` | reuse the recorded branch |
-| `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | control |
+| `code/agent-merge`, `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | control |
 | `code/with-self-review` | `pr` | control |
-| all four | owner-held `review` (an explicit assist) | reuse the recorded branch |
+| `code/agent-merge` | `merge` | reuse the recorded branch |
+| all but `code/agent-merge` | owner-held `review` (an explicit assist) | reuse the recorded branch |
 
 A row applies only when the step's instructions are the shipped ones: its
 step skill, or its inline `## <step>` section, equals the packaged copy
