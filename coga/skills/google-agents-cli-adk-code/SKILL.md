@@ -4,20 +4,20 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-adk-code
-    github-ref: refs/tags/v1.12.0
+    github-ref: refs/tags/v1.13.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: adfa0ff15eeb52ac7c53d958b36a02af7fdae070
+    github-tree-sha: cd4d7a3afb0407916c5e1fc0c4106aa9fb6b99ff
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.12.0
+    version: 1.13.0
 name: google-agents-cli-adk-code
 ---
 # ADK Code Reference
 
-Activate `/google-agents-cli-workflow` first for required development phases and scaffolding steps.
+Activate `/google-agents-cli-workflow` first.
 
 ## 1. Study Recipes (No Project Needed)
 
@@ -34,7 +34,7 @@ clone the repo and read the one matching the capability you need before implemen
 Do NOT write agent code until a project is scaffolded.
 
 1. Verify project: run `agents-cli info` (proceed if config exists).
-2. New project: run `agents-cli scaffold create <name> --agent adk_python --deployment-target <target>` — use `--agent adk_go` for Go.
+2. No project: load `/google-agents-cli-workflow` and agree the spec with the user (its Phase 0) before you scaffold.
 3. Existing code: run `agents-cli scaffold enhance .`.
 
 ## Quick Reference — Most Common Patterns
