@@ -1,6 +1,6 @@
 ---
 title: Decide the Dream scans' corpus and fix the Known corpus limitation
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:6330e41b-ce61-42b0-b6ad-c25edc2dae15
 ---
 
 ## Description
