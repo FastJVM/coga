@@ -1,6 +1,6 @@
 ---
 title: Agent usage report
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
