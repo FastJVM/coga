@@ -88,6 +88,12 @@ Doc-only fixes need no reinstall. Name a re-walk on an untouched copy before
 any fix lands a **reproduction**, and one after a fix a **verification**; only
 the second can mark a finding fixed.
 
+No macOS human walk from a pinned `main` commit is on record (checked
+2026-11-11): the recorded macOS walk installed from PyPI, which lagged
+`main`, and the follow-up scoped to repeat it from a full SHA closed without
+a recorded SHA or findings. Until such a walk lands, macOS install evidence
+describes the released package, not current `main`.
+
 ## Wrap-up
 
 When the human reaches the ticket's completion criteria or stops the walk,
