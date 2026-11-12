@@ -35,13 +35,104 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+contexts:
+  - coga-dev/microkernel/objectives
+  - coga-dev/principles
 ---
 
 ## Description
 
-Hackability defect found on 2026-11-12. src/coga/checkout_policy.py chooses which checkout a step starts in (control, create-or-reuse, reuse-required) from a hidden core table keyed by workflow name and step name, and it requires the step's skills to match the shipped copy byte for byte. Copying a workflow under a new name, editing a step, or overriding its skill locally therefore silently drops the step to manual checkout. A contributor customizing code/with-review's peer review for one-agent repos hit this. Declare the checkout policy on each step in the workflow file, have launch read the declaration, keep the table only as a fallback for frozen snapshots that predate the field, and document the customization path in coga/workflows. A user should be able to copy a bundled workflow into coga/workflows/, change it, and keep its checkout behavior.
+Make a workflow step's checkout policy explicit in its definition and frozen
+snapshot. This ticket owns the whole declaration change: schema, freezing,
+validation, selection, bundled workflows, compatibility and user guidance.
+`launch-decomposition` consumes that policy and does not design a competing one.
+This is the refreshed proposal for owner scope review.
+
+### Objectives advanced
+
+Hackability: changing peer review or its skill does not lose branch preparation.
+Ticket ownership: the workflow states what each step needs. Simplification:
+new definitions no longer rely on a hidden table of names and instruction bytes.
+
+### Premise check against main
+
+Snapshot: `49b34b229` (2026-11-12), physical lines including blanks/comments.
+
+1. The defect remains: `checkout_policy.py` (145 lines) selects a closed
+   `_ROWS` table and checks resolved skill or inline-section equality.
+2. The surfaces resolve: `WorkflowStep`, `_parse_step`, `Workflow.freeze`
+   in `workflow.py` (195 lines), frozen-step validation in `validate.py`,
+   `select_checkout_policy`, shared `checkouts.py`, and packaged workflows.
+   There is no parsed/frozen `checkout` field yet.
+3. Requirements are self-contained here and in the attached objectives;
+   the contributor's peer-review example is the acceptance case.
+4. Local-first workflow/skill resolution already ships. Declaration-driven
+   checkout selection does not. Keep the resolvers; replace the hidden policy
+   for new explicit definitions.
+
+### Proposed boundary
+
+Use a step field, proposed spelling `checkout:`, with the existing policy
+vocabulary: `control`, `create-or-reuse`, `reuse-required`, and `manual`.
+The field is data interpreted by the kernel's existing checkout mechanics.
+It neither selects an operator nor authorizes bypassing occupancy, Git or
+owner-gate checks.
+
+Parse, validate and freeze the field with the step. An explicit valid value
+is authoritative regardless of workflow name, step name, skill content or
+local customization. Invalid values fail before checkout effects. Role and
+`requires:` remain independent. In a workflow definition, an omitted field
+defaults to `manual`; freezing always writes the resulting explicit policy.
+New snapshots therefore need no inference from a familiar workflow name.
+
+For old frozen snapshots without the field, retain the current closed table
+as a compatibility fallback, including its conservative instruction checks.
+Do not rewrite frozen tickets automatically. The distinction is absence in an
+already frozen snapshot versus the explicit value emitted by the updated
+freezer; no schema-version framework is needed. Document that the fallback can
+be retired only after old snapshots have completed or undergone an explicitly
+reviewed migration. Do not automatically rewrite those snapshots merely to
+delete compatibility code.
+
+Populate the declarations in the package-owned code/docs workflows and any
+other workflow whose reviewed step requires automatic preparation. A custom
+workflow can then use the same primitives. Compose the actual selection and
+its reason in the runtime checkout notice.
+
+### Acceptance and reduction evidence
+
+- [ ] In a fresh repo, obtain an editable workflow through the customization
+      ticket's path, make peer review use one agent, and verify the intended
+      branch is reused even with a new workflow name and edited skill.
+- [ ] Editing the source workflow affects newly frozen tickets only; changing
+      live instructions does not erase an explicit frozen checkout policy.
+- [ ] Parse/freeze/read round trips retain values; invalid values fail loud;
+      explicit manual, inherited roles, completion gates and owner assists
+      retain their separate semantics.
+- [ ] Old snapshots retain documented behavior, including CRLF-equivalent
+      skills, with a bounded compatibility plan rather than a second policy
+      system for newly authored workflows.
+- [ ] Existing branch/linkage, projected-ticket, control freshness, occupied
+      checkout and retry/return safeguards remain in shared checkout code.
+- [ ] Report removal of name/content inference from the normal declared path;
+      count the remaining fallback honestly. Do not claim it was deleted.
+- [ ] Update `coga/workflows`, `coga/checkouts` and affected launch/validation
+      guidance at their package owners. Cover workflow, validation, checkout,
+      composition and launch tests, full Linux suite and native Windows receipt.
 
 ## Context
+
+Read `coga-dev/microkernel/objectives`, `coga-dev/testing` and
+`coga-dev/packaging`. The user contract owners are
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md`
+and `.../coga/checkouts/SKILL.md`; packaged workflow definitions live under
+`src/coga/resources/templates/coga/bootstrap/workflows/`.
+
+This ticket is independent of moving CLI heads and does not need a new
+agent-session module. It can be implemented first after the refresh is
+accepted. The complete fresh-user acceptance case also needs
+`make-packaged-behavior-discoverable-and-editable`. Do not add locks, generic
+hooks, alternative workflow representations or automatic frozen-ticket edits.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -130,3 +221,18 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Superseded designs
+
+### 2026-11-12 — Design before the current-main refresh
+
+Superseded by: the refreshed Description and Context above, proposed for owner review.
+Reason: source, distribution and caller boundaries changed; the owner clarified
+the objectives in `coga-dev/microkernel/objectives`. Historical commands,
+paths, approvals and test receipts below are evidence, not current instructions.
+
+#### Description
+
+Hackability defect found on 2026-11-12. src/coga/checkout_policy.py chooses which checkout a step starts in (control, create-or-reuse, reuse-required) from a hidden core table keyed by workflow name and step name, and it requires the step's skills to match the shipped copy byte for byte. Copying a workflow under a new name, editing a step, or overriding its skill locally therefore silently drops the step to manual checkout. A contributor customizing code/with-review's peer review for one-agent repos hit this. Declare the checkout policy on each step in the workflow file, have launch read the declaration, keep the table only as a fallback for frozen snapshots that predate the field, and document the customization path in coga/workflows. A user should be able to copy a bundled workflow into coga/workflows/, change it, and keep its checkout behavior.
+
+#### Context
