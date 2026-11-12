@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: d695166e-da6f-433b-8002-bc135ec2b880
 ---
 
 ## Description
@@ -129,6 +128,84 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: make-retro-check-inbound-doc-links-before-deleting
+
+## Decision
+
+- Rule owner: `retro/done-ticket`, new `### Inbound references`. Before
+  choosing a source's deletion path, Retro runs
+  `git grep -n -F -e '<tasks-root>/<slug>' -- . ':!<tasks-root>' ':!<coga-os>/log.md'`
+  in the isolated checkout and inspects each hit. Prefix-sharing slugs,
+  same-path fixture trees, and links from other live tickets are not
+  references. It repoints each real reference to a permalink at the full OID of
+  the fresh control tip (that tip still contains the task).
+  - Knowledge-bearing source: the repoint goes in its knowledge PR. Repointed
+    files do not count toward the 3-knowledge-file limit, and the PR body lists
+    them under `Repointed references`.
+  - No-knowledge source with references: no direct delete, because
+    `coga delete` publishes only the task and the log, and doc edits need
+    review. It goes into one run-level reference-pin PR
+    (`codex/retro-pin-references`, "Pin links to deleted tickets"), with no
+    marker. Progress receipt: `pr pin-references — <url> — <slugs>`.
+  - Self-review re-runs the search on each branch, and on the tree before each
+    direct delete.
+- Rejected: "skip the ticket and report it". That breaks Retro's invariant that
+  no processed done ticket stays on disk, and Dream would re-pick the ticket
+  every run.
+- `coga delete`/`coga retire` warning: not in this change, because it grows
+  the shared core path and retire's deterministic delete needs its own
+  decision. Filed as draft `warn-when-coga-delete-or-coga-retire-leaves-a-live`.
+
+## Handoff (implement → peer-review)
+
+- Changed: the Retro skill (new section, plus the contract, Scope, steps
+  5/9/10/11, progress line, PR body, and intro); Dream Phase 4 (a summary
+  paragraph that links to the skill); `retire.md` (an exception clause); tests
+  in `tests/test_retro_skill_template.py` (new test, plus one assertion that
+  followed the reworded "Do not" line) and `tests/test_dream_worker_templates.py`
+  (new test). No fixture change: these are prompt templates only.
+- Known red on main, not caused by this change: README.md still links the
+  deleted `document-the-remedy-for-a-bloated-blackboard-sibli` on blob/main.
+  This fails `test_packaging.py::test_context_navigation_has_no_broken_links`,
+  plus two `test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+  cases that run that test in a subprocess. PR #1214 (OPEN) fixes it.
+
+## PR
+
+```yaml
+title: Repoint inbound task links before Retro deletes a ticket
+author:
+  agent: claude
+  model: claude-opus-5-5
+head: 2e62cf0e1ba5a9705db8e8cbf549735e21923a63
+base: 79cd556d60d7cbd09e6c972ed4e09c1e23cb3063
+review_depth: light
+review_depth_rationale: Prompt/template text plus string-assertion tests; no Python behavior change. The risk is rule wording and consistency with Dream and retire.
+implementation: >-
+  Retro now searches tracked files for each source task's path before it
+  deletes. It repoints each live-tree reference to a full-OID commit permalink:
+  in the knowledge PR for a knowledge-bearing source, or in a single
+  reference-pin PR for a referenced source with no durable knowledge, which no
+  longer takes the direct delete. Dream Phase 4 and retire.md summarize the rule
+  and link to the skill.
+deviations: []
+limitations:
+  - coga delete / coga retire are not guarded; follow-up draft warn-when-coga-delete-or-coga-retire-leaves-a-live.
+files:
+  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: owner of the new Inbound references rule and the matching contract/steps/progress/PR-body edits
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Phase 4 summary pointing to the rule, since its eligibility gates do not cover it
+  src/coga/resources/retire.md: retire's restatement of Retro's direct delete gains the reference-pin exception
+  tests/test_retro_skill_template.py: regression test for the rule; one assertion updated for the reworded Do-not line
+  tests/test_dream_worker_templates.py: test that Dream defers the rule to the skill
+checks:
+  - command: .venv/bin/python -m pytest -q
+    tree: identical to head 2e62cf0e1 (committed with no further edits; rebase was a no-op)
+    result: 3 failed, 4765 passed, 33 skipped
+    failures: pre-existing README blob/main link to a deleted ticket (test_packaging navigation + 2 test_git subprocess cases); fixed by open PR #1214
+  - command: .venv/bin/python -m pytest -q tests/test_retro_skill_template.py tests/test_dream_worker_templates.py tests/test_retire.py tests/test_packaging.py
+    result: 1 failed (same navigation test), 101 passed
+review:
+  code_review: not run yet; peer-review is the next workflow step
+```
 
 ## Plan
 
