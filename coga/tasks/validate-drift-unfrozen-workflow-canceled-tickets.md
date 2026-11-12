@@ -17,7 +17,7 @@ workflow:
     assignee: agent
 step: 1 (brief-and-hand-off)
 agent: claude
-launch_generation: pending:ed0c48f3-8352-4562-9c19-7a1ec8b34965
+launch_generation: ed0c48f3-8352-4562-9c19-7a1ec8b34965
 ---
 
 ## Description
