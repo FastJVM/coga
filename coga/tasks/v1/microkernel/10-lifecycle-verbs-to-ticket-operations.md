@@ -241,7 +241,7 @@ access or add an archive deliverable to this ticket.
 
 ##### Launch dependency
 
-The group originally ordered `v1/microkernel/launch-decomposition` first. At
+The group originally ordered `v1/microkernel/03-launch-decomposition` first. At
 this premise check that ticket is paused at its owner `review-design` gate,
 but its inventory is stale: `commands.launch.launch` already delegates to
 `coga.launch`, and `src/coga/launch_script.py` has no `advance_step` or
