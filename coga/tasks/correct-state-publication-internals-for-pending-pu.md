@@ -1,7 +1,7 @@
 ---
 title: Correct state-publication internals for pending-publication and the deferred
   done marker
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -26,6 +26,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:efa25820-a3bd-4a4c-89db-564162283ea3
 ---
 
 ## Description
