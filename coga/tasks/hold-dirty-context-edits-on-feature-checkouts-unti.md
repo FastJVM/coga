@@ -208,6 +208,11 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/hold-dirty-context-edits-on-feature-checkouts-un-d9bafa
+
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Design step (2026-11-11)
