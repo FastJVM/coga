@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
@@ -406,7 +406,145 @@ branch: coga/v1-microkernel-02-declare-each-workflow-step-s-c-614991
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## PR
+
+```yaml
+title: Declare each workflow step's checkout policy in the workflow file
+author: claude
+author_evidence: >-
+  Attended implement session run by Claude (claude-opus-5-5) under coga launch
+  c254f1f0-18c7-40d2-877c-f96b035544f0; no agent override.
+head: 8053f2c0d5706643c4a80c836702279ed5f875f7
+base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
+depth: deep
+rationale: >-
+  Changes how launch selects branch preparation for every workflow step and
+  adds a pre-branch refusal path; reviewers should read the selector, the
+  launch/re-check call sites and the legacy fallback together.
+implementation: >-
+  Workflow steps gain `checkout:` (control, create-or-reuse, reuse-required,
+  manual; omitted = manual), validated at load and always written by freeze.
+  select_checkout_policy returns a frozen declaration as authoritative with
+  no file resolution; snapshots without the key fall back to the unchanged
+  _ROWS table, with a "(legacy snapshot)" reason. checkouts.select_ticket_policy
+  validates every frozen step's value before launch reserves/creates/switches
+  a branch (stage "policy") and replaces the direct selector calls at the
+  three re-check sites. validate reports an invalid frozen value as bad-shape.
+  ticket_notice names kind and reason for every action. Packaged code/docs
+  workflows declare the policies the table selected.
+deviations: >-
+  code/agent-merge also declares its policies (the ticket listed four
+  workflows, but _ROWS covers agent-merge and omitting it would regress it to
+  manual). The seeded fixture's custom code/with-review declares
+  checkout: manual on implement explicitly, matching today's selection.
+  Per owner decision, the launch boundary's initial normalization to control
+  may precede an invalid-value refusal; exempt (non-managed) launches are not
+  covered.
+limitations: >-
+  The legacy fallback is retained, not deleted (checkout_policy.py 161 -> 213
+  physical lines at base -> head; the legacy table and comparison helpers are
+  unchanged). Line counts, physical incl. blanks/comments, base -> head:
+  workflow.py 195 -> 218, validate.py 2039 -> 2059, checkouts.py 1159 -> 1188,
+  launch.py 4577 -> 4579. The declared path does no name/content inference.
+  No native Windows full-suite receipt yet; required before merge
+  (CRLF fallback is platform-sensitive). Cross-field lint and a parked
+  fallback-retirement ticket are not filed (Open Questions 3/4).
+files:
+  docs/contexts/coga-dev/codebase/SKILL.md: Describe checkout_policy.py as declaration-first with a legacy table.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Name the re-check helper that now validates frozen checkout values.
+  src/coga/checkout_policy.py: Authoritative declared policy, CheckoutPolicyError, whole-snapshot validation, legacy reason prefix.
+  src/coga/checkouts.py: select_ticket_policy used at launch and all re-check sites; notice names kind and reason.
+  src/coga/launch.py: Select the policy inside the refusal path so an invalid value stops before any branch work.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Document the declaration, values, packaged table, local-copy consequence and legacy snapshots.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Add checkout to the definition format and frozen snapshot.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/agent-merge.md: Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: Declare the policies the legacy table selected.
+  src/coga/resources/ticket.md: Show checkout in the frozen-workflow example.
+  src/coga/validate.py: Report an invalid frozen checkout value as a bad-shape error.
+  src/coga/workflow.py: Parse, validate and freeze the step checkout field.
+  tests/fixtures/seeded-repo/coga/workflows/code/with-review.md: Keep the fixture representative with an explicit manual declaration.
+  tests/test_checkouts.py: Declared, legacy, invalid (current/later/feature-checkout), notice, validate and peer-review acceptance coverage.
+  tests/test_primitives.py: Parse/freeze round trip and invalid-value rejection.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    No code review yet; the next workflow step (peer-review, other agent)
+    performs it. Design evaluation is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 8053f2c0d5706643c4a80c836702279ed5f875f7
+    base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
+    detail: >-
+      4893 passed, 33 skipped, 0 failed in 725.78s; Linux (Pop!_OS 24.04),
+      Python 3.12.12, committed tree (only the projected ticket was dirty).
+  - command: .venv/bin/python -m coga.cli validate --json
+    status: passed
+    head: 8053f2c0d5706643c4a80c836702279ed5f875f7
+    base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
+    detail: Repo validation, 84 ok, no error issues.
+  - command: env -u SLACK_WEBHOOK_URL coga validate --json (cwd tests/fixtures/seeded-repo/coga)
+    status: passed
+    head: 8053f2c0d5706643c4a80c836702279ed5f875f7
+    base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
+    detail: Seeded fixture, 5 ok, no error issues.
+  - command: native Windows python -m pytest
+    status: not-run
+    detail: >-
+      No Windows host in this session; coga-dev/testing requires the receipt
+      before merge for this platform-sensitive change.
+```
+
+## Implementation (step 4, claude, 2026-11-12)
+
+Owner decisions in the attended session (2026-11-12): (1) adopt the
+evaluator's refusal boundary — keep the launch boundary's initial
+normalization to control, validate *every* frozen `checkout:` before any
+branch reservation/creation/switch, keep the selector check as defense in
+depth; exempt (non-managed) launches out of scope; (2) omitted = `manual`;
+(3) freeze always writes `checkout:`, including `manual`.
+
+What changed:
+- `workflow.py`: `CHECKOUT_POLICIES`, `DEFAULT_CHECKOUT`,
+  `WorkflowStep.checkout`; `_parse_step` rejects anything else (names step,
+  value, vocabulary); `Workflow.freeze` writes it after `requires:`.
+- `checkout_policy.py`: declared value is authoritative, no file
+  resolution; `CheckoutPolicyError`; `invalid_checkout_declarations(ticket)`
+  checks all frozen steps. Legacy `_ROWS` path unchanged except its reason
+  now starts `... has no frozen checkout: (legacy snapshot); ...`.
+- `checkouts.py`: `select_ticket_policy(cfg, ticket, stage)` validates all
+  steps then selects, raising `CheckoutPreparationError`. Used by launch
+  (stage `policy`, inside the existing refusal `try`, before
+  `plan_ticket_checkout`) and by the three re-check sites
+  (`plan_ticket_checkout` group path, `recheck_ticket_checkout`,
+  `_authoritative_ticket`). `ticket_notice` adds
+  `Checkout policy: <kind> — <reason>.` to every action incl. manual.
+- `validate.py` `_check_step_shape`: `bad-shape` error for a present invalid
+  `checkout`; absence valid.
+- Packaged workflows declare the `_ROWS` selection: the four ticket-listed
+  code/docs workflows **plus `code/agent-merge`** (it has `_ROWS` entries;
+  omitting it would have regressed it to manual). Others freeze `manual`.
+- Seeded fixture `code/with-review` (custom implement/pr/approve/merge whose
+  implement prose has the agent create the branch itself) declares
+  `checkout: manual` on implement explicitly — deliberate, matches today.
+- Docs: `coga/checkouts` "Which checkout a step starts in" rewritten
+  (declaration, values, packaged table, local-copy upgrade consequence,
+  "Legacy snapshots" + retirement rule); `coga/workflows` definition format,
+  frozen list, metadata sentence, gates paragraph; `ticket.md` example;
+  `coga-dev/codebase`, `coga-dev/internals/git-refresh`.
+
+Not done / follow-ups: Open Questions 3 (cross-field lint) and 4 (parked
+retirement ticket) remain unfiled, out of scope. Windows full-suite receipt
+still required before merge (CRLF fallback is platform-sensitive).
+
 ## Open Questions
+
+Resolved by owner 2026-11-12: Q1 `manual`; Q2 always freeze. Q3/Q4 open.
 
 1. **Default for an omitted field.** The Description fixes `manual`. An
    alternative is making `checkout:` required in definitions; that breaks
