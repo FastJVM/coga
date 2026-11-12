@@ -72,8 +72,9 @@ and megalaunch children each emit exactly one record.
   their bootstrap ref and title and `step: null`; guided authoring stays
   `bootstrap/ticket` even when composed against a real target task.
 - The record lands after the agent's final `bump`/`mark` sync, so teardown
-  publishes exactly the log through `git.sync_log` (its union-safe path),
-  never a broad sweep.
+  publishes exactly the log through `git.sync_log`, never a broad sweep.
+  The log is not a union path; it lands through the event-aware publisher
+  ([spool-merge](../spool-merge/SKILL.md#mergeunion-files)).
 
 ## Provider matching — never by file mtime
 
