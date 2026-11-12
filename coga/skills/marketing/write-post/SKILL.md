@@ -7,9 +7,8 @@ description: Produce one selected Coga post from an approved brief — objection
 
 This skill produces one owner-selected post. Read its ticket for the reader,
 argument, evidence, wording constraints, venue and publication boundary, and
-the README for Coga's public presentation. For the V1 idea piece those
-choices live in `v1/42-idea-piece`; publication sequencing lives in
-`v1/44-build-the-launch-plan`.
+the README for Coga's public presentation. Publication sequencing lives in
+the launch ticket the selected ticket names, if any.
 
 Archives require an explicit human request under
 [the archive access rule](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/archive-access/SKILL.md#archive-access).
@@ -21,7 +20,7 @@ The owner has selected this post and its ticket states the intended reader,
 desired response, central idea, scope and relationship to the campaign.
 Resolve missing choices with the owner under the current session conduct.
 A candidate ticket or a historical brief alone does not meet this condition.
-The V1 idea-piece ticket owns its editorial decisions directly; no separate
+The selected post's ticket owns its editorial decisions directly; no separate
 story-selection ticket is required.
 
 ## The division of labour with clarity
