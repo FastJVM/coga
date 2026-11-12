@@ -23,7 +23,12 @@ contexts:
 
 ## Description
 
-The microkernel tickets were parked on 2026-10-27 and pulled back into v1 on 2026-11-12 because hackability is a base promise of the open-source 1.0: a contributor (Zach) got lost trying to change the peer-review behavior. Their designs and inventories are stale (launch.py is now 4,577 lines; launch-decomposition still cites 3,782). Run the _v2/README premise check on every ticket in v1/microkernel/ against current main, refresh each design's inventory and proposed boundary, flag what already shipped or no longer applies, and propose the execution order and which ticket owns the workflow-declared checkout policy. The owner decides the refreshed scope before any child implementation resumes.
+The microkernel tickets returned to v1 on 2026-11-12 because hackability is a
+base promise of the open-source release: a contributor got lost changing peer
+review. Apply the four-question premise check in `coga/tasks/_v2/README.md`
+against current main, refresh every child's inventory and proposed boundary,
+identify delivered/obsolete work, and propose ownership and execution order.
+The owner decides the refreshed scope before any child implementation resumes.
 
 Judge every design against the attached `coga-dev/microkernel/objectives`
 context, linked from the group's README. For each child, state which objective
@@ -36,6 +41,103 @@ before continuing the design refresh. Its owner is
 `docs/contexts/coga-dev/microkernel/objectives/SKILL.md`. The refreshed designs
 will apply that direction, including access to editable wheel-delivered
 behavior; detailed scope and execution order still need review.
+
+### Parent premise check
+
+Snapshot: `main` at `49b34b229` (2026-11-12), reconciled with the subsequent
+draft-creation state at `1cc548c63`; production source is unchanged between them.
+
+1. The subject still exists: the group retained stale plans after returning
+   to v1. Establishing the objectives alone did not refresh those designs.
+2. All eight original child paths resolve. Their current bodies now identify
+   relocated/removed surfaces; the new accessibility draft adds the missing
+   objective owner at the task level.
+3. The children carry their requirements and retained review evidence on disk.
+   No retired task or archived audit is required to supply missing substance.
+4. Several implementations shipped, but no complete group refresh had. This
+   deliverable removes that already-delivered work from proposed implementation
+   scopes and makes the remaining owner decisions visible.
+
+### Proposed architecture for review
+
+Use one ticket execution model. A stateless command ticket carries a script
+or agent procedure and receives ordinary operands; persistent work carries its
+state and workflow in its ticket. Aliases provide the familiar command names.
+Scripts stay deterministic. No stateful task is manufactured merely to print
+a report or execute a stateless command.
+
+The kernel interprets the generic file model and supplies process execution,
+prompt composition, shared configuration/IO, checked transitions and
+publication. Procedure defaults, queue/report policy and single-job work move
+to the ticket that owns them. Keep the actual invariants in shared operations
+while reconsidering their user-facing wrappers. A package location, registered
+recipe or Python implementation does not establish a permanent kernel home.
+
+Recommend preserving the execution/bootstrap entry points and guarded
+state/completion primitives for this pass. Keep the specifically justified
+publication, recurring-admission and chat-receipt contracts in the recipe
+audit; retain uninstall's recovery entry unless its replacement works with
+broken config. These are proposed bounded exceptions with named reasons,
+not an exemption for every current command. The recipe design proposes five
+job moves first, then two adapter moves after their contracts are proven.
+
+Expose the owning files and complete editable local implementations through
+one customization path. The wheel remains the source of defaults; deliberate
+local overrides are the user's copies. This introduces a real tradeoff:
+defaults follow package upgrades, while a full local fork becomes the user's
+maintenance responsibility. Copying an import shim alone does not meet the goal.
+
+### Scope and dependency decisions proposed
+
+- The existing checkout declaration ticket owns the step field, freezing,
+  validation, runtime selection and legacy fallback. The launch ticket consumes
+  that result. New snapshots always carry an explicit policy, with `manual`
+  as the default; only old snapshots use the compatibility table.
+- The new `make-packaged-behavior-discoverable-and-editable` draft owns access
+  to defaults and complete local copies. It joins checkout declaration in
+  the first end-to-end acceptance case: customize peer review for one agent.
+- `launch-decomposition` now targets remaining session/caller boundaries;
+  its originally proposed CLI/service split is already delivered. It owns the
+  minimal generic stateless contract required by read and write command tickets.
+- `residual-command-surfaces` additionally owns the previously unassigned
+  `recurring promote` classification. Read/report owns `recurring list`;
+  the recipe ticket owns `recurring-scan` and registry contraction.
+
+The group [README](README.md#proposed-execution-order) owns the proposed order
+and child scope map. It removes the blanket "all work waits for the full
+launch decomposition" dependency. Each child's body owns its detailed proposal.
+
+### Known design risks to resolve before implementation
+
+Read commands currently skip publication and can load config without an
+operator; ordinary launch does not provide that complete contract. A blind
+alias would change observable behavior. Prefer a small generic execution/
+publication seam, shared by real consumers, over a command-name exception list.
+The exact interface remains design work in the launch ticket.
+
+Nested script launch clears the outer supervisor's expected-task/step and
+done-marker environment. Session-ending `block`/completion and bootstrap
+`slack` therefore cannot be moved unchanged behind a script alias. Preserve
+the direct primitive until a narrow verified completion boundary exists;
+copying ambient supervisor authority is not the proposed solution.
+
+Full local copies must include the actual implementation and necessary
+siblings while preserving recurring state and frozen/running periods.
+Removing recipes requires reconciliation of old shims and Dream instruction
+passages as well as new wheel contents. The existing upgrade procedure supplies
+the starting contract; this refresh does not authorize an external rollout.
+
+### Refresh acceptance
+
+- [x] Every original child and the new accessibility draft has the ordered
+      premise check, source inventory, remaining boundary, objective contribution
+      and concrete simplifications; abandoned designs remain on disk.
+- [x] The group owns a proposed execution order and every open placement row
+      has a scope owner. Shipped work is removed from the implementation plan.
+- [x] CLI-owned child fields, owner gates and existing review evidence are
+      preserved. No child implementation or workflow advance occurs here.
+- [x] Reconcile against current main, validate the edited tickets and context
+      references, and prepare the handoff to the owner's next workflow step.
 
 ## Context
 
@@ -125,31 +227,66 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-## Current handoff
+## Refresh handoff — 2026-11-12
 
-- Starting checkout: clean `main`, fetched and fast-forward checked at
-  `63e7bb28129de084f7f619c3a8dfa2e8762b1550` on 2026-11-12. No branch or PR is
-  recorded for this planning step; edits are Coga design state on control.
-- The owner redirected this session to the objectives only. Their standing
-  owner is now `coga-dev/microkernel/objectives`, attached above; the group and
-  the current-boundary topic link to it. Command classification, migration
-  order, and child implementation have not been approved by that clarification.
-- The full refresh remains pending. No child design or lifecycle state was
-  edited. Keep this step open for the continuing attended discussion.
-- Preliminary evidence for later verification: `commands/launch.py` is a
-  100-line adapter and `src/coga/launch.py` is the 4,577-line service (the split
-  landed in `b3007ef2e`); edge wheel delivery landed in `bc46823c4`, and the
-  current registry has 12 recipes. These observations are not a completed
-  premise check or an accepted scope.
+The owner first clarified the objectives, then asked to continue with the
+designs and tickets. The standing objectives are published and attached.
+All eight original children now carry refreshed proposals; the CLI created
+the ninth, `make-packaged-behavior-discoverable-and-editable`, as a draft with
+the design/review workflow. The group README owns the scope map and proposed
+order. The original child designs and review receipts are retained under
+Superseded designs and excluded from normal prompt composition.
 
-## Objectives-context verification
+Source evidence is pinned to `49b34b229`; the later `1cc548c63` commit only
+created the new draft and its CLI audit. Relevant shipped changes were proved
+from main's content and history: launch API separation (`b3007ef2e`), retire's
+command ticket (`953d14094`), wheel edge delivery (`bc46823c4`) and the recurring
+package catalog (`d0f4e2c6f`). No archive was read or edited.
 
-- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/refresh-the-microkernel-designs-against-current-ma --json`
-  — 1 task OK; no issues or fixes.
-- Read-only checks: the new context resolves through `resolve_context_path`,
-  its links and the group's links to it exist, its header contains only
-  `name` and `description`, and this ticket preserves all CLI-owned fields
-  and exactly one blackboard fence. Context size: 111 lines, about 1,459 tokens.
-- `git diff --check` — clean. Documentation only; behavioral tests are not
-  needed for this objectives note. The overall refresh is not complete, so
-  no workflow transition is requested by this handoff.
+Main proposals for owner review:
+
+- Checkout policy stays with its dedicated declaration ticket, independently
+  of the full launch decomposition. The new accessibility ticket joins it in
+  the fresh-repo one-agent peer-review acceptance case.
+- Launch owns the generic stateless read/write and verified completion seams.
+  Ordinary reads must not inherit launch's state sweep; nested script commands
+  must not silently lose or inherit another session's completion authority.
+- Recipe scope starts with five remaining job moves, then proposes moving
+  the branch-sweep and saved-autofix adapters while keeping their shared code.
+  The five remaining registered contracts have individual reasons; the earlier
+  owner-approved open-pr exception is preserved pending any explicit revision.
+- Residual command scope now includes `recurring promote`; the standing open
+  table names that proposed owner. Authoring-only finalization can move with
+  its ticket while shared publication and agent selection remain shared.
+- Keep bounded state/completion and uninstall recovery primitives until an
+  equivalent edge path is demonstrated. Avoid turning a head-count target
+  into a new mutation language or recovery framework.
+
+Only planning state and the open-row ownership pointer changed. No production
+code, child status/step/workflow, configuration or manually edited log is part
+of this refresh. Owner acceptance of the proposal does not advance child gates;
+use each child's existing lifecycle/launch when the scope is accepted.
+
+## Verification
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task <slug> --json`
+  for all ten tickets in this group — all exit 0. The same four pre-existing
+  `unfrozen-workflow` warnings remain on the read/report, residual, support and
+  orchestration drafts; no new issue was introduced and their CLI-owned
+  workflow fields were preserved.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json`
+  — exit 0, 96 tasks OK, no errors; repo-wide warnings: 11 unfrozen workflows,
+  four large blackboards and two stuck-in-progress records.
+- Read-only `compose_prompt_report` checks for all ten tickets — current
+  objectives/premise checks compose; historical design bodies are excluded.
+- Read-only comparison against `1cc548c63` — all CLI-owned frontmatter
+  unchanged, attached context refs resolve, exactly one fence per ticket.
+  Compared the eight originals with their retained history; prior design and
+  review substance is present on disk.
+- `git diff --check` — clean. No behavioral test suite was run for this
+  planning-only change; each child names its implementation verification.
+- Final reconciliation: fetched `origin/main` at `0e9b189b1`; only three audit
+  additions had landed since draft creation. Backed up and byte-verified all
+  12 edited files, restored the local baseline, fast-forwarded, and reapplied
+  verified copies. Production source and the edited file baselines were unchanged.
+  Publish the prepared state, then bump this parent once to owner review.
