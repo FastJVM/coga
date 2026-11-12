@@ -1,6 +1,6 @@
 ---
 title: Refresh the microkernel designs against current main
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -14,7 +14,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 3 (report-to-coga)
 agent: claude
 contexts:
 - coga-dev/principles
@@ -226,6 +225,30 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Report to Coga — 2026-11-12
+
+Produced: refreshed premise checks, inventories, boundaries, objective
+contributions and simplifications for all eight original microkernel children;
+a new draft child `05-make-packaged-behavior-discoverable-and-editable`; and
+the standing objectives context. Superseded designs are kept on disk.
+
+Human decisions: the owner first required the objectives as a standing
+context, then accepted the whole refresh ("yes to all"): scope map, execution
+order, the new 05 draft, the bounded core exceptions and the full-local-fork
+tradeoff. No child was activated or advanced.
+
+Where it landed (all on `main`):
+
+- Objectives: `docs/contexts/coga-dev/microkernel/objectives/SKILL.md`
+- Scope map and order: `coga/tasks/v1/microkernel/README.md`
+  (`## Child scopes proposed for review`, `## Proposed execution order`)
+- Per-child proposals: `coga/tasks/v1/microkernel/02-…` through `10-…`
+- Open-row ownership pointer: `docs/contexts/coga-dev/microkernel/SKILL.md`
+
+Next: each child proceeds through its own lifecycle and launch, starting with
+checkout declaration (02) and the accessibility draft (05) for the fresh-repo
+one-agent peer-review case.
 
 ## Refresh handoff — 2026-11-12
 
