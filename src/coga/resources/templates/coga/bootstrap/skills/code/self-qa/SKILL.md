@@ -152,6 +152,7 @@ this step just makes sure the diff they see is already clean.
 - If `/code-review` and `/simplify` disagree on a specific edit, the
   human reviewer is one step away — leave the code in the safer state
   and note the disagreement on the blackboard.
-- Commit edits you want reviewed *before* running a `coga` command on the
-  feature branch. See [coga/state-publication](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md),
-  "Control versus feature checkouts" ("Pre-review publication hazard").
+- Commit knowledge edits you want reviewed on the feature branch. Left
+  dirty there they are held for merge, not published, and checkout return
+  refuses over them. See [coga/state-publication](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#held-for-merge-on-feature-checkouts),
+  "Held for merge on feature checkouts".

@@ -24,14 +24,16 @@ control branch missing locally and on the remote
    is limited by `_routine_state_areas` to the task directory and log. Clean
    committed recurring files and other knowledge wait for merge under the
    [committed-state boundary](../../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#control-versus-feature-checkouts).
-   The dirty-path arm is independent of that allowlist and still selects
-   whole files, including recurring runtime writes. A clean file merely
+   The dirty-path arm uses `_publishes_from_feature` off control, holding
+   rejected files whole even when explicitly named. Its routine-state and
+   recurring-file rules and held-file reporting are owned by
+   [state publication](../SKILL.md#shared-root-machinery). A clean file merely
    behind control — HEAD's copy unchanged since the merge base, even when
    control holds a copy this worktree published — is not a write.
    Each file in `require_paths` must be selected or already match control;
    otherwise publication refuses before writing anything. This check repeats
    against each retry's base, so authoring cannot report a completed handoff
-   when committed feature-branch knowledge was excluded from its transaction.
+   when dirty or committed feature-branch knowledge was excluded from its transaction.
 2. **Base**: `refs/remotes/<remote>/<control>` without a fetch on the hot
    path; local `<control>` when there is no remote or no tracking ref yet.
 3. **Guard** (`_guard`): the provenance and generation checks; any refusal

@@ -103,8 +103,10 @@ and did.
 2. **Work.** Commit only code: stage paths by name, never `git add -A` or
    `commit -a`. Never stage, commit, or restore the projected ticket. A
    context, skill, or workflow edit that belongs to the code PR is committed
-   with it before any sweeping
-   Coga command runs in this checkout; left dirty, the sweep publishes it.
+   with it. Left dirty, it is
+   [held for merge](../state-publication/SKILL.md#held-for-merge-on-feature-checkouts):
+   the sweep does not publish it, and return refuses until it is committed
+   on the branch or redone on control.
    To rebase, first copy the ticket outside the repo and verify the copy,
    restore it from HEAD (delete it if HEAD lacks it), rebase, then write the
    copy back unstaged and compare bytes. Test, commit, rebase onto
@@ -148,6 +150,8 @@ The recorded human assist runs on its recorded PR branch under
 Before implementation or deliberately reviewed knowledge work it publishes
 pending routine state, requires a clean checkout, then runs the notice's
 `prepare-checkout` command; [coga/checkouts/chat](chat/SKILL.md) owns that contract.
+Knowledge left dirty on the chat's branch is held for merge, and the chat's
+return refuses over it.
 
 Launch never changes directory: the session runs where `coga launch` was
 invoked, and launch never follows a recorded `worktree:`.
@@ -155,13 +159,13 @@ invoked, and launch never follows a recorded `worktree:`.
 ## Which checkout you invoke Coga from
 
 - **Mutating commands publish from wherever they run.** The exit sweep
-  publishes every dirty file under the Coga roots, plus eligible committed
-  state there, to control, even after a config failure. Write deliberate ticket
-  prose and knowledge edits on `main`; commit a knowledge edit that belongs
-  to a code PR before running a sweeping command on its branch, and keep it
-  clean. The [committed-state boundary and remaining dirty-file
-  hazard](../state-publication/SKILL.md#control-versus-feature-checkouts)
-  explain when recurring files wait for merge. Which invocations sweep is
+  publishes dirty and eligible committed state under the Coga roots to
+  control, even after a config failure. On a control checkout that is every
+  dirty file there. On a feature or detached checkout it is routine state
+  only (tickets, the log, recurring runtime state); other files, dirty or
+  committed, [wait for merge](../state-publication/SKILL.md#held-for-merge-on-feature-checkouts).
+  Write knowledge edits that should land directly on `main`; commit one that
+  belongs to a code PR on its branch. Which invocations sweep is
   owned by [coga/state-publication](../state-publication/SKILL.md#when-coga-publishes).
 - **`coga launch <target> --prompt-report` regenerates `.agent-skills/`.**
   It skips the state sweep. For a write-free view call

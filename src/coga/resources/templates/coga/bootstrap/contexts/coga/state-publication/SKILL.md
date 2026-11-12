@@ -27,11 +27,14 @@ metadata, it preserves tracked files' Git index modes and gives new files mode
 Everything in the Coga root and the configured contexts root publishes
 automatically — tickets, the log, recurring templates, skills, workflows,
 shared `coga.toml`, `context.md`, and contexts. There is no separate
-knowledge PR for files inside these roots: instruction edits there land
-directly, and Git history is the visible record and the correction
-mechanism. A human may still choose a PR for a change they want reviewed;
-this is an automatic publication boundary, not a permission barrier against
-explicit Git commands.
+knowledge PR for files inside these roots: instruction edits made on a
+control checkout land directly, and Git history is the visible record and the
+correction mechanism. On a feature or detached checkout a knowledge edit is
+presumptively the branch's reviewed work, so it is
+[held for merge](#held-for-merge-on-feature-checkouts) whether dirty or
+committed; only routine state lands from there. A human may still choose a PR
+for a change they want reviewed; this is an automatic publication boundary,
+not a permission barrier against explicit Git commands.
 
 The roots are the configured Coga directory and contexts directory, with a
 nested root counted once. When a launch moves the contexts root, its return
@@ -57,7 +60,9 @@ reviewed PR.
   the write, log line, and notification are final.
 - **The end-of-command sweep** runs after most commands that change state,
   succeed or fail, and publishes every dirty eligible file under the roots,
-  plus eligible committed changes (see below). Read-only commands
+  plus eligible committed changes (see below). From a feature or detached
+  checkout it publishes routine state only and reports the files it
+  [holds for merge](#held-for-merge-on-feature-checkouts). Read-only commands
   (`status`, `show`, `validate`, `usage`, `--help`, `launch --prompt-report`)
   never sweep, and neither do `init` and `uninstall`. The sweep is best-effort: a failed push is
   reported on stderr, the files stay as written, and the next command retries.
@@ -107,7 +112,11 @@ reviewed PR.
   attachments beside an edited ticket. A previously dirty file edited again
   is selected in full: the snapshot identifies files, not authorship of hunks.
   An authored change to the Git destination (`[git]` enabled, remote, or
-  control branch) refuses. Ambiguous ticket identities, such as both shapes
+  control branch) refuses. On a feature or detached checkout, an authored
+  file [held for merge](#held-for-merge-on-feature-checkouts) (a context,
+  skill, workflow, shared config, or recurring definition that differs from
+  control) refuses the whole transaction; there is no authoring exception.
+  Commit it on the branch for review, or redo the interview on control. Ambiguous ticket identities, such as both shapes
   left by an incomplete promotion, also refuse. Validation or publication
   refusal keeps edits on disk, exits non-zero, withholds the command's sweep, and identifies the
   retained roots and recovery command. Resolve the reported problem before
@@ -117,7 +126,10 @@ reviewed PR.
   stands; recovery never replays or rolls it back. The ordinary sweep can
   still publish entry dirt after successful finalization.
 - **Ordinary manual edits** inside the roots publish through the next
-  command's sweep. Local prompt composition still reads local edits.
+  command's sweep when made on a control checkout. On a feature or detached
+  checkout only routine state publishes; other edits are
+  [held for merge](#held-for-merge-on-feature-checkouts). Local prompt
+  composition still reads local edits.
 
 ### Every log line has a publisher
 
@@ -171,8 +183,9 @@ from each overwrite refusal, followed by a count of any omitted paths. The
 paths stay with their error heading so the operator can identify what blocks
 the move. Filename whitespace is preserved.
 
-A **feature or detached checkout** publishes the same way but keeps its
-published ticket and log dirty by design. To merge control into the branch,
+A **feature or detached checkout** publishes routine state the same way but
+keeps its published ticket and log dirty by design, and holds other dirty
+files for merge (below). To merge control into the branch,
 follow [Sync a feature branch with control](../checkouts/reconciliation/SKILL.md#sync-a-feature-branch-with-control).
 `coga status` prints the exact command when the dirty Coga state already
 equals control, and warns when control is ahead of the local copy or when the
@@ -200,21 +213,47 @@ Contexts (including relocated ones), skills, workflows, and shared config
 also wait for merge. A clean control checkout still recovers hand commits
 of eligible files anywhere in the roots.
 
-**Pre-review publication hazard.** The sweep and guided authoring run from
-whichever checkout invoked them. A feature or detached checkout's *dirty*
-files in the roots — ticket prose, log, recurring template (including
-`ticket.py`), context, skill, workflow, or shared config — land on control
-before review. Staged but uncommitted files are dirty too. Commit an edit you
-want reviewed before running a sweeping command and keep that file clean:
-a later runtime blackboard write makes the whole template publishable,
-including any committed definition changes in it. A clean committed sibling
-still waits for merge. Dirty runtime writes to recurring blackboards and
-machine-written siblings continue to publish normally.
-
 Committed state is adopted only when control still holds a version this
 checkout was based on. If control has moved on, reconcile with current
 control before retrying. A clean copy merely behind control is never
 republished.
+
+### Held for merge on feature checkouts
+
+On a feature or detached checkout, *dirty* files in the roots wait for merge
+exactly as committed ones do, so an edit's fate no longer depends on whether
+its author committed it before the next sweeping command. Staged but
+uncommitted files are dirty too. Only routine state that must land promptly
+publishes:
+
+- everything under the configured task directory (tickets, attachments,
+  `tasks/recurring/` periods) and the log;
+- under the configured recurring directory, decided per file: a runtime
+  sibling such as `retires.md`; a parent `ticket.md` that is an exact
+  state-only carrier where control has none or has a carrier; and a parent
+  `ticket.md` whose text above the blackboard fence equals control's (a
+  blackboard-only write).
+
+Everything else is held. That includes contexts (a relocated contexts root
+too), skills, workflows, shared `coga.toml`, `context.md`, and in the root
+layout ordinary source. Under the recurring directory it also includes
+`ticket.py`, runbooks, `jobs.toml`, a new or edited definition, a deleted
+`ticket.md`, and a definition replaced by a carrier. A held recurring
+`ticket.md` is held whole, including any blackboard change in the same file.
+
+Each publication that holds files writes one stderr report. It prints
+`[git] held for merge (<branch>|detached HEAD): <path>` for every held path
+that differs from control, then the remedy: commit it on this branch for
+review, or redo the edit on control. The report is not written to the log,
+whose write would itself publish. `coga status` lists such files on a branch
+with a remote-tracking control ref. On a detached HEAD, or without that ref,
+the stderr report and the return refusal carry the diagnostic.
+
+A held file stays dirty, and [checkout return](../checkouts/launch-boundary/SKILL.md#preparation-and-return)
+refuses over it with the same remedy, so it never rides a switch onto
+control. Strict publication or guided authoring that requires a held file
+refuses before publishing anything. To publish knowledge directly, make the
+edit on a control checkout.
 
 ## Prepared ticket transactions
 
@@ -333,11 +372,13 @@ files to someone else's fresh clone runs `coga run publish-state [--message M]
 [PATH...]` instead. It fetches the configured remote control branch (or uses
 local control when no remote is configured), then publishes eligible changes
 under the roots and requires each named file to be on control. It uses the
-same dirty/committed selection as the sweep: naming a committed feature-branch
-knowledge edit, including a recurring file, does not make it publishable.
-An excluded file must already match control, including its mode, or the
-recipe refuses before publishing accompanying task/log writes. Merge that
-reviewed edit first if the recipe refuses it.
+same dirty/committed selection as the sweep: naming a feature-branch knowledge
+edit, committed or [held dirty](#held-for-merge-on-feature-checkouts),
+including a recurring file, does not make it publishable. An excluded file
+must already match control, including its mode, or the recipe refuses before
+publishing accompanying task/log writes; stderr names a held file as held for
+merge. Merge that reviewed edit first, or redo it on control, if the recipe
+refuses it. The no-path form publishes routine state and reports held files.
 
 - **Exit 0**: every named file is on control (landed now or already
   matching), listed on stdout; or `[git].enabled = false` leaves no control
