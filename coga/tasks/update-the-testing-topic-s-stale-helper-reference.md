@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 885e1220-89e4-4636-8e6b-1afd74828cd7
 ---
 
 ## Description
@@ -133,3 +132,39 @@ branch: update-testing-topic-stale-helper
 
 - Item 1: `_strip_runtime_state` is absent from tests/ and src/ (grep). No current helper replaces it, so drop the parenthetical and keep the rule.
 - Item 2: verified `tests/conftest.py::_windows_agent_spawn_follows_test_fakes` matches the description (seams: `shutil.which`, `subprocess.run`, `launch.run_with_done_marker`; exempts `test_repl_supervisor_nt`). Add a Windows test-writing bullet after the `windows_skip` bullet.
+
+## Handoff (implement)
+
+- Commit e4658cae7 on `update-testing-topic-stale-helper` (pushed, rebased on origin/main 8d463b93f). Only `docs/contexts/coga-dev/testing/SKILL.md` changed:
+  - "Do not pin to live dogfooded state" now reads "Strip runtime fields or freeze the period; assert structure." The parenthetical is dropped because no successor helper exists.
+  - Added the bullet "A test that models an agent must fake one of the agent seams" after the `windows_skip` bullet. It names the three seams, the PATH/PATHEXT + `ProcessTree` reason, the ~126-test finding, the conftest fixture, and the `test_repl_supervisor_nt.py` exemption.
+- PR #1201 (still open) also edits this file in a different region. If it merges first, expect at most a trivial rebase.
+- Adjacent pre-existing failure, not fixed here: `README.md:53` links to the deleted ticket `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md` (deleted in 61388855a). This fails `tests/test_packaging.py::test_context_navigation_has_no_broken_links`, and both `tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep` params fail because they re-run it. The draft `coga/tasks/make-retro-check-inbound-doc-links-before-deleting.md` references the same link; open-pr's freshness or the README owner needs to replace it.
+
+## PR
+
+```yaml
+title: Fix the testing topic's stale helper cite and add the Windows agent-seam rule
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
+head: e4658cae779b0921e6d1b002a96280aa5821d6fd
+base: 8d463b93fcac82794d74f88e69c988289c64c9a0
+depth: skim
+rationale: Docs-only change to one local coga-dev topic; two bounded wording edits verified against tests/conftest.py.
+implementation: Drops the parenthetical citing the removed _strip_runtime_state helper while keeping the rule, and adds a Windows test-writing bullet requiring agent-modeling tests to fake shutil.which, subprocess.run, or launch.run_with_done_marker, citing conftest's _windows_agent_spawn_follows_test_fakes.
+deviations: None.
+limitations: No native Windows run; the change is documentation only, and the fixture it describes is unchanged.
+files:
+  docs/contexts/coga-dev/testing/SKILL.md: Remove stale helper cite; add Windows agent-seam test-writing bullet.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Peer review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: e4658cae779b0921e6d1b002a96280aa5821d6fd
+    base: 8d463b93fcac82794d74f88e69c988289c64c9a0
+    detail: 3 failed, 4763 passed, 33 skipped. All failures come from the pre-existing README.md:53 broken link to a deleted ticket, not this diff. Run on an uncommitted tree verified identical to the commit.
+```
