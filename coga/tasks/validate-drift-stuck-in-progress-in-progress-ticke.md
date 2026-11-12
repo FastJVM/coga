@@ -1,6 +1,6 @@
 ---
 title: 'validate-drift: stuck-in-progress — in-progress tickets idle for days'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -16,6 +16,7 @@ workflow:
     assignee: agent
 step: 1 (brief-and-hand-off)
 agent: claude
+launch_generation: pending:978f9bfa-7c61-4ab2-889d-1cc0bfc1f1f2
 ---
 
 ## Description
