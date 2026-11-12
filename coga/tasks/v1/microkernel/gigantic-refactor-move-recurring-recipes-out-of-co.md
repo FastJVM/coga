@@ -342,7 +342,7 @@ in both initialized templates and materialized periods under the dependency's
 customization/running-period policy. Smoke `coga --help`, surviving recipe
 help/argument validation and rejection of removed names using disposable
 fixtures; never run destructive recipes against the live repo for verification.
-Run `coga validate --task _v2/gigantic-refactor-move-recurring-recipes-out-of-co
+Run `coga validate --task v1/microkernel/gigantic-refactor-move-recurring-recipes-out-of-co
 --json`, repository validation against its documented baseline,
 `git diff --check`, and `cmp AGENTS.md CLAUDE.md`. Record exact commands and
 results on the blackboard/PR.

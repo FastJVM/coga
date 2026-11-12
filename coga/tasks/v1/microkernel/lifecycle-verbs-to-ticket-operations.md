@@ -98,7 +98,7 @@ confirmed that boundary for v1 on 2026-10-16.
 
 ## Context
 
-Group: read `coga/tasks/_v2/microkernel/README.md`, "Reduction objective".
+Group: read `coga/tasks/v1/microkernel/README.md`, "Reduction objective".
 Report production-code counts at named before/after revisions across core,
 edge and ticket/skill scripts in scope; state the counting method, separate
 tests, documentation and packaged copies, and distinguish relocation from
@@ -132,7 +132,7 @@ access or add an archive deliverable to this ticket.
 
 ### Launch dependency
 
-The group originally ordered `_v2/microkernel/launch-decomposition` first. At
+The group originally ordered `v1/microkernel/launch-decomposition` first. At
 this premise check that ticket is paused at its owner `review-design` gate,
 but its inventory is stale: `commands.launch.launch` already delegates to
 `coga.launch`, and `src/coga/launch_script.py` has no `advance_step` or

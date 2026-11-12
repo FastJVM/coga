@@ -47,7 +47,7 @@ Preserve quick read ergonomics and machine-readable output (`--json`).
 - [ ] `validate` stays fail-loud with stable exit codes and JSON for
       automation (Dream, CI, `coga launch` preflights).
 - [ ] `launch --prompt-report` gets its home decided here, as handed off by
-      `_v2/microkernel/launch-decomposition`.
+      `v1/microkernel/launch-decomposition`.
 - [ ] The row leaves the "Open command placements" table; tests and the
       `coga/cli` index are updated.
 

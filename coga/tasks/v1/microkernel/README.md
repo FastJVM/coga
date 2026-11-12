@@ -70,28 +70,28 @@ for the proposed change and leaves implementation to its reviewed follow-up.
 
 ## Child tickets and order
 
-1. `_v2/microkernel/launch-decomposition` — split
+1. `v1/microkernel/launch-decomposition` — split
    `src/coga/commands/launch.py` into executor substrate plus caller policy.
    Goes first: the others need a stable executor API. Paused at the owner's
    `review-design` gate with a stale inventory; see its blackboard.
-2. `_v2/microkernel/lifecycle-verbs-to-ticket-operations` — narrowed
+2. `v1/microkernel/lifecycle-verbs-to-ticket-operations` — narrowed
    to `block`/`unblock` (kernel by registration, not by the launch-closure
    test) and the `owner` head. `mark` and `bump` stay kernel.
-3. `_v2/microkernel/work-orchestration-commands-to-tickets` —
+3. `v1/microkernel/work-orchestration-commands-to-tickets` —
    `megalaunch`, `slack`; `retire` is split out to
    `microkernel/move-retire-to-a-command-ticket`.
-4. `_v2/microkernel/read-report-commands-as-ticket-workflows` —
+4. `v1/microkernel/read-report-commands-as-ticket-workflows` —
    `show`, `status`, `validate`, `usage`, `recurring list`.
-5. `_v2/microkernel/support-commands-boundary` — `secret get`,
+5. `v1/microkernel/support-commands-boundary` — `secret get`,
    `uninstall`.
-6. `_v2/microkernel/residual-command-surfaces` — narrowed to `ticket`
+6. `v1/microkernel/residual-command-surfaces` — narrowed to `ticket`
    and the `skill *` classification.
 
 Tickets 3-6 can run in parallel once 1 lands.
 
 ## Related work
 
-- `_v2/gigantic-refactor-move-recurring-recipes-out-of-co` (in progress) moves
+- `v1/microkernel/gigantic-refactor-move-recurring-recipes-out-of-co` (in progress) moves
   single-ticket recurring jobs out of `runner.RECIPES`. It owns the recipe
   registry; these tickets own command heads. Neither edits the other's
   surface.
@@ -107,4 +107,4 @@ Tickets 3-6 can run in parallel once 1 lands.
   (`remove-coga-build-and-project`); `build` is now an alias.
 - 2026-10-16: pulled forward into v1 and renamed from `cleanup-core-commands/`
   to `microkernel/`; older log lines and tickets use the old slugs.
-- 2026-10-27: parked under `_v2/microkernel/` to focus v1 on first users.
+- 2026-10-27: parked under `v1/microkernel/` to focus v1 on first users.
