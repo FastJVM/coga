@@ -64,7 +64,22 @@ is their hand-run counterpart: a first-time user installs on a fresh
   transition test needs Git history containing that merge; a shallow checkout
   reports an explicit skip and cannot supply that transition receipt. Pass
   `--basetemp` on a roomy volume for full runs: the suite creates many
-  temporary repos and can fill a small `/tmp` tmpfs.
+  temporary repos and can fill a small `/tmp` tmpfs. Keep that basetemp
+  outside the checkout (for example a sibling directory of it): an in-checkout
+  basetemp lets the missing-repo tests walk up, discover the checkout's real
+  `coga.toml`, and stop testing the no-repo case (observed 2026-11-04).
+  Known open (2026-11-08): on native Windows the three publication
+  regressions (`test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control`
+  and both `test_final_package_edits_never_escape_a_mutating_cli_sweep`
+  cases) pass their publication assertions but fail inside
+  `_check_package_control`. The control clone and its
+  `--basetemp={tmp_path/<label>-fixtures}` nest under pytest's `tmp_path`,
+  which puts the control tree's own wheel-copy tests past MAX_PATH, and the
+  pinned Stage A checkout carries LF/CRLF-sensitive packaging/carrier fixtures
+  that later fixes cannot rewrite. A fix needs a shallow Windows temp root (as
+  `test_usage.py::_repo_dir` uses) without altering the pinned Stage A proof;
+  until then that transition proof is Linux-receipted only, and a native
+  Windows full-suite receipt must name these three cases explicitly.
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
   primary checkout.** In-process imports are safe: `pyproject.toml` sets

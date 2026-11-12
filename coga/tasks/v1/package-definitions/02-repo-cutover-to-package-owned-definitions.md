@@ -788,3 +788,10 @@ checks:
 - bf4230493e77 last_reminded: 2026-11-05 08:55
 
 - 41c01efb27f0 last_reminded: 2026-11-05 08:55
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: where pytest temp roots must live

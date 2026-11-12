@@ -468,3 +468,10 @@ checks:
 
 - [x] [2026-11-04 18:39] [agent:codex] id=20261104T183935 Authorize two limited ticket-history repairs so required coga validate --json can pass: replace coga/install with coga/init in the completed v1/29-test-and-fix-install-on-macos-and-windows context attachment, and classify the existing coordination note in v1/31-test-install-on-windows as Production notes. This task explicitly leaves coga/tasks history alone. The first error is introduced by retirement; the second already exists on main. The exact unapplied patch is recorded on the blackboard.
   resolved: [2026-11-04 21:12] [human:nicktoper] The human authorized both limited ticket-history repairs: replace the completed v1/29 context attachment coga/install with coga/init, and classify the existing v1/31 coordination note under Production notes without changing its prose. These two edits are an explicit exception to this task history exclusion.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: where pytest temp roots must live

@@ -381,3 +381,10 @@ no-repo fixtures discover this repo's config. That invalid attempt is
 superseded by the completed external-fixture run above.
 
 Ready for the mechanical open-pr step; advisory recommendation: **skim**.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: where pytest temp roots must live
