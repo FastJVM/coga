@@ -100,8 +100,10 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
 - **Docs travel with behavior.** A behavior change updates its owning topic in
   the same PR. One owner per fact; see
   [coga/knowledge](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
-- **Twins.** Canonical topics and their packaged copies must stay
-  byte-identical; see [coga-dev/packaging](../packaging/SKILL.md).
+- **One owner per shipped definition.** Edit the package copy under
+  `src/coga/resources/`; never add a live counterpart. A local copy of a
+  shipped ref is a reviewed override, and only physical scaffolds are
+  compared byte-for-byte; see [coga-dev/packaging](../packaging/SKILL.md).
 - **Commits and PRs.** Short factual subjects; a ticket prefix only when a
   ticket exists. A PR explains the behavior change, names fixture and doc
   touchpoints, and lists the exact verification commands and counts
