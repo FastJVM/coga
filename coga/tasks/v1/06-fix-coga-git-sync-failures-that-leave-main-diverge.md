@@ -675,3 +675,10 @@ no ticket-body edit, implementation, branch or PR was produced.
 
 - [x] [2026-11-04 10:56] [agent:codex] id=20261104T105633 Resolve the pre-existing uncommitted pyproject.toml edit (tmp_path_retention_policy = "failed") in /home/n/Code/coga, then relaunch evaluate-design. The runtime supplied no checkout preparation, and coga/checkouts/manual requires clean main before ticket edits. The edit is preserved unchanged; no evaluator review, code change, branch, PR, or workflow bump was produced.
   resolved: [2026-11-04 12:06] [human:nicktoper] Owner confirmed resolution: the pre-existing pyproject.toml tmp_path_retention_policy = "failed" edit landed separately in commit 088c01908 on origin/main. The main checkout is clean and level with origin/main. Proceed with evaluate-design; no pytest configuration edit is needed in this ticket.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: attribute a git sync failure to the sandbox that caused it
