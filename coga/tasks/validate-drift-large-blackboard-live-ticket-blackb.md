@@ -1,6 +1,6 @@
 ---
 title: 'validate-drift: large-blackboard — live ticket blackboard over the size threshold'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -16,6 +16,7 @@ workflow:
     assignee: agent
 step: 1 (brief-and-hand-off)
 agent: claude
+launch_generation: pending:a5d4c6e3-d92e-4edf-af50-e9dc57f08579
 ---
 
 ## Description
