@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 contexts:
 - coga/init
@@ -642,7 +642,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 Implemented on the branch as one commit, `ce778b95e` (rebased onto
 `origin/main` `5e9d1fb51`, which added only state commits), and pushed. No PR
-yet. The owner VM walk (below) is still **outstanding**.
+yet. The owner VM walk was outstanding at this handoff and later passed as
+recorded below.
 
 What changed:
 
@@ -804,21 +805,48 @@ download is the first prompt, and the destination should be
 `~/.local/bin/gh` (off PATH unless `~/.local/bin` is listed: expect the "add
 … to PATH" note instead of the login offer).
 
+## Peer review (2026-11-12)
+
+Direct Codex review **completed** on final head
+`b09530a49b0e6a1c6e7f2834f98a2456f191cedf` against merge base
+`9ffc18b97621ff72990157cceaf2372b15658667` after rebasing onto current
+`origin/main`.
+
+- Reviewed the complete diff, focusing on the pinned-download trust boundary,
+  archive selection/extraction, install-directory eligibility, exclusive
+  publication races, prompt routing, failure handling, tests and owning docs.
+- Found one must-fix: an `OSError` starting a discovered package manager could
+  escape, making init fail instead of trying the release route. Zach approved
+  the focused fix. Commit `b09530a49` catches that error only in `_offer_gh`,
+  reports it, falls back, and adds a `PermissionError` regression test plus
+  the corresponding `coga/init` contract update. The existing `git` path is
+  unchanged.
+- Re-reviewed the final combined diff after the fix. No unresolved findings.
+- The human-facing terminal path is covered by Zach's recorded native Windows
+  VM walk above: the URL, digest, destination, decline message, successful
+  install, login offer, same-shell/new-shell execution and absence of a
+  SmartScreen dialog were observed. This review did not repeat the optional
+  winget-present walk or add a native macOS run.
+- Final full suite: `4890 passed, 33 skipped` in 444.44 seconds.
+
 ## PR
 
 ```yaml
-title: Install gh from its pinned release when no package manager can
+title: Install gh from a pinned release when package managers fail
 author: claude
 author_evidence: >-
   Implement session ran as Claude Code on claude-opus-5-5 (coga launch
-  14b03df6-19e7-48fc-a33f-71610f4e2554).
-head: ce778b95e842b4722d20ef81c330cb9f2963b4b7
-base: 5e9d1fb5172a606942aad27105ccff14e1e5b973
+  14b03df6-19e7-48fc-a33f-71610f4e2554). Codex authored the focused
+  peer-review fix in b09530a49 after Zach approved it.
+head: b09530a49b0e6a1c6e7f2834f98a2456f191cedf
+base: 9ffc18b97621ff72990157cceaf2372b15658667
 depth: deep
 rationale: >-
-  New network download and binary install into the user's home, with an
-  integrity pin and exclusive publication. Read the gh_release module and the
-  _offer_gh chain closely; the tests and docs are mostly mechanical.
+  This adds a network download and binary installation into the user's home,
+  protected by a release pin and exclusive publication. The final suite and
+  native Windows walk passed, but the security-sensitive download and
+  filesystem boundary still merits close inspection; native macOS was not
+  walked.
 implementation: >-
   Adds src/coga/gh_release.py (pinned gh 2.103.3 version and SHA-256 table,
   asset selection, capped download seam, digest verification, single-member
@@ -828,7 +856,8 @@ implementation: >-
   then the release download (first prompt when no manager is usable, second
   after a manager failure). A gh still missing prints the plain "needed"
   line instead of the "Optional tools" heading. Init still never fails
-  without gh.
+  without gh. Peer review also made package-manager execution errors fall
+  back to the release route while leaving the git installer unchanged.
 deviations: >-
   An existing file at the planned destination is reported before prompting
   or downloading, rather than only at publication; publication still
@@ -836,54 +865,49 @@ deviations: >-
   install directory. init._on_path moved to gh_release.on_path because init
   no longer used it.
 limitations: >-
-  The owner walked native Windows only; macOS and a Linux guest were not
-  walked, and mocked-platform tests do not count as native verification.
-  Native Linux was exercised against the real release; Windows and macOS
-  archives were verified and extracted but not executed. Two full-suite
-  failures exist on origin/main as well and are not addressed.
+  The owner walked native Windows only; native macOS, a Linux guest and the
+  optional winget-present path were not walked. Native Linux was exercised
+  against the real release; Windows and macOS archives were verified and
+  extracted, but only the Windows binary was executed natively.
 files:
   src/coga/gh_release.py: >-
     New co-versioned module holding the pin table and the release-download
     route.
   src/coga/commands/init.py: >-
     The InstallOutcome enum, the manager/release chain, the "needed" message,
-    the factored not-on-PATH note, and _on_path removed.
+    the factored not-on-PATH note, the manager-execution fallback, and
+    _on_path removed.
   src/coga/dependencies.py: >-
     The gh purpose is presented as needed for PR workflows; the module
     docstring names the release route.
   tests/test_init.py: >-
     Release-route, plan, asset and pin tests, the _interactive helper
-    extended, and the old assertions and preflight seams moved to the new
-    message and _offer_gh.
+    extended, the manager-execution regression, and the old assertions and
+    preflight seams moved to the new message and _offer_gh.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: >-
-    The coga/init topic describes the gh chain, the download route, the pin
-    and updating gh.
-  docs/contexts/coga-dev/codebase/SKILL.md: Lists gh_release.py next to dependencies.py.
+    The coga/init topic describes the gh chain, execution-failure fallback,
+    release download, pin and updating gh.
+  docs/contexts/coga-dev/codebase/SKILL.md: >-
+    Lists gh_release.py next to dependencies.py.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: codex
+  kind: self
+  status: passed
+  head: b09530a49b0e6a1c6e7f2834f98a2456f191cedf
+  base: 9ffc18b97621ff72990157cceaf2372b15658667
   detail: >-
-    No code review has run yet; design approval at review-design is not code
-    review. Later workflow steps own the review.
+    Codex completed an independent direct review of Claude's implementation,
+    found the package-manager execution-error gap, and applied the approved
+    focused fix. Codex then self-reviewed that fix and the final combined
+    diff; no unresolved findings remain. Recorded as self because the final
+    head contains reviewer-authored code.
 checks:
   - command: python -m pytest -q -p no:cacheprovider
-    status: failed
-    head: b3ecc0cc1dffbb98e0aaa0739ea7c2a622872a30
-    base: ada33064c3c523ee6d2bda4ed0f642b2356d1879
-    detail: >-
-      4880 passed, 33 skipped, 2 failed, run on the working tree that became
-      the pre-rebase commit b3ecc0cc1. A module-docstring rewrap in init.py
-      landed while the run was in progress. The rebase to ce778b95e brought
-      only coga/log.md and ticket state, with no code diff. Both
-      failures (test_config.py::test_layout_contexts_cyclic_root_rejected,
-      test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers)
-      reproduce on an untouched export of origin/main.
-  - command: python -m pytest -q -p no:cacheprovider tests/test_init.py tests/test_packaging.py
     status: passed
-    head: ce778b95e842b4722d20ef81c330cb9f2963b4b7
-    base: 5e9d1fb5172a606942aad27105ccff14e1e5b973
-    detail: 246 passed after the rebase.
+    head: b09530a49b0e6a1c6e7f2834f98a2456f191cedf
+    base: 9ffc18b97621ff72990157cceaf2372b15658667
+    detail: >-
+      4890 passed and 33 skipped in 444.44 seconds after the peer-review fix.
   - command: Owner VMware walk (Windows coga-win11-walk, from bare + tools)
     status: passed
     head: ce778b95e842b4722d20ef81c330cb9f2963b4b7
