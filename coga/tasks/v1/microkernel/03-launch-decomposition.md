@@ -1,6 +1,6 @@
 ---
 title: Decompose launch into substrate plus ticket orchestration
-status: active
+status: in_progress
 owner: nicktoper
 agent: codex
 contexts:
