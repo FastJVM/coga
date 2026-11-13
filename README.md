@@ -3,14 +3,13 @@
 **Build. Rethink. Hack.**
 
 
-Coga helps you learn what works, what doesn't, and use those discoveries to shape what you build next. It's a local CLI for working with coding agents as ideas evolve. Each task can explore a question, test an assumption, or build something. What you discover can challenge earlier decisions, reshape the plan, or become reusable knowledge and skills. Everything stays in editable Markdown in Git, where humans and agents can revisit, question, and refine it.
+| | Principle | What it means |
+|:--:|---|---|
+| 🧠 | **Human agency** | Amplify human thinking and creativity, don't automate them away. |
+| 🔄 | **Continuous discovery** | Learn what works, challenge assumptions, and rethink what comes next. |
+| 🛠️ | **Hackable system** | Own and reshape not just the software, but the system that builds it. |
 
-**Work compounds.** As project context and reusable skills mature, tickets run through agent steps and peer review with less human steering. The next task starts from better shared knowledge instead of rediscovering the same constraints.
-
-For a specific task, `coga launch` brings its ticket, selected contexts, and current workflow step into your agent’s prompt, using the current files. You choose the knowledge the task needs, with as much help from an agent as you want.
-
-Guide sessions interactively, add human review gates, or queue work to run unattended. **Discover and build progressively. Delegate as much—or as little—as you want.**
-
+I built Coga to scratch my own itch: I want to make things with increasingly capable coding agents, learn and rethink as I go, and freely hack the system I use to build—not just automate software production.
 [Browse Coga's own tickets](https://github.com/FastJVM/coga/tree/main/coga/tasks)
 
 ## How the plan evolves
