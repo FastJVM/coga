@@ -16,7 +16,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -187,7 +187,15 @@ ordinary ticket.
 
 ## Progress
 
-- [x] adapter + pinned venv  - [x] non-model checks  - [x] 44 main sessions (2026-11-13)  - [x] 12 probes  - [x] blinded evaluation pack (`blind/`)  - [x] report draft (`report.md`)  - [ ] owner: blinded verdicts, then decision  - [ ] owner: restore `/etc/codex/requirements.toml`
+- [x] adapter + pinned venv  - [x] non-model checks  - [x] 44 main sessions (2026-11-13)  - [x] 12 probes  - [x] blinded evaluation pack (`blind/`)  - [x] report draft (`report.md`)  - [x] owner: blinded verdicts, then decision (2026-11-13)  - [x] owner: restore `/etc/codex/requirements.toml` (verified identical to `.trial-aside`, 2026-11-13); D2b trust entry removed
+
+## Decision (owner, 2026-11-13): C1 disqualified
+
+- Verdicts: agent-prefilled from the blind pack only, owner-confirmed with rulings (355e0d fail/checkout; ff9470 fail/completion; autofix-problem "headings >=###" = nothing shallower). `blind/verdicts.csv` sha256 `a232f750…d085` recorded before the key was opened; all labels matched.
+- Unblinded: 21/22 successes in each arm. C1 owner-assist r1 merged `origin/main` into the prepared `trial/assist` branch → checkout-gate violation and paired loss → disqualified per protocol. C1 authoring 2/2 vs baseline 1/2 (baseline's miss = no cold evaluator, not an execute/bump conflict). Probes 5/6 vs 4/6 (no gain). Payload −3.40% (no gain).
+- `report.md` §3, §4, §7 and §8 are complete. §7 also records an adapter spy defect: `subprocess.run` was never restored, so the analysis `record.subprocess` holds a later live-repo `git rev-parse`. Prompt identity for the 12 analysis runs was re-verified from the rollouts (exact match).
+- Ticket 03 stays unlaunched. Follow-up created as a draft: `v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling` (`docs/with-review`), carrying the ruling and the reopening conditions for `coga/prompt-composition`.
+- Next: `report-to-coga` step.
 
 ## Handoff (agent-produces → human-owns-and-finishes)
 
