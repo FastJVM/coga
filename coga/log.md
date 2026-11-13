@@ -10974,3 +10974,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 18:19 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [human:nicktoper] auto-bumped on merge of PR #1224 → done
 2026-11-12 18:20 v1 [v1/coga-bump-on-feature-branch-leaves-stale-index-loc] [human:nicktoper] auto-bumped on merge of PR #1194 → done; 1 unanswered review thread: src/coga/repl_supervisor_nt.py:606
 2026-11-12 18:41 v1 [v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol] [human:nicktoper] created (status=draft)
+2026-11-12 18:41 v1 [v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly] [human:nicktoper] created (status=draft)
