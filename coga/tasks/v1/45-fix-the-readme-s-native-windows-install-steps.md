@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -155,3 +155,68 @@ because the projected ticket blocks it. origin/main moved only by this ticket's 
 Deferred by owner decision, still open: finding 10 (no `python` cmd), findings 4/7 (no repo-creation step),
 finding 6 (`git var` pre-check vs init's `--global`), "tested on Windows 11" wording,
 and the pre-1.0 install source (v1/43). These need a follow-up ticket if wanted.
+
+## Peer review — 2026-11-13
+
+Passed for the owner-approved narrow scope. The README diff uses uv's current
+documented Windows installer command exactly, and the instruction to open a new
+terminal matches v1/31 walk 1 S1. The one-shot child PowerShell leaves the
+machine's configured execution policy unchanged. The wording is clear, adds no
+links or duplicate shipped definitions, and `git diff --check origin/main...HEAD
+-- README.md` passed after merging current `origin/main`. No pytest run applies
+to this prose-only change.
+
+No must-fix findings. The deferred should-fix items remain outside this PR by
+the owner's explicit scope decision. This peer review did not repeat the fresh
+Windows VM walk; it relied on the recorded Windows 11 result and uv's current
+official installation documentation.
+
+## PR
+
+```yaml
+title: Fix the README's native-Windows uv install command
+author: claude
+author_evidence: >-
+  The implementation commit identifies Claude Opus 5.5 as co-author, and the
+  implement handoff records the resulting commit and verification.
+head: 49323601f7e4ee9b25c3f1edb2064838220761b2
+base: be04276be539ae768e508aad5b11b10ecd76e47f
+depth: skim
+rationale: >-
+  This is a bounded, independently reviewed README safety fix; skim the
+  owner-approved scope narrowing and the absence of a fresh Windows rerun.
+implementation: >-
+  Replaces the failing bare uv installer invocation with uv's documented
+  one-shot ExecutionPolicy ByPass command and tells the user to open a new
+  terminal before installing Python 3.11.
+deviations: >-
+  The owner narrowed this PR to the must-fix execution-policy failure; the
+  ticket's should-fix items remain deferred for follow-up work.
+limitations: >-
+  Peer review did not repeat the fresh Windows VM walk; the exact command was
+  checked against the recorded Windows 11 walk and uv's current official docs.
+files:
+  README.md: >-
+    Documents the native-Windows uv command that works under Restricted policy
+    and the required shell restart before invoking uv.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 49323601f7e4ee9b25c3f1edb2064838220761b2
+  base: be04276be539ae768e508aad5b11b10ecd76e47f
+  detail: >-
+    Codex reviewed the final README diff for accuracy, clarity, scope, links,
+    ownership, and test applicability with no unresolved in-scope findings.
+checks:
+  - command: git diff --check origin/main...HEAD -- README.md
+    status: passed
+    head: 49323601f7e4ee9b25c3f1edb2064838220761b2
+    base: be04276be539ae768e508aad5b11b10ecd76e47f
+    detail: >-
+      Completed without output after the final origin/main merge.
+  - command: python -m pytest
+    status: not-run
+    detail: >-
+      The workflow exempts a pure prose README edit from the test suite.
+```
