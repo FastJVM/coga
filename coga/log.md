@@ -10963,3 +10963,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 18:19 v1 [branch-sweep-never-releases-a-merged-pr-s-stale-ne] [human:nicktoper] auto-bumped on merge of PR #1193 → done
 2026-11-12 18:19 v1 [correct-state-publication-internals-for-pending-pu] [human:nicktoper] auto-bumped on merge of PR #1215 → done
 2026-11-12 18:19 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [human:nicktoper] auto-bumped on merge of PR #1216 → done
+2026-11-12 18:19 v1 [decide-the-dream-scans-corpus-and-fix-the-known-co] [human:nicktoper] auto-bumped on merge of PR #1217 → done
