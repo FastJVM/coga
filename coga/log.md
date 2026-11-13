@@ -10976,3 +10976,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 18:41 v1 [v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol] [human:nicktoper] created (status=draft)
 2026-11-12 18:41 v1 [v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly] [human:nicktoper] created (status=draft)
 2026-11-12 18:41 v1 [v1/microkernel/03-prompt-assembly/03-implement-the-proven-prompt-assembly] [human:nicktoper] created (status=draft)
+2026-11-12 19:19 v1 [v1/18-handle-gh-not-being-installed-by-default] [agent:claude] advanced to step 5 (peer-review) → codex

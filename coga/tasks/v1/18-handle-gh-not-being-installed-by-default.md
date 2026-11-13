@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 contexts:
 - coga/init
@@ -638,12 +638,272 @@ branch: coga/v1-18-handle-gh-not-being-installed-by-default-815280
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Implement handoff (2026-11-12)
+
+Implemented on the branch as one commit, `ce778b95e` (rebased onto
+`origin/main` `5e9d1fb51`, which added only state commits), and pushed. No PR
+yet. The owner VM walk (below) is still **outstanding**.
+
+What changed:
+
+- **New `src/coga/gh_release.py`**, imported only by `commands/init.py`. It
+  holds the `GH_VERSION` pin and the `GH_ASSET_SHA256` table, plus
+  `release_asset` / `host_asset`, the `download` seam (60 s timeout, 64 MB
+  cap, `User-Agent: coga-init`), `verify`, `extract_binary`,
+  `plan_install_dir`, `publish_binary` and `on_path`. `on_path` moved here
+  from `init._on_path`, which had no remaining caller in init.
+- **`init.py`.** Adds `InstallOutcome`. `_install_with_manager` is the old
+  `_offer_install` body returning an outcome, and `_offer_install` is now a
+  bool wrapper (`git` path unchanged). Also adds `_offer_gh` (the chain),
+  `_offer_gh_release`, `_note_not_on_path` (factored-out note, with a variant
+  that names the path) and `GH_NEEDED_MESSAGE`. `_offer_optional_tools` now
+  handles `gh` explicitly.
+- **`dependencies.py`.** The `gh` purpose now starts "needed for PR
+  workflows", so the prompt reads "`gh` is not installed (needed for PR
+  workflows)."
+- **Docs.** `coga/init` (package copy) has a new **`gh`** paragraph covering
+  the chain, the download route, the pin and how to update `gh`.
+  `coga-dev/codebase` lists the module.
+
+Decisions within the spec:
+
+- **Existing file at the destination.** If one is already at the planned
+  destination (for example a `gh` in an off-PATH `~/.local/bin`), init
+  reports "`<dest>` already exists, not overwritten." *before* prompting or
+  downloading. The outcome is `FAILED` and the "needed" line follows.
+  `publish_binary` re-checks and publishes exclusively, so the race is still
+  covered.
+- **Home directory itself is excluded.** It is never eligible, only strict
+  descendants of it.
+- **Exclusive publish keys on the real OS.** `os.link` vs `os.rename`, and
+  the chmod, are chosen by `os.name`, not by `sys.platform`, so tests that
+  mock `sys.platform="win32"` on Linux still get an exclusive publish.
+- **After a package-manager install that leaves `gh` off PATH**, today's
+  "open a new shell" note prints and then the download is offered, as
+  specified.
+
+Verification (exact receipts in `## PR`):
+
+- Full suite on `b3ecc0cc1`, the pre-rebase commit of the same change:
+  **4880 passed, 33 skipped, 2 failed**.
+  - The 2 failures also fail on an untouched export of `origin/main`, so this
+    change did not cause them:
+    - `test_config.py::test_layout_contexts_cyclic_root_rejected`
+    - `test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`
+  - They are probably caused by the sandbox. They are not investigated or
+    fixed here.
+- After the rebase, `tests/test_init.py tests/test_packaging.py` on
+  `ce778b95e`: 246 passed.
+- **Native Linux (WSL2) real-network smoke** on the uncommitted tree that
+  became `b3ecc0cc1`:
+  - `host_asset()`, then `download`, `verify` and `extract_binary`, then
+    `publish_binary` into a scratch directory.
+  - Result: mode 0755, and `gh version 2.103.3 (2026-10-26)` ran.
+  - A second publish raised `FileExistsError`.
+- **Real Windows amd64 and macOS arm64 archives** downloaded, verified and
+  extracted. The binaries carry PE (`MZ`) and Mach-O magic. They were not
+  executed (no native host).
+- All six pinned digests re-checked against `gh_2.103.3_checksums.txt` on
+  2026-11-12: all match.
+
+Known sandbox note: `git push -u` pushed, but could not write upstream
+tracking (`.git/config.lock` is the sandbox's `/dev/null` mount). This does
+no harm.
+
+## Owner VM walk script (Windows, `coga-win11-walk`)
+
+Restore `bare + tools`. PowerShell as `walker`. Record each output on this
+blackboard under *Walk result*.
+
+1. Install prerequisites as in the v1/20 walk:
+   - `winget install --id Git.Git -e`, then reopen PowerShell;
+   - uv via the ByPass form.
+   - Set a Git identity. Init's identity precondition runs before the `gh`
+     offer, and the 2026-11-12 walk stopped there first:
+     `git config --global user.name "walker"` and
+     `git config --global user.email "walker@example.com"`.
+   - Confirm `gh` is absent: `Get-Command gh` must fail.
+2. Install coga from the branch commit (record the SHA; never PyPI):
+   `uv tool install --python 3.13 "git+https://github.com/FastJVM/coga@ce778b95e842b4722d20ef81c330cb9f2963b4b7"`.
+   Then `coga --help`, and `(Get-Command coga).Source`, which is expected to
+   be `$HOME\.local\bin\coga.exe`.
+3. Hide winget from init *in this shell only*. Declining the winget offer
+   would end the chain, so winget must be off `PATH` to reach the download.
+   `$env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notlike '*WindowsApps*' }) -join ';'`
+   Check: `Get-Command winget` fails and `Get-Command coga` still resolves.
+4. **Decline case.**
+   - Run `mkdir $HOME\walk-a; cd $HOME\walk-a; git init`, then
+     `coga init --user walker`.
+   - Expect the first prompt to be the download, with no "Will run: winget".
+     It should show:
+     - "`gh` is not installed (needed for PR workflows).";
+     - URL `…/v2.103.3/gh_2.103.3_windows_amd64.zip`;
+     - SHA-256 `98d0cfa7…a22e0`;
+     - Install `C:\Users\walker\.local\bin\gh.exe`.
+   - Answer `n`. Expect the yellow line "`gh` is needed for PR workflows,
+     install it from https://cli.github.com", no "Optional tools" heading,
+     and init completing (exit 0).
+   - `Test-Path $HOME\.local\bin\gh.exe` must be False.
+5. **Install case.**
+   - Run `mkdir $HOME\walk-b; cd $HOME\walk-b; git init`, then
+     `coga init --user walker`.
+   - Same prompt. Answer `y`. Expect "Installed `gh` 2.103.3 to
+     C:\Users\walker\.local\bin\gh.exe."
+   - Then expect "`gh` is installed but not logged in…" with the
+     `gh auth login` offer. Answer `n` (or `y` to try it).
+   - Init completes.
+6. In the same shell, `gh --version` should print 2.103.3. Open a **new**
+   PowerShell and run `gh --version` again. Check that no SmartScreen or
+   "unknown publisher" dialog appeared.
+7. Optional: in a fresh shell with winget visible, on a `bare + tools`
+   restore, check that the winget offer ("Will run: winget install --id
+   GitHub.cli -e") is unchanged. Decline it to keep the VM clean, and expect
+   no download offer to follow.
+
+### Walk result (2026-11-12, Zach, Windows `coga-win11-walk`)
+
+Walked from `bare + tools`. coga was installed with `uv tool install
+--python 3.13 git+…@ce778b95e842b4722d20ef81c330cb9f2963b4b7`, and the shim
+is at `C:\Users\walker\.local\bin\coga.exe`. Winget was hidden from
+`PATH` in the walk shell.
+
+- **Script gap.** The first `coga init` stopped at the Git identity
+  precondition before any `gh` offer, and nothing was written. After
+  `git config --global user.name/email`, the walk continued in the same
+  repo. Step 1 now includes those lines.
+- **Decline (`walk-a`): passed.**
+  - The yellow "`gh` is needed for PR workflows, install it from
+    https://cli.github.com" line appeared, with no "Optional tools" heading
+    (confirmed by Zach).
+  - Init completed and `Test-Path $HOME\.local\bin\gh.exe` was False.
+- **Install (`walk-b`): passed.** The first prompt was the download, with no
+  winget line. It showed:
+  - "`gh` is not installed (needed for PR workflows).";
+  - the `gh_2.103.3_windows_amd64.zip` URL;
+  - SHA-256 `98d0cfa7…a22e0`;
+  - Install `C:\Users\walker\.local\bin\gh.exe`.
+
+  After `y`, init printed "Installed `gh` 2.103.3 to
+  C:\Users\walker\.local\bin\gh.exe.", then "`gh` is installed but not
+  logged in to GitHub." with the `gh auth login` offer. Init committed
+  `coga/` (`e8c1fc16ee0f`).
+- **`gh --version`: passed.** It printed `gh version 2.103.3 (2026-10-26)`
+  both in the same shell and in a new PowerShell window. No SmartScreen
+  dialog was reported.
+- **Unrelated output, not this ticket:**
+  - "Skipped Claude Code / Codex skill wiring … exists but isn't a
+    directory" is the known Windows symlink finding (v1/31 finding 8,
+    v1/46).
+  - `control_branch = "master"` was pinned because Git on Windows defaults
+    to `master`; that is correct behaviour.
+- **Not walked:** the optional step 7 (winget path unchanged) and a macOS or
+  Linux guest.
+
+macOS or Linux guest, if available: same flow. On macOS without Homebrew the
+download is the first prompt, and the destination should be
+`~/.local/bin/gh` (off PATH unless `~/.local/bin` is listed: expect the "add
+… to PATH" note instead of the login offer).
+
+## PR
+
+```yaml
+title: Install gh from its pinned release when no package manager can
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Code on claude-opus-5-5 (coga launch
+  14b03df6-19e7-48fc-a33f-71610f4e2554).
+head: ce778b95e842b4722d20ef81c330cb9f2963b4b7
+base: 5e9d1fb5172a606942aad27105ccff14e1e5b973
+depth: deep
+rationale: >-
+  New network download and binary install into the user's home, with an
+  integrity pin and exclusive publication. Read the gh_release module and the
+  _offer_gh chain closely; the tests and docs are mostly mechanical.
+implementation: >-
+  Adds src/coga/gh_release.py (pinned gh 2.103.3 version and SHA-256 table,
+  asset selection, capped download seam, digest verification, single-member
+  extraction, a non-creating install-directory plan, and exclusive
+  publication via os.link or os.rename). init's _offer_optional_tools now
+  runs _offer_gh, which tries the unchanged package-manager offer first and
+  then the release download (first prompt when no manager is usable, second
+  after a manager failure). A gh still missing prints the plain "needed"
+  line instead of the "Optional tools" heading. Init still never fails
+  without gh.
+deviations: >-
+  An existing file at the planned destination is reported before prompting
+  or downloading, rather than only at publication; publication still
+  re-checks exclusively. The home directory itself is not an eligible
+  install directory. init._on_path moved to gh_release.on_path because init
+  no longer used it.
+limitations: >-
+  The owner walked native Windows only; macOS and a Linux guest were not
+  walked, and mocked-platform tests do not count as native verification.
+  Native Linux was exercised against the real release; Windows and macOS
+  archives were verified and extracted but not executed. Two full-suite
+  failures exist on origin/main as well and are not addressed.
+files:
+  src/coga/gh_release.py: >-
+    New co-versioned module holding the pin table and the release-download
+    route.
+  src/coga/commands/init.py: >-
+    The InstallOutcome enum, the manager/release chain, the "needed" message,
+    the factored not-on-PATH note, and _on_path removed.
+  src/coga/dependencies.py: >-
+    The gh purpose is presented as needed for PR workflows; the module
+    docstring names the release route.
+  tests/test_init.py: >-
+    Release-route, plan, asset and pin tests, the _interactive helper
+    extended, and the old assertions and preflight seams moved to the new
+    message and _offer_gh.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: >-
+    The coga/init topic describes the gh chain, the download route, the pin
+    and updating gh.
+  docs/contexts/coga-dev/codebase/SKILL.md: Lists gh_release.py next to dependencies.py.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    No code review has run yet; design approval at review-design is not code
+    review. Later workflow steps own the review.
+checks:
+  - command: python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: b3ecc0cc1dffbb98e0aaa0739ea7c2a622872a30
+    base: ada33064c3c523ee6d2bda4ed0f642b2356d1879
+    detail: >-
+      4880 passed, 33 skipped, 2 failed, run on the working tree that became
+      the pre-rebase commit b3ecc0cc1. A module-docstring rewrap in init.py
+      landed while the run was in progress. The rebase to ce778b95e brought
+      only coga/log.md and ticket state, with no code diff. Both
+      failures (test_config.py::test_layout_contexts_cyclic_root_rejected,
+      test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers)
+      reproduce on an untouched export of origin/main.
+  - command: python -m pytest -q -p no:cacheprovider tests/test_init.py tests/test_packaging.py
+    status: passed
+    head: ce778b95e842b4722d20ef81c330cb9f2963b4b7
+    base: 5e9d1fb5172a606942aad27105ccff14e1e5b973
+    detail: 246 passed after the rebase.
+  - command: Owner VMware walk (Windows coga-win11-walk, from bare + tools)
+    status: passed
+    head: ce778b95e842b4722d20ef81c330cb9f2963b4b7
+    base: 5e9d1fb5172a606942aad27105ccff14e1e5b973
+    detail: >-
+      2026-11-12, Zach. With winget hidden, the download was the first
+      prompt and showed the URL, digest and destination. Declining printed
+      the needed line with no Optional tools heading, wrote no gh.exe, and
+      init completed. Accepting installed gh 2.103.3 into
+      ~\.local\bin, offered gh auth login, and gh --version worked in the
+      same shell and in a new one. Not walked yet: macOS, Linux, and the
+      winget-unchanged check.
+```
+
 ## Design status
 
 Design written 2026-11-04 (design step), evaluated the same day (four
 must-fix findings), and **approved by Zach at `review-design` on
-2026-11-12** with the resolutions below folded into the spec. Next:
-`implement`.
+2026-11-12** with the resolutions below folded into the spec. Implemented
+2026-11-12 (see *Implement handoff*).
 
 ## Owner decisions (2026-11-12, review-design)
 
