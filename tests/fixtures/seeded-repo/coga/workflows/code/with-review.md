@@ -7,6 +7,7 @@ steps:
       - infra/testing-conventions
     assignee: agent
     requires: branch
+    checkout: manual
   - name: pr
     assignee: agent
     requires: pr

@@ -110,7 +110,12 @@ from coga.tasks import (
 )
 from coga.ticket import REJECTED_TICKET_KEYS, Ticket, TicketError
 from coga.step_gate import known_gate_tokens
-from coga.workflow import VALID_ASSIGNEE_ROLES, Workflow, WorkflowError
+from coga.workflow import (
+    CHECKOUT_POLICIES,
+    VALID_ASSIGNEE_ROLES,
+    Workflow,
+    WorkflowError,
+)
 
 # Canonical ticket frontmatter schema. Identity is the task's path, routing is
 # the frozen workflow step's role, so neither is duplicated here.
@@ -1094,6 +1099,21 @@ def _check_step_shape(
             message=(
                 f"workflow step #{idx} requires {requires!r} must be one of "
                 f"{sorted(known_gate_tokens())} (a registered completion gate)"
+            ),
+            severity="error",
+        ))
+    # Absent is valid: a snapshot frozen before `checkout:` existed selects
+    # its entry from the legacy table (coga.checkout_policy).
+    if "checkout" in step and (
+        not isinstance(step["checkout"], str)
+        or step["checkout"] not in CHECKOUT_POLICIES
+    ):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=(
+                f"workflow step #{idx} checkout {step['checkout']!r} must be one "
+                f"of {list(CHECKOUT_POLICIES)}"
             ),
             severity="error",
         ))

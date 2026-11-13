@@ -211,7 +211,7 @@ This procedure is modeled on the Windows harness's
 and [long native runs](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs)
 but has not yet run on the EC2 Mac host. It produces the macOS receipt that
 the [verification tiers](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts)
-require once macOS is supported. `aws-mac.sh` has no `checkout` command, so
+require before release. `aws-mac.sh` has no `checkout` command, so
 run each step as `ec2-user` through `aws-mac.sh ssh`, which joins its
 arguments into one remote shell line; quote each line as a single argument.
 

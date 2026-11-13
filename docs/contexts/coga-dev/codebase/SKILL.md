@@ -50,7 +50,8 @@ The repo separates implementation from the OS it operates:
   `_nt_session_wrapper.py`, a stdlib-only script run by path under the base
   interpreter.
 - `launch.py` (launch API, preparation and supervision),
-  `checkout_policy.py` (pure step-to-entry-checkout table) and
+  `checkout_policy.py` (pure entry-checkout selection: the frozen step's
+  `checkout:`, else the legacy table for older snapshots) and
   `checkouts.py` (shared branch preparation for launch and the
   `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`

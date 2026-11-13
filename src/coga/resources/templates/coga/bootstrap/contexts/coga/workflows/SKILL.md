@@ -24,7 +24,11 @@ the missing-definition placeholder.
 
 YAML frontmatter holds `name`, `description`, and a non-empty `steps:` list.
 Each step has a `name` and may declare `skills:` (a list; singular `skill:`
-is rejected), `assignee:` (a role token), and `requires:` (a gate token). The markdown body may carry a
+is rejected), `assignee:` (a role token), `requires:` (a gate token), and
+`checkout:` (the entry checkout: `control`, `create-or-reuse`,
+`reuse-required` or `manual`; omitted means `manual`, any other value is
+rejected at load; meanings in
+[coga/checkouts](../checkouts/SKILL.md#which-checkout-a-step-starts-in)). The markdown body may carry a
 `## <step-name>` section of inline instructions per step.
 
 Inline sections are fence-aware: closed backtick and tilde examples retain
@@ -44,11 +48,14 @@ they cannot hide later real step headings.
 ## Frozen snapshot, live content
 
 The step list is frozen into the ticket's `workflow:` (name plus each step's
-`skills`, `assignee`, `requires`) at `coga create --workflow`, or at
+`skills`, `assignee`, `requires`, and `checkout`, written explicitly even when
+`manual`) at `coga create --workflow`, or at
 activation when a draft carries a bare-string `workflow:` ref (which also
 seeds `step: 1`). Nothing re-freezes an existing ticket. So a `steps:` edit
 reaches only tickets created afterwards and bare-ref drafts activated after; a draft created with `--workflow` stays on the old
-steps however late it is activated.
+steps however late it is activated. `checkout:` is metadata too: a live edit
+of the definition, or of a step's skill, never changes the entry of an
+existing ticket.
 
 The freeze covers metadata, not content. Step skills resolve live at every
 composition (local `coga/skills/`, then package `bootstrap/skills/`), and a
@@ -127,11 +134,9 @@ gate transitions publish only to control. Branch and PR mechanics are
 [coga/pr-publication](../pr-publication/SKILL.md).
 
 Gates are exit checks only: no gate, role, or step name says where a step
-starts. Launch selects entry checkouts from a closed table of shipped
-workflow steps whose consumed instructions match the packaged ones, and
-gives every other step manual guidance; that table belongs to
+starts. The step's own `checkout:` declaration does; snapshots frozen before
+that field use a legacy table. Both belong to
 [coga/checkouts](../checkouts/SKILL.md#which-checkout-a-step-starts-in).
-Workflow definitions and frozen snapshots carry no checkout field.
 
 ## Code review gate
 

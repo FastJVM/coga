@@ -72,13 +72,13 @@ PyPI, so it catches packaging problems before the PyPI upload.
 2. Capture the full SHA of the commit to release
    (`git rev-parse origin/main` after fetching) and run the pre-tag gate on
    exactly that commit. The workflow runs no tests, so this is the only
-   behavioral check before an immutable upload. The tier-3 requirements, the
-   supported-platform list, the Python 3.11 floor evidence and the receipt
+   behavioral check before an immutable upload. The release verification requirements,
+   platform list, Python 3.11 floor evidence and receipt
    fields are owned by [verification tiers](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts):
-   - the full suite at that SHA on every supported platform: Linux, Windows
+   - the full suite at that SHA on Linux, Windows
      through the [Windows AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs),
      and macOS through the [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md#full-suite-at-a-commit)
-     once macOS is supported, with at least one run on a real Python 3.11;
+     with at least one run on a real Python 3.11;
    - build both distributions and `twine check dist/*`;
    - install the built wheel into a fresh Python 3.11 venv (the
      `requires-python` floor), then run `coga --version`,

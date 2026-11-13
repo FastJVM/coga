@@ -1,7 +1,7 @@
 """Shared branch preparation for ticket launch and ad-hoc chat (`coga/checkouts`).
 
 Two consumers call one implementation of the Git mechanics: ordinary
-`coga launch`, for a shipped step whose policy (`checkout_policy`) names a
+`coga launch`, for a step whose frozen checkout policy (`checkout_policy`) names a
 feature branch, and the `coga run prepare-checkout` recipe an agent inside a
 direct chat invokes before its first edit. Both start from a clean control
 checkout proven by `git.prepare_control_checkout`, create or reuse exactly one
@@ -46,7 +46,12 @@ from coga.autoclose import (
     parse_worktree_path,
 )
 from coga.blackboard import update_blackboard_under_barrier
-from coga.checkout_policy import CheckoutPolicy, select_checkout_policy
+from coga.checkout_policy import (
+    CheckoutPolicy,
+    CheckoutPolicyError,
+    invalid_checkout_declarations,
+    select_checkout_policy,
+)
 from coga.compose import CheckoutNotice
 from coga.oscompat import lock_dir, lock_fd, unlock_fd
 from coga.config import Config
@@ -74,6 +79,23 @@ class CheckoutPreparationError(RuntimeError):
         self.stage = stage
         self.switched = switched
         super().__init__(f"checkout preparation stopped at {stage}: {message}")
+
+
+def select_ticket_policy(cfg: Config, ticket: Ticket, stage: str) -> CheckoutPolicy:
+    """Validate every frozen `checkout:` value, then select the current step's.
+
+    A malformed declaration on any step refuses here, before a branch is
+    reserved, created or switched, as a `CheckoutPreparationError` at `stage`.
+    """
+    invalid = invalid_checkout_declarations(ticket)
+    if invalid:
+        raise CheckoutPreparationError(
+            stage, "; ".join(invalid) + "; fix the frozen workflow before launching"
+        )
+    try:
+        return select_checkout_policy(cfg, ticket)
+    except CheckoutPolicyError as exc:
+        raise CheckoutPreparationError(stage, str(exc)) from exc
 
 
 TicketCheckoutAction = Literal["stay", "switch", "external"]
@@ -133,7 +155,7 @@ def plan_ticket_checkout(
             raise CheckoutPreparationError(
                 "entry", f"{rel} changed since startup preflight; retry the launch"
             )
-        if select_checkout_policy(cfg, ticket) != policy:
+        if select_ticket_policy(cfg, ticket, "entry") != policy:
             raise CheckoutPreparationError("entry", "checkout policy changed; retry the launch")
         source = Ticket.parse(source_bytes.decode("utf-8"))
         current = source_bytes if ticket == source else ticket.render().encode("utf-8")
@@ -260,7 +282,7 @@ def recheck_ticket_checkout(
     if (root != plan.root or git.tree_bytes(root, oid, plan.rel) != source
             or ref.ticket_path.read_bytes() != source):
         raise CheckoutPreparationError(stage, f"{plan.rel} changed; retry the launch")
-    if select_checkout_policy(cfg, ticket) != plan.policy:
+    if select_ticket_policy(cfg, ticket, stage) != plan.policy:
         raise CheckoutPreparationError(stage, "checkout policy changed; retry the launch")
     paths = [plan.rel, git.relative_to_root(root, log_path(cfg))]
     # Tracked paths remain eligible even if an ignore rule now matches them;
@@ -387,6 +409,9 @@ def ticket_notice(cfg: Config, plan: TicketCheckoutPlan) -> CheckoutNotice:
         f"checkout to a clean {control!r}; do not switch back yourself. {last}"
     )
     notes = list(plan.notes)
+    # Every action names the selected policy and where it came from, so a
+    # reader can tell a declared entry from a legacy-table one.
+    policy = f"Checkout policy: {plan.policy.kind} — {plan.policy.reason}."
     if plan.action == "switch":
         verb = "created" if plan.outcome == "created" else "reused"
         summary = (
@@ -395,7 +420,7 @@ def ticket_notice(cfg: Config, plan: TicketCheckoutPlan) -> CheckoutNotice:
             f"{cfg.git_remote}/{control}. Commit code there."
         )
         return CheckoutNotice(
-            summary=" ".join([summary, *notes]),
+            summary=" ".join([summary, policy, *notes]),
             return_owner=returns,
             projected=plan.rel,
         )
@@ -404,22 +429,26 @@ def ticket_notice(cfg: Config, plan: TicketCheckoutPlan) -> CheckoutNotice:
             f"This primary checkout ({plan.root}) stays on {control!r} with the "
             f"authoritative ticket. The code for branch `{plan.branch}` lives in "
             f"the recorded clone `{plan.worktree}`: change code only there, and "
-            "write the ticket handoff here. " + " ".join(notes)
+            "write the ticket handoff here."
         )
-        return CheckoutNotice(summary=summary.strip(), return_owner=returns)
+        return CheckoutNotice(
+            summary=" ".join([summary, policy, *notes]), return_owner=returns
+        )
     if plan.policy.kind == "manual":
         summary = (
             f"Launch prepared {plan.root} on a clean {control!r} but did not set up "
-            f"a branch: {plan.policy.reason}. Before any edit, follow the complete "
-            "procedure in `coga/checkouts` yourself."
+            f"a branch. {policy} Before any edit, follow the complete procedure "
+            "in `coga/checkouts` yourself."
         )
         return CheckoutNotice(summary=summary, return_owner=returns)
     summary = (
         f"Launch prepared {plan.root} on a clean {control!r} at "
         f"{cfg.git_remote}/{control} for step {_step_label(plan)}, which runs "
-        "from control. " + " ".join(notes)
+        "from control."
     )
-    return CheckoutNotice(summary=summary.strip(), return_owner=returns)
+    return CheckoutNotice(
+        summary=" ".join([summary, policy, *notes]), return_owner=returns
+    )
 
 
 def _step_label(plan: TicketCheckoutPlan) -> str:
@@ -480,7 +509,7 @@ def _authoritative_ticket(
         )
     # Control can also change the instructions without changing the ticket.
     # Re-select from the refreshed files before any branch mutation or spawn.
-    observed_policy = select_checkout_policy(cfg, observed)
+    observed_policy = select_ticket_policy(cfg, observed, stage)
     if observed_policy != expected_policy:
         raise CheckoutPreparationError(
             stage,
