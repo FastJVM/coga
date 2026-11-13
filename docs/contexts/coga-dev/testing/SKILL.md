@@ -243,21 +243,25 @@ notifications, and platform checks run natively on the AWS harnesses.
 
 1. **Every change.** Implement, self-QA and review steps run the full suite
    locally (Linux) and record receipts.
-2. **Platform-sensitive changes: required before merge.** A change is
+2. **Platform-sensitive changes.** A change is
    platform-sensitive when it touches OS-dependent imports,
    process/terminal handling, locks, filesystem/path/encoding/Git behavior,
    dependency or Python requirements, packaging/install behavior, executable
-   templates, or native test fixtures and skip rules. The implementer runs the
-   full suite natively on Windows through the
-   [Windows AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#fix-loop-checkout-and-remote-commands)
-   (its "Long native runs" procedure; a full run takes about two hours) at
-   the PR's head commit, and records the receipt in the PR and the ticket.
-   Once macOS is supported, also run it on macOS through the
+   templates, or native test fixtures and skip rules. Native Windows
+   verification is deferred to release, including for these changes (owner
+   decision, 2026-11-12). It is not required for PR approval or merge. Record
+   the deferral in the PR and the ticket, when present; Linux receipts do not
+   provide native Windows evidence. The tradeoff is that Windows-specific
+   regressions may first be found during release preparation.
+   Once macOS is supported, its full suite remains required before merge
+   through the
    [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md#full-suite-at-a-commit).
-   A source-affecting change after the receipt needs a new run. The reviewer
-   does not approve a platform-sensitive PR without it.
+   Run it at the PR's head commit and record the receipt in the PR and ticket;
+   a source-affecting change after that receipt needs a new run.
 3. **Every release, before tagging.** The full suite at the exact commit to
-   be tagged on Linux, on Windows (AWS harness), and on macOS (EC2 Mac host)
+   be tagged on Linux, on Windows through the
+   [Windows AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs),
+   and on macOS (EC2 Mac host)
    once macOS is supported, plus the build, `twine check` and clean-install
    checks. [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md)
    owns the release procedure. A failure or missing receipt means no tag.

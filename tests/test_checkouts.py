@@ -6,8 +6,12 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
+from dataclasses import replace
 from pathlib import Path
 from textwrap import dedent
+from threading import Event
 
 import pytest
 from typer.testing import CliRunner
@@ -1322,14 +1326,24 @@ def test_chat_recipe_usage_error(git_repo) -> None:  # type: ignore[no-untyped-d
     assert _run_recipe(git_repo).exit_code == 2
 
 
+@pytest.mark.parametrize("pid_visible", [True, False])
 def test_chat_discusses_on_control_then_prepares_and_reuses_one_branch(
     git_repo,
+    pid_visible: bool,
 ) -> None:  # type: ignore[no-untyped-def]
     cfg = load_config(git_repo.coga_os)
     origin_before = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
     with launch_module._orientation_checkout_guard(cfg):
         session = launch_module._CHAT_SESSION.get()
         assert session is not None
+        if not pid_visible:
+            # A host supervisor's PID need not exist in the agent's namespace.
+            # The real occupancy lock is still held by this session.
+            from coga.oscompat import process_is_running
+
+            invisible_pid = 2**31 - 1
+            assert not process_is_running(invisible_pid)
+            checkouts._write_chat_receipt(replace(session, pid=invisible_pid), created=None)
         # Discussion only: nothing allocated.
         assert git_repo.git("branch", "--list", session.branch).strip() == ""
 
@@ -1357,6 +1371,110 @@ def test_chat_discusses_on_control_then_prepares_and_reuses_one_branch(
     # No repeated call published the chat's unfinished state.
     assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == origin_before
     assert not session.receipt.exists()
+
+
+@pytest.mark.parametrize("during_preparation", [False, True])
+def test_chat_recipe_refuses_a_released_guard_with_a_stale_receipt(
+    git_repo, monkeypatch: pytest.MonkeyPatch, during_preparation: bool,
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    with ExitStack() as stack:
+        stack.enter_context(launch_module._orientation_checkout_guard(cfg))
+        session = launch_module._CHAT_SESSION.get()
+        assert session is not None
+        receipt = session.receipt.read_bytes()
+
+        def end_chat() -> None:
+            stack.close()
+            # A killed supervisor leaves its receipt behind after losing its lock.
+            session.receipt.write_bytes(receipt)
+
+        if during_preparation:
+            prove_control = checkouts._prove_control
+
+            def stop_while_proving(cfg, stage):  # type: ignore[no-untyped-def]
+                end_chat()
+                return prove_control(cfg, stage)
+
+            monkeypatch.setattr(checkouts, "_prove_control", stop_while_proving)
+        else:
+            end_chat()
+
+        result = _run_recipe(git_repo, "--session", session.session)
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert _head(git_repo) == "main"
+    assert git_repo.git("branch", "--list", session.branch).strip() == ""
+    assert session.receipt.read_bytes() == receipt
+
+
+@pytest.mark.parametrize("nested_root", [False, True])
+@pytest.mark.parametrize("install_fails", [False, True])
+def test_chat_startup_cannot_lend_its_guard_to_a_stale_session(
+    git_repo, monkeypatch: pytest.MonkeyPatch, nested_root: bool, install_fails: bool,
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    with launch_module._orientation_checkout_guard(cfg):
+        old = launch_module._CHAT_SESSION.get()
+        assert old is not None
+        checkouts.prepare_chat_checkout(cfg, old.session)
+        receipt = old.receipt.read_bytes()
+    old.receipt.write_bytes(receipt)
+    before = (git_repo.git("show-ref"), git_repo.git("status", "--porcelain"))
+
+    starting = Event()
+    install = Event()
+    ready = Event()
+    finish = Event()
+    preparing = Event()
+    install_session = checkouts.install_chat_session
+
+    def delayed_install(cfg, root):  # type: ignore[no-untyped-def]
+        starting.set()  # The new supervisor has acquired the occupancy lock.
+        assert install.wait(timeout=10)
+        if install_fails:
+            raise OSError("receipt unavailable")
+        return install_session(cfg, root)
+
+    def new_chat() -> None:
+        new_cfg = cfg
+        if nested_root:
+            new_cfg = replace(cfg, repo_root=cfg.repo_root / "nested")
+            new_cfg.repo_root.mkdir()
+        with launch_module._orientation_checkout_guard(new_cfg):
+            ready.set()
+            assert finish.wait(timeout=10)
+
+    def old_preparation() -> checkouts.ChatPreparation:
+        preparing.set()
+        return checkouts.prepare_chat_checkout(cfg, old.session)
+
+    monkeypatch.setattr(checkouts, "install_chat_session", delayed_install)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        holder = executor.submit(new_chat)
+        try:
+            assert starting.wait(timeout=10)
+            stale = executor.submit(old_preparation)
+            assert preparing.wait(timeout=10)
+            with pytest.raises(TimeoutError):
+                stale.result(timeout=0.5)
+            install.set()
+            if install_fails:
+                with pytest.raises(launch_module.LaunchBail) as refused:
+                    holder.result(timeout=10)
+                assert refused.value.code == 75
+            else:
+                assert ready.wait(timeout=10)
+            message = "no live direct chat" if install_fails else "not the live chat"
+            with pytest.raises(checkouts.CheckoutPreparationError, match=message):
+                stale.result(timeout=10)
+        finally:
+            install.set()
+            finish.set()
+        if not install_fails:
+            holder.result(timeout=10)
+    assert (git_repo.git("show-ref"), git_repo.git("status", "--porcelain")) == before
+    assert _head(git_repo) == old.branch
 
 
 def test_chat_recipe_refuses_a_dirty_control_checkout(git_repo) -> None:  # type: ignore[no-untyped-def]

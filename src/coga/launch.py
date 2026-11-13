@@ -233,24 +233,34 @@ def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
         )
     try:
         try:
-            lock_fd(fd, blocking=False)
-        except BlockingIOError:
-            _bail(
-                "Cannot launch bootstrap/orient: another chat is using this "
-                f"checkout ({root}). Finish that chat or use a separate "
-                "checkout. No work was started and the checkout was not changed.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
-        except OSError as exc:
-            _bail(
-                f"Cannot guard this chat's checkout: {exc}. No work was started.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
-        try:
-            session = checkouts.install_chat_session(cfg, root)
+            # Receipt readers must not mistake a newly acquired guard plus a
+            # crashed predecessor's receipt for that predecessor still running.
+            with checkouts.chat_session_lock(cfg, root):
+                try:
+                    lock_fd(fd, blocking=False)
+                except BlockingIOError:
+                    _bail(
+                        "Cannot launch bootstrap/orient: another chat is using this "
+                        f"checkout ({root}). Finish that chat or use a separate "
+                        "checkout. No work was started and the checkout was not changed.",
+                        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                    )
+                try:
+                    session = checkouts.install_chat_session(cfg, root)
+                except BaseException as exc:
+                    # Drop our guard before readers can see an unchanged old
+                    # receipt, including when installation was interrupted.
+                    os.close(fd)
+                    fd = None
+                    if isinstance(exc, (OSError, git.GitError)):
+                        _bail(
+                            f"Cannot record this chat's session: {exc}. No work was started.",
+                            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                        )
+                    raise
         except (OSError, git.GitError) as exc:
             _bail(
-                f"Cannot record this chat's session: {exc}. No work was started.",
+                f"Cannot guard this chat's checkout: {exc}. No work was started.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
         token = _CHAT_SESSION.set(session)
@@ -263,7 +273,8 @@ def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
                 _CHAT_SESSION.set(None)
             checkouts.clear_chat_session(cfg, session)
     finally:
-        os.close(fd)
+        if fd is not None:
+            os.close(fd)
 
 
 class _RecomposeAfterLaunchPublication(RuntimeError):
