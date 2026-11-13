@@ -95,8 +95,10 @@ recommended `uv` installer can obtain a compatible Python for you.
 example in Windows Terminal; Coga needs no bash or WSL. PyPI release 0.4.1
 predates the Windows port and does not run there.
 
-- Install uv with `irm https://astral.sh/uv/install.ps1 | iex`, then run
-  `uv python install 3.11`.
+- Install uv with
+  `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`,
+  which runs the installer without changing your execution policy, then open
+  a new terminal and run `uv python install 3.11`.
 - Install Git for Windows. Its default `core.autocrlf=true` is fine: Coga
   writes LF and Git normalizes.
 - Claude Code's native installer is the tested agent. Codex is untested on
