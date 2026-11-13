@@ -1,0 +1,260 @@
+{
+  "production_revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+  "production_sources": [
+    {
+      "path": "src/coga/compose.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "61a98e7bd53bb06055d2a42593e843100d0fc6db",
+      "sha256": "85e9c8a421eb9ba30b6af19e48aea5e01cee4b60f23ba7361c768c02635d3f17"
+    },
+    {
+      "path": "src/coga/commands/ticket.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "4faaebf13b297ae78bd3e4a12785ea7dcf0c7dc3",
+      "sha256": "cd17bde8523621e442f0b4459a62b54ed59aee7c8305ea853739ee35d95003c8"
+    },
+    {
+      "path": "src/coga/launch.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "07d6394b6cb77e9e157a0aa425359ab7a7189a9c",
+      "sha256": "d738f5d278d83dc58e062afe56aeebfe42597ee5e58840caa8cb350b320d21e0"
+    },
+    {
+      "path": "src/coga/megalaunch.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "03f13bf1cc25f041a36f6d50ae79b76092db2c96",
+      "sha256": "b456dd4dd6d78bff5fd457d0f1894e5dc31735017a71c3bf4a860e1a1bf04297"
+    },
+    {
+      "path": "src/coga/recurring_runner.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "d246cd6a7e335f50db328233b59cd1be51a8d11b",
+      "sha256": "cd660465138b005f09c18eb1645a89e14dd7cff7144af4f43933b60f60e69ff4"
+    },
+    {
+      "path": "src/coga/recurring_autofix.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "1ab93e8f3aa01196238f4b735cc4f5fbf164e635",
+      "sha256": "845f2ba782be92197f0b387cef69bdf2d60e1bcd066aeb496daae86ab6ef05b8"
+    },
+    {
+      "path": "src/coga/launch_script.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "48263a524e72665b74ad7790f777841f60b6d491",
+      "sha256": "063df513499aa524b8ff0c9cdcfbac21c3e2118a7a240a3d758bdeae5f839a21"
+    },
+    {
+      "path": "src/coga/paths.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "19a407a25e2d68a9c1191d2e0ace9eb6f69d63e7",
+      "sha256": "28e6fb9cae45fcd448f502fe54c9cd131c2a2943e08e7ef9fab1b6021c46efda"
+    },
+    {
+      "path": "src/coga/repl_supervisor_nt.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "4b96a69e63e1a7e0f8e1f6b75134b4eb0887977c",
+      "sha256": "68ffd43c899b3ace890b628eaf890d3484cdaad37812d1c1042155e3c2151b05"
+    },
+    {
+      "path": "src/coga/usage.py",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "c96c02dfa4b2ed818d75262f717a07a4606fa4d1",
+      "sha256": "b6f390f49fa52e2348d66716f2cdeabd673a965e99d5016b6f2f75c6f9037d7f"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "ea49f8e83d577d9b0e1e09cc54b9395beed0dbc9",
+      "sha256": "4c4e2dda53741413f12e02896b792025a461e3ec1b6e27f3dd73409cf8f9f208",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "0af3ca2e0c836e13b9ef6a9485205b8f0bb66a8a",
+      "sha256": "ddcaf301eb9a04171ca3016793db751961159fcf6cd499baccd7b79691473db7",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "58fc7987b6a803d072f02e0c302809b372b2d3ac",
+      "sha256": "efbaaa19275867decb83949423c3dc3e6e9043c339c6f5bbd6f0ca0e3046de6e",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "3bf940dc2ffa85db332d28a34d6dd20871b94ffb",
+      "sha256": "d178edadc43012df10cc3e47ea392622fc94119702e331f95b92c9747ac5ebdc",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "729e5ce864f007530b6c3b698da7192f32e1cf33",
+      "sha256": "0cdca01da3f49119550ff0ec1206646a0bd28d997917f5e9da78cdd093f65b67",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "d3ed3ae5ba1aefbcd7c13a24a31e9b125728f940",
+      "sha256": "2fb60740cbfd4cbbac8f2548b515d57610a142730c3ecf192ef63363cba9aae0",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "f8c03f44581989da7fbff2972d4d5f458b860d95",
+      "sha256": "ac0f954df6f1e3713b012c77305314951b72b2c40620c36e7fb20720957ce0bd",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "9bd3e3091f4c3133d1688b28595351b1ea944811",
+      "sha256": "82e9f131f448e4722d7632f4c993cbc21e3fc7e8966450dbae77e1d8a6bbc793",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "da5ea3aa5a96069a13a2f8b0752d35519699c280",
+      "sha256": "3da4e6d857a18008229821602a6cff8ba03caca80ed5e565ca77a6fe7ed4add4",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "5edf3dab2302a346277cb895356259f837788d5c",
+      "sha256": "fb42aba363c11bd5fadddcc5f269c1206d8c9b70c6527e9220c36c3e85919fce",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/prompt.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "c40439b6bfa43174facbdf05a8ec5864514f61f9",
+      "sha256": "c4b3e918d4d7743e6aff776ee0f2012d3c3905711f724aac160fce1f1124d827",
+      "snapshot": "sources/src/coga/resources/prompt.md"
+    },
+    {
+      "path": "src/coga/resources/prompt-ticket.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "6b5514025c93f035153ec52b8ebe83ee276b43e4",
+      "sha256": "6fd12933120908c8146c526150778c22fedb565fea7a954b054be5ab5b54458e",
+      "snapshot": "sources/src/coga/resources/prompt-ticket.md"
+    },
+    {
+      "path": "src/coga/resources/prompt-attended.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "f2f4efb9351496ae99abcef57e52353ea3dee468",
+      "sha256": "4c261c7a4cdfab8d7ad17715c42d66301bd31dba6de5f875d15ba01275702424",
+      "snapshot": "sources/src/coga/resources/prompt-attended.md"
+    },
+    {
+      "path": "src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "e0ab66cd9ecfc05607cef67cf25af690fe680ea7",
+      "sha256": "cac5d53bd7112633b39f1048f86097a7ddef3748bc366a76adb3b599bad59d9d",
+      "snapshot": "sources/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md"
+    },
+    {
+      "path": "src/coga/resources/prompt-megalaunch.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "8a5074ebd320f9869152516cf21e7f40fc2dcc44",
+      "sha256": "c4ae4cbfae962dc678829f83244c9a30863b2a18949245d081bf018c07e82872",
+      "snapshot": "sources/src/coga/resources/prompt-megalaunch.md"
+    },
+    {
+      "path": "src/coga/resources/prompt-queue.md",
+      "revision": "c3a86e7f0402d571da02df9d6f91b36b0844905a",
+      "git_blob": "56d0a1a3baf10ce41355693dbef3b74fc3415c34",
+      "sha256": "39c6aaadde80a7a8b797488d4eac76cb119dadff5372c2fdade68cf14caf9087",
+      "snapshot": "sources/src/coga/resources/prompt-queue.md"
+    }
+  ],
+  "artifact_sha256": {
+    "README.md": "cbd24417d823b9918212a57f1979b521d9d311622ab20961481ec0c399f7d88b",
+    "applicability.md": "c0521d87e367cf8c34aa1eb76882e2bb15a5f92a767b3d8889dbd4c6773ff5ce",
+    "candidate/analysis.md": "d9214e9d95651360d99396c7a9b8293b09fac66286612c73f3506d6f754a8471",
+    "candidate/author.md": "fc01d878bd81f3e913b653110074c3db4f0e3aefdcf0bbaca6dc0f6d604d340b",
+    "candidate/base.md": "6b7a23ac61d0598be0250ae2e22c19478e5a9b709b7f1f4a7c659109367124f1",
+    "candidate/interactive.md": "d6df102cbad17a386ea60b42bc685487b2a6f6fcc2b33131c88b43ec1ba17c22",
+    "candidate/task-editing.md": "c65596fe761b87ce5449c4640031d7a6f85388dcd2280c5bb04420e53946338b",
+    "fixtures/README.md": "1dbfb38cf1f5a2894e7406bfa9685649d7386d8271bff60312d9665700871e67",
+    "fixtures/cases/author-paused/coga/tasks/author-paused/ticket.md": "261f636c1fd82aa869b69e9f1646183697d4cd8a545492c8ea2bc28be81b5f41",
+    "fixtures/cases/autofix-duplicate/analysis-input.json": "cd3b34b8e37fc09a339216614fffe8726c4c889895e9a34faaf19c022ae69840",
+    "fixtures/cases/autofix-duplicate/coga/tasks/autofix/repair-trial-output/ticket.md": "9dab2c57c6cc8f33594d073c492d812f4c80134f1bab92b53a7cf7cf2699300e",
+    "fixtures/cases/autofix-ok/analysis-input.json": "a90a64343f48419d84ac29037cd36a4164f5546d8d7f0b4b98330edd3b4761c7",
+    "fixtures/cases/autofix-problem/analysis-input.json": "1a7f08353bf65f76b20c9eb3180903ee4d1d9ebd78107615d831637659d9fcbf",
+    "fixtures/cases/deterministic-control/coga/bootstrap/deterministic-control/ticket.md": "bf02c06c74a1b49cf481d0b482c53a127ce7ba81d784db33d025c75e8c4d9db6",
+    "fixtures/cases/deterministic-control/coga/bootstrap/deterministic-control/ticket.py": "20b027699e807cdbcff43eac114e9e82ed7575c440be13fb0fffbc44d5ddcd1c",
+    "fixtures/cases/input-attended/coga/tasks/input-attended/ticket.md": "4da63f8672da376b1d4f80370df380edf791c404fa8b72fefd8a4e936ded891e",
+    "fixtures/cases/input-megalaunch/coga/tasks/input-megalaunch/ticket.md": "63be8dd15ad74f3b67650697c2918f42674ca07855f8a1c6ee6cd81925ca6ee8",
+    "fixtures/cases/owner-assist/coga/tasks/owner-assist/result.txt": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+    "fixtures/cases/owner-assist/coga/tasks/owner-assist/ticket.md": "2bc1434613714153798919e259ccdc5687ebf612d8029fc7396a644c6e9622fa",
+    "fixtures/cases/script-handoff/coga/tasks/script-handoff/ticket.md": "ee796d3a7501e42e667c1d825b92195464c5542bb86e9cd1d757037947aa09e4",
+    "fixtures/cases/script-handoff/coga/tasks/script-handoff/ticket.py": "1d7a5e162d3dff873af3e18f262949d70f821032aabfb5ff94667fb4154c58dc",
+    "fixtures/cases/script-handoff/post-script/coga/tasks/script-handoff/prepared.txt": "cb064c1339ffa3d7777bcb0459de3dceddb9146156dde58065a4ac826b029aa7",
+    "fixtures/cases/script-handoff/post-script/coga/tasks/script-handoff/ticket.md": "ce5183f00df64f44c1a8585c5899bb26682109c69baf9431579fb23bd03f1249",
+    "fixtures/cases/stateless-recurring/coga/bootstrap/trial/ticket.md": "881320d52953c70c23db1f61f1a57e5c707cdbfd03f517b84c6b5ac0512b3b97",
+    "fixtures/cases/workflow-inline/coga/tasks/workflow-inline/ticket.md": "3fd20d34a8609a1d5c8b42a6650185c8a210a6c5cecb941c07c00fe8856bb662",
+    "fixtures/cases/workflow-skilled/coga/tasks/workflow-skilled/ticket.md": "12b7f43d0a3693f6211cf1e961a710e5601876a5291df7fe0f00c25bb692bda3",
+    "fixtures/cases.json": "9430ee354963b80a6936cbb769de1aeb21090bc4ed12dffbfc84287d2fb77be2",
+    "fixtures/common/coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+    "fixtures/common/coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+    "fixtures/common/coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+    "fixtures/common/coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+    "fixtures/common/coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+    "fixtures/common/coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+    "fixtures/common/coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a",
+    "fixtures/configuration.toml": "c5cf28babfca5d51b04bec03e09308f3a24a146c766e692e775b8613cb295f90",
+    "fixtures/dialogues.json": "73268234769a683ea6a38ea3486e9eb1f1a489093503c99610dab6da44dc3202",
+    "inventory.md": "35bdfd28dcb42bc82fcb2c32e3d36bbd908c2bcad2c10d42df9f735d0f6ce635",
+    "manifest.json": "173f89d6b68a7d4453aaeaae9817187a3d38c28433698a23515b71aaf24ac01f",
+    "measurements.md": "5b509fc85763e693a110418ab1196605e68a7260574e50f0975ff1d3e0d8b96e",
+    "prompts/author-paused/baseline.md": "3e44e6c893dd494202e13e14b52113240441aa78ba4b1f406eb0774abc09c75c",
+    "prompts/author-paused/candidate.md": "11c273e38963cb76cbe999975c5a38da0906f110468741fc7ed29a60e031cf71",
+    "prompts/autofix-duplicate/baseline.md": "6613826e35056428eeba0b5738966f1223e0493aa5f5fe7ee0ed8d9ec265dde1",
+    "prompts/autofix-duplicate/candidate.md": "165abd4851557b492b2e4a68d5c8c8baf8de5a5db41f6d792a1c70f87d9f9502",
+    "prompts/autofix-ok/baseline.md": "7d94800e55de4aeaa213669e877f1d5114def353566d7bfb83f0839fd521cdbc",
+    "prompts/autofix-ok/candidate.md": "021e38e00c5e03fe17c960c28961dfae1d25b27ca007c2cc1c3464552fc6565f",
+    "prompts/autofix-problem/baseline.md": "7d8c49a3e0de677b85e58bcfc161d1b9e8a127bfe2524073ed6d9250dc490db3",
+    "prompts/autofix-problem/candidate.md": "e4df7f0220dab0fa31173d002c4858ce51d7362f7294430d18bd71de4e4d7272",
+    "prompts/input-attended/baseline.md": "88d8cb5625c8168a3f1fce988f88e08e3262aa3a647d4d514cca5e42bee482c2",
+    "prompts/input-attended/candidate.md": "70c447612281fed59a9798b4e77226c7285c7ceb120d6c04fb0f5978637bf1e8",
+    "prompts/input-megalaunch/baseline.md": "3b0eb9bb9f57cd96c25ccf662e58554feeb240d4cdf868e2a611d54bb377582c",
+    "prompts/input-megalaunch/candidate.md": "a412d05d2b85724c4dbb40e32f83cda8495af22e1d958d933f1186f7656fb228",
+    "prompts/owner-assist/baseline.md": "51a971a7fd00c628359344cea2d73e8301621db1b898205c0bbe4d26c4d42063",
+    "prompts/owner-assist/candidate.md": "5436a504f56503cb464c2f1be9204ec9d11b535941339ea15e8198c210e8337e",
+    "prompts/script-handoff/baseline.md": "086cdbfa25f86afc06503af81634833a01051552665cf8ee2728ad55bdddeae6",
+    "prompts/script-handoff/candidate.md": "7d1128bd9d5d5396dd47857d7dbd6802ddeb685c7b0f2a9d9495893e49b38bcc",
+    "prompts/stateless-recurring/baseline.md": "027a2db93650196fb68adf5d355336826adcc40323a66f6bfb235bf45c795ecf",
+    "prompts/stateless-recurring/candidate.md": "43ed2438867dfdd9638035323f03d628af2049330dfc94b4fc4e7b2bfcc3be03",
+    "prompts/workflow-inline/baseline.md": "3dd23fafe1e7263844bbb9740c724a3f51db67f212fadad8edb8adc9209ec0e1",
+    "prompts/workflow-inline/candidate.md": "95cf79a8151786f5491649067577b22cdb3882a23fc1e587a120839b96f51ea7",
+    "prompts/workflow-skilled/baseline.md": "b28b37d2062d9789d9c1210a0fd9746811e7b9582d3af46baf617735bdb8e6d8",
+    "prompts/workflow-skilled/candidate.md": "6388ec3b4410549846fcf51b7f6bec8a291718eaade5adb133d56eee539c5b42",
+    "protocol.md": "d23fa2865ffea9be49d55e9f59d918a70e4c9235c02f6a532365eaf8c56fd9e9",
+    "sources/autofix-procedure.txt": "6eb96783ce478450a04b4795446a3ad07646da51191d17f3055cbba2e5955486",
+    "sources/src/coga/resources/prompt-attended.md": "4c261c7a4cdfab8d7ad17715c42d66301bd31dba6de5f875d15ba01275702424",
+    "sources/src/coga/resources/prompt-megalaunch.md": "c4ae4cbfae962dc678829f83244c9a30863b2a18949245d081bf018c07e82872",
+    "sources/src/coga/resources/prompt-queue.md": "39c6aaadde80a7a8b797488d4eac76cb119dadff5372c2fdade68cf14caf9087",
+    "sources/src/coga/resources/prompt-ticket.md": "6fd12933120908c8146c526150778c22fedb565fea7a954b054be5ab5b54458e",
+    "sources/src/coga/resources/prompt.md": "c4b3e918d4d7743e6aff776ee0f2012d3c3905711f724aac160fce1f1124d827",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md": "82e9f131f448e4722d7632f4c993cbc21e3fc7e8966450dbae77e1d8a6bbc793",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md": "d178edadc43012df10cc3e47ea392622fc94119702e331f95b92c9747ac5ebdc",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md": "ac0f954df6f1e3713b012c77305314951b72b2c40620c36e7fb20720957ce0bd",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md": "0cdca01da3f49119550ff0ec1206646a0bd28d997917f5e9da78cdd093f65b67",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md": "2fb60740cbfd4cbbac8f2548b515d57610a142730c3ecf192ef63363cba9aae0",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md": "fb42aba363c11bd5fadddcc5f269c1206d8c9b70c6527e9220c36c3e85919fce",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md": "3da4e6d857a18008229821602a6cff8ba03caca80ed5e565ca77a6fe7ed4add4",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md": "4c4e2dda53741413f12e02896b792025a461e3ec1b6e27f3dd73409cf8f9f208",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md": "ddcaf301eb9a04171ca3016793db751961159fcf6cd499baccd7b79691473db7",
+    "sources/src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md": "efbaaa19275867decb83949423c3dc3e6e9043c339c6f5bbd6f0ca0e3046de6e",
+    "sources/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md": "cac5d53bd7112633b39f1048f86097a7ddef3748bc366a76adb3b599bad59d9d"
+  },
+  "artifact_tree_sha256": "f5ee59e2cd8ebf2d88f17f5ea9623b4699bee2cad3b1fa5a6cc34cec5e10dbbc",
+  "artifact_tree_method": "SHA-256 of sorted relative-path + NUL + SHA-256 hex + LF entries; excludes live ticket.md and sources.json itself"
+}

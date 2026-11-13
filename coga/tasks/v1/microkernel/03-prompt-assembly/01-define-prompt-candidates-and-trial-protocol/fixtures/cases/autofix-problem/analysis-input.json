@@ -1,0 +1,4 @@
+{
+  "record_text": "# Recurring sweep\n\n## Outcomes\n\n- recurring/trial: ticket.py failed with exit 7; status in_progress.\n  Blackboard: report generation failed opening a missing output directory.\n",
+  "existing": []
+}

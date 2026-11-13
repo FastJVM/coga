@@ -10989,3 +10989,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 22:03 v1 [v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-12 22:03 v1 [v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-12 22:03 v1 [v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-11-12 22:28 v1 [v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol] [agent:codex] advanced to step 2 (human-owns-and-finishes) → nicktoper

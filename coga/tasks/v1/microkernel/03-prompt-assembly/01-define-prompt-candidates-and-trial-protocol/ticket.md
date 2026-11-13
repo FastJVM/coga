@@ -16,7 +16,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 agent: claude
 ---
 
@@ -75,6 +75,10 @@ Applicability is selected from explicit invocation facts with visible provenance
 No production changes, lifecycle redesign, new configuration language, generic plugin registry or permanent benchmark service belongs here.
 
 ## Context
+
+### Review package
+
+The draft support package is indexed in [README.md](README.md), with [protocol](protocol.md), [applicability](applicability.md), [production inventory](inventory.md), complete prompts and fixtures, block/source manifests and [rendered measurements](measurements.md). The specimens are attachments, not operative instructions for this session. The owner decision record is still unapproved; ticket 02 must not run until the owner approves the complete package and execution pins.
 
 Execution order and ownership are indexed in the sibling README. This is preparation for `v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly`; it does not prove that a candidate is better.
 
@@ -179,4 +183,56 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Draft package
+
+Prepared README.md, protocol.md, applicability.md, inventory.md, measurements.md,
+22 complete baseline/C1 prompts for eleven agent cases, twelve case fixtures
+including a no-prompt deterministic control, resolved source snapshots,
+manifest.json and sources.json. No production assembler changes or trials.
+
+Source baseline: c3a86e7f0402d571da02df9d6f91b36b0844905a (full pins/blobs
+and attachment SHA-256 hashes in sources.json). Actual compose_prompt_report
+and actual _authoring_ticket projection generated ordinary/authoring baselines;
+recurring_autofix.build_prompt generated analyst baselines. One-off rendering
+and auditing code stayed in /tmp; no reusable harness was delivered.
+
+The human authorized drafting one candidate, two repetitions and instruction
+correctness as primary. Complete protocol approval is still the owner step's
+job. Proposed limits, counterbalanced order, predeclared outcomes, hard gates,
+separate dimensions and negative/inconclusive decisions are in protocol.md.
+Candidate retains whole selected contexts/skills and current skill-OR-inline
+selection. Autofix retains a noninteractive, structured, read-only call.
+
+Render-only evidence: baseline 111,859 bytes; C1 108,052 bytes (3.40% smaller,
+below the proposed 15% payload threshold). Analysis cases grow. No behavioral,
+reasoning or production-simplicity gain is established; no winner selected.
+
+## Verification
+
+All 22 hashes and block byte maps checked; every baseline independently
+reproduced with read-only production APIs. Resolved source snapshots checked.
+Linux suite receipt: production base c3a86e7f0402d571da02df9d6f91b36b0844905a,
+working tree changed only this ticket and its review attachments; Pop!_OS 24.04
+LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. Exact command:
+`env TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-prompt-protocol-pytest-667707cc -q`
+-> 4853 passed, 33 skipped in 828.16s (exit 0). Native Windows and Python 3.11
+floor verification were not run; this is no release receipt.
+
+Scoped read-only validation:
+`env TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.validate --json --task v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol`
+-> ok_count 1, no issues. `git diff --check` passed.
+
+Reviewed attachment-tree SHA-256:
+`f5ee59e2cd8ebf2d88f17f5ea9623b4699bee2cad3b1fa5a6cc34cec5e10dbbc`.
+Its exact counting/hash method and per-file digests are in sources.json.
+This excludes the live ticket and sources.json itself, so lifecycle publication
+can change this ticket without changing the reviewed specimen package.
+
+## Owner handoff
+
+Review the package index and complete specimens. Accept or edit applicability,
+expected outcomes, primary/secondary thresholds and budget, then record exact
+model/CLI/settings pins and accepted package revision/hash before ticket 02.
+Do not treat this drafting authorization or the first workflow bump as protocol
+approval. No branch or PR exists: this step only edits routine ticket state
+and attachments on clean-start main, under launch's return ownership.
