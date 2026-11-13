@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
@@ -183,9 +183,10 @@ Docs and evidence
       values), `tests/test_validate*.py` (frozen invalid value),
       `tests/test_checkouts.py` (declared, legacy, invalid, notice),
       composition/launch tests that assert notice text or frozen snapshots,
-      the seeded fixture. Full Linux `python -m pytest`, `coga validate
-      --json`, and a native Windows full-suite receipt per `coga-dev/testing`
-      (checkout selection is platform-sensitive: CRLF fallback).
+      the seeded fixture. Full Linux `python -m pytest` and `coga validate
+      --json`. Native Windows and macOS full-suite receipts belong to release
+      verification per `coga-dev/testing` (owner decision, 2026-11-12); they
+      are not a merge gate for this ticket.
 
 ### Proposed shape
 
@@ -406,98 +407,234 @@ branch: coga/v1-microkernel-02-declare-each-workflow-step-s-c-614991
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Peer review
+
+Direct Codex review **completed** on head `1ac118935c6c25597ab22b9fa3bb003c401b3800`, base
+`a64122db20ce94e549716a3556abc9bbf1b1e20e`, in launch
+`3cd38213-92ce-4c7c-a049-0436d4469599`. No must-fix defects found across all
+22 final diff paths. Claude authored the checkout implementation; Codex
+independently reviewed its 18 paths and their callers/contracts. The final declaration changes were re-reviewed against updated main;
+range-diff confirms only merge-context and combined-import differences
+from the earlier implementation, while preserving main's chat safeguards.
+Codex authored and self-reviewed the four policy-document changes requested
+by the owner, so the combined PR records self-review rather than claiming
+independence for the whole diff.
+
+Owner decision, 2026-11-12: Windows and macOS testing belongs before release,
+not before merge. The durable owner is `docs/contexts/coga-dev/testing/SKILL.md`;
+`AGENTS.md`, the release skill and the macOS harness guidance are aligned.
+This supersedes the earlier Windows allocation wait. No native host was
+allocated. Release checks belong to the release operator and exact release
+commit, not a follow-up native test at this PR's head.
+
+Fetched and rebased onto current main, including PR #1225's chat-guard
+fixes and Windows release deferral. Resolved the test-import conflict by
+retaining both sets; resolved policy conflicts by preserving main's
+deferral/evidence recording rule and applying the owner's macOS decision. The projected ticket was backed up and restored byte-for-byte,
+and remains outside the branch commits. The final policy commit is
+`1ac118935c6c25597ab22b9fa3bb003c401b3800`. Final Linux verification passed:
+**4,900 passed, 33 skipped, 0 failed in 802.63s**, Pop!_OS 24.04 LTS,
+Python 3.12.12. A final fetch confirmed main remains at the reviewed base.
+Pushed `1ac118935c6c25597ab22b9fa3bb003c401b3800` with an explicit lease
+on the previously published head. Final scoped ticket validation passed
+(one task, no issues); the structured PR presentation renders all 22 paths.
+Peer review is complete and ready for the mechanical open-pr handoff.
+
+Review coverage: declaration parsing/freezing, the three freeze callers,
+whole-snapshot validation before branch planning, launch and all policy
+re-checks, the legacy CRLF and inline cases, notices, local customization,
+and the user/topic/package contracts. The legacy table (53 physical lines)
+and comparison helpers (37) are byte-for-byte unchanged; legacy dispatch is
+21 lines, for 111 compatibility-specific lines including separators. No
+entrypoints or implementations were removed or relocated. Core production
+is 8,152 -> 8,278 (+126); this improves editable ownership rather than code
+size. Separate per-surface counts are in `## PR`.
+
+Repo validation at the final head: 84 ok, 15 warnings, no errors; seeded
+fixture: 5 ok, no issues. Four supplemental launch probes passed (owner assists honor
+control/reuse, manual entry keeps the branch gate, inherited roles preserve
+policy). Their original revision receipts remain below; they were not
+re-stamped as final-head test runs. The user-visible change is plain
+checkout report/prompt text, exercised by launch fixtures and probes.
+
 ## PR
 
 ```yaml
-title: Declare each workflow step's checkout policy in the workflow file
-author: claude
+title: Declare workflow checkout policies and move native checks to release
+author: claude/codex
 author_evidence: >-
-  Attended implement session run by Claude (claude-opus-5-5) under coga launch
-  c254f1f0-18c7-40d2-877c-f96b035544f0; no agent override.
-head: 8053f2c0d5706643c4a80c836702279ed5f875f7
-base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
+  Claude (claude-opus-5-5) implemented the checkout declaration change under launch c254f1f0-18c7-40d2-877c-f96b035544f0.
+  Codex reviewed it under launch 3cd38213-92ce-4c7c-a049-0436d4469599, then authored the owner-requested
+  four-file native-verification policy amendment in commit 1ac118935c6c25597ab22b9fa3bb003c401b3800.
+head: 1ac118935c6c25597ab22b9fa3bb003c401b3800
+base: a64122db20ce94e549716a3556abc9bbf1b1e20e
 depth: deep
 rationale: >-
-  Changes how launch selects branch preparation for every workflow step and
-  adds a pre-branch refusal path; reviewers should read the selector, the
-  launch/re-check call sites and the legacy fallback together.
+  Changes managed launch checkout selection and invalid-policy refusal, and applies the owner
+  decision to verify Windows and macOS before release rather than per PR. The checkout implementation
+  received independent Codex review; the four policy documents authored by Codex received
+  self-review. Inspect the checkout boundary and the release-verification tradeoff.
 implementation: >-
-  Workflow steps gain `checkout:` (control, create-or-reuse, reuse-required,
-  manual; omitted = manual), validated at load and always written by freeze.
-  select_checkout_policy returns a frozen declaration as authoritative with
-  no file resolution; snapshots without the key fall back to the unchanged
-  _ROWS table, with a "(legacy snapshot)" reason. checkouts.select_ticket_policy
-  validates every frozen step's value before launch reserves/creates/switches
-  a branch (stage "policy") and replaces the direct selector calls at the
-  three re-check sites. validate reports an invalid frozen value as bad-shape.
-  ticket_notice names kind and reason for every action. Packaged code/docs
-  workflows declare the policies the table selected.
+  Workflow steps gain `checkout:` (control, create-or-reuse, reuse-required, manual; omitted
+  = manual), validated at load and always written by freeze. select_checkout_policy returns
+  a frozen declaration as authoritative with no file resolution; snapshots without the key
+  fall back to the unchanged _ROWS table, with a "(legacy snapshot)" reason. checkouts.select_ticket_policy
+  validates every frozen step's value before launch reserves/creates/switches a branch (stage
+  "policy") and replaces the direct selector calls at the three re-check sites. validate reports
+  an invalid frozen value as bad-shape. ticket_notice names kind and reason for every action.
+  Packaged code/docs workflows declare the policies the table selected. The owner-requested
+  verification policy extends main's Windows deferral to macOS, so both native full-suite
+  receipts belong to release preparation. Linux per-change checks remain; release tagging
+  still requires receipts at the exact release commit on all three platforms. AGENTS.md, the
+  testing topic, release skill and macOS harness guidance agree.
 deviations: >-
-  code/agent-merge also declares its policies (the ticket listed four
-  workflows, but _ROWS covers agent-merge and omitting it would regress it to
-  manual). The seeded fixture's custom code/with-review declares
-  checkout: manual on implement explicitly, matching today's selection.
-  Per owner decision, the launch boundary's initial normalization to control
-  may precede an invalid-value refusal; exempt (non-managed) launches are not
-  covered.
+  code/agent-merge also declares its policies (the ticket listed four workflows, but _ROWS
+  covers agent-merge and omitting it would regress it to manual). The seeded fixture's custom
+  code/with-review declares checkout: manual on implement explicitly, matching today's selection.
+  Per owner decision, the launch boundary's initial normalization to control may precede an
+  invalid-value refusal; exempt (non-managed) launches are not covered. During peer review
+  the owner explicitly changed verification policy (2026-11-12): Windows and macOS runs are
+  release gates, not merge gates. That policy amendment is included here, and the ticket acceptance
+  wording is aligned. Reconciliation incorporated PR #1225's chat-guard safeguards and Windows
+  release deferral. The test-import conflict retained both import sets; policy conflicts retained
+  main's requirement to record native-test deferrals and applied the owner's macOS release-only
+  instruction.
 limitations: >-
-  The legacy fallback is retained, not deleted (checkout_policy.py 161 -> 213
-  physical lines at base -> head; the legacy table and comparison helpers are
-  unchanged). Line counts, physical incl. blanks/comments, base -> head:
-  workflow.py 195 -> 218, validate.py 2039 -> 2059, checkouts.py 1159 -> 1188,
-  launch.py 4577 -> 4579. The declared path does no name/content inference.
-  No native Windows full-suite receipt yet; required before merge
-  (CRLF fallback is platform-sensitive). Cross-field lint and a parked
-  fallback-retirement ticket are not filed (Open Questions 3/4).
+  The declared path performs no name/content inference or file resolution. The legacy fallback
+  is retained: 111 compatibility-specific physical lines (53 table, 21 dispatch, 37 comparison-helper
+  lines including separators). Physical module counts including blanks/comments at the named
+  base -> head: checkout_policy.py 161 -> 213; workflow.py 195 -> 218; validate.py 2039 ->
+  2059 (+20); checkouts.py 1169 -> 1198; launch.py 4588 -> 4590. Core production totals 8152
+  -> 8278 (+126), with no entrypoints or implementations removed or relocated and no executable
+  edge/skill/ticket scripts changed. Separate counts: tests 2548 -> 2846; seeded fixture 46
+  -> 47; AGENTS.md 52 -> 52; local topics 727 -> 724; packaged topics 395 -> 437; packaged
+  skills 409 -> 409; packaged workflows and ticket example 722 -> 746. Native Windows and
+  macOS checks were not run for this PR under the updated release-only policy; native regressions
+  may first surface during release preparation. Python 3.11 floor evidence also remains a
+  release requirement. Cross-field lint and a parked fallback-retirement ticket remain out
+  of scope (Open Questions 3/4).
 files:
-  docs/contexts/coga-dev/codebase/SKILL.md: Describe checkout_policy.py as declaration-first with a legacy table.
-  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Name the re-check helper that now validates frozen checkout values.
-  src/coga/checkout_policy.py: Authoritative declared policy, CheckoutPolicyError, whole-snapshot validation, legacy reason prefix.
-  src/coga/checkouts.py: select_ticket_policy used at launch and all re-check sites; notice names kind and reason.
-  src/coga/launch.py: Select the policy inside the refusal path so an invalid value stops before any branch work.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Document the declaration, values, packaged table, local-copy consequence and legacy snapshots.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Add checkout to the definition format and frozen snapshot.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/agent-merge.md: Declare the policies the legacy table selected.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Declare the policies the legacy table selected.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Declare the policies the legacy table selected.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Declare the policies the legacy table selected.
-  src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: Declare the policies the legacy table selected.
-  src/coga/resources/ticket.md: Show checkout in the frozen-workflow example.
-  src/coga/validate.py: Report an invalid frozen checkout value as a bad-shape error.
-  src/coga/workflow.py: Parse, validate and freeze the step checkout field.
-  tests/fixtures/seeded-repo/coga/workflows/code/with-review.md: Keep the fixture representative with an explicit manual declaration.
-  tests/test_checkouts.py: Declared, legacy, invalid (current/later/feature-checkout), notice, validate and peer-review acceptance coverage.
-  tests/test_primitives.py: Parse/freeze round trip and invalid-value rejection.
+  docs/contexts/coga-dev/codebase/SKILL.md: >-
+    Describe checkout_policy.py as declaration-first with a legacy table.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: >-
+    Name the re-check helper that now validates frozen checkout values.
+  src/coga/checkout_policy.py: >-
+    Authoritative declared policy, CheckoutPolicyError, whole-snapshot validation, legacy
+    reason prefix.
+  src/coga/checkouts.py: >-
+    select_ticket_policy used at launch and all re-check sites; notice names kind and reason.
+  src/coga/launch.py: >-
+    Select the policy inside the refusal path so an invalid value stops before any branch
+    work.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: >-
+    Document the declaration, values, packaged table, local-copy consequence and legacy snapshots.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: >-
+    Add checkout to the definition format and frozen snapshot.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/agent-merge.md: >-
+    Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: >-
+    Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: >-
+    Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: >-
+    Declare the policies the legacy table selected.
+  src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: >-
+    Declare the policies the legacy table selected.
+  src/coga/resources/ticket.md: >-
+    Show checkout in the frozen-workflow example.
+  src/coga/validate.py: >-
+    Report an invalid frozen checkout value as a bad-shape error.
+  src/coga/workflow.py: >-
+    Parse, validate and freeze the step checkout field.
+  tests/fixtures/seeded-repo/coga/workflows/code/with-review.md: >-
+    Keep the fixture representative with an explicit manual declaration.
+  tests/test_checkouts.py: >-
+    Declared, legacy, invalid (current/later/feature-checkout), notice, validate and peer-review
+    acceptance coverage.
+  tests/test_primitives.py: >-
+    Parse/freeze round trip and invalid-value rejection.
+  AGENTS.md: >-
+    Point at the owning per-change Linux and release-only native verification policy.
+  docs/contexts/coga-dev/testing/SKILL.md: >-
+    Record the owner decision: native Windows/macOS full suites gate releases, while Linux
+    checks continue per change.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md: >-
+    Align the pre-tag procedure with the native release verification policy and preserve exact-commit/floor
+    evidence.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: >-
+    Describe the macOS receipt as a release requirement while preserving the procedure unverified
+    notice.
 review:
-  reviewer: none
-  kind: none
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 1ac118935c6c25597ab22b9fa3bb003c401b3800
+  base: a64122db20ce94e549716a3556abc9bbf1b1e20e
+  detail: >-
+    Direct review completed on all 22 final diff paths with no must-fix findings, including
+    re-review after reconciling PR #1225. Codex independently reviewed Claude's checkout implementation
+    and its interaction with main's new chat guard; range-diff confirms the declaration implementation
+    changed only in merge context and combined test imports. Codex authored and self-reviewed
+    the four owner-requested policy-document changes, so the combined diff is recorded as
+    self-review. Native tests are release obligations under the owner's decision, not unresolved
+    PR gates.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json
+  status: passed
+  head: 1ac118935c6c25597ab22b9fa3bb003c401b3800
+  base: a64122db20ce94e549716a3556abc9bbf1b1e20e
+  detail: >-
+    84 ok, 15 warning issues, 0 error issues. Warnings concern unfrozen references, existing
+    large blackboards, and an idle ticket.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: 1ac118935c6c25597ab22b9fa3bb003c401b3800
+  base: a64122db20ce94e549716a3556abc9bbf1b1e20e
+  detail: >-
+    Seeded fixture validation from tests/fixtures/seeded-repo/coga: 5 ok, no issues.
+- command: PYTHONPATH=/home/n/Code/coga/src:/home/n/Code/coga/tests .venv/bin/python -m pytest
+    -q -p no:cacheprovider -c /home/n/Code/coga/pyproject.toml /tmp/coga-policy-review-probes-20261112/test_peer_policy_probes.py
+    --basetemp=/home/n/Code/coga-policy-review-probes-tests-20261112
+  status: passed
+  head: b7ab35af2c412929a24f994c979231d590e95f9d
+  base: da7a1c2d08d21fe2e9bbb168e56a05aafb022292
+  detail: >-
+    4 passed, 0 skipped, 0 failed in 4.82s on the same Linux/Python environment. Supplemental
+    disposable launch probes: owner assists honor control and reuse-required; manual entry
+    preserves the branch bump gate; inherited agent role preserves its declared policy. Probe
+    source is local, outside the repository; these are supplemental evidence, separate from
+    the committed test suite. Historical supplemental evidence at its recorded head/base,
+    before PR #1225 reconciliation.
+- command: 'git diff --check origin/main...HEAD
+
+    git diff --check'
+  status: passed
+  head: 1ac118935c6c25597ab22b9fa3bb003c401b3800
+  base: a64122db20ce94e549716a3556abc9bbf1b1e20e
+  detail: >-
+    Both committed implementation and working ticket diffs passed whitespace checks.
+- command: native Windows python -m pytest
   status: not-run
   detail: >-
-    No code review yet; the next workflow step (peer-review, other agent)
-    performs it. Design evaluation is not code review.
-checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    status: passed
-    head: 8053f2c0d5706643c4a80c836702279ed5f875f7
-    base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
-    detail: >-
-      4893 passed, 33 skipped, 0 failed in 725.78s; Linux (Pop!_OS 24.04),
-      Python 3.12.12, committed tree (only the projected ticket was dirty).
-  - command: .venv/bin/python -m coga.cli validate --json
-    status: passed
-    head: 8053f2c0d5706643c4a80c836702279ed5f875f7
-    base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
-    detail: Repo validation, 84 ok, no error issues.
-  - command: env -u SLACK_WEBHOOK_URL coga validate --json (cwd tests/fixtures/seeded-repo/coga)
-    status: passed
-    head: 8053f2c0d5706643c4a80c836702279ed5f875f7
-    base: c114a8dec266e1ee54f6aeb294e2219d3ed4fe17
-    detail: Seeded fixture, 5 ok, no error issues.
-  - command: native Windows python -m pytest
-    status: not-run
-    detail: >-
-      No Windows host in this session; coga-dev/testing requires the receipt
-      before merge for this platform-sensitive change.
+    Not required for this PR under the owner decision of 2026-11-12, now recorded in coga-dev/testing.
+    The release operator must obtain a native full-suite receipt at the exact release commit
+    before tagging. No cloud host was allocated.
+- command: native macOS python -m pytest
+  status: not-run
+  detail: >-
+    Not required for this PR under the owner decision of 2026-11-12, now recorded in coga-dev/testing.
+    The release operator must obtain a native full-suite receipt at the exact release commit
+    before tagging. No cloud host was allocated.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider
+    --basetemp=/home/n/Code/coga-checkout-policy-reconciled-tests-20261112
+  status: passed
+  head: 1ac118935c6c25597ab22b9fa3bb003c401b3800
+  base: a64122db20ce94e549716a3556abc9bbf1b1e20e
+  detail: >-
+    4900 passed, 33 skipped, 0 failed in 802.63s; Pop!_OS 24.04 LTS (Linux), Python 3.12.12.
+    Full suite on the reconciled committed head, including main's additional chat-guard tests.
+    The source tree was unchanged throughout; only the projected ticket notes were edited.
 ```
 
 ## Implementation (step 4, claude, 2026-11-12)
@@ -539,8 +676,9 @@ What changed:
   `coga-dev/codebase`, `coga-dev/internals/git-refresh`.
 
 Not done / follow-ups: Open Questions 3 (cross-field lint) and 4 (parked
-retirement ticket) remain unfiled, out of scope. Windows full-suite receipt
-still required before merge (CRLF fallback is platform-sensitive).
+retirement ticket) remain unfiled, out of scope. The owner's later
+2026-11-12 policy decision moves Windows and macOS receipts to release
+verification; no native run remains required for this merge.
 
 ## Open Questions
 
