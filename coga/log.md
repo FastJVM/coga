@@ -10972,3 +10972,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 18:19 v1 [replace-activity-capture-s-union-safe-description] [human:nicktoper] auto-bumped on merge of PR #1221 → done
 2026-11-12 18:19 v1 [update-the-testing-topic-s-stale-helper-reference] [human:nicktoper] auto-bumped on merge of PR #1222 → done
 2026-11-12 18:19 v1 [v1/48-point-agents-to-self-review-in-one-agent-repos] [human:nicktoper] auto-bumped on merge of PR #1224 → done
+2026-11-12 18:20 v1 [v1/coga-bump-on-feature-branch-leaves-stale-index-loc] [human:nicktoper] auto-bumped on merge of PR #1194 → done; 1 unanswered review thread: src/coga/repl_supervisor_nt.py:606
