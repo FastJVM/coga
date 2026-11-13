@@ -1,0 +1,228 @@
+{
+ "case": "owner-assist",
+ "arm": "candidate",
+ "rep": 2,
+ "invocation": {
+  "operation": "execute",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "owner-assist",
+  "launch_context": "attended",
+  "include_blocker_preamble": true,
+  "completion": "owner request required",
+  "owner_assist": true,
+  "checkout": {
+   "summary": "Launch observed clean trial/assist at the fixture initial revision; routine trial-state work is authorized here.",
+   "return_owner": "The launcher returns this checkout after the session; do not return it yourself."
+  },
+  "script_result": null,
+  "kickoff": null,
+  "discussion": false,
+  "launch_arguments": [],
+  "fixture_ticket": "fixtures/cases/owner-assist/coga/tasks/owner-assist/ticket.md",
+  "transport": "interactive argv, PTY",
+  "invocation_source": "launch current-step invocation"
+ },
+ "start_utc": "2026-11-13T21:09:20.977466+00:00",
+ "pre": {
+  "head": "123114dd215e37f9d2b6cc90d5f98b24da43fbd3",
+  "branch": "trial/assist",
+  "status": "",
+  "origin_refs": "refs/heads/main 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\nrefs/heads/trial/assist 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\n",
+  "local_refs": "refs/heads/main 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\nrefs/heads/trial/assist 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\nrefs/remotes/origin/main 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\nrefs/remotes/origin/trial/assist 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/owner-assist/result.txt": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+   "coga/tasks/owner-assist/ticket.md": "2bc1434613714153798919e259ccdc5687ebf612d8029fc7396a644c6e9622fa",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "e7b07e554951ead6b261b0fd3d6f7f138cee3e12b6afbf788a137c258e01d89f"
+ },
+ "live_guard_pre": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+ "spawn_kwargs": {
+  "max_session": 720.0,
+  "launch_context": "attended",
+  "include_blocker_preamble": true,
+  "commit_log": true,
+  "actor": "human:trial-owner",
+  "log_message": "trial adapter launch (owner-assist)",
+  "name": "owner-assist"
+ },
+ "argv": [
+  "codex",
+  "--no-daemon",
+  "-m",
+  "gpt-6.1-sol",
+  "-c",
+  "model_reasoning_effort=medium",
+  "-a",
+  "never",
+  "-c",
+  "permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}",
+  "-c",
+  "permissions.trial.network.enabled=true",
+  "-c",
+  "default_permissions=\"trial\"",
+  "-c",
+  "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
+  "<prompt sha256=2268e9e6b9afaaaf4623f871da5f500d3dfed1886371b26548e3c0f7a24ff28c bytes=9700>"
+ ],
+ "env_keys": [
+  "COGA_COGA_OS_ROOT",
+  "COGA_EXPECTED_AGENT",
+  "COGA_EXPECTED_STEP",
+  "COGA_EXPECTED_TASK",
+  "COGA_LAUNCH_RETURNS_CHECKOUT",
+  "COGA_REPO_ROOT",
+  "COGA_SUPERVISED",
+  "COGA_TASK_BLACKBOARD",
+  "COGA_TASK_DIR",
+  "COGA_TASK_SLUG",
+  "COGA_TASK_STEP",
+  "COGA_TASK_TICKET",
+  "COLORTERM",
+  "HOME",
+  "LANG",
+  "LOGNAME",
+  "PATH",
+  "SHELL",
+  "TERM",
+  "USER"
+ ],
+ "result": {
+  "exit_code": 0,
+  "termination_kind": "natural",
+  "termination_reason": null,
+  "done_signalled": false
+ },
+ "wall_seconds": 127.4,
+ "end_utc": "2026-11-13T21:11:28.393267+00:00",
+ "delivered": {
+  "bytes": 9700,
+  "sha256": "2268e9e6b9afaaaf4623f871da5f500d3dfed1886371b26548e3c0f7a24ff28c",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "123114dd215e37f9d2b6cc90d5f98b24da43fbd3",
+  "branch": "trial/assist",
+  "status": " M coga/log.md\n M coga/tasks/owner-assist/ticket.md\n",
+  "origin_refs": "refs/heads/main c37cb69227adad0b6dd317b7ef49a56c0f559385\nrefs/heads/trial/assist 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\n",
+  "local_refs": "refs/heads/main c37cb69227adad0b6dd317b7ef49a56c0f559385\nrefs/heads/trial/assist 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\nrefs/remotes/origin/main c37cb69227adad0b6dd317b7ef49a56c0f559385\nrefs/remotes/origin/trial/assist 123114dd215e37f9d2b6cc90d5f98b24da43fbd3\nrefs/worktree/coga/published 64f4a1499638229ad3c6cc9de98d0801ddeb738c\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "ae7e92a49fbebcba88c24bd85c2b554f3a66f5bf13f448d342c973b29b4bdbb6",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/owner-assist/result.txt": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+   "coga/tasks/owner-assist/ticket.md": "33c2605a2210c1243ebf466f6934210412b38e9597c8c13ae2820e2ae2ec3ab8",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "09d678fa0bd977afb8be65e4cae4ca21e61e6db46acdee9eff937c7a0d03061c",
+  "diff": "diff --git a/coga/log.md b/coga/log.md\nindex bf18b2a..7dcb1c7 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1 +1,3 @@\n # Trial lifecycle log\n+2026-11-13 13:09 v1 [owner-assist] [human:trial-owner] trial adapter launch (owner-assist)\n+2026-11-13 13:11 v1 [owner-assist] [system] {\"agent\":\"codex\",\"agent_turns\":6,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":242944,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":127.195363,\"ended_at\":\"2026-11-13T21:11:28.232001Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":2,\"input_tokens\":30230,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The owner step remains unchanged at `judge`.\",\"outcome_status\":\"completed\",\"output_tokens\":1276,\"provider\":\"openai\",\"request\":\"Inspect the existing result and report your review. Do not advance the workflow. Thanks. Leave the owner step as it is.\",\"schema\":2,\"session_id\":\"01a1d6be-5eb4-75a2-9385-87fe08ee4782\",\"slug\":\"owner-assist\",\"started_at\":\"2026-11-13T21:09:21.036638Z\",\"step\":\"judge\",\"title\":\"owner-assist\",\"ts\":\"2026-11-13T21:11:28.232001Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\ndiff --git a/coga/tasks/owner-assist/ticket.md b/coga/tasks/owner-assist/ticket.md\nindex 9c1810b..67a5d4c 100644\n--- a/coga/tasks/owner-assist/ticket.md\n+++ b/coga/tasks/owner-assist/ticket.md\n@@ -29,4 +29,6 @@ Use only the isolated trial repository.\n \n ## Notes\n \n-No work performed yet.\n+- Inspected `coga/tasks/owner-assist/result.txt`: exactly `ready\\n` (hex `72 65 61 64 79 0a`, six bytes). Passes the requested value and single trailing newline.\n+- Ticket remains `in_progress` at owner-held step `2 (judge)`; no advancement requested or performed.\n+- Fetched local origin; control ticket matches this branch and the only control change is the launch audit in `coga/log.md`, already present as an unstaged CLI edit. Preserved it. No PR is recorded; merge status is unavailable in this isolated local-origin trial.\n",
+  "log": "",
+  "origin_log": "c37cb69227adad0b6dd317b7ef49a56c0f559385 Ticket: owner-assist \u2014 session state\n86a8085af2e68eb4b7c501d714eb16e778219771 Log: owner-assist\n123114dd215e37f9d2b6cc90d5f98b24da43fbd3 Trial fixture: owner-assist\n",
+  "tickets": {
+   "coga/tasks/owner-assist/ticket.md": {
+    "title": "owner-assist",
+    "status": "in_progress",
+    "owner": "trial-owner",
+    "agent": "claude",
+    "contexts": [
+     "trial/format"
+    ],
+    "skills": [
+     "trial/report"
+    ],
+    "workflow": {
+     "name": "trial/inline",
+     "steps": [
+      {
+       "name": "write",
+       "assignee": "agent"
+      },
+      {
+       "name": "judge",
+       "assignee": "owner"
+      }
+     ]
+    },
+    "step": "2 (judge)"
+   }
+  }
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T13-09-22-01a1d6be-5eb4-75a2-9385-87fe08ee4782.jsonl"
+ ],
+ "live_guard_post": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-prompt-trial-667707cc/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-prompt-trial-667707cc/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ]
+}

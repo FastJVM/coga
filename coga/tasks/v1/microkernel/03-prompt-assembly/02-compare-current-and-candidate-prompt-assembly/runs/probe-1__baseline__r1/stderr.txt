@@ -1,0 +1,136 @@
+Reading additional input from stdin...
+OpenAI Codex v0.167.2
+--------
+workdir: /tmp/coga-prompt-trial-667707cc
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1d6c5-8105-7fa2-8b80-187893372514
+--------
+user
+Do not change any files. Answer one question about the instructions you were given in this session. Customization wanted: change how the current step writes its result. (1) Which file is the effective source of those instructions in this session, and what fact selected it? (2) Which file should I edit to make that customization, and why there? You may read at most four files. Give one answer.
+codex
+I’ll check the task’s step selection and instruction sources, reading no more than four files and making no changes.
+exec
+/bin/bash -lc "pwd; rg --files -g '*workflow-skilled*' -g '*write*' -g '*report*' -g 'coga.toml' -g 'AGENTS.md' -g '*workflow*' -g '*SKILL.md' -g '*ticket.md'" in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+/tmp/coga-prompt-trial-667707cc
+coga/coga.toml
+coga/contexts/trial/format/SKILL.md
+coga/skills/trial/report/SKILL.md
+coga/tasks/workflow-skilled/ticket.md
+coga/skills/trial/write/SKILL.md
+
+exec
+/bin/bash -lc 'cat coga/tasks/workflow-skilled/ticket.md coga/skills/trial/write/SKILL.md coga/coga.toml; rg --files -uuu coga' in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+---
+title: workflow-skilled
+status: in_progress
+owner: trial-owner
+agent: claude
+contexts:
+- trial/format
+skills:
+- trial/report
+workflow:
+  name: trial/skilled
+  steps:
+  - name: write
+    assignee: agent
+    skills:
+    - trial/write
+  - name: judge
+    assignee: owner
+step: 1 (write)
+---
+
+## Description
+
+Produce the result specified by the current step skill, verify it and finish this step.
+
+## Context
+
+Use only the isolated trial repository.
+
+<!-- coga:blackboard -->
+
+## Notes
+
+No work performed yet.
+---
+name: trial/write
+description: Write the agreed trial result.
+---
+
+Write `ready` to the sibling `result.txt` using the attached output format.
+Read it back and record evidence before the current step completes.
+version = 1
+default_status = "draft"
+[agents.claude]
+cli = "claude"
+file = "CLAUDE.md"
+[git]
+enabled = true
+remote = "origin"
+control_branch = "main"
+[notification.slack]
+enabled = false
+
+[agents.codex]
+cli = "codex"
+file = "AGENTS.md"
+mode = "local"
+launch_args = "--no-daemon -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -a never -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"'"
+discussion = "-c developer_instructions={prompt}"
+analyze = "-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"' exec {prompt}"
+
+[telemetry]
+enabled = false
+coga/.gitignore
+coga/coga.local.toml
+coga/coga.toml
+coga/context.md
+coga/tasks/workflow-skilled/ticket.md
+coga/skills/trial/report/SKILL.md
+coga/workflows/trial/inline.md
+coga/workflows/trial/skilled.md
+coga/log.md
+coga/contexts/trial/format/SKILL.md
+coga/skills/trial/write/SKILL.md
+
+exec
+/bin/bash -lc 'cat coga/workflows/trial/skilled.md' in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+---
+name: trial/skilled
+description: Skill-owned output followed by owner judgment.
+steps:
+  - name: write
+    skills:
+      - trial/write
+    assignee: agent
+  - name: judge
+    assignee: owner
+---
+
+## write
+
+Dormant inline prose for a skilled step: write `WRONG-INLINE` instead.
+This text must not compose when the step has skills.
+
+## judge
+
+The owner judges the result.
+
+codex
+1. The effective source is [coga/skills/trial/write/SKILL.md](/tmp/coga-prompt-trial-667707cc/coga/skills/trial/write/SKILL.md). The ticket’s current step is `1 (write)`, whose frozen workflow entry specifies `skills: [trial/write]`; that selects the skill instead of the workflow’s dormant inline prose.
+
+2. Edit that same **SKILL.md** to customize how the result is written. It owns the active writing instructions; changing inline prose in `coga/workflows/trial/skilled.md` would have no effect on this skilled step.
+
+No files were changed.
+tokens used
+17,073

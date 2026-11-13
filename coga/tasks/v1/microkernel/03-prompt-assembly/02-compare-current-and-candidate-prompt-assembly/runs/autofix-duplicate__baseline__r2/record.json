@@ -1,0 +1,175 @@
+{
+ "case": "autofix-duplicate",
+ "arm": "baseline",
+ "rep": 2,
+ "open_tickets": [
+  [
+   "autofix/repair-trial-output",
+   "Create the trial output directory before writing",
+   "active"
+  ]
+ ],
+ "live_guard_pre": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "fixture_existing": [
+  [
+   "autofix/repair-trial-output",
+   "Create the trial output directory before writing",
+   "active"
+  ]
+ ],
+ "baseline_builder_equals_frozen_baseline": true,
+ "pre": {
+  "head": "0d783029b57ada191bb533de9c8f1f49d6fca213",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/heads/trial/assist 0d783029b57ada191bb533de9c8f1f49d6fca213\n",
+  "local_refs": "refs/heads/main 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/heads/trial/assist 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/remotes/origin/main 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/remotes/origin/trial/assist 0d783029b57ada191bb533de9c8f1f49d6fca213\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/autofix/repair-trial-output/ticket.md": "9dab2c57c6cc8f33594d073c492d812f4c80134f1bab92b53a7cf7cf2699300e",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "cfa8844997f826414010c81383583a916f41745cd3ec9139d1c21614c38d636f"
+ },
+ "start_utc": "2026-11-13T21:15:47.801663+00:00",
+ "analysis": {
+  "verdict": "duplicate",
+  "title": "",
+  "body": "",
+  "duplicate_of": "autofix/repair-trial-output",
+  "raw": "VERDICT: duplicate\nDUPLICATE: autofix/repair-trial-output"
+ },
+ "wall_seconds": 5.7,
+ "subprocess": {
+  "argv": [
+   "git",
+   "rev-parse",
+   "HEAD"
+  ],
+  "stdin": "None",
+  "timeout": null,
+  "stdout": "bbc717c8b27cd7faa06956b4f37dde3118f3707f\n",
+  "stderr": "",
+  "returncode": 0
+ },
+ "delivered": {
+  "bytes": 2372,
+  "sha256": "6613826e35056428eeba0b5738966f1223e0493aa5f5fe7ee0ed8d9ec265dde1",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "0d783029b57ada191bb533de9c8f1f49d6fca213",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/heads/trial/assist 0d783029b57ada191bb533de9c8f1f49d6fca213\n",
+  "local_refs": "refs/heads/main 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/heads/trial/assist 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/remotes/origin/main 0d783029b57ada191bb533de9c8f1f49d6fca213\nrefs/remotes/origin/trial/assist 0d783029b57ada191bb533de9c8f1f49d6fca213\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/autofix/repair-trial-output/ticket.md": "9dab2c57c6cc8f33594d073c492d812f4c80134f1bab92b53a7cf7cf2699300e",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "cfa8844997f826414010c81383583a916f41745cd3ec9139d1c21614c38d636f",
+  "diff": "",
+  "log": "",
+  "origin_log": "0d783029b57ada191bb533de9c8f1f49d6fca213 Trial fixture: autofix-duplicate\n",
+  "tickets": {
+   "coga/tasks/autofix/repair-trial-output/ticket.md": {
+    "title": "Create the trial output directory before writing",
+    "status": "active",
+    "owner": "trial-owner",
+    "agent": "claude",
+    "workflow": {
+     "name": "trial/inline",
+     "steps": [
+      {
+       "name": "write",
+       "assignee": "agent"
+      },
+      {
+       "name": "judge",
+       "assignee": "owner"
+      }
+     ]
+    },
+    "step": "1 (write)"
+   }
+  }
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T13-15-47-01a1d6c4-3f86-7d63-b29b-c86c21d4174a.jsonl"
+ ],
+ "live_guard_post": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-prompt-trial-667707cc/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-prompt-trial-667707cc/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ]
+}

@@ -20,17 +20,17 @@
   "transport": "discussion template + separate kickoff, PTY",
   "invocation_source": "commands.ticket._run_authoring_session"
  },
- "start_utc": "2026-11-13T18:38:36.462628+00:00",
+ "start_utc": "2026-11-13T20:26:10.747177+00:00",
  "pre": {
-  "head": "79323a8dad5d9917646388247bd4df623a95b78a",
+  "head": "da2a8573325d4f8cce7d22a1234c30169c5fe99c",
   "branch": "main",
   "status": "",
-  "origin_refs": "refs/heads/main 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\n",
-  "local_refs": "refs/heads/main 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/remotes/origin/main 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/remotes/origin/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\n",
+  "origin_refs": "refs/heads/main da2a8573325d4f8cce7d22a1234c30169c5fe99c\nrefs/heads/trial/assist da2a8573325d4f8cce7d22a1234c30169c5fe99c\n",
+  "local_refs": "refs/heads/main da2a8573325d4f8cce7d22a1234c30169c5fe99c\nrefs/heads/trial/assist da2a8573325d4f8cce7d22a1234c30169c5fe99c\nrefs/remotes/origin/main da2a8573325d4f8cce7d22a1234c30169c5fe99c\nrefs/remotes/origin/trial/assist da2a8573325d4f8cce7d22a1234c30169c5fe99c\n",
   "files": {
    "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
    "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
-   "coga/coga.toml": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
    "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
    "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
    "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
@@ -40,13 +40,13 @@
    "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
    "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
   },
-  "tree_sha256": "988204154f52ae3ece1da6d05da5c590c2b93d74af34e2354a2708b34e26f31d"
+  "tree_sha256": "d80ecfd2ee23464f0f646ec50090f40cf370bdc62ea75f58416c553f85b68a93"
  },
  "live_guard_pre": {
-  "head": "c66f643772b19f6f47992c3226f659c0bab6d993",
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
   "status": []
  },
- "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8",
+ "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
  "spawn_kwargs": {
   "max_session": 720.0,
   "launch_context": "attended",
@@ -70,18 +70,18 @@
   "gpt-6.1-sol",
   "-c",
   "model_reasoning_effort=medium",
-  "-s",
-  "workspace-write",
   "-a",
   "never",
   "-c",
-  "sandbox_workspace_write.writable_roots=[\"/tmp\"]",
+  "permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}",
   "-c",
-  "sandbox_workspace_write.network_access=true",
+  "permissions.trial.network.enabled=true",
+  "-c",
+  "default_permissions=\"trial\"",
   "-c",
   "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
   "-c",
-  "<prompt sha256=46b5cc1cf678d606d2d9449d04e89b44e0ce3a5215dae83eeac45f4cbb2dc2bc bytes=37132>",
+  "<prompt sha256=4425a2a893c5d01a47db59efe602cdffc743c0d26246f03fd248d71d06025aba bytes=37132>",
   "Begin (editing existing ticket)"
  ],
  "env_keys": [
@@ -106,36 +106,36 @@
   "termination_reason": null,
   "done_signalled": false
  },
- "wall_seconds": 171.2,
- "end_utc": "2026-11-13T18:41:27.715529+00:00",
+ "wall_seconds": 151.1,
+ "end_utc": "2026-11-13T20:28:41.925187+00:00",
  "delivered": {
   "bytes": 37109,
-  "sha256": "ed246c9e164dc14a439a7e346e32aef4d12cbf80c27c29d186ea9a5ffbed780d",
+  "sha256": "415b0a5f974e8e92a8e9d7328ee6441521de49a48673cd3a5df119ad353a7c9d",
   "equals_frozen_modulo_marker": true
  },
  "post": {
-  "head": "1faeb3a29e3268dbe491a2b32cd429af08d48c0b",
+  "head": "8074ac621bc5aa2d720024ce11418fbac86ce448",
   "branch": "main",
   "status": " M coga/tasks/author-paused/ticket.md\n",
-  "origin_refs": "refs/heads/main 1faeb3a29e3268dbe491a2b32cd429af08d48c0b\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\n",
-  "local_refs": "refs/heads/main 1faeb3a29e3268dbe491a2b32cd429af08d48c0b\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/remotes/origin/main 1faeb3a29e3268dbe491a2b32cd429af08d48c0b\nrefs/remotes/origin/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/worktree/coga/published 86ce5e87b962634912dfb7b09ccb50e824145ec8\n",
+  "origin_refs": "refs/heads/main 8074ac621bc5aa2d720024ce11418fbac86ce448\nrefs/heads/trial/assist da2a8573325d4f8cce7d22a1234c30169c5fe99c\n",
+  "local_refs": "refs/heads/main 8074ac621bc5aa2d720024ce11418fbac86ce448\nrefs/heads/trial/assist da2a8573325d4f8cce7d22a1234c30169c5fe99c\nrefs/remotes/origin/main 8074ac621bc5aa2d720024ce11418fbac86ce448\nrefs/remotes/origin/trial/assist da2a8573325d4f8cce7d22a1234c30169c5fe99c\nrefs/worktree/coga/published 4fc223f1c15dcc168c2596d024adac7dda6aa6ac\n",
   "files": {
    "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
    "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
-   "coga/coga.toml": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
    "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
    "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
-   "coga/log.md": "a24562dca7b40cce977a4a7b3b4881713062b48ad8a6ac112831cb89c32f30f8",
+   "coga/log.md": "cca03a4098f1cf6f1f05f1af0cfeab1fe34ef1864c02b95e16667bf8c7590657",
    "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
    "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
    "coga/tasks/author-paused/ticket.md": "82111005f422f6dfe1b8df06ca4555a75aefb060f51f474b590403a232db754a",
    "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
    "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
   },
-  "tree_sha256": "40f7f5d19a1fb2f36a93e22d5a2768349d70764407cfe517ce6219eee4392f0d",
-  "diff": "diff --git a/coga/log.md b/coga/log.md\nindex bf18b2a..375c8a3 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1 +1,3 @@\n # Trial lifecycle log\n+2026-11-13 10:38 v1 [author-paused] [human:trial-owner] ticket authoring launched (trial adapter)\n+2026-11-13 10:41 v1 [bootstrap/ticket] [system] {\"agent\":\"codex\",\"agent_turns\":5,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":429184,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":171.064288,\"ended_at\":\"2026-11-13T18:41:27.581104Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":2,\"input_tokens\":25865,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Confirmed. The ticket remains paused at its current step; nothing was advanced.\",\"outcome_status\":\"completed\",\"output_tokens\":1384,\"provider\":\"openai\",\"request\":\"Add this sentence to the Description: Verify the output before handoff. Preserve the paused status, current step and frozen workflow. Do not run the work. Confirmed. Keep it paused; do not advance.\",\"schema\":2,\"session_id\":\"01a1d634-5a9d-76c2-b9f7-0a970586c768\",\"slug\":\"bootstrap/ticket\",\"started_at\":\"2026-11-13T18:38:36.516816Z\",\"step\":null,\"title\":\"author-paused\",\"ts\":\"2026-11-13T18:41:27.581104Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\ndiff --git a/coga/tasks/author-paused/ticket.md b/coga/tasks/author-paused/ticket.md\nindex e94603a..0da7b3a 100644\n--- a/coga/tasks/author-paused/ticket.md\n+++ b/coga/tasks/author-paused/ticket.md\n@@ -19,7 +19,7 @@ step: 1 (write)\n \n ## Description\n \n-Preserve the existing intent: write the agreed result after the owner resumes execution.\n+Preserve the existing intent: write the agreed result after the owner resumes execution. Verify the output before handoff.\n \n ## Context\n \n",
-  "log": "1faeb3a29e3268dbe491a2b32cd429af08d48c0b Log: bootstrap/ticket\ndad4f11e01480584ab19e4b297776e0fd28b269a Log: author-paused\n",
-  "origin_log": "1faeb3a29e3268dbe491a2b32cd429af08d48c0b Log: bootstrap/ticket\ndad4f11e01480584ab19e4b297776e0fd28b269a Log: author-paused\n79323a8dad5d9917646388247bd4df623a95b78a Trial fixture: author-paused\n",
+  "tree_sha256": "35aecbabe1578b5104689be69a67e4555ff034f3ed6cdd00cf894d56184f5b6f",
+  "diff": "diff --git a/coga/log.md b/coga/log.md\nindex bf18b2a..62f699a 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1 +1,3 @@\n # Trial lifecycle log\n+2026-11-13 12:26 v1 [author-paused] [human:trial-owner] ticket authoring launched (trial adapter)\n+2026-11-13 12:28 v1 [bootstrap/ticket] [system] {\"agent\":\"codex\",\"agent_turns\":4,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":255616,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":150.993434,\"ended_at\":\"2026-11-13T20:28:41.792733Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":2,\"input_tokens\":46672,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Confirmed. The ticket remains paused; no workflow advancement or task execution.\",\"outcome_status\":\"completed\",\"output_tokens\":856,\"provider\":\"openai\",\"request\":\"Add this sentence to the Description: Verify the output before handoff. Preserve the paused status, current step and frozen workflow. Do not run the work. Confirmed. Keep it paused; do not advance.\",\"schema\":2,\"session_id\":\"01a1d696-d718-7c91-905c-888170e0d0a1\",\"slug\":\"bootstrap/ticket\",\"started_at\":\"2026-11-13T20:26:10.799299Z\",\"step\":null,\"title\":\"author-paused\",\"ts\":\"2026-11-13T20:28:41.792733Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\ndiff --git a/coga/tasks/author-paused/ticket.md b/coga/tasks/author-paused/ticket.md\nindex e94603a..0da7b3a 100644\n--- a/coga/tasks/author-paused/ticket.md\n+++ b/coga/tasks/author-paused/ticket.md\n@@ -19,7 +19,7 @@ step: 1 (write)\n \n ## Description\n \n-Preserve the existing intent: write the agreed result after the owner resumes execution.\n+Preserve the existing intent: write the agreed result after the owner resumes execution. Verify the output before handoff.\n \n ## Context\n \n",
+  "log": "8074ac621bc5aa2d720024ce11418fbac86ce448 Log: bootstrap/ticket\nefb62c48c0e74c4d196252ba01d9461dd0d9f9d2 Log: author-paused\n",
+  "origin_log": "8074ac621bc5aa2d720024ce11418fbac86ce448 Log: bootstrap/ticket\nefb62c48c0e74c4d196252ba01d9461dd0d9f9d2 Log: author-paused\nda2a8573325d4f8cce7d22a1234c30169c5fe99c Trial fixture: author-paused\n",
   "tickets": {
    "coga/tasks/author-paused/ticket.md": {
     "title": "author-paused",
@@ -166,35 +166,60 @@
   }
  },
  "codex_sessions": [
-  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T10-38-37-01a1d634-5a9d-76c2-b9f7-0a970586c768.jsonl",
-  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T10-40-07-01a1d635-b80c-7a83-bb30-24db276e665e.jsonl"
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T12-26-12-01a1d696-d718-7c91-905c-888170e0d0a1.jsonl"
  ],
  "live_guard_post": {
-  "head": "c66f643772b19f6f47992c3226f659c0bab6d993",
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
   "status": []
  },
  "live_repo_changed": false,
  "effective_sandbox": [
   [
    {
-    "type": "workspace-write",
-    "writable_roots": [
-     "/tmp"
-    ],
-    "network_access": true,
-    "exclude_tmpdir_env_var": false,
-    "exclude_slash_tmp": false
-   }
-  ],
-  [
-   {
-    "type": "workspace-write",
-    "writable_roots": [
-     "/tmp"
-    ],
-    "network_access": true,
-    "exclude_tmpdir_env_var": false,
-    "exclude_slash_tmp": false
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-prompt-trial-667707cc/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-prompt-trial-667707cc/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
    }
   ]
  ]

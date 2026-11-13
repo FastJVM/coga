@@ -1,0 +1,283 @@
+{
+ "02640c": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "workflow-skilled__candidate__r1"
+ },
+ "0cfafd": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "workflow-inline__candidate__r2"
+ },
+ "16c302": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "probe-1__candidate__r2"
+ },
+ "16df2a": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "owner-assist__candidate__r2"
+ },
+ "1b67ad": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "script-handoff__baseline__r2"
+ },
+ "2b5217": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "probe-1__baseline__r1"
+ },
+ "2e44e2": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "probe-3__baseline__r1"
+ },
+ "336708": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "autofix-duplicate__baseline__r2"
+ },
+ "341e75": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "autofix-ok__candidate__r1"
+ },
+ "355e0d": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "owner-assist__candidate__r1"
+ },
+ "37fc94": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "script-handoff__candidate__r1"
+ },
+ "3c98d2": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "input-attended__baseline__r1"
+ },
+ "44e24b": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "input-megalaunch__candidate__r1"
+ },
+ "4597cb": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "input-megalaunch__candidate__r2"
+ },
+ "511c45": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "autofix-duplicate__baseline__r1"
+ },
+ "541390": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "probe-2__baseline__r1"
+ },
+ "5777dd": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "autofix-duplicate__candidate__r2"
+ },
+ "5b3269": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "probe-3__candidate__r1"
+ },
+ "5eae1e": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "autofix-problem__baseline__r1"
+ },
+ "623ef0": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "stateless-recurring__baseline__r1"
+ },
+ "6316ad": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "autofix-ok__baseline__r2"
+ },
+ "664e32": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "author-paused__candidate__r1"
+ },
+ "673c93": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "input-attended__baseline__r2"
+ },
+ "7062b6": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "autofix-ok__baseline__r1"
+ },
+ "768223": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "autofix-problem__candidate__r2"
+ },
+ "7b6e26": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "probe-3__candidate__r2"
+ },
+ "7bc153": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "script-handoff__baseline__r1"
+ },
+ "80ae15": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "autofix-problem__candidate__r1"
+ },
+ "8dff38": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "stateless-recurring__candidate__r2"
+ },
+ "8f1b89": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "autofix-problem__baseline__r2"
+ },
+ "8fde4f": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "workflow-skilled__baseline__r2"
+ },
+ "93f840": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "owner-assist__baseline__r1"
+ },
+ "957a4d": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "script-handoff__candidate__r2"
+ },
+ "96805c": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "input-attended__candidate__r1"
+ },
+ "982746": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "input-attended__candidate__r2"
+ },
+ "99496c": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "workflow-skilled__candidate__r2"
+ },
+ "9a7765": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "author-paused__baseline__r2"
+ },
+ "9d4cd5": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "input-megalaunch__baseline__r2"
+ },
+ "_seed": "53de2c1fe13af92c",
+ "a24612": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "workflow-inline__baseline__r2"
+ },
+ "a327f7": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "autofix-ok__candidate__r2"
+ },
+ "a480cb": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "probe-3__baseline__r2"
+ },
+ "a62fd0": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "workflow-inline__baseline__r1"
+ },
+ "a93bda": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "stateless-recurring__baseline__r2"
+ },
+ "ae04b1": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "probe-2__baseline__r2"
+ },
+ "aeb009": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "author-paused__candidate__r2"
+ },
+ "b7ec76": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "probe-1__baseline__r2"
+ },
+ "c0577c": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "input-megalaunch__baseline__r1"
+ },
+ "cb1e97": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "autofix-duplicate__candidate__r1"
+ },
+ "ce5fa2": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "workflow-skilled__baseline__r1"
+ },
+ "d807e4": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "probe-2__candidate__r1"
+ },
+ "d8b4a7": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "stateless-recurring__candidate__r1"
+ },
+ "faa8d9": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "workflow-inline__candidate__r1"
+ },
+ "fd6666": {
+  "arm": "candidate",
+  "label": "X",
+  "run": "probe-2__candidate__r2"
+ },
+ "fdba61": {
+  "arm": "baseline",
+  "label": "X",
+  "run": "owner-assist__baseline__r2"
+ },
+ "ff760a": {
+  "arm": "candidate",
+  "label": "Y",
+  "run": "probe-1__candidate__r1"
+ },
+ "ff9470": {
+  "arm": "baseline",
+  "label": "Y",
+  "run": "author-paused__baseline__r1"
+ }
+}

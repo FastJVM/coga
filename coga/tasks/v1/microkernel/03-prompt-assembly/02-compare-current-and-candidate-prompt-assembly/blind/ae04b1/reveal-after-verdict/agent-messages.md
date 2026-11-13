@@ -1,0 +1,11 @@
+## Rollout 0
+
+I’ll check the local configuration and instruction paths without changing any files.
+
+---
+
+1. The effective source is the bundled [bootstrap/ticket/SKILL.md](/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md). This session explicitly includes `bootstrap/ticket`, and the repository has no local override at `coga/skills/bootstrap/ticket/SKILL.md`, so the bundled skill supplies the interview instructions.
+
+2. For a repository-specific greeting, create `coga/skills/bootstrap/ticket/SKILL.md` by copying that bundled skill, then edit **Step 1 — Identify the launch shape and open with the matching greeting**. That path overrides the bundled skill and keeps your customization local to this repository.
+
+No files changed.

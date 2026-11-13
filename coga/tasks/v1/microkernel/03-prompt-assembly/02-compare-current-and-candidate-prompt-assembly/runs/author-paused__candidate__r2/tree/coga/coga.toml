@@ -1,0 +1,22 @@
+version = 1
+default_status = "draft"
+[agents.claude]
+cli = "claude"
+file = "CLAUDE.md"
+[git]
+enabled = true
+remote = "origin"
+control_branch = "main"
+[notification.slack]
+enabled = false
+
+[agents.codex]
+cli = "codex"
+file = "AGENTS.md"
+mode = "local"
+launch_args = "--no-daemon -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -a never -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"'"
+discussion = "-c developer_instructions={prompt}"
+analyze = "-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"' exec {prompt}"
+
+[telemetry]
+enabled = false

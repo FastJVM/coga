@@ -14,9 +14,9 @@ enabled = false
 cli = "codex"
 file = "AGENTS.md"
 mode = "local"
-launch_args = "--no-daemon -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s workspace-write -a never -c 'sandbox_workspace_write.writable_roots=[\"/tmp\"]' -c sandbox_workspace_write.network_access=true -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"'"
+launch_args = "--no-daemon -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -a never -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"'"
 discussion = "-c developer_instructions={prompt}"
-analyze = "-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s workspace-write -c 'sandbox_workspace_write.writable_roots=[\"/tmp\"]' -c sandbox_workspace_write.network_access=true -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"' exec {prompt}"
+analyze = "-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"' exec {prompt}"
 
 [telemetry]
 enabled = false

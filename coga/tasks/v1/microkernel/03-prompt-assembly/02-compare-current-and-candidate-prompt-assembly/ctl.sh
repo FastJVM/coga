@@ -22,7 +22,7 @@ case "$1" in
     tmux send-keys -t trial "$2" ;;
   peek) tmux capture-pane -pt trial -S -"${2:-40}" | grep -v '^\s*$' | tail -"${2:-40}" ;;
   tokens)
-    f=$(find ~/.codex/sessions -name '*.jsonl' -newer "$LOGS/$(cat "$LOGS/current").start" | head -1)
+    f=$(grep -l "\"cwd\":\"/tmp/coga-prompt-trial-667707cc" $(find ~/.codex/sessions -name "*.jsonl" -newer "$LOGS/$(cat "$LOGS/current").start") /dev/null | head -1)
     [ -n "$f" ] && grep '"token_count"' "$f" | tail -1 | grep -o '"total_token_usage":{[^}]*}' || echo none ;;
   stop) tmux kill-session -t trial ;;
 esac

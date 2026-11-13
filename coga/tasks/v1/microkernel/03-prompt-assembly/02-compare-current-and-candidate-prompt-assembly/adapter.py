@@ -40,9 +40,13 @@ FIXED = {
     "GIT_COMMITTER_NAME": "Trial Fixture", "GIT_COMMITTER_EMAIL": "trial@example.invalid",
     "GIT_AUTHOR_DATE": "2026-11-12T00:00:00Z", "GIT_COMMITTER_DATE": "2026-11-12T00:00:00Z",
 }
-PINS = ('-m gpt-6.1-sol -c model_reasoning_effort="medium" -s workspace-write -a never '
-        "-c 'sandbox_workspace_write.writable_roots=[\"/tmp\"]' "
-        "-c sandbox_workspace_write.network_access=true "
+PINS = ('-m gpt-6.1-sol -c model_reasoning_effort="medium" -a never '
+        # Deviation D4 (owner, 2026-11-13): a permission profile replaces
+        # `-s workspace-write`, whose protected <root>/.git blocked agent bumps.
+        "-c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\","
+        "\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' "
+        "-c permissions.trial.network.enabled=true "
+        "-c 'default_permissions=\"trial\"' "
         # Deviation D2: pre-trust the trial root so no trust dialog appears.
         "-c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"'")
 CODEX_AGENT = f'''
@@ -173,8 +177,10 @@ def sandbox_of(rollout: Path) -> list:
     seen = []
     for line in rollout.read_text().splitlines():
         if '"sandbox_policy"' in line:
-            pol = json.loads(line).get("payload", {}).get("sandbox_policy")
-            if pol and pol not in seen:
+            pay = json.loads(line).get("payload", {})
+            pol = {"sandbox_policy": pay.get("sandbox_policy"),
+                   "permission_profile": pay.get("permission_profile")}
+            if pol["sandbox_policy"] and pol not in seen:
                 seen.append(pol)
     return seen
 
@@ -190,6 +196,13 @@ def frontmatter(path: Path) -> dict:
 def codex_sessions() -> set[Path]:
     base = Path.home() / ".codex/sessions"
     return set(base.rglob("*.jsonl")) if base.is_dir() else set()
+
+
+def rollout_cwd(rollout: Path) -> str:
+    with contextlib.suppress(Exception):
+        with rollout.open() as fh:
+            return json.loads(fh.readline()).get("payload", {}).get("cwd", "")
+    return ""
 
 
 def run_dir(case: str, arm: str, rep: int) -> Path:
@@ -323,7 +336,8 @@ def finish(case, arm, d, record, delivered: bytes, raw: str, pre_sessions) -> No
     with contextlib.suppress(Exception):
         shutil.copytree(ROOT, d / "tree", ignore=shutil.ignore_patterns(".git"))
     git("bundle", "create", str(d / "repo.bundle"), "--all")
-    new = sorted(codex_sessions() - pre_sessions)
+    # Other Codex sessions run on this machine; keep only rollouts in the fixture.
+    new = sorted(q for q in codex_sessions() - pre_sessions if rollout_cwd(q).startswith(str(ROOT)))
     record["codex_sessions"] = [str(p) for p in new]
     record["live_guard_post"] = live_guard()
     record["live_repo_changed"] = record["live_guard_post"] != record.get("live_guard_pre")
@@ -524,6 +538,60 @@ def run_transport() -> None:
     (d / "results.json").write_text(json.dumps(results, indent=1))
 
 
+def run_probe(pid: str, arm: str, rep: int) -> None:
+    """Inspectability probe: fresh read-only `codex exec`, frozen prompt as developer instructions."""
+    spec = json.loads((HERE / "probes.json").read_text())
+    probe = next(p for p in spec["probes"] if p["id"] == pid)
+    case = probe["case"]
+    d = run_dir(pid, arm, rep)
+    reset(case)
+    raw = frozen(case, arm).decode()
+    instructions = MARKER_RE.sub("\n", raw)
+    question = spec["template"].format(want=probe["want"])
+    # Pins as the trial, except the probe rule's read-only sandbox (no profile).
+    argv = ["codex", "-m", "gpt-6.1-sol", "-c", 'model_reasoning_effort="medium"',
+            "-s", "read-only",
+            "-c", 'projects."/tmp/coga-prompt-trial-667707cc".trust_level="trusted"',
+            "-c", "developer_instructions=" + json.dumps(instructions),
+            "exec", "--skip-git-repo-check", "-o", str(d / "answer.txt"), question]
+    record = {"probe": probe, "arm": arm, "rep": rep, "case": case,
+              "instructions_sha256": sha(instructions.encode()),
+              "question": question, "pre": state(case), "live_guard_pre": live_guard(),
+              "argv": [a if not a.startswith("developer_instructions=") else
+                       "developer_instructions=<frozen prompt sha256 %s>" % sha(instructions.encode())
+                       for a in argv],
+              "start_utc": datetime.now(timezone.utc).isoformat()}
+    pre_sessions = codex_sessions()
+    t0 = time.monotonic()
+    try:
+        cp = subprocess.run(argv, cwd=ROOT, env=dict(os.environ), capture_output=True,
+                            text=True, timeout=300)
+        record["exit_code"], record["timed_out"] = cp.returncode, False
+        (d / "stdout.txt").write_text(cp.stdout)
+        (d / "stderr.txt").write_text(cp.stderr)
+    except subprocess.TimeoutExpired:
+        record["exit_code"], record["timed_out"] = None, True
+    record["wall_seconds"] = round(time.monotonic() - t0, 1)
+    record["post"] = state(case)
+    record["mutated"] = record["post"]["tree_sha256"] != record["pre"]["tree_sha256"]
+    new = sorted(q for q in codex_sessions() - pre_sessions if rollout_cwd(q).startswith(str(ROOT)))
+    record["codex_sessions"] = [str(p) for p in new]
+    commands = []
+    for i, p in enumerate(new):
+        shutil.copy(p, d / f"codex-session-{i}.jsonl")
+        for line in p.read_text().splitlines():
+            pay = json.loads(line).get("payload", {})
+            if pay.get("type") in ("function_call", "custom_tool_call", "local_shell_call"):
+                commands.append(pay.get("arguments") or pay.get("input") or pay.get("action"))
+    record["tool_calls"] = commands
+    record["tool_call_count"] = len(commands)
+    record["effective_sandbox"] = [sandbox_of(p) for p in new]
+    record["live_guard_post"] = live_guard()
+    record["live_repo_changed"] = record["live_guard_post"] != record["live_guard_pre"]
+    (d / "record.json").write_text(json.dumps(record, indent=1, default=str))
+    print(f"[trial] finished {d.name}: exit={record['exit_code']} calls={len(commands)}")
+
+
 def main() -> None:
     # The adapter process itself runs under the owner-approved env allowlist,
     # so ambient credentials/webhooks never reach config loading or children.
@@ -545,6 +613,9 @@ def main() -> None:
         (run_analyze if case.startswith("autofix-") else run_interactive)(case, arm, rep)
     elif cmd == "transport":
         run_transport()
+    elif cmd == "probe":
+        assert rest[1] in ("baseline", "candidate")
+        run_probe(rest[0], rest[1], int(rest[2]))
     elif cmd == "control":
         run_control(rest[0], int(rest[1]))
     else:

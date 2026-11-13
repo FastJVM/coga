@@ -16,7 +16,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 agent: claude
 ---
 
@@ -170,6 +170,8 @@ ordinary ticket.
 - D2b: Codex still showed its folder-trust dialog once (pre-model); controller pressed Enter "Trust and continue", saving `[projects."/tmp/coga-prompt-trial-667707cc"]` in `~/.codex/config.toml`. Later sessions do not show it.
 - **Containment C1 (owner decision):** `/etc/codex/requirements.toml` (root, multiply harness) forced profile `multiply-full` (write `/home/n/Code`, `/home/n/.codex`, `/tmp`; read all) over the `-c` sandbox pins. author-paused baseline r1 (model ran; listed live repo filtered to checkouts/reconciliation/knowledge paths, read live `coga/checkouts` skill copies; no expected-outcome/other-arm reads seen; no live writes) moved to `runs/_replaced/` — replaced infrastructure run, uses 1 of 4 reserve sessions. Owner sets the policy file aside for the trial; restore afterwards. Verified 2026-11-13 after the owner moved it to `requirements.toml.trial-aside`: a no-op `codex exec` with the pins (infrastructure, not a trial session; 4,934 tokens) recorded `sandbox_policy` workspace-write, writable_roots `["/tmp"]`, network on; permission profile writes only the cwd, `/tmp`, tmpdir.
 
+- **D4 sandbox profile (owner, 2026-11-13):** `-s workspace-write` makes `<root>/.git` read-only (verified: `git commit` → "Read-only file system"), so agent-run `coga bump` would fail in every lifecycle case in both arms. Replaced by a `-c` permission profile `trial` (`:root` read, `:slash_tmp` write, `/tmp/coga-prompt-trial-667707cc/.git` write, network on, `default_permissions="trial"`); `-a never` kept. Verified without a model (`codex sandbox`) and with one infra `codex exec` (5,310 tokens): fixture commit OK, `/home/n/Code/coga` and `~/.codex` writes blocked. author-paused baseline r1 under the old pin (clean: delivered = frozen, live repo unchanged, 171 s; agent noted git read-only) moved to `runs/_replaced/…__git-readonly` — replaced infrastructure run, 2 of 4 reserve sessions used. Adapter now keeps only rollouts whose cwd is the fixture (other Codex sessions run concurrently on this machine) and records each rollout's permission profile.
+
 ## Controller rules (pre-declared before any trial session)
 
 - Send only `approved/fixtures/dialogues.json` lines, when their trigger occurs; plan-confirmation request in attended conduct → `Proceed as specified.`
@@ -185,4 +187,21 @@ ordinary ticket.
 
 ## Progress
 
-- [ ] adapter + pinned venv  - [ ] non-model checks  - [ ] 44 main sessions  - [ ] 12 probes  - [ ] blinded evaluation pack  - [ ] report
+- [x] adapter + pinned venv  - [x] non-model checks  - [x] 44 main sessions (2026-11-13)  - [x] 12 probes  - [x] blinded evaluation pack (`blind/`)  - [x] report draft (`report.md`)  - [ ] owner: blinded verdicts, then decision  - [ ] owner: restore `/etc/codex/requirements.toml`
+
+## Handoff (agent-produces → human-owns-and-finishes)
+
+- **Executed.** All 44 paired sessions and 12 probes were executed under the pins and D1–D4. Reserve used: 2 of 4 sessions, both on author-paused baseline r1, kept in `runs/_replaced/`.
+- **Invariants across all 56 sessions:**
+  - delivered prompt = frozen, modulo the marker;
+  - live repo HEAD/status unchanged during each run;
+  - effective sandbox as pinned;
+  - no limit hit.
+- **Evaluation pack.** Fill `blind/verdicts.csv` from `blind/<item>/facts.md` + `trace.md` (+ `answer.txt` for probes). Only then open `reveal-after-verdict/`, `blind-key.json` and `controller-checks.json`; the last two are arm-labeled, so keep them closed until the verdicts are in.
+- **Report.** Complete `report.md` §3–4 and choose the decision in §8. Payload is final, with no gain (3.40%), and no simplification is claimed.
+- **Evidence publication.** On 2026-11-13 10:46 -0800, a concurrent Coga command on this checkout swept this task directory to `main` (`bbc717c8b "Sync coga state"`, pushed). `runs/` holds 36 MB, including Codex rollouts whose `session_meta` carries the account/user IDs plus encrypted reasoning. Any later sweep or bump publishes the rest of `runs/` and `blind/`. Owner decision (2026-11-13): publish all evidence as is, then bump.
+- **Machine cleanup for the owner:**
+  - restore `/etc/codex/requirements.toml` from `.trial-aside`;
+  - optionally remove the `[projects."/tmp/coga-prompt-trial-667707cc"]` trust entry (D2b) from `~/.codex/config.toml`;
+  - the fixtures under `/tmp/coga-prompt-trial-*` are disposable.
+- **Attachments added this step:** `blind.py` (pack builder), the `probe` command in `adapter.py`, and `report.md`. All are disposable trial tooling, not core.

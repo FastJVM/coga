@@ -1,0 +1,704 @@
+Reading additional input from stdin...
+OpenAI Codex v0.167.2
+--------
+workdir: /tmp/coga-prompt-trial-667707cc
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1d6c9-4a04-72d1-851c-77e7c3b5d36d
+--------
+user
+Do not change any files. Answer one question about the instructions you were given in this session. Customization wanted: change the authoring interview greeting. (1) Which file is the effective source of those instructions in this session, and what fact selected it? (2) Which file should I edit to make that customization, and why there? You may read at most four files. Give one answer.
+codex
+I’ll check where this session’s greeting instructions came from and which file owns the customization, without changing any files.
+exec
+/bin/bash -lc "pwd
+rg --files -g '*ticket*' -g '*SKILL.md' -g '*author*' -g '*coga*' | head -80" in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+/tmp/coga-prompt-trial-667707cc
+coga/coga.local.toml
+coga/coga.toml
+coga/contexts/trial/format/SKILL.md
+coga/skills/trial/report/SKILL.md
+coga/tasks/author-paused/ticket.md
+coga/skills/trial/write/SKILL.md
+
+exec
+/bin/bash -lc "ls -la
+cat coga/coga.toml
+cat coga/coga.local.toml
+python -c \"from importlib.resources import files; print(files('coga.resources').joinpath('templates', 'coga', 'bootstrap'))\"" in /tmp/coga-prompt-trial-667707cc
+ exited 1 in 0ms:
+total 0
+drwxr-xr-x   4 n      n          80 Nov 13 13:21 .
+drwxrwxrwt 202 nobody nogroup 18820 Nov 13 13:21 ..
+drwxr-xr-x   8 n      n         280 Nov 13 13:21 .git
+drwxr-xr-x   6 n      n         220 Nov 13 13:21 coga
+version = 1
+default_status = "draft"
+[agents.claude]
+cli = "claude"
+file = "CLAUDE.md"
+[git]
+enabled = true
+remote = "origin"
+control_branch = "main"
+[notification.slack]
+enabled = false
+
+[agents.codex]
+cli = "codex"
+file = "AGENTS.md"
+mode = "local"
+launch_args = "--no-daemon -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -a never -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"'"
+discussion = "-c developer_instructions={prompt}"
+analyze = "-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"' exec {prompt}"
+
+[telemetry]
+enabled = false
+user = "trial-owner"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/resources/_common.py", line 46, in wrapper
+    return func(anchor)
+           ^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/resources/_common.py", line 56, in files
+    return from_package(resolve(anchor))
+                        ^^^^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/functools.py", line 912, in wrapper
+    return dispatch(args[0].__class__)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/resources/_common.py", line 82, in _
+    return importlib.import_module(cand)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1324, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'coga.resources'
+
+exec
+/bin/bash -lc "command -v coga
+ls /home/n
+find /home/n -path '*/bootstrap/ticket/*' -o -path '*/bootstrap/ticket.md' 2>/dev/null | head -30" in /tmp/coga-prompt-trial-667707cc
+exec
+/bin/bash -lc 'readlink -f /home/n/.local/bin/coga
+ls /home/n/Code
+ls /home/n/.local/share/uv/tools/coga/lib' in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+/home/n/.local/share/uv/tools/coga/bin/coga
+actual-output-validation-20261111-archive
+admin
+case-report
+claude
+codex
+coga
+coga-autoclose-tests.YiVMjn
+coga-checkout-policy-peer-review-tests-20261112
+coga-checkout-policy-reconciled-tests-20261112
+coga-peer-branchsweep-pytest-f40cab82
+coga-policy-review-probes-tests-20261112
+coga-prompt-protocol-pytest-667707cc
+coga-pytest-launch-authoring-20261112-0206
+coga-pytest-prompt-group-20261112-0250
+coga-release-rules-peer-tests-20261112
+coga-review-v1-11-baseline-748c82e6
+coga-review-v1-11-complete-748c82e6
+coga-review-v1-11-final-748c82e6
+coga-review-v1-11-linux-748c82e6
+demo
+demo-hackathon
+dpatchperf
+fastci-sota1-validation
+java-demos
+llm
+magicator
+mailextractor
+multiply
+parallelStrings
+patents
+perfo
+poetry
+polyDispatch
+reachy
+reachy_mini
+solarmonero
+summer
+tablet
+test-impact-data-20261109
+thinkpick
+xpllm
+python3.14
+
+exec
+/bin/bash -lc "/home/n/.local/share/uv/tools/coga/bin/python -c \"from importlib.resources import files; print(files('coga.resources').joinpath('templates','coga','bootstrap','skills','bootstrap','ticket','SKILL.md'))\"
+ls -l /home/n/.local/share/uv/tools/coga/lib/python3.14/site-packages/coga
+ls coga/skills/bootstrap/ticket/SKILL.md" in /tmp/coga-prompt-trial-667707cc
+ exited 2 in 0ms:
+/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+total 4
+drwxrwxr-x 3 n n 4096 Nov  7 14:07 resources
+ls: cannot access 'coga/skills/bootstrap/ticket/SKILL.md': No such file or directory
+
+exec
+/bin/bash -lc 'cat /home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md' in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+---
+name: bootstrap/ticket
+description: Interview the human, fill in a freshly-scaffolded draft ticket (workflow, contexts, owner, optional main agent, body), create any missing contexts or skills the ticket needs, and run an independent evaluator review before handing back to the human for approval.
+---
+
+# Bootstrap a ticket
+
+Your job is to turn a one-line title into a complete `draft` ticket the human
+can review and launch. You do **not** start the work itself — you set it up.
+
+The human is at the keyboard in an attended agent launch. Ask, don't guess. Keep
+the interview short — 4–6 questions, not a survey.
+
+## Before the interview
+
+New tickets carry a field guide in an HTML comment under `## Context`: the
+frontmatter keys, the frozen workflow shape, and the `## Dev` / `## PR`
+blackboard records. Read it and keep it while filling in the actual content.
+A ticket created before the guide existed may lack it; the editing rules here
+and in the base prompt apply either way, so do not paste the guide into it.
+
+A ticket carries a workflow — the ordered steps the work moves through —
+everywhere except while it is a `draft`. A ticket with no workflow can't be
+activated: `coga mark active` refuses it, and `coga validate` errors on a
+workflow-less `active`/`in_progress`/`blocked`/`paused` ticket. Picking the
+workflow is part of this interview (step 3), and your default is to hand back
+a ticket with one. The one exception is deliberate **concept-capture**: when
+the human wants to stash an idea before its shape is settled, a workflow-less
+*draft* is a valid end state — it simply stays a draft until someone adds a
+workflow. Don't force a workflow onto an idea that isn't ready for one; just
+make the tradeoff explicit (it can't be activated yet).
+
+Match this shape exactly. Don't invent fields the guide doesn't define
+(see the frontmatter rules in the base prompt), and don't reintroduce metadata
+the format removed: there is no `slug:`, `human:`, `assignee:`, or `watchers:`.
+Writing one back makes the ticket invalid and every Coga command refuse it.
+
+**Who holds the ticket is derived, not written.** Coga reads the current
+workflow step's `assignee:` *role* — `owner`, `agent`, or `other-agent` — every
+time it needs an operator. `owner` is a human handoff to the ticket's `owner:`;
+`agent` is the ticket's `agent:`; `other-agent` is that agent's configured peer.
+So choosing the workflow (step 3) is how you choose the handoffs; there is no
+separate assignment to make.
+
+**Frontmatter you may write in this interview** — the explicit exception the
+base prompt allows: `title`, `status`, `owner`, `agent`, `contexts`,
+`skills`, `workflow`, `step`, `secrets`, and any repo extension field, subject
+to the lifecycle restrictions in step 3. `--agent` on `coga ticket` selects
+the interviewer only; never copy it onto the ticket as the main-agent choice.
+
+## Step 1 — Identify the launch shape and open with the matching greeting
+
+This session is greet-first: open the conversation yourself rather than waiting
+for the human to type first. Your **first reply** must greet the human in the
+way that matches how this skill was launched.
+
+Your first user turn is a **kickoff token** that `coga ticket` set to tell you
+the launch shape — read it, not the ticket body, to pick the greeting:
+
+- `Begin (new ticket)` → **New-title launch**.
+- `Begin (editing existing ticket)` → **Existing-ticket edit**.
+- bare `Begin` → **Empty interview** (also recognisable structurally: a
+  `bootstrap/ticket` header id-slug with no `Status:` line).
+
+The token is authoritative because `coga ticket` already resolved create-vs-edit
+before launching you: a freshly-scaffolded draft and a pre-existing draft both
+start with an empty body, so body-emptiness can't tell them apart — the token
+can. Only if the token is somehow absent, fall back to the header/body cues in
+the shapes below:
+
+- **Empty interview** — kickoff bare `Begin`; the header id-slug is
+`bootstrap/ticket`, there is **no `Status:` line**, and the Description is the
+"Persistent launch target" text. You're inside the stateless bootstrap ticket
+with no target. Open with:
+> "You ran `coga ticket` without naming a ticket, so: are you starting a
+> **new** ticket, or editing an **existing** one?"
+Keep the greeting command-light: refer to it as `coga ticket`, not the
+underlying `coga launch bootstrap/ticket` plumbing, and don't name the
+`coga create` command when you describe the New path — "I'll create the
+draft" carries the point. `coga status` is the exception: it's a genuinely
+useful hint, so do offer it by name.
+  - New → ask for a one-line title, then create the draft (run `coga create
+    "<title>"` under the hood — don't surface the command to the human) and edit
+    it directly in this same session.
+  - Existing → ask which slug (offer `coga status` to list them), then read and
+    edit that ticket's files directly — or tell them `coga ticket <slug>`
+    re-launches you straight onto it.
+
+- **New-title launch** — kickoff `Begin (new ticket)`; a real `tasks/<slug>`
+with `Status: draft`. `coga ticket "<title>"` just scaffolded this draft and
+launched you against it. Its body is still empty — that's expected, not a
+signal of anything. Open with:
+> "Your `<slug>` ticket has been created (draft). What should it do, why now,
+> and what would count as done? I'll turn your answer into the ticket."
+
+- **Existing-ticket edit** — kickoff `Begin (editing existing ticket)`; a real
+`tasks/<slug>` at any status (`draft`, `active`, `in_progress`, `blocked`,
+`paused`, `done`, `canceled`, or even an unrecognized value). You're revising a
+ticket that already exists
+— **even if its body is still empty**, which is exactly the state of a draft batch-created with `coga
+create` and then opened here. Open with:
+> "You're editing `<slug>` (status: `<status>`). What would you like to change?"
+
+  Preserve existing useful body text and frontmatter; ask only about the parts
+  they want to change. If the body is empty there's nothing to preserve, so
+  greet as an edit but pivot straight to filling it ("…it's empty right now, so:
+  what should it do, why now, and what would count as done?") —
+  never announce it "has been created". For an
+  `in_progress`, `blocked`, `done`, or `canceled` ticket, note you are revising
+  one already in flight, blocked, or finished — confirm intent if the change
+  looks substantive.
+
+New-title and existing-*draft* tickets both show `Status: draft` with an empty
+body — the kickoff token is what separates them, not the body, so trust it. In
+the rare case the token is missing and you genuinely can't tell, just ask which
+one they meant.
+
+Note: `coga create "<title>"` (the replacement for the deprecated `coga
+draft`) only writes the draft bytes to disk and does **not** run this skill. If
+the human expected the interview, point them at `coga ticket <slug>`.
+
+## Step 2 — Survey what's available
+
+Before suggesting anything, ground yourself in what actually exists:
+
+- Locate the installed package bootstrap root if you need to inspect bundled
+  batteries:
+  `python -c "from importlib.resources import files; print(files('coga.resources').joinpath('templates', 'coga', 'bootstrap'))"`
+- `ls coga/workflows/ <package-bootstrap>/workflows/` (and one level deeper)
+  — known workflows. Repo-local workflows live under `coga/workflows/`;
+  bundled batteries (e.g. `code/with-review`) under package
+  `bootstrap/workflows/`. A local file overrides a bundled one with the same
+  ref.
+- `ls coga/contexts/*/ <package-bootstrap>/contexts/*/` — known contexts
+  (path shape: `<namespace>/<name>/SKILL.md`; reference shape in tickets:
+  `<namespace>/<name>`). If `coga.toml` sets `[layout] contexts`, list that
+  directory instead of `coga/contexts/`; the reference shape is unchanged.
+- `ls coga/skills/*/` — known skills (same path/reference shape).
+- Effective `[agents.*]` after `coga.local.toml` layers over `coga.toml` —
+  known agent types (e.g. `claude`, `codex`).
+
+Don't propose a workflow, context, skill, or agent that isn't in this
+list — create it (step 4) or pick from the list.
+
+## Context and skill selection contract
+
+Treat `contexts:` as prompt payload, not labels. Every context attached to the
+ticket is inlined into the future launch prompt, so broad context choices are a
+token and precision cost.
+
+Rules:
+
+- Select the audience before choosing refs. The user set (`coga/`)
+  supports configuring, launching, authoring, recovering, and understanding
+  refusals in any adopting repo. The Coga-dev set (`coga-dev/`) is local to Coga's own
+  repository and explains building, testing, releasing, or steering Coga;
+  it is not a bundled fallback. Anything required by a shipped surface must
+  be in the user set. The criterion and distribution are owned by
+  `coga/context-layout` ("Context audiences").
+- Attach only context refs whose full body the future launched agent needs to
+  do this task correctly.
+- Do not attach broad orientation contexts by default. Use contexts like
+  `coga/architecture` only when the task directly depends on that knowledge.
+- If the task needs one fact from a broad context, copy that specific fact into
+  the ticket's `## Context` body instead of attaching the whole context.
+- If the same narrow fact recurs across tickets, create or propose a smaller
+  focused context rather than repeatedly attaching a broad one.
+- **Cite, don't attach, a large context the task uses a few facts from.**
+  Name its ref and path in `## Context`, say it is cited rather than attached,
+  name the sections to read, copy the facts the step depends on, and leave the
+  ref off `contexts:`. The threshold, the citation form, and the rule that a
+  cite leaves the same-PR context-update obligation untouched are owned by
+  `coga/knowledge` (`Attach or cite`). Follow its
+  measurement procedure with the candidate refs present, accounting for every
+  planned step. Never write the context's size or token count into the ticket
+  as the justification — it rots.
+- **Do not attach a context the ticket is going to edit.** When the job is to
+  change a context, name its exact path in `## Context` and leave the ref off
+  `contexts:`. Files being edited are read, not composed — the agent opens them
+  first thing regardless — so attaching them pays their full size on *every*
+  step to inline what it already has (one ticket measured ~22.9 KiB per step for
+  two editing targets). This is the case where the naive instinct points the
+  wrong way, because the task is *about* that context.
+- Skills are process knowledge. Select them through the workflow's step
+  `skills:` refs, not by putting skill text into `contexts:`. If a relevant
+  skill exists but no workflow uses it yet, mention the skill ref in the body
+  or propose the workflow change.
+
+The exception is `bootstrap/orient`, which is the orientation ticket itself; it
+intentionally attaches broad coga contexts so an ad-hoc oriented session has
+the operator reference loaded.
+
+## Citing code in `## Context`
+
+Code facts copied into `## Context` are read days or weeks later, against a
+tree that has moved on. Cite them in the form that survives that:
+
+- **Cite module plus symbol, never a bare line number.** Write
+  `git.sync_task_state` or `step_gate.gate_unmet_reason`, not
+  `src/coga/git.py:214`. Line numbers drift within days; one ticket's cold
+  evaluator counted nine stale citations against source ten days newer, one
+  pointing at the wrong module entirely.
+- **When a range genuinely helps, name the symbol first and mark the range
+  as an aid** — `git.sync_task_state` (near line 700 as of this writing) —
+  so a reader hunting through a 7,000-line module still has a starting
+  point, and knows the number is expected to rot.
+- **State the relationship that makes the fact load-bearing, not its
+  coordinates.** "The gate-checked copy and the synced copy are the same
+  `TaskRef`, so they cannot disagree" survives a refactor; "see line 87"
+  does not. The relationship is what the implementer actually needs.
+
+This is the same rule `code/review-design` applies to evaluator findings.
+
+The same holds for a ticket cited in `## Context`: copy the substance this
+task needs, and cite the slug only for provenance. Retro and `coga retire` may
+delete it first. When the source is already gone, recover its body with the
+retired-task recipe in `coga/tickets/discovery` (`Where tasks live and how they are
+named`), which also searches the pre-rename `relay-os/tasks/` tree.
+
+## Step 3 — Interview the human
+
+Cover these, in this order, in plain conversation. Stop pulling once you
+have enough — don't ask every question if the title already implies the
+answer.
+
+1. **Description and done** — what needs to happen, why now, and the smallest
+   observable result that means the ticket is finished, in 2–4 sentences. This
+   becomes the `## Description` body. Write the done criteria as prose inside
+   `## Description` — do **not** add an `## Acceptance Criteria` section.
+   `coga launch` composes only `## Description`, `## Context`, and the
+   blackboard into an agent's prompt, so anything written under another `##`
+   heading never reaches the agent who has to satisfy it. When the workflow
+   has a `code/design` step, that step expands the done sentence into the
+   *Acceptance criteria* checklist under `## Description`; `code/design` is
+   the only author of that checklist, so leave it a sentence here. If the
+   human's answer leaves done implicit, ask one targeted follow-up ("how will
+   you know it worked?") rather than inventing a criterion.
+2. **Context** — what's the agent who picks this up later going to wish they
+   knew? Codebase pointers, gotchas, related tickets, out-of-scope notes.
+   This becomes the `## Context` body.
+3. **Workflow** — which workflow fits? `ls coga/workflows/
+   <package-bootstrap>/workflows/` for the options (e.g. `code/with-review`
+   for a code change shipped via PR — a bundled package `bootstrap/workflows/`
+   battery). Every ticket needs one before activation — a workflow-less ticket
+   can't be activated and `coga validate` errors on a workflow-less active
+   ticket — so pick the lightest workflow that matches the shape of the work,
+   unless the human explicitly picked one. If the task has an irreversible or
+   outward-facing step, pick a workflow with a human gate before it.
+   `code/agent-merge` has no human gate before its merge: pick it only when
+   the human chose it for this ticket or the repo's instructions make it the
+   default for this kind of change. If
+   genuinely nothing fits (e.g. pure concept-capture with no sequence of
+   steps), tell the human: either the repo needs a new workflow, or the idea
+   stays a deliberate workflow-less *draft* (valid, but un-activatable until a
+   workflow is added) until it is ready to be a real ticket.
+4. **Contexts to attach** — which exact context bodies must be included in the
+   future prompt? Keep the list narrow. If only a specific fact is needed, put
+   it in `## Context` instead of attaching the whole context.
+5. **Owner and main agent** — confirm the accountable human; set an agent only
+   if the human chooses one, otherwise leave the draft's agent absent for the
+   configured default at activation.
+6. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
+   entries, the scaffold seeded each one with its default (or `""`) below
+   the `# --- extensions ---` marker. For every declared field that is empty
+   on the draft, ask the human for a value — particularly anything marked
+   `required = true`, since `coga mark active` refuses to activate a ticket
+   with required-but-empty extension values. Fields with declared `values:`
+   (enums) must be set to one of the listed values. Write the chosen value
+   into the frontmatter below the marker, preserving declaration order.
+
+While interviewing, watch for **gaps** — domain knowledge that recurs across
+recent tickets but isn't captured anywhere, or process steps that workflows
+keep needing inline. Surface them in step 4.
+
+For existing `active`, `paused`, or `blocked` tickets, treat this as refinement
+of an approved ticket, not a new ticket. Preserve the current intent unless the
+human explicitly changes it. Do not change `status:`, `step:`, or an existing
+frozen workflow snapshot during ordinary authoring. The one exception is an
+out-of-vocabulary `status:` value: that is malformed metadata, not a lifecycle
+transition. Confirm the intended valid status with the human and repair the
+whole validator-correlated lifecycle shape during this session, because final
+validation rejects malformed state after the interview: remove `step:` when
+repairing to terminal `done` or `canceled`. A repaired live status (`active`,
+`in_progress`, `blocked`, or `paused`) must carry both a **frozen workflow
+snapshot** and a valid current `step:` — never leave its workflow as a bare
+string or its step missing/invalid. If either is malformed, load the selected
+workflow definition, write its frozen `name` plus ordered `steps` (including
+each step's `skills`, `assignee`, and `requires` metadata when present), and
+set `step:` to the intended matching position; use `1 (<first-step-name>)`
+when there is no valid prior position and the human does not select another.
+Do not rewrite an otherwise-valid frozen workflow snapshot.
+
+## Step 4 — Create missing contexts and skills
+
+Choose the owning file using `coga/knowledge` first. A command ticket or
+recurring template owns its capability's contract and procedures; extend that
+owner instead of creating a context merely to make the material attachable.
+
+If the interview reveals a gap that should be a reusable context or skill,
+create the file inline rather than leaving it as a TODO. Bias toward small,
+focused files — under a page each. Use the `_template/` directories as the
+shape:
+
+**Before hand-writing a skill, check whether one can be imported.** When the
+gap is a *skill* (process knowledge), follow `bootstrap/import` first: search
+the external registries for a candidate and decide import / adapt / write. Only
+write a local skill from scratch when nothing external fits. Contexts (domain
+knowledge) are repo-specific — write those locally as below.
+
+- New context: `<contexts-dir>/<namespace>/<name>/SKILL.md` — where
+  `<contexts-dir>` is `coga/contexts/` unless `coga.toml` sets
+  `[layout] contexts` — with
+  frontmatter `name: <namespace>/<name>` and a one-sentence `description:`.
+  Body is domain knowledge — facts, edge cases, what's out of scope. No
+  process.
+- New skill: `coga/skills/<namespace>/<name>/SKILL.md` with the same
+  frontmatter shape. Body is process knowledge — how to do the thing,
+  attached to a workflow step. No domain facts.
+
+Confirm the namespace and name with the human before writing. Once created,
+add the new context to the ticket's `contexts:` list (or, for a new skill,
+note it in the body so the human can wire it into a workflow on review).
+
+If a gap is too speculative to commit to a file, write it to
+the ticket's blackboard region under a **Proposals** section instead — same shape as the
+`bootstrap/dream` skill uses. The human accepts or rejects on review.
+
+## Step 5 — Write the ticket
+
+Edit the exact ticket path from the composed prompt. A new draft normally starts
+as `coga/tasks/<slug>.md`; convert it to directory form only when it needs
+attachments. The base prompt's frontmatter rules apply, with this interview's exception:
+
+- For a draft, set `workflow:` to the workflow name you picked (e.g.
+  `code/with-review`). This is required — a ticket with no workflow can't be
+  activated. Write it as a bare string, and first-launch activation freezes
+  the snapshot and seeds its first step. An existing live ticket keeps its
+  frozen snapshot. If repairing malformed metadata to a live status — or
+  explicitly changing a live ticket's workflow — write the full frozen
+  snapshot and a valid `step:` as described in step 3.
+- Apply the owner, main-agent, context, and extension choices from the interview.
+- If the target file actually has `skill: bootstrap/ticket` in frontmatter
+  from an older seeded flow, remove it. Modern `coga ticket` injects this
+  skill only into the prompt; it should not persist on normal tasks.
+- Preserve the current valid `status:`. You do not activate or start the ticket
+  — the human starts it later with `coga launch`, or queues it without starting
+  via `coga mark active`. If the current value is outside `draft`, `active`,
+  `in_progress`, `blocked`, `paused`, `done`, and `canceled`, repair it to the
+  human-confirmed valid status and make `step:` / `workflow:` consistent with
+  it as described in step 3.
+- Fill the `## Description` and `## Context` body sections from the
+  interview, preserving the inline guide.
+
+Do not call `coga bump`. Guided authoring never advances the target workflow.
+
+## Step 6 — Run the evaluator review
+
+Spawn an independent fresh session to read the filled ticket cold and
+critique it. The evaluator should not have seen your interview — it's
+checking the ticket as a future agent picking it up would.
+
+For Claude Code: use the `Agent` tool with `subagent_type: general-purpose`.
+For Codex or other agents: use whatever sub-session primitive is available
+(e.g. `codex exec`).
+
+Hand the evaluator the path to the ticket and ask it to assess:
+
+- Is the description clear enough that an agent with no prior context could
+  start work?
+- Is it clear what would count as done — could a reviewer tell whether the
+  finished work satisfies the ticket?
+- Does the chosen workflow fit the shape of the work? Any obvious mismatch?
+- Are the attached contexts relevant? Anything important missing?
+- Are any attached contexts broad enough that the needed fact should have been
+  copied into `## Context` instead?
+- Does any cited context (named in `## Context`, off `contexts:`) need to be
+  attached after all because any planned step depends on rules spread across
+  it, and does any cite quote a size or token count as its justification?
+- Is the scope reasonable, or does it bundle multiple tickets' worth of
+  work? If so, recommend a split into sibling tickets in a plain directory,
+  never a parent ticket (`coga/tickets/discovery`). The evaluator only recommends; it
+  does not create tickets. Apply an agreed split yourself, after the human
+  confirms it, with `coga create "<group>/<title>"` and the disposal
+  sequence in `coga/tickets/discovery`.
+- Any assumptions that should be questioned before launch?
+
+Also hand the evaluator the composed prompt's size breakdown, which the
+ticket file alone cannot show — the ticket lists context *refs*, and how
+many tokens each one actually costs only exists after composition. Follow
+the measurement procedure in `coga/knowledge` → `Attach or cite`, including
+its checkout precautions or read-only alternative. The CLI form is:
+
+```
+coga launch <slug> --prompt-report
+```
+
+This prints one small table (layer, ref, bytes, approx tokens) and exits
+without launching — it is not the prompt text, so reading it is cheap. Ask
+the evaluator to flag any layer over roughly 40% of the total as a
+concrete trim candidate.
+
+Judge the layers *proportionally*, not against a fixed size. `launch`
+already prints its own automatic warning when the blackboard alone exceeds
+32 KiB (`BLACKBOARD_WARN_BYTES`), so anything it catches needs no help from
+the evaluator — but an absolute threshold misses proportional bloat. A real
+example: a 16.9 KiB blackboard is only half that threshold and raises no
+warning, yet it was 4,314 of 7,185 tokens — 60% of the entire composed
+prompt, paid on *every* launch of that task. That is the gap this check
+exists to close.
+
+Write the evaluator's response to the ticket's blackboard region under a top-level
+**## Evaluator review** section, verbatim. Don't summarize — the human reads
+it directly.
+
+## Step 7 — Show the summary and ask the human to validate
+
+Before exiting, print a compact summary the human can sanity-check at a
+glance. The point is to surface the choices that are easy to get wrong and
+hard to spot once the ticket has launched — workflow shape and the skills each
+step will run.
+
+Read `coga/workflows/<name>.md` (or
+package `bootstrap/workflows/<name>.md` for a bundled battery) for the
+workflow you picked and pull its step list (each step's `name:` and
+`skills:`). Then print:
+
+```
+<slug> — <title>
+
+Workflow: <name>
+  1. <step-name>  →  <skill-ref>, <skill-ref>
+  2. <step-name>  →  <skill-ref>
+  3. <step-name>  →  (human)
+
+Contexts: <ref>, <ref>          # or "none"
+Skills (ticket-level): <ref>    # omit line if empty
+Owner: <human>
+Main agent: <chosen agent, or default at activation>
+
+Summary
+  <2–3 sentences in your own words: what this ticket is, what done looks
+  like, anything you flagged as a gap or assumption.>
+
+Durable review notes: <1-2 lines with durable evaluator findings, or "none">
+```
+
+Then ask the human directly: "Does this look right, or anything to change
+before you launch?" Wait for their reply. If they redirect — swap the
+workflow, drop a context, reword the description, fix an extension field —
+make the edit and reprint the relevant part of the summary. Only move on
+once they explicitly confirm.
+
+After confirmation, do one final cleanup pass before printing the closing line:
+
+1. Re-read the blackboard authoring sections: `## Evaluator review`,
+   `## Proposals`, and `## Ticket authoring notes` if present.
+2. Fold the durable substance into the ticket body, usually `## Context` or the
+   section where a future implementer will need it. Preserve concrete review
+   findings, risks, constraints, and out-of-scope decisions; do not dump the
+   whole review verbatim.
+3. If the ticket is still `status: draft`, preserve its `## Superseded designs`
+   section, including every dated entry, and reset the rest of the blackboard
+   to the stock placeholder for this ticket title. Follow `coga/blackboard`,
+   "Superseded designs", when archiving a pivot: keep retained headings nested
+   inside the dated entry.
+   Launch supplies only an archive pointer, so keep any rationale needed for
+   current work in `## Description` or `## Context` during this cleanup.
+   Do not leave empty authoring headings behind.
+4. If editing an existing non-draft ticket
+   (`active`, `in_progress`, `blocked`, `paused`, `done`, or `canceled`),
+   preserve unrelated blackboard content such as blockers, dev notes,
+   production notes, and handoff notes; remove only the authoring
+   sections you used.
+5. Re-read the ticket and verify current requirements live under `## Description`
+   or `## Context`, superseded designs remain in their blackboard section,
+   and the blackboard cleanup matches the ticket status.
+
+Once that cleanup is complete, print one closing line. For a draft:
+
+```
+Filled <slug>. Run `coga launch <slug>` when ready. Use `coga mark active <slug>` only to approve it without launching.
+```
+
+For an already-active ticket:
+
+```
+Updated <slug>. Run `coga launch <slug>` when ready to start work.
+```
+
+Optionally `coga slack --task <slug> --message "<short>"` if the ticket
+warrants a heads-up to the channel (a new context was created, the workflow
+changed, etc.). Skip the Slack post for routine fill-ins.
+
+Then exit.
+
+ succeeded in 24868ms:
+/home/n/.local/bin/coga
+Android
+AppImages
+Code
+Desktop
+Documents
+Downloads
+Dropbox
+IdeaSnapshots
+Music
+Pictures
+Public
+Templates
+Videos
+bin
+multiply-e17.iwebGh
+snap
+temp
+whisper.cpp
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_validate_authored_task_re0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_validate_authored_task_re1/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish1/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_skips_d0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_re_reso0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_discove0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish2/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish3/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support1/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support2/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support3/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support4/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support5/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support6/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_support7/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_keeps_e0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_keeps_e1/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_refuses0/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_refuses1/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_refuses2/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish4/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish5/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish6/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish7/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_finalize_authored_publish8/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_installed_wheel_upgrade_p1/installed/coga/resources/templates/coga/bootstrap/ticket/ticket.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_installed_wheel_upgrade_p1/installed/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/.codex/coga-current-direction-tests.bwtAo3/pytest-of-n/pytest-0/test_installed_shim_launch_com1/installed/coga/resources/templates/coga/bootstrap/ticket/ticket.md
+
+codex
+1. The effective source is the bundled [bootstrap/ticket/SKILL.md](/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md). This invocation is an **authoring** session using `bootstrap/ticket`, and no repository override exists. The kickoff `Begin (editing existing ticket)` selects its existing-ticket greeting; the paused status does not select the skill.
+
+2. For this repository, create `coga/skills/bootstrap/ticket/SKILL.md` as a local override and customize **Step 1** there. That skill owns the interview greeting, and the local override takes precedence over the bundled copy.
+
+No files changed.
+tokens used
+18,846

@@ -1,58 +1,58 @@
 [
  {
   "case": "author-paused",
-  "commit": "79323a8dad5d9917646388247bd4df623a95b78a",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "da2a8573325d4f8cce7d22a1234c30169c5fe99c",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "workflow-inline",
-  "commit": "fc10310eb94af989396fb0d287a8562785ad90ac",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "8cb0367c9994a089bc344ac511d90d15406daa24",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "workflow-skilled",
-  "commit": "ebc16ed20395a82ae9d8b7176a683adcb57c7ec6",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "05a805c1a0d359c3599c80ad09376e8e62e7472f",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "input-attended",
-  "commit": "f1c3e8b95050a44e5f9d4eb3cbbea358e2d6a66b",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "271a10c1abc47756ecd96e516187646a5a24a542",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "input-megalaunch",
-  "commit": "68daf3c4d16c9e458194a12d9d25c232136066eb",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "c209479e012f45d45bea09b02206b932dd7be4bc",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "owner-assist",
-  "commit": "737c4223a6a4961f22a0cc813abf230c88efdcb3",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "123114dd215e37f9d2b6cc90d5f98b24da43fbd3",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "script-handoff",
-  "commit": "38894504531a1e14a315802db1b3490aab8a63ad",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "0df783d0909e49c7aca3164bf5103e25acb20d76",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "stateless-recurring",
-  "commit": "dcb5ad386e6f3533052d6f613a39a3a2483fc3dc",
-  "config_sha256": "975b6633565ba13b4ec0b7e54c3fac18aec090b0f985010ae89cf2622be67f94"
+  "commit": "d52c06c568d2594acb7abcee319564cab1a0b600",
+  "config_sha256": "f346797739567de40383e86cfae3c9035eb815063d6b287daea9da3d18181e63"
  },
  {
   "case": "autofix-ok",
-  "commit": "93cfec75070e1eccf06fbc3fee72bd069f33a042",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "8ed3a4d360a44f21423f425f97c56ca5fba06b09",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "autofix-duplicate",
-  "commit": "69410e33a4b1d2c9dee47f9c502be784e33d602c",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "0d783029b57ada191bb533de9c8f1f49d6fca213",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "autofix-problem",
-  "commit": "77c2722d5102324eef0d4ee649058a5593cce4a9",
-  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+  "commit": "b2cacbfe4a87fd972e3ee6c83806b376e64513d8",
+  "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b"
  },
  {
   "case": "deterministic-control",

@@ -1,0 +1,5 @@
+1. The effective source is the bundled [bootstrap/ticket/SKILL.md](/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md). This invocation is an **authoring** session using `bootstrap/ticket`, and no repository override exists. The kickoff `Begin (editing existing ticket)` selects its existing-ticket greeting; the paused status does not select the skill.
+
+2. For this repository, create `coga/skills/bootstrap/ticket/SKILL.md` as a local override and customize **Step 1** there. That skill owns the interview greeting, and the local override takes precedence over the bundled copy.
+
+No files changed.

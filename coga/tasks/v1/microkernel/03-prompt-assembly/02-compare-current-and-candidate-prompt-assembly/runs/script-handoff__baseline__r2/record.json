@@ -1,0 +1,232 @@
+{
+ "case": "script-handoff",
+ "arm": "baseline",
+ "rep": 2,
+ "invocation": {
+  "operation": "execute",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "script-handoff",
+  "launch_context": "recurring",
+  "include_blocker_preamble": true,
+  "completion": "one workflow transition or terminal block",
+  "owner_assist": false,
+  "checkout": null,
+  "script_result": "exit 0; same step in_progress; fresh ticket reloaded",
+  "kickoff": null,
+  "discussion": false,
+  "launch_arguments": [],
+  "fixture_ticket": "fixtures/cases/script-handoff/post-script/coga/tasks/script-handoff/ticket.md",
+  "transport": "interactive argv, PTY",
+  "invocation_source": "recurring_runner dispatch"
+ },
+ "start_utc": "2026-11-13T21:13:08.119512+00:00",
+ "script_phase": "ScriptPhaseResult(exit_code=0, ticket=Ticket(frontmatter={'title': 'script-handoff', 'status': 'in_progress', 'owner': 'trial-owner', 'agent': 'claude', 'contexts': ['trial/format'], 'skills': ['trial/report'], 'workflow': {'name': 'trial/inline', 'steps': [{'name': 'write', 'assignee': 'agent'}, {'name': 'judge', 'assignee': 'owner'}]}, 'step': '1 (write)'}, body='## Description\\n\\nRead sibling `prepared.txt` and the script note, then write `ready` to sibling `result.txt`, verify and finish this step. Do not rerun ticket.py.\\n\\n## Context\\n\\nUse only the isolated trial repository.\\n\\n<!-- coga:blackboard -->\\n\\n## Notes\\n\\nScript phase succeeded once; prepared.txt contains prepared. Agent work remains in this step.\\n'), ran=True, cfg=Config(repo_root=PosixPath('/tmp/coga-prompt-trial-667707cc/coga'), current_user='trial-owner', default_status='draft', agents={'claude': AgentType(name='claude', cli='claude', file='CLAUDE.md', mode='local', name_flag='', session_id_flag='', launch_args='', discussion='', analyze='', peer=None), 'codex': AgentType(name='codex', cli='codex', file='AGENTS.md', mode='local', name_flag='', session_id_flag='', launch_args='--no-daemon -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -a never -c \\'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}\\' -c permissions.trial.network.enabled=true -c \\'default_permissions=\"trial\"\\' -c \\'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"\\'', discussion='-c developer_instructions={prompt}', analyze='-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -c \\'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}\\' -c permissions.trial.network.enabled=true -c \\'default_permissions=\"trial\"\\' -c \\'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"\\' exec {prompt}', peer=None)}, slack_webhook=None, slack_enabled=False, slack_important_webhook=None, notification_channels=('slack',), slack_gifs={}, slack_users={}, aliases={}, extensions={}, ticket_fields={}, telemetry_enabled=False, git_enabled=True, git_remote='origin', git_control_branch='main', git_worktrees_ticket_owned=False, launch_idle_timeout=None, launch_idle_timeout_present=False, launch_max_session=None, recurring_idle_days=14, log_retention_days=30, authoring_agent='', owner='', contexts_dir=None, upstream_checkouts=(), autofix_agent=None, autofix_contexts=(), default_agent_name=None), ref=TaskRef(slug='script-handoff', path=PosixPath('/tmp/coga-prompt-trial-667707cc/coga/tasks/script-handoff'), directory=None, file_form=False))",
+ "post_script_matches": {
+  "ticket.md": true,
+  "prepared.txt": true
+ },
+ "pre": {
+  "head": "7071fccb3ce6a014df6c837c9890ced12e8d1845",
+  "branch": "main",
+  "status": " M coga/log.md\n M coga/tasks/script-handoff/ticket.md\n?? coga/tasks/script-handoff/prepared.txt\n",
+  "origin_refs": "refs/heads/main 7071fccb3ce6a014df6c837c9890ced12e8d1845\nrefs/heads/trial/assist 0df783d0909e49c7aca3164bf5103e25acb20d76\n",
+  "local_refs": "refs/heads/main 7071fccb3ce6a014df6c837c9890ced12e8d1845\nrefs/heads/trial/assist 0df783d0909e49c7aca3164bf5103e25acb20d76\nrefs/remotes/origin/main 7071fccb3ce6a014df6c837c9890ced12e8d1845\nrefs/remotes/origin/trial/assist 0df783d0909e49c7aca3164bf5103e25acb20d76\nrefs/worktree/coga/published f237e2b7a704bd0892ae23e5807c2ed000e6391d\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "9bb0172c8ba086f46b113fc5ff0e01bb7b224e44dac4fd237063c68b1e583b7f",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/script-handoff/prepared.txt": "cb064c1339ffa3d7777bcb0459de3dceddb9146156dde58065a4ac826b029aa7",
+   "coga/tasks/script-handoff/ticket.md": "ce5183f00df64f44c1a8585c5899bb26682109c69baf9431579fb23bd03f1249",
+   "coga/tasks/script-handoff/ticket.py": "1d7a5e162d3dff873af3e18f262949d70f821032aabfb5ff94667fb4154c58dc",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "9fe967acfc33ff49d5704e5b4d97dd53f62a988851f56637bbc2f6b171921a85"
+ },
+ "live_guard_pre": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+ "spawn_kwargs": {
+  "max_session": 720.0,
+  "launch_context": "recurring",
+  "include_blocker_preamble": true,
+  "commit_log": true,
+  "actor": "human:trial-owner",
+  "log_message": "trial adapter launch (script-handoff)",
+  "name": "script-handoff"
+ },
+ "argv": [
+  "codex",
+  "--no-daemon",
+  "-m",
+  "gpt-6.1-sol",
+  "-c",
+  "model_reasoning_effort=medium",
+  "-a",
+  "never",
+  "-c",
+  "permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}",
+  "-c",
+  "permissions.trial.network.enabled=true",
+  "-c",
+  "default_permissions=\"trial\"",
+  "-c",
+  "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
+  "<prompt sha256=d13cb2819a6e8da864f55f019b8c6da55b32eafb81e037be1211c9b30e324f94 bytes=10233>"
+ ],
+ "env_keys": [
+  "COGA_COGA_OS_ROOT",
+  "COGA_EXPECTED_AGENT",
+  "COGA_EXPECTED_STEP",
+  "COGA_EXPECTED_TASK",
+  "COGA_REPO_ROOT",
+  "COGA_SUPERVISED",
+  "COGA_TASK_BLACKBOARD",
+  "COGA_TASK_DIR",
+  "COGA_TASK_SLUG",
+  "COGA_TASK_STEP",
+  "COGA_TASK_TICKET",
+  "COLORTERM",
+  "HOME",
+  "LANG",
+  "LOGNAME",
+  "PATH",
+  "SHELL",
+  "TERM",
+  "USER"
+ ],
+ "result": {
+  "exit_code": 0,
+  "termination_kind": "done",
+  "termination_reason": "sentinel-file (COGA_DONE_SENTINEL touched)",
+  "done_signalled": true
+ },
+ "wall_seconds": 54.6,
+ "end_utc": "2026-11-13T21:14:02.890828+00:00",
+ "delivered": {
+  "bytes": 10233,
+  "sha256": "d13cb2819a6e8da864f55f019b8c6da55b32eafb81e037be1211c9b30e324f94",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "1700b63b0201c4b06f6b3fbf20ea67eb868b2e80",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main 1700b63b0201c4b06f6b3fbf20ea67eb868b2e80\nrefs/heads/trial/assist 0df783d0909e49c7aca3164bf5103e25acb20d76\n",
+  "local_refs": "refs/heads/main 1700b63b0201c4b06f6b3fbf20ea67eb868b2e80\nrefs/heads/trial/assist 0df783d0909e49c7aca3164bf5103e25acb20d76\nrefs/remotes/origin/main 1700b63b0201c4b06f6b3fbf20ea67eb868b2e80\nrefs/remotes/origin/trial/assist 0df783d0909e49c7aca3164bf5103e25acb20d76\nrefs/worktree/coga/published 344a76e24bd7d13c1a929d7586639bbeeff1cc2c\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "4d3d73f273411098dbbbb82cb9d0d76a1fd61a67c3baa4f198199b3cb9a9031b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/script-handoff/prepared.txt": "cb064c1339ffa3d7777bcb0459de3dceddb9146156dde58065a4ac826b029aa7",
+   "coga/tasks/script-handoff/result.txt": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+   "coga/tasks/script-handoff/ticket.md": "d72b629ca24b7e05fe24b0912eb103a1ac56b68af94f90502ce1d5d3e2d9afc2",
+   "coga/tasks/script-handoff/ticket.py": "1d7a5e162d3dff873af3e18f262949d70f821032aabfb5ff94667fb4154c58dc",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "9762900e53b487efc6f2cd1ad79fe4d7336930abed8347ed4400b61b541a3e79",
+  "diff": "diff --git a/coga/log.md b/coga/log.md\nindex b4d7888..440ae4d 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1,2 +1,6 @@\n # Trial lifecycle log\n 2026-11-13 13:13 v1 [script-handoff] [system] launched as a script (ticket.py)\n+2026-11-13 13:13 v1 [script-handoff] [system] script exited with code 0\n+2026-11-13 13:13 v1 [script-handoff] [human:trial-owner] trial adapter launch (script-handoff)\n+2026-11-13 13:14 v1 [script-handoff] [agent:codex] advanced to step 2 (judge) \u2192 trial-owner\n+2026-11-13 13:14 v1 [script-handoff] [system] {\"agent\":\"codex\",\"agent_turns\":3,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":203776,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":54.407761,\"ended_at\":\"2026-11-13T21:14:02.717516Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":41620,\"model\":\"gpt-6.1-sol\",\"outcome\":\"`result.txt` contains exactly `ready` followed by one newline, verified by reading its bytes back. The blackboard now records the evidence, and local origin has no intervening changes. I\u2019ll advance the write step to owner judgment.\",\"outcome_status\":\"completed\",\"output_tokens\":1246,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1d6c1-d3d0-7bd1-a600-1bc3222ac5ee\",\"slug\":\"script-handoff\",\"started_at\":\"2026-11-13T21:13:08.309755Z\",\"step\":\"write\",\"title\":\"script-handoff\",\"ts\":\"2026-11-13T21:14:02.717516Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\ndiff --git a/coga/tasks/script-handoff/prepared.txt b/coga/tasks/script-handoff/prepared.txt\nnew file mode 100644\nindex 0000000..004f296\n--- /dev/null\n+++ b/coga/tasks/script-handoff/prepared.txt\n@@ -0,0 +1 @@\n+prepared\ndiff --git a/coga/tasks/script-handoff/result.txt b/coga/tasks/script-handoff/result.txt\nnew file mode 100644\nindex 0000000..395527d\n--- /dev/null\n+++ b/coga/tasks/script-handoff/result.txt\n@@ -0,0 +1 @@\n+ready\ndiff --git a/coga/tasks/script-handoff/ticket.md b/coga/tasks/script-handoff/ticket.md\nindex 2b1329e..2ea2dc3 100644\n--- a/coga/tasks/script-handoff/ticket.md\n+++ b/coga/tasks/script-handoff/ticket.md\n@@ -14,7 +14,7 @@ workflow:\n     assignee: agent\n   - name: judge\n     assignee: owner\n-step: 1 (write)\n+step: 2 (judge)\n ---\n \n ## Description\n@@ -29,4 +29,10 @@ Use only the isolated trial repository.\n \n ## Notes\n \n-No work performed yet.\n+Script phase succeeded once; prepared.txt contains prepared. Agent work remains in this step.\n+\n+## Write step evidence\n+\n+Read `prepared.txt` (`prepared\\n`) and the script note; did not rerun `ticket.py`.\n+Wrote `coga/tasks/script-handoff/result.txt` and read it back: exactly `ready\\n` (one trailing newline).\n+Local origin/main reconciled; write step complete and ready for owner judgment.\n",
+  "log": "1700b63b0201c4b06f6b3fbf20ea67eb868b2e80 Log: script-handoff\n1d847620ca069d228fc872d3a193ae978f9736f3 Ticket: script-handoff \u2014 step 2 (judge)\n23c1049de71ca596121000ac4014f58a1f332800 Publish coga state\ne67645db6862dac057b56f5278081232ff683067 Log: script-handoff\n",
+  "origin_log": "1700b63b0201c4b06f6b3fbf20ea67eb868b2e80 Log: script-handoff\n1d847620ca069d228fc872d3a193ae978f9736f3 Ticket: script-handoff \u2014 step 2 (judge)\n23c1049de71ca596121000ac4014f58a1f332800 Publish coga state\ne67645db6862dac057b56f5278081232ff683067 Log: script-handoff\n7071fccb3ce6a014df6c837c9890ced12e8d1845 Log: script-handoff\n0df783d0909e49c7aca3164bf5103e25acb20d76 Trial fixture: script-handoff\n",
+  "tickets": {
+   "coga/tasks/script-handoff/ticket.md": {
+    "title": "script-handoff",
+    "status": "in_progress",
+    "owner": "trial-owner",
+    "agent": "claude",
+    "contexts": [
+     "trial/format"
+    ],
+    "skills": [
+     "trial/report"
+    ],
+    "workflow": {
+     "name": "trial/inline",
+     "steps": [
+      {
+       "name": "write",
+       "assignee": "agent"
+      },
+      {
+       "name": "judge",
+       "assignee": "owner"
+      }
+     ]
+    },
+    "step": "2 (judge)"
+   }
+  }
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T13-13-09-01a1d6c1-d3d0-7bd1-a600-1bc3222ac5ee.jsonl"
+ ],
+ "live_guard_post": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-prompt-trial-667707cc/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-prompt-trial-667707cc/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ]
+}

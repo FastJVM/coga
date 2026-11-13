@@ -1,0 +1,6 @@
+# Trial lifecycle log
+2026-11-13 13:13 v1 [script-handoff] [system] launched as a script (ticket.py)
+2026-11-13 13:13 v1 [script-handoff] [system] script exited with code 0
+2026-11-13 13:13 v1 [script-handoff] [human:trial-owner] trial adapter launch (script-handoff)
+2026-11-13 13:14 v1 [script-handoff] [agent:codex] advanced to step 2 (judge) → trial-owner
+2026-11-13 13:14 v1 [script-handoff] [system] {"agent":"codex","agent_turns":3,"cache_creation_input_tokens":null,"cache_read_input_tokens":203776,"cli":"codex","content_status":"ok","elapsed_seconds":54.407761,"ended_at":"2026-11-13T21:14:02.717516Z","exit_code":0,"exit_kind":"done","human_turns":0,"input_tokens":41620,"model":"gpt-6.1-sol","outcome":"`result.txt` contains exactly `ready` followed by one newline, verified by reading its bytes back. The blackboard now records the evidence, and local origin has no intervening changes. I’ll advance the write step to owner judgment.","outcome_status":"completed","output_tokens":1246,"provider":"openai","request":null,"schema":2,"session_id":"01a1d6c1-d3d0-7bd1-a600-1bc3222ac5ee","slug":"script-handoff","started_at":"2026-11-13T21:13:08.309755Z","step":"write","title":"script-handoff","ts":"2026-11-13T21:14:02.717516Z","usage_reason":null,"usage_status":"ok"}

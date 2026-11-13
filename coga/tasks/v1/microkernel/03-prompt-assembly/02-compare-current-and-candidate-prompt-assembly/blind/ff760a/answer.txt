@@ -1,0 +1,5 @@
+1. The effective source is [coga/skills/trial/write/SKILL.md](/tmp/coga-prompt-trial-667707cc/coga/skills/trial/write/SKILL.md). The ticket’s current step, `1 (write)`, selects `trial/write` through its step-level `skills` list; the workflow’s inline `write` prose is therefore dormant.
+
+2. Edit that same skill file to customize how the step writes its result. It owns the active instructions (`ready` in sibling `result.txt`, followed by verification). Editing the inline prose in `coga/workflows/trial/skilled.md` would not affect this skilled step.
+
+No files changed.

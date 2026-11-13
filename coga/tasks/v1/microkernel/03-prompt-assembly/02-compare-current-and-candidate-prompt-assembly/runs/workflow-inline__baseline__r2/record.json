@@ -1,0 +1,227 @@
+{
+ "case": "workflow-inline",
+ "arm": "baseline",
+ "rep": 2,
+ "invocation": {
+  "operation": "execute",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "workflow-inline",
+  "launch_context": "attended",
+  "include_blocker_preamble": true,
+  "completion": "one workflow transition or terminal block",
+  "owner_assist": false,
+  "checkout": {
+   "summary": "Launch observed clean main at the fixture initial revision; routine trial-state work is authorized here.",
+   "return_owner": "The launcher returns this checkout after the session; do not return it yourself."
+  },
+  "script_result": null,
+  "kickoff": null,
+  "discussion": false,
+  "launch_arguments": [],
+  "fixture_ticket": "fixtures/cases/workflow-inline/coga/tasks/workflow-inline/ticket.md",
+  "transport": "interactive argv, PTY",
+  "invocation_source": "launch current-step invocation"
+ },
+ "start_utc": "2026-11-13T20:58:02.693741+00:00",
+ "pre": {
+  "head": "8cb0367c9994a089bc344ac511d90d15406daa24",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main 8cb0367c9994a089bc344ac511d90d15406daa24\nrefs/heads/trial/assist 8cb0367c9994a089bc344ac511d90d15406daa24\n",
+  "local_refs": "refs/heads/main 8cb0367c9994a089bc344ac511d90d15406daa24\nrefs/heads/trial/assist 8cb0367c9994a089bc344ac511d90d15406daa24\nrefs/remotes/origin/main 8cb0367c9994a089bc344ac511d90d15406daa24\nrefs/remotes/origin/trial/assist 8cb0367c9994a089bc344ac511d90d15406daa24\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/workflow-inline/ticket.md": "3fd20d34a8609a1d5c8b42a6650185c8a210a6c5cecb941c07c00fe8856bb662",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "341c405daae1a14e1fde7432bd30f6c05ab09d84888b0efa64c7da5830b2db39"
+ },
+ "live_guard_pre": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+ "spawn_kwargs": {
+  "max_session": 720.0,
+  "launch_context": "attended",
+  "include_blocker_preamble": true,
+  "commit_log": true,
+  "actor": "human:trial-owner",
+  "log_message": "trial adapter launch (workflow-inline)",
+  "name": "workflow-inline"
+ },
+ "argv": [
+  "codex",
+  "--no-daemon",
+  "-m",
+  "gpt-6.1-sol",
+  "-c",
+  "model_reasoning_effort=medium",
+  "-a",
+  "never",
+  "-c",
+  "permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}",
+  "-c",
+  "permissions.trial.network.enabled=true",
+  "-c",
+  "default_permissions=\"trial\"",
+  "-c",
+  "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
+  "<prompt sha256=3b21d44435edf52e8c3b826684fd30f4bfadd612bcd9b08cc367f3a84f85955f bytes=9972>"
+ ],
+ "env_keys": [
+  "COGA_COGA_OS_ROOT",
+  "COGA_EXPECTED_AGENT",
+  "COGA_EXPECTED_STEP",
+  "COGA_EXPECTED_TASK",
+  "COGA_LAUNCH_RETURNS_CHECKOUT",
+  "COGA_REPO_ROOT",
+  "COGA_SUPERVISED",
+  "COGA_TASK_BLACKBOARD",
+  "COGA_TASK_DIR",
+  "COGA_TASK_SLUG",
+  "COGA_TASK_STEP",
+  "COGA_TASK_TICKET",
+  "COLORTERM",
+  "HOME",
+  "LANG",
+  "LOGNAME",
+  "PATH",
+  "SHELL",
+  "TERM",
+  "USER"
+ ],
+ "result": {
+  "exit_code": 0,
+  "termination_kind": "done",
+  "termination_reason": "sentinel-file (COGA_DONE_SENTINEL touched)",
+  "done_signalled": true
+ },
+ "wall_seconds": 56.4,
+ "end_utc": "2026-11-13T20:58:59.171479+00:00",
+ "delivered": {
+  "bytes": 9972,
+  "sha256": "3b21d44435edf52e8c3b826684fd30f4bfadd612bcd9b08cc367f3a84f85955f",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "32760edec501cc3d893de4fc2c1198b02992e9ee",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main 32760edec501cc3d893de4fc2c1198b02992e9ee\nrefs/heads/trial/assist 8cb0367c9994a089bc344ac511d90d15406daa24\n",
+  "local_refs": "refs/heads/main 32760edec501cc3d893de4fc2c1198b02992e9ee\nrefs/heads/trial/assist 8cb0367c9994a089bc344ac511d90d15406daa24\nrefs/remotes/origin/main 32760edec501cc3d893de4fc2c1198b02992e9ee\nrefs/remotes/origin/trial/assist 8cb0367c9994a089bc344ac511d90d15406daa24\nrefs/worktree/coga/published 8d34a10d44e5d931e8743c8d91ff2ef61a171009\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "17884f56106a54eb52081f555ccd9283d143895757720975219dd568e72466d7",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/workflow-inline/result.txt": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+   "coga/tasks/workflow-inline/ticket.md": "3bd280fe3f42d00f85936531e309ea01e2c146747a0f6fafaa7155238593a727",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "2b72ea8c3761914b097411fd44d1adc937cc036f8d8cdae3844361df57b5ae8b",
+  "diff": "diff --git a/coga/log.md b/coga/log.md\nindex bf18b2a..a17273b 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1 +1,4 @@\n # Trial lifecycle log\n+2026-11-13 12:58 v1 [workflow-inline] [human:trial-owner] trial adapter launch (workflow-inline)\n+2026-11-13 12:58 v1 [workflow-inline] [agent:codex] advanced to step 2 (judge) \u2192 trial-owner\n+2026-11-13 12:58 v1 [workflow-inline] [system] {\"agent\":\"codex\",\"agent_turns\":3,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":254592,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":56.265947,\"ended_at\":\"2026-11-13T20:58:59.015074Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":28699,\"model\":\"gpt-6.1-sol\",\"outcome\":\"`result.txt` contains exactly `ready` followed by one newline. The blackboard records the verification, and local origin is unchanged. I\u2019ll now bump once to hand off to the owner-held `judge` step.\",\"outcome_status\":\"completed\",\"output_tokens\":1217,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1d6b4-02bf-7141-b4d9-36e1f49b370b\",\"slug\":\"workflow-inline\",\"started_at\":\"2026-11-13T20:58:02.749127Z\",\"step\":\"write\",\"title\":\"workflow-inline\",\"ts\":\"2026-11-13T20:58:59.015074Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\ndiff --git a/coga/tasks/workflow-inline/result.txt b/coga/tasks/workflow-inline/result.txt\nnew file mode 100644\nindex 0000000..395527d\n--- /dev/null\n+++ b/coga/tasks/workflow-inline/result.txt\n@@ -0,0 +1 @@\n+ready\ndiff --git a/coga/tasks/workflow-inline/ticket.md b/coga/tasks/workflow-inline/ticket.md\nindex 8136bed..ff1688a 100644\n--- a/coga/tasks/workflow-inline/ticket.md\n+++ b/coga/tasks/workflow-inline/ticket.md\n@@ -14,7 +14,7 @@ workflow:\n     assignee: agent\n   - name: judge\n     assignee: owner\n-step: 1 (write)\n+step: 2 (judge)\n ---\n \n ## Description\n@@ -29,4 +29,8 @@ Use only the isolated trial repository.\n \n ## Notes\n \n-No work performed yet.\n+Wrote `coga/tasks/workflow-inline/result.txt` and read it back: exactly `ready` followed by one newline (`ready\\n`, 6 bytes). Verification passed.\n+\n+Checkout was clean on `main`; current control ticket confirmed `in_progress`, step 1 (`write`). No recorded feature branch or PR. Fetched local origin before editing and again before handoff; `origin/main` matched HEAD both times. `git diff --check` passed.\n+\n+Handoff: write step complete; owner-held `judge` remains.\n",
+  "log": "32760edec501cc3d893de4fc2c1198b02992e9ee Log: workflow-inline\nb5aca14a09e3cfc3af96e2486cc78d319186712f Ticket: workflow-inline \u2014 step 2 (judge)\n5725371fec170934363d42ed87447517148e6191 Log: workflow-inline\n",
+  "origin_log": "32760edec501cc3d893de4fc2c1198b02992e9ee Log: workflow-inline\nb5aca14a09e3cfc3af96e2486cc78d319186712f Ticket: workflow-inline \u2014 step 2 (judge)\n5725371fec170934363d42ed87447517148e6191 Log: workflow-inline\n8cb0367c9994a089bc344ac511d90d15406daa24 Trial fixture: workflow-inline\n",
+  "tickets": {
+   "coga/tasks/workflow-inline/ticket.md": {
+    "title": "workflow-inline",
+    "status": "in_progress",
+    "owner": "trial-owner",
+    "agent": "claude",
+    "contexts": [
+     "trial/format"
+    ],
+    "skills": [
+     "trial/report"
+    ],
+    "workflow": {
+     "name": "trial/inline",
+     "steps": [
+      {
+       "name": "write",
+       "assignee": "agent"
+      },
+      {
+       "name": "judge",
+       "assignee": "owner"
+      }
+     ]
+    },
+    "step": "2 (judge)"
+   }
+  }
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T12-58-03-01a1d6b4-02bf-7141-b4d9-36e1f49b370b.jsonl"
+ ],
+ "live_guard_post": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-prompt-trial-667707cc/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-prompt-trial-667707cc/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ]
+}

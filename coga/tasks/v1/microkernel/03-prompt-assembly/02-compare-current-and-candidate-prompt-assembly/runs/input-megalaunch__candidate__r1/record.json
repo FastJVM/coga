@@ -1,0 +1,222 @@
+{
+ "case": "input-megalaunch",
+ "arm": "candidate",
+ "rep": 1,
+ "invocation": {
+  "operation": "execute",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "input-megalaunch",
+  "launch_context": "megalaunch",
+  "include_blocker_preamble": true,
+  "completion": "one workflow transition or terminal block",
+  "owner_assist": false,
+  "checkout": null,
+  "script_result": null,
+  "kickoff": null,
+  "discussion": false,
+  "launch_arguments": [],
+  "fixture_ticket": "fixtures/cases/input-megalaunch/coga/tasks/input-megalaunch/ticket.md",
+  "transport": "interactive argv, PTY",
+  "invocation_source": "megalaunch prepared agent launch"
+ },
+ "start_utc": "2026-11-13T20:41:16.107824+00:00",
+ "pre": {
+  "head": "c209479e012f45d45bea09b02206b932dd7be4bc",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main c209479e012f45d45bea09b02206b932dd7be4bc\nrefs/heads/trial/assist c209479e012f45d45bea09b02206b932dd7be4bc\n",
+  "local_refs": "refs/heads/main c209479e012f45d45bea09b02206b932dd7be4bc\nrefs/heads/trial/assist c209479e012f45d45bea09b02206b932dd7be4bc\nrefs/remotes/origin/main c209479e012f45d45bea09b02206b932dd7be4bc\nrefs/remotes/origin/trial/assist c209479e012f45d45bea09b02206b932dd7be4bc\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/input-megalaunch/ticket.md": "63be8dd15ad74f3b67650697c2918f42674ca07855f8a1c6ee6cd81925ca6ee8",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "0ca9f19f926b28f6a63815584b1792a88aca62e75c6908f34580a74471b219c4"
+ },
+ "live_guard_pre": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "config_sha256": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+ "spawn_kwargs": {
+  "max_session": 720.0,
+  "launch_context": "megalaunch",
+  "include_blocker_preamble": true,
+  "commit_log": true,
+  "actor": "megalaunch",
+  "log_message": "trial adapter launch (input-megalaunch)",
+  "name": "input-megalaunch"
+ },
+ "argv": [
+  "codex",
+  "--no-daemon",
+  "-m",
+  "gpt-6.1-sol",
+  "-c",
+  "model_reasoning_effort=medium",
+  "-a",
+  "never",
+  "-c",
+  "permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}",
+  "-c",
+  "permissions.trial.network.enabled=true",
+  "-c",
+  "default_permissions=\"trial\"",
+  "-c",
+  "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
+  "<prompt sha256=ec66b1fdf1299ac3e0f6538aab115f9e513a18744df390b56d5c90ae4792cea2 bytes=9718>"
+ ],
+ "env_keys": [
+  "COGA_COGA_OS_ROOT",
+  "COGA_EXPECTED_AGENT",
+  "COGA_EXPECTED_STEP",
+  "COGA_EXPECTED_TASK",
+  "COGA_REPO_ROOT",
+  "COGA_SUPERVISED",
+  "COGA_TASK_BLACKBOARD",
+  "COGA_TASK_DIR",
+  "COGA_TASK_SLUG",
+  "COGA_TASK_STEP",
+  "COGA_TASK_TICKET",
+  "COLORTERM",
+  "HOME",
+  "LANG",
+  "LOGNAME",
+  "PATH",
+  "SHELL",
+  "TERM",
+  "USER"
+ ],
+ "result": {
+  "exit_code": 0,
+  "termination_kind": "done",
+  "termination_reason": "sentinel-file (COGA_DONE_SENTINEL touched)",
+  "done_signalled": true
+ },
+ "wall_seconds": 45.3,
+ "end_utc": "2026-11-13T20:42:01.474786+00:00",
+ "delivered": {
+  "bytes": 9718,
+  "sha256": "ec66b1fdf1299ac3e0f6538aab115f9e513a18744df390b56d5c90ae4792cea2",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "46b2341e6f4f8e66dc2ae2f8cb08fd3cdb563f49",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main 46b2341e6f4f8e66dc2ae2f8cb08fd3cdb563f49\nrefs/heads/trial/assist c209479e012f45d45bea09b02206b932dd7be4bc\n",
+  "local_refs": "refs/heads/main 46b2341e6f4f8e66dc2ae2f8cb08fd3cdb563f49\nrefs/heads/trial/assist c209479e012f45d45bea09b02206b932dd7be4bc\nrefs/remotes/origin/main 46b2341e6f4f8e66dc2ae2f8cb08fd3cdb563f49\nrefs/remotes/origin/trial/assist c209479e012f45d45bea09b02206b932dd7be4bc\nrefs/worktree/coga/published 819ebefcc7b34f35b0125ea6f43697506acb6ba4\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "9cbbddaa027658fd72dc65874e21d33857d3cd55347fd89b017a89d6b46106f1",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/input-megalaunch/ticket.md": "233f5583660f7260f47a7caa4dc7483bfa50117138c756a8d0fda62993570615",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "8fba1a45106ad061f570c2c81ab1e746f6a3c73c7de329cd8de6c7518c7bd4d0",
+  "diff": "diff --git a/coga/log.md b/coga/log.md\nindex bf18b2a..3df3f25 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1 +1,4 @@\n # Trial lifecycle log\n+2026-11-13 12:41 v1 [input-megalaunch] [megalaunch] trial adapter launch (input-megalaunch)\n+2026-11-13 12:42 v1 [input-megalaunch] [agent:claude] blocked: Provide the exact owner-selected value to write to coga/tasks/input-megalaunch/result.txt; the ticket supplies no value and prohibits guessing.\n+2026-11-13 12:42 v1 [input-megalaunch] [system] {\"agent\":\"codex\",\"agent_turns\":2,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":278144,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":45.165387,\"ended_at\":\"2026-11-13T20:42:01.320843Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":26814,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The ticket confirms that the value is missing, and the checkout has no uncommitted edits. I\u2019m checking the Coga checkout guidance before recording the blocker.\",\"outcome_status\":\"completed\",\"output_tokens\":1088,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1d6a4-a6bc-77b0-8024-f89d69c2187e\",\"slug\":\"input-megalaunch\",\"started_at\":\"2026-11-13T20:41:16.155456Z\",\"step\":\"write\",\"title\":\"input-megalaunch\",\"ts\":\"2026-11-13T20:42:01.320843Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\ndiff --git a/coga/tasks/input-megalaunch/ticket.md b/coga/tasks/input-megalaunch/ticket.md\nindex 06de4a2..38e8afc 100644\n--- a/coga/tasks/input-megalaunch/ticket.md\n+++ b/coga/tasks/input-megalaunch/ticket.md\n@@ -1,6 +1,6 @@\n ---\n title: input-megalaunch\n-status: in_progress\n+status: blocked\n owner: trial-owner\n agent: claude\n contexts:\n@@ -29,4 +29,13 @@ Use only the isolated trial repository.\n \n ## Notes\n \n-No work performed yet.\n+Owner-selected value is missing; the ticket explicitly prohibits guessing.\n+Output path: `coga/tasks/input-megalaunch/result.txt`. File is absent; no content was written or available to read back.\n+Checkout verified clean on `main`, current with local `origin/main`; no ticket branch or PR is recorded.\n+Blocked pending the owner's exact value. Once supplied, write it followed by exactly one newline and read the file back.\n+\n+---\n+\n+## Blockers\n+\n+- [ ] [2026-11-13 12:42] [agent:claude] id=20261113T124201 Provide the exact owner-selected value to write to coga/tasks/input-megalaunch/result.txt; the ticket supplies no value and prohibits guessing.\n",
+  "log": "46b2341e6f4f8e66dc2ae2f8cb08fd3cdb563f49 Log: input-megalaunch\n650760de3da0e0af068827860a80eeb5f5b6bbf3 Ticket: input-megalaunch \u2014 blocked\n2c9ebedb49c2c5731e441be65fad2235dcfce146 Log: input-megalaunch\n",
+  "origin_log": "46b2341e6f4f8e66dc2ae2f8cb08fd3cdb563f49 Log: input-megalaunch\n650760de3da0e0af068827860a80eeb5f5b6bbf3 Ticket: input-megalaunch \u2014 blocked\n2c9ebedb49c2c5731e441be65fad2235dcfce146 Log: input-megalaunch\nc209479e012f45d45bea09b02206b932dd7be4bc Trial fixture: input-megalaunch\n",
+  "tickets": {
+   "coga/tasks/input-megalaunch/ticket.md": {
+    "title": "input-megalaunch",
+    "status": "blocked",
+    "owner": "trial-owner",
+    "agent": "claude",
+    "contexts": [
+     "trial/format"
+    ],
+    "skills": [
+     "trial/report"
+    ],
+    "workflow": {
+     "name": "trial/inline",
+     "steps": [
+      {
+       "name": "write",
+       "assignee": "agent"
+      },
+      {
+       "name": "judge",
+       "assignee": "owner"
+      }
+     ]
+    },
+    "step": "1 (write)"
+   }
+  }
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T12-41-17-01a1d6a4-a6bc-77b0-8024-f89d69c2187e.jsonl"
+ ],
+ "live_guard_post": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-prompt-trial-667707cc/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-prompt-trial-667707cc/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ]
+}

@@ -1,0 +1,8 @@
+VERDICT: problem
+TITLE: Create the report output directory before writing
+---
+The `recurring/trial` run failed because report generation tried to open a missing output directory. The record reports `ticket.py` exiting with code 7 and the task remaining `in_progress`. No open autofix ticket covers this failure.
+
+Investigate the report-writing path in `ticket.py`, its output-directory configuration, and the recurring runner’s failure handling. Create required parent directories before writing the report, and ensure a failed recipe transitions the task out of `in_progress` into the appropriate failure state.
+
+Verify that report generation succeeds when its output directory does not yet exist and that an actual write failure leaves a clear error and a terminal task status.

@@ -1,0 +1,122 @@
+{
+ "probe": {
+  "id": "probe-3",
+  "case": "autofix-problem",
+  "want": "change what counts as an analyst problem"
+ },
+ "arm": "baseline",
+ "rep": 1,
+ "case": "autofix-problem",
+ "instructions_sha256": "7d8c49a3e0de677b85e58bcfc161d1b9e8a127bfe2524073ed6d9250dc490db3",
+ "question": "Do not change any files. Answer one question about the instructions you were given in this session. Customization wanted: change what counts as an analyst problem. (1) Which file is the effective source of those instructions in this session, and what fact selected it? (2) Which file should I edit to make that customization, and why there? You may read at most four files. Give one answer.",
+ "pre": {
+  "head": "b2cacbfe4a87fd972e3ee6c83806b376e64513d8",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/heads/trial/assist b2cacbfe4a87fd972e3ee6c83806b376e64513d8\n",
+  "local_refs": "refs/heads/main b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/heads/trial/assist b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/remotes/origin/main b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/remotes/origin/trial/assist b2cacbfe4a87fd972e3ee6c83806b376e64513d8\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "864cc5d09ae8d0a05b265e88a6be48f61798169798b18031e6bdc41edccaba10"
+ },
+ "live_guard_pre": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "argv": [
+  "codex",
+  "-m",
+  "gpt-6.1-sol",
+  "-c",
+  "model_reasoning_effort=\"medium\"",
+  "-s",
+  "read-only",
+  "-c",
+  "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
+  "-c",
+  "developer_instructions=<frozen prompt sha256 7d8c49a3e0de677b85e58bcfc161d1b9e8a127bfe2524073ed6d9250dc490db3>",
+  "exec",
+  "--skip-git-repo-check",
+  "-o",
+  "/home/n/Code/coga/coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/runs/probe-3__baseline__r1/answer.txt",
+  "Do not change any files. Answer one question about the instructions you were given in this session. Customization wanted: change what counts as an analyst problem. (1) Which file is the effective source of those instructions in this session, and what fact selected it? (2) Which file should I edit to make that customization, and why there? You may read at most four files. Give one answer."
+ ],
+ "start_utc": "2026-11-13T21:18:57.803354+00:00",
+ "exit_code": 0,
+ "timed_out": false,
+ "wall_seconds": 40.1,
+ "post": {
+  "head": "b2cacbfe4a87fd972e3ee6c83806b376e64513d8",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/heads/trial/assist b2cacbfe4a87fd972e3ee6c83806b376e64513d8\n",
+  "local_refs": "refs/heads/main b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/heads/trial/assist b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/remotes/origin/main b2cacbfe4a87fd972e3ee6c83806b376e64513d8\nrefs/remotes/origin/trial/assist b2cacbfe4a87fd972e3ee6c83806b376e64513d8\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "0a9b2959cf8ed0d55c1bef54df1e42248aacd91ab0de85508e9faca23a33656b",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "864cc5d09ae8d0a05b265e88a6be48f61798169798b18031e6bdc41edccaba10"
+ },
+ "mutated": false,
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T13-18-57-01a1d6c7-25b7-7581-b19b-e0b2ff4e2e5f.jsonl"
+ ],
+ "tool_calls": [
+  "text(await tools.exec_command({cmd:\"pwd; rg --files -g '*AGENTS*' -g '*prompt*' -g '*recurr*' -g '*instruction*' -g '*README*' -g '*config*' -g '*analyst*' -g '*ticket*' -g '.*'\",\"max_output_tokens\":4000}));\n",
+  "text(await tools.exec_command({cmd:\"rg --files --hidden -g '!.git/**'\",\"max_output_tokens\":4000}));\n",
+  "text(await tools.exec_command({cmd:\"cat coga/coga.toml coga/workflows/trial/inline.md coga/workflows/trial/skilled.md coga/context.md\",\"max_output_tokens\":7000}));\n",
+  "text(await tools.exec_command({cmd:\"ls -d /opt/* /app/* /home/n/* /tmp/*coga* 2>/dev/null; rg --files --hidden /home/n /opt /usr/local/lib -g '*recurr*' -g '*analy*' -g '!node_modules/**' -g '!.git/**' 2>/dev/null\",\"max_output_tokens\":3000}));\n",
+  "text(await tools.exec_command({cmd:\"ls -d /home/n/Code/coga /home/n/.local/share/uv/tools/coga* /home/n/.local/bin/coga 2>/dev/null; rg --files --hidden /home/n/Code/coga -g '*analyst*' -g '*analy*' -g '*prompt*' -g '*autofix*' -g '!.git/**'\",\"max_output_tokens\":2000}));\n"
+ ],
+ "tool_call_count": 5,
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "read-only"
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       }
+      ]
+     },
+     "network": "restricted"
+    }
+   }
+  ]
+ ],
+ "live_guard_post": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "live_repo_changed": false
+}

@@ -1,0 +1,204 @@
+{
+ "case": "stateless-recurring",
+ "arm": "baseline",
+ "rep": 1,
+ "invocation": {
+  "operation": "execute",
+  "execution_kind": "agent",
+  "target_kind": "stateless",
+  "target": "bootstrap/trial",
+  "launch_context": "recurring",
+  "include_blocker_preamble": true,
+  "completion": "stateless successful roll-up",
+  "owner_assist": false,
+  "checkout": null,
+  "script_result": null,
+  "kickoff": null,
+  "discussion": false,
+  "launch_arguments": [
+   "first argument",
+   "second\nline"
+  ],
+  "fixture_ticket": "fixtures/cases/stateless-recurring/coga/bootstrap/trial/ticket.md",
+  "transport": "interactive argv, PTY",
+  "invocation_source": "recurring_runner dispatch"
+ },
+ "start_utc": "2026-11-13T20:50:50.839827+00:00",
+ "pre": {
+  "head": "d52c06c568d2594acb7abcee319564cab1a0b600",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main d52c06c568d2594acb7abcee319564cab1a0b600\nrefs/heads/trial/assist d52c06c568d2594acb7abcee319564cab1a0b600\n",
+  "local_refs": "refs/heads/main d52c06c568d2594acb7abcee319564cab1a0b600\nrefs/heads/trial/assist d52c06c568d2594acb7abcee319564cab1a0b600\nrefs/remotes/origin/main d52c06c568d2594acb7abcee319564cab1a0b600\nrefs/remotes/origin/trial/assist d52c06c568d2594acb7abcee319564cab1a0b600\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/bootstrap/trial/ticket.md": "881320d52953c70c23db1f61f1a57e5c707cdbfd03f517b84c6b5ac0512b3b97",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "f346797739567de40383e86cfae3c9035eb815063d6b287daea9da3d18181e63",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "8c41531cfad58c17698275e4694bd6647bb636e20dedd9f7ace8bb1baf493a0a"
+ },
+ "live_guard_pre": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "config_sha256": "f346797739567de40383e86cfae3c9035eb815063d6b287daea9da3d18181e63",
+ "spawn_kwargs": {
+  "max_session": 720.0,
+  "launch_context": "recurring",
+  "include_blocker_preamble": true,
+  "commit_log": true,
+  "actor": "human:trial-owner",
+  "log_message": "trial adapter launch (stateless-recurring)",
+  "name": "stateless-recurring"
+ },
+ "argv": [
+  "codex",
+  "--no-daemon",
+  "-m",
+  "gpt-6.1-sol",
+  "-c",
+  "model_reasoning_effort=medium",
+  "-a",
+  "never",
+  "-c",
+  "permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}",
+  "-c",
+  "permissions.trial.network.enabled=true",
+  "-c",
+  "default_permissions=\"trial\"",
+  "-c",
+  "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
+  "<prompt sha256=975f0a9554a3f04becdb84de43c6941b0e8c869ba50309c69fb3876f34c71972 bytes=6943>"
+ ],
+ "env_keys": [
+  "COGA_COGA_OS_ROOT",
+  "COGA_EXPECTED_AGENT",
+  "COGA_EXPECTED_STEP",
+  "COGA_EXPECTED_TASK",
+  "COGA_REPO_ROOT",
+  "COGA_SUPERVISED",
+  "COGA_TASK_DIR",
+  "COGA_TASK_SLUG",
+  "COGA_TASK_TICKET",
+  "COLORTERM",
+  "HOME",
+  "LANG",
+  "LOGNAME",
+  "PATH",
+  "SHELL",
+  "TERM",
+  "USER"
+ ],
+ "result": {
+  "exit_code": 0,
+  "termination_kind": "done",
+  "termination_reason": "sentinel-file (COGA_DONE_SENTINEL touched)",
+  "done_signalled": true
+ },
+ "wall_seconds": 39.0,
+ "end_utc": "2026-11-13T20:51:29.832660+00:00",
+ "delivered": {
+  "bytes": 6943,
+  "sha256": "975f0a9554a3f04becdb84de43c6941b0e8c869ba50309c69fb3876f34c71972",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "c33d2b5d611864485d80891958c4de73008756c0",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main c33d2b5d611864485d80891958c4de73008756c0\nrefs/heads/trial/assist d52c06c568d2594acb7abcee319564cab1a0b600\n",
+  "local_refs": "refs/heads/main c33d2b5d611864485d80891958c4de73008756c0\nrefs/heads/trial/assist d52c06c568d2594acb7abcee319564cab1a0b600\nrefs/remotes/origin/main c33d2b5d611864485d80891958c4de73008756c0\nrefs/remotes/origin/trial/assist d52c06c568d2594acb7abcee319564cab1a0b600\nrefs/worktree/coga/published 21de9c6eef90ff801ccd4986c9c97ffa69639384\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/bootstrap/trial/result.txt": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+   "coga/bootstrap/trial/ticket.md": "881320d52953c70c23db1f61f1a57e5c707cdbfd03f517b84c6b5ac0512b3b97",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "f346797739567de40383e86cfae3c9035eb815063d6b287daea9da3d18181e63",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "868462c30a9272d0221c64b3455f2e0123fa20cfdd31de7acd648482fc9904f3",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "d03b21db39487265b8ec9c5b4e9574e626de5a5edac4f85932fba393816597fc",
+  "diff": "diff --git a/coga/bootstrap/trial/result.txt b/coga/bootstrap/trial/result.txt\nnew file mode 100644\nindex 0000000..395527d\n--- /dev/null\n+++ b/coga/bootstrap/trial/result.txt\n@@ -0,0 +1 @@\n+ready\ndiff --git a/coga/log.md b/coga/log.md\nindex bf18b2a..7503fa6 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1 +1,4 @@\n # Trial lifecycle log\n+2026-11-13 12:50 v1 [bootstrap/trial] [human:trial-owner] trial adapter launch (stateless-recurring)\n+2026-11-13 12:51 v1 [bootstrap/trial] [agent:claude] slack: Trial report: ready; arguments preserved\n+2026-11-13 12:51 v1 [bootstrap/trial] [system] {\"agent\":\"codex\",\"agent_turns\":3,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":180352,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":38.808733,\"ended_at\":\"2026-11-13T20:51:29.699752Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":17152,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The file contains exactly `ready` followed by one newline. Local origin is current, and both argument boundaries\u2014including the newline within the second argument\u2014are preserved. I\u2019m sending the required completion report now.\",\"outcome_status\":\"completed\",\"output_tokens\":886,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1d6ad-6d17-7032-a742-024371741469\",\"slug\":\"bootstrap/trial\",\"started_at\":\"2026-11-13T20:50:50.891019Z\",\"step\":null,\"title\":\"stateless-recurring\",\"ts\":\"2026-11-13T20:51:29.699752Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\n",
+  "log": "c33d2b5d611864485d80891958c4de73008756c0 Log: bootstrap/trial\n42ef00a23383c9bdf4ad00034408f54f3f9cb7fe Sync coga state\n9f28f9cb71834630b89798831709995428a8127e Log: bootstrap/trial\n",
+  "origin_log": "c33d2b5d611864485d80891958c4de73008756c0 Log: bootstrap/trial\n42ef00a23383c9bdf4ad00034408f54f3f9cb7fe Sync coga state\n9f28f9cb71834630b89798831709995428a8127e Log: bootstrap/trial\nd52c06c568d2594acb7abcee319564cab1a0b600 Trial fixture: stateless-recurring\n",
+  "tickets": {
+   "coga/bootstrap/trial/ticket.md": {
+    "title": "stateless-recurring",
+    "contexts": [
+     "trial/format"
+    ]
+   }
+  }
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T12-50-52-01a1d6ad-6d17-7032-a742-024371741469.jsonl"
+ ],
+ "live_guard_post": {
+  "head": "bbc717c8b27cd7faa06956b4f37dde3118f3707f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-prompt-trial-667707cc/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-prompt-trial-667707cc/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ]
+}

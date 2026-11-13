@@ -1,0 +1,5 @@
+1. The effective source is the bundled [bootstrap/ticket/SKILL.md](/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md). This invocation is an **authoring** session, which injects `bootstrap/ticket`; no repository override exists. The kickoff `Begin (editing existing ticket)` selects its existing-ticket greeting.
+
+2. For repository-specific customization, create/edit `/tmp/coga-prompt-trial-667707cc/coga/skills/bootstrap/ticket/SKILL.md`, using the bundled skill as the starting point, and change **Step 1**. That local override owns the interview wording; the target ticket’s workflow and `trial/report` skill govern execution instead.
+
+No files changed; four files read.

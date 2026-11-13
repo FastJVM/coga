@@ -724,4 +724,4 @@ Keep this unrelated owner note.
 
 No checkout preparation was supplied for this prompt: nothing here claims that a branch was prepared or that this checkout will be returned. Before editing, follow `coga/checkouts` ("Start, work, end") yourself.
 
-coga-launch: 3097aab2-f7cd-4b18-8d3f-3de14995c942
+coga-launch: bdf6e25f-a680-454e-af74-2a27cf8488f9

@@ -1,0 +1,1733 @@
+Reading additional input from stdin...
+OpenAI Codex v0.167.2
+--------
+workdir: /tmp/coga-prompt-trial-667707cc
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a1d6c6-a954-7b51-bae2-f86d4d9a1031
+--------
+user
+Do not change any files. Answer one question about the instructions you were given in this session. Customization wanted: change the authoring interview greeting. (1) Which file is the effective source of those instructions in this session, and what fact selected it? (2) Which file should I edit to make that customization, and why there? You may read at most four files. Give one answer.
+codex
+I’ll check the local instruction sources without changing any files.
+exec
+/bin/bash -lc "pwd; rg --files -g '*ticket*' -g 'AGENTS.md' -g 'coga*.toml' -g '*SKILL.md' -g '*launch*' -g '*bootstrap*'" in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+/tmp/coga-prompt-trial-667707cc
+coga/coga.local.toml
+coga/coga.toml
+coga/contexts/trial/format/SKILL.md
+coga/skills/trial/report/SKILL.md
+coga/skills/trial/write/SKILL.md
+coga/tasks/author-paused/ticket.md
+
+exec
+/bin/bash -lc "cat coga/coga.toml coga/coga.local.toml; python -c \"from importlib.resources import files; print(files('coga.resources').joinpath('templates', 'coga', 'bootstrap'))\"; rg --files --hidden -g '"'!**/.git/**'"'" in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+version = 1
+default_status = "draft"
+[agents.claude]
+cli = "claude"
+file = "CLAUDE.md"
+[git]
+enabled = true
+remote = "origin"
+control_branch = "main"
+[notification.slack]
+enabled = false
+
+[agents.codex]
+cli = "codex"
+file = "AGENTS.md"
+mode = "local"
+launch_args = "--no-daemon -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -a never -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"'"
+discussion = "-c developer_instructions={prompt}"
+analyze = "-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -c 'permissions.trial.filesystem={\":root\"=\"read\",\":slash_tmp\"=\"write\",\"/tmp/coga-prompt-trial-667707cc/.git\"=\"write\"}' -c permissions.trial.network.enabled=true -c 'default_permissions=\"trial\"' -c 'projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"' exec {prompt}"
+
+[telemetry]
+enabled = false
+user = "trial-owner"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/resources/_common.py", line 46, in wrapper
+    return func(anchor)
+           ^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/resources/_common.py", line 56, in files
+    return from_package(resolve(anchor))
+                        ^^^^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/functools.py", line 912, in wrapper
+    return dispatch(args[0].__class__)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/resources/_common.py", line 82, in _
+    return importlib.import_module(cand)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1324, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'coga.resources'
+coga/log.md
+coga/.gitignore
+coga/coga.toml
+coga/context.md
+coga/contexts/trial/format/SKILL.md
+coga/workflows/trial/inline.md
+coga/workflows/trial/skilled.md
+coga/skills/trial/report/SKILL.md
+coga/skills/trial/write/SKILL.md
+coga/tasks/author-paused/ticket.md
+
+exec
+/bin/bash -lc 'command -v coga; ls /tmp; ls /home/n' in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+/home/n/.local/bin/coga
+01-paid-aws-peer-ticket.md
+03-peer-evidence-audit.json
+03-peer-evidence-audit.py
+03-peer-record.py
+03-peer-review-projected-ticket.md
+05-native-slices-peer-ticket.md
+05-peer-file-reasons.json
+05-peer-pr-preview.md
+05-prepare-review.py
+1Password-1000
+SVM-14243692588537469301
+Solaar_1s9vrna1
+a64-stock-ticket.ZgJ0Yw
+actual-output-approval-log.md
+actual-output-approval-measure-actual-magicator-output-on-a-bounded-suppo.md
+actual-output-approval-staged.patch
+actual-output-approval-unstaged.patch
+actual-output-archive-pr.md
+actual-output-archive-state-backup
+actual-output-final-fixture-tests.log
+actual-output-generated-log-backup
+actual-output-pr-body.md
+actual-output-prearchive-sha256.json
+actual-output-validate-ticket-before-reconcile.md
+case-report-analysis.JO15UO
+check-research-workflow.py
+check-test-impact-redis.py
+check-test-impact-service.py
+claude-1000
+codex-bwrap-synthetic-mount-targets-1000
+codex-daemon-1000
+coga-04-long-window-execution-0_xecy5p.md
+coga-04-long-window-execution-4c9gg1h0.md
+coga-activity-peer-review-pytest.log
+coga-autoclose-932b1655996e.log
+coga-b-peer-fix-focused
+coga-b-peer-fixed-artifact-tw3285sc
+coga-b-peer-fixes-full
+coga-b-peer-ml0csbco
+coga-b-peer-regression-after
+coga-b-peer-regression-before
+coga-bootstrap-orient-1rpj5qph.md
+coga-bootstrap-orient-2o7iz0xy.md
+coga-bootstrap-orient-55anh4a1.md
+coga-bootstrap-orient-57974f0d.md
+coga-bootstrap-orient-5ptrbm_h.md
+coga-bootstrap-orient-6l08oty9.md
+coga-bootstrap-orient-6ync4sf9.md
+coga-bootstrap-orient-8u9une4m.md
+coga-bootstrap-orient-ba2n1eb9.md
+coga-bootstrap-orient-c61rp1_q.md
+coga-bootstrap-orient-c7k_vk81.md
+coga-bootstrap-orient-cfghx6gr.md
+coga-bootstrap-orient-f23bbbtd.md
+coga-bootstrap-orient-gk82iqo1.md
+coga-bootstrap-orient-l79fhfjo.md
+coga-bootstrap-orient-lti2ve5g.md
+coga-bootstrap-orient-lzxr5iw4.md
+coga-bootstrap-orient-mzea176_.md
+coga-bootstrap-orient-n166b9hd.md
+coga-bootstrap-orient-sp5ee9r2.md
+coga-bootstrap-orient-tlp4_jd0.md
+coga-bootstrap-orient-vje0i2_t.md
+coga-bootstrap-orient-xrssgjwr.md
+coga-bootstrap-orient-znuajzoz.md
+coga-bootstrap-orient-ztbv_xn3.md
+coga-bootstrap-resolve-conflicts-wsbiyu8k.md
+coga-branch-sweep-ticket-exwzl4eq
+coga-branchsweep-peer-ticket-g3azcd46
+coga-branchsweep-py311
+coga-branchsweep-uv-cache
+coga-checkout-design-review-20261112
+coga-checkout-design-review-20261112-refresh
+coga-checkout-policy-peer-review-20261112-ticket.md
+coga-checkout-policy-peer-review-pr-preview-20261112.txt
+coga-checkout-policy-reconcile-1225-20261112-ticket.md
+coga-checkout-policy-release-rules-20261112-ticket.md
+coga-codex-home-peer-review-tw9ti2e5
+coga-coga-bump-on-feature-branch-leaves-stale-index-loc-y8etmw3j.md
+coga-competition-testing-make-hands-on-trial-cite-the-shared-fresh-vm-skill-3wihf4au.md
+coga-competition-testing-make-hands-on-trial-cite-the-shared-fresh-vm-skill-85rvksq3.md
+coga-dedyn-10-move-the-fail-closed-dacapo-stager-out-of-dedyn-8_1eb3xr.md
+coga-dedyn-12-plan-the-next-project-hotfold-compile-time-spec-mr9l7f77.md
+coga-dedyn-12-plan-the-next-project-hotfold-compile-time-spec-mx837ni5.md
+coga-dedyn-2-hand-de-dynamize-fop-and-measure-c2-c2-dedyn-and-higwxiim.md
+coga-dedyn-2-hand-de-dynamize-fop-and-measure-c2-c2-dedyn-and-pzt80yf7.md
+coga-dedyn-3-shape-aware-de-dynamized-fop-pilot-freeze-and-meas-6cdy_nfc.md
+coga-dedyn-3-shape-aware-de-dynamized-fop-pilot-freeze-and-meas-7a3jzlz0.md
+coga-dedyn-3-shape-aware-de-dynamized-fop-pilot-freeze-and-meas-7p8vks1a.md
+coga-dedyn-3-shape-aware-de-dynamized-fop-pilot-freeze-and-meas-wh775a2y.md
+coga-dedyn-4-decide-whether-to-launch-the-de-dynamization-pro-valhsib0.md
+coga-dedyn-4-decide-whether-to-launch-the-de-dynamization-pro-wp_5hjf4.md
+coga-dedyn-5-partially-evaluate-fop-property-lookups-after-de-0hh2zxf0.md
+coga-dedyn-5-partially-evaluate-fop-property-lookups-after-de-7dz19nsu.md
+coga-dedyn-5-partially-evaluate-fop-property-lookups-after-de-zqp5je04.md
+coga-dedyn-9-fix-the-folded-fop-program-s-abort-on-the-aws-re-n9vsmklg.md
+coga-dedyn-9-fix-the-folded-fop-program-s-abort-on-the-aws-re-zrdvokb2.md
+coga-dependency-collected-tests.txt
+coga-dependency-control-before-final-integration.md
+coga-dependency-current-ticket-before-review-resume.md
+coga-dependency-final-fixture-validate.json
+coga-dependency-final-focused-pytest.log
+coga-dependency-final-full-pytest.log
+coga-dependency-final-validate.json
+coga-dependency-final-verified-tree.json
+coga-dependency-fixture-validate.json
+coga-dependency-focused-pytest.log
+coga-dependency-full-pytest.log
+coga-dependency-main-pr1193.md
+coga-dependency-main-pr1194.md
+coga-dependency-peer-batch-focused.log
+coga-dependency-peer-batch-full.log
+coga-dependency-peer-batch-seed-validate.json
+coga-dependency-peer-batch-validate.json
+coga-dependency-peer-collection.txt
+coga-dependency-peer-final-focused-pytest.log
+coga-dependency-peer-final-full-pytest.log
+coga-dependency-peer-final-pr-preview.md
+coga-dependency-peer-final-seed-validate.json
+coga-dependency-peer-final-validate.json
+coga-dependency-peer-focused-pytest.log
+coga-dependency-peer-full-pytest.log
+coga-dependency-peer-integrated-focused.log
+coga-dependency-peer-integrated-full.log
+coga-dependency-peer-integrated-seed-validate.json
+coga-dependency-peer-integrated-validate.json
+coga-dependency-peer-integrated-verbose-key.log
+coga-dependency-peer-owner-deferral.md
+coga-dependency-peer-pending-backup
+coga-dependency-peer-pr-preview.md
+coga-dependency-peer-seed-validate.json
+coga-dependency-peer-terminal
+coga-dependency-peer-terminal-batch
+coga-dependency-peer-terminal-final
+coga-dependency-peer-terminal-integrated
+coga-dependency-peer-ticket-before-fixture.md
+coga-dependency-peer-ticket.md
+coga-dependency-peer-validate.json
+coga-dependency-reconcile-state
+coga-dependency-remote-ps.py
+coga-dependency-review-resume-state.json
+coga-dependency-terminal-batch.py
+coga-dependency-terminal-final.py
+coga-dependency-terminal-integrated.py
+coga-dependency-terminal-smoke.py
+coga-dependency-ticket-5eec65f0.md
+coga-dependency-ticket-before-approved-batch.md
+coga-dependency-ticket-before-final-review-compaction.md
+coga-dependency-ticket-before-material-rebase.md
+coga-dependency-ticket-before-owner-deferral-note.md
+coga-dependency-validate.json
+coga-dependency-windows-archive-first.ps1
+coga-dependency-windows-baseline.log
+coga-dependency-windows-baseline.ps1
+coga-dependency-windows-cleanup.ps1
+coga-dependency-windows-cutover-baseline.log
+coga-dependency-windows-cutover-baseline.ps1
+coga-dependency-windows-cutover-bytes.ps1
+coga-dependency-windows-cutover-lf.log
+coga-dependency-windows-cutover-lf.ps1
+coga-dependency-windows-cutover.log
+coga-dependency-windows-cutover.ps1
+coga-dependency-windows-disk.ps1
+coga-dependency-windows-earlystdout.txt
+coga-dependency-windows-exclusions.ps1
+coga-dependency-windows-extra-artifacts.ps1
+coga-dependency-windows-failure-snapshot.ps1
+coga-dependency-windows-final-checkout.log
+coga-dependency-windows-final-focused-poll.py
+coga-dependency-windows-final-focused-schedule.py
+coga-dependency-windows-final-platform.ps1
+coga-dependency-windows-final-poll.py
+coga-dependency-windows-final-prepare.ps1
+coga-dependency-windows-final-schedule.log
+coga-dependency-windows-final-schedule.py
+coga-dependency-windows-fixed.log
+coga-dependency-windows-fixed.ps1
+coga-dependency-windows-flow.log
+coga-dependency-windows-flow.py
+coga-dependency-windows-health.ps1
+coga-dependency-windows-investigation-health.log
+coga-dependency-windows-launch-missing-baseline.log
+coga-dependency-windows-launch-missing-baseline.ps1
+coga-dependency-windows-launch-missing.log
+coga-dependency-windows-launch-missing.ps1
+coga-dependency-windows-owner-stop-note.ps1
+coga-dependency-windows-package-probe.log
+coga-dependency-windows-package-probe.ps1
+coga-dependency-windows-poll.ps1
+coga-dependency-windows-poll.py
+coga-dependency-windows-preflight.log
+coga-dependency-windows-preparation-status.ps1
+coga-dependency-windows-provision.log
+coga-dependency-windows-remainder-archive.ps1
+coga-dependency-windows-remainder-poll.ps1
+coga-dependency-windows-remainder-poll.py
+coga-dependency-windows-remainder-schedule.log
+coga-dependency-windows-remainder-schedule.ps1
+coga-dependency-windows-remainder-schedule.py
+coga-dependency-windows-remainder-status.json
+coga-dependency-windows-remainder.py
+coga-dependency-windows-repro.log
+coga-dependency-windows-repro.ps1
+coga-dependency-windows-schedule.log
+coga-dependency-windows-schedule.ps1
+coga-dependency-windows-schedule.py
+coga-dependency-windows-status.json
+coga-dependency-windows-stop-run.log
+coga-dependency-windows-stop-run.ps1
+coga-dependency-windows-terminal-size-baseline.log
+coga-dependency-windows-terminal-size-baseline.ps1
+coga-dependency-windows-timing.ps1
+coga-design-eval-zhxx0i9y
+coga-done-83fxdyvw
+coga-done-akt577u8
+coga-done-c68bzcqb
+coga-done-eqba3ek4
+coga-done-g4dau0ca
+coga-done-hsm8hu5b
+coga-done-o5wvzsg8
+coga-done-rruu1d2e
+coga-done-svlmfqjk
+coga-done-svnfs9w5
+coga-done-vzwe7tbj
+coga-dream-peer-review-pytest.log
+coga-eval-investigate-whether-fop-specialization-residuals-a-3dsykbug.md
+coga-eval-investigate-whether-fop-specialization-residuals-a-5ullhhd3.md
+coga-eval-investigate-whether-fop-specialization-residuals-a-jr2e1rav.md
+coga-evaluation-verify-whether-coga-adds-value-to-the-case-report-byo0q3_o.md
+coga-exp-1-baseline-n32oz0nk.md
+coga-exp-2-1-a64-interleave-paper-us7h_p5e.md
+coga-exp-2-1-ooo-headroom-21xlgjk7.md
+coga-exp-2-1-ooo-headroom-9j7h7xdz.md
+coga-exp-2-1-ooo-headroom-aub0so_w.md
+coga-exp-multiarch-3-slice-application-ccphirwp.md
+coga-exp-zen4-1-long-window-execution-1sc60xr2.md
+coga-exp-zen4-1-long-window-execution-8d5rer2_.md
+coga-exp-zen4-1-long-window-execution-8dycrtzd.md
+coga-fastci-sota-1-keycloak-mutant-ground-truth-7nn3gi4z.md
+coga-fastci-sota-1-keycloak-mutant-ground-truth-b_doiq60.md
+coga-fastci-sota-1-keycloak-mutant-ground-truth-oi_tngqp.md
+coga-fastci-sota-1-keycloak-mutant-ground-truth-s52c5zev.md
+coga-final-bump-review-fpdc1jbx
+coga-final-bump-review-q2gvwgb_
+coga-fopspec-2-test-java-specialization-within-current-limits-lsha7hxo.md
+coga-fopspec-2-test-java-specialization-within-current-limits-p4bw8c4y.md
+coga-fopspec-investigate-whether-fop-specialization-residuals-a-zjnx0q_9.md
+coga-fopspec-measure-actual-magicator-output-on-a-bounded-suppo-g3q_13kg.md
+coga-fresh-vm-handoff-x3zu45oi
+coga-fresh-vm-peer-review-0e26lkkc
+coga-git-callers.txt
+coga-git-index-115s2_3h
+coga-held-peer-review-preparation.py
+coga-held-peer-review-retry.py
+coga-held-peer-review-terminal-7gfno3pv
+coga-held-peer-review-terminal-81c4zkj2
+coga-held-peer-review-terminal-8hn_ukmj
+coga-held-peer-review-terminal-dww4z9s0
+coga-held-peer-review-terminal-i_2df991
+coga-held-peer-review-terminal.py
+coga-held-peer-review-ticket.md
+coga-inbound-peer-review-pytest.log
+coga-inbound-pr.yaml
+coga-inbound-search-exercise.py
+coga-launch-authoring-pytest-20261112-0206.log
+coga-launch-before-group-20261112.md
+coga-launch-decomposition-authoring-report-v2.txt
+coga-launch-decomposition-authoring-report.txt
+coga-launch-decomposition-before-reconcile-20261112.md
+coga-literature-run-the-focused-post-vv-ecmo-pain-literature-revie-zhy90v1v.md
+coga-lock-delayed-review.py
+coga-lock-finalize-review.py
+coga-lock-peer-pytest.log
+coga-lock-peer-validate.json
+coga-lock-record-review.py
+coga-lock-review-ticket.md
+coga-lock-terminal-review.py
+coga-microkernel-reconcile-20261112
+coga-microkernel-refresh-20261112
+coga-orientation-1000
+coga-peer-branchsweep-f40cab82-probes.py
+coga-peer-branchsweep-f40cab82-pytest.log
+coga-peer-branchsweep-probes-3wux0ws3
+coga-peer-review-3754f566-ya_p5tdj
+coga-pid-focused-932b1655996e.log
+coga-pid-full-932b1655996e.log
+coga-pid-windows-preflight-932b1655996e.log
+coga-policy-review-probes-20261112
+coga-pr-final-validate-932b1655996e.json
+coga-pr-full-932b1655996e.log
+coga-pr-full-final-932b1655996e.log
+coga-pr-merge-results-932b1655996e.json
+coga-pr-stages-932b1655996e.json
+coga-pr-stages-before-main-refresh-932b1655996e.json
+coga-pr-validate-932b1655996e.json
+coga-pr1224-full314.log
+coga-pr1224-uv-cache
+coga-pr1224-validate.json
+coga-prepare-pr-932b1655996e.py
+coga-prompt-group-pytest-20261112-0250.log
+coga-prompt-group-reconcile-20261112
+coga-prompt-group-report.txt
+coga-prompt-protocol-pytest-667707cc.log
+coga-prompt-trial-667707cc
+coga-prompt-trial-667707cc-origin.git
+coga-prompt-trial-pristine
+coga-prs-932b1655996e.json
+coga-reconcile-1225-AGENTS.md
+coga-reconcile-1225-docs_contexts_coga-dev_testing_SKILL.md
+coga-refresh-pr-stages-932b1655996e.py
+coga-review-v1-11-baseline-748c82e6.log
+coga-review-v1-11-complete-748c82e6.log
+coga-review-v1-11-final-748c82e6.log
+coga-review-v1-11-focused-final.log
+coga-review-v1-11-focused.log
+coga-review-v1-11-linux-748c82e6.log
+coga-review-v1-11-regressions-before.log
+coga-review-v1-11-validate-748c82e6.json
+coga-review-v1-11-validate-complete.json
+coga-review-v1-11-validate-final.json
+coga-slice-eval-1-map-supported-java-into-a-reusable-context-1y1cczuj.md
+coga-slice-eval-2-write-a-useful-java-program-within-those-limits-we29am4s.md
+coga-slice-eval-2-write-a-useful-java-program-within-those-limits-x592pzwk.md
+coga-slice-eval-3-precompute-from-real-slices-and-measure-the-gain-9zjkcx04.md
+coga-slice-eval-3-precompute-from-real-slices-and-measure-the-gain-c14ghb9l.md
+coga-stage-a-conftest.py
+coga-stage-a-packaging.py
+coga-stage-b-w2qqi_h7
+coga-state-publication-1000
+coga-state-publication-peer-review-9779674d.log
+coga-state-publication-peer-review-ticket-9779674d.md
+coga-terminal-review-e20z85fg
+coga-terminal-size-reporting-repro.log
+coga-test-impact-1-state-of-the-art-and-market-for-test-selection-v51hzq1i.md
+coga-test-impact-2-jvm-dynamic-oracle-headroom-bench-a9_ea3o_.md
+coga-test-impact-2-jvm-dynamic-oracle-headroom-bench-mfj9ms2w.md
+coga-test-impact-3-keycloak-build-setup-reuse-b6rd13js.md
+coga-trim-log-peer-20261108-0lxewa0h
+coga-trim-log-rollout-20261108-0274abfd
+coga-uninstall-hint-peer-review-pytest.log
+coga-update-pr-preparation.py
+coga-uv-cache
+coga-v1-11-finalize-review.py
+coga-v1-11-peer-ticket-748c82e6.md
+coga-v1-11-pr-preview.md
+coga-v1-11-prepare-review.py
+coga-v1-11-review-entrypoint-probe.py
+coga-v1-11-review-history-probe.py
+coga-v1-11-review-lease-probe.py
+coga-v1-28-affordable-macos-testing-on-owned-macs-and-per-min-20wtreq2.md
+coga-v1-30-complete-the-authenticated-clean-install-audit-_n4k_6mc.md
+coga-v1-44-verify-the-macos-full-suite-procedure-on-the-ec-vr3dpcwx.md
+coga-v1-honor-codex-home-when-locating-codex-rollouts-2u_6_qbr.md
+coga-v1-microkernel-03-launch-decomposition-iim45wg5.md
+coga-v1-microkernel-03-prompt-assembly-02-compare-current-and-candidate-prompt-assembly-7336rbl3.md
+coga-v1-package-definitions-02-repo-cutover-to-package-owned-definitions-39obvq5t.md
+coga-workflow-inline-4oadn5l0.md
+coga-workflows-peer-pytest.log
+coga_prompt_audit_667707cc.py
+coga_prompt_specimens_667707cc.py
+com.agilebits.op.1000
+ctl-dbg
+dedyn-2-review-design-before.md
+dedyn10-peer-review-before-rebase.md
+dedyn10-peer-review-control-ticket.md
+dedyn10-pr-presentation.json
+dedyn2-peer-current-body.md
+dedyn2-peer-evidence-check.py
+dedyn2-peer-gate-vm0hsxe9
+dedyn2-peer-pr-preview.md
+dedyn2-peer-prepare.py
+dedyn2-peer-ticket-before-body-rescope.md
+dedyn2-peer-ticket-before-review.md
+dedyn2-peer-validate-preparation.py
+dedyn3-design-repair-before-reconcile.md
+dedyn3-evaluator-review-before-reconcile.md
+dedyn3-peer-c2.DY4Iit9f
+dedyn3-peer-final-pytest.xml
+dedyn3-peer-freeze.fG2zmOgd
+dedyn3-peer-judge-folded.IlOZyNql
+dedyn3-peer-judge-folded.Lbgl6uYZ
+dedyn3-peer-judge-outlined.8hRSRr3c
+dedyn3-peer-mvn-compile.log
+dedyn3-peer-mvn-test-compile.log
+dedyn3-peer-pilot.MDkXCchW
+dedyn3-peer-pilot.txt
+dedyn3-peer-pytest.xml
+dedyn3-peer-ticket.7Z98zulN
+dedyn5-draft-pr-body.md
+dedyn5-draft-pr-title.txt
+dedyn5-generated-pr-body.md
+dedyn5-generated-pr-title.txt
+dedyn5-measure-preflight.txt
+dedyn5-publication-evidence-eh8__p3x
+dedyn5-report-compile.log
+dedyn5-report-diffcheck.log
+dedyn5-report-fixtures.log
+dedyn5-report-maven.log
+dedyn5-report-test-compile.log
+dedyn5-ticket-before-handoff.md
+dedyn5-ticket-before-merge.md
+ecmo-literature-seeds-20261110
+exp-2-peer-review-ticket-826fbca6.md
+exp1-peer-gate.json
+exp1-peer-oracle.txt
+exp1-peer-randomx
+exp1-peer-results
+exp1-peer-review-original-head
+exp1-peer-review-ticket-finalprep.md
+exp1-peer-review-ticket.md
+exp2-aws-preparation-ticket-20261109.md
+exp2-c7a-price-20261109.json
+exp2-native-before-final-rebase.md
+exp2-pilot-approved-ticket-20261109.md
+exp2-pilot-audit-command.json
+exp2-projected-before-rebase.md
+exp2-projected-ticket-20261109.md
+extend-row-runner.py
+fastci-migration-prompt-report.txt
+fastci-migration-validate-final.json
+fastci-migration-validate.json
+fop-heap-candidates-approved-handoff.md
+fop-heap-candidates-pre-approval-rebase.json
+fop-peer-retro-pre-rebase-20261109
+fop-peer-review-preflight-20261109
+fop-profile-heap-evaluation-description.md
+fop-saturation-archive-property-v1.log
+fop-saturation-archive-property-v2.log
+fop-saturation-archive-review-v2.log
+fop-saturation-archive-review.log
+fop-saturation-bundle-v2.log
+fop-saturation-code-decode.log
+fop-saturation-compile-after-0358.log
+fop-saturation-compile-after-0440.log
+fop-saturation-compile-after-pr959.log
+fop-saturation-compile-committed.log
+fop-saturation-compile-final.log
+fop-saturation-compile-interim.log
+fop-saturation-compile-profiles.log
+fop-saturation-compile-region-refinement.log
+fop-saturation-controller-v2.log
+fop-saturation-controls.log
+fop-saturation-correspondence-final.log
+fop-saturation-diagnostic-verify.log
+fop-saturation-diagnostics-archive.log
+fop-saturation-diagnostics.log
+fop-saturation-final-head-checks.json
+fop-saturation-gjf.jar
+fop-saturation-hsdis
+fop-saturation-hsdis-check.log
+fop-saturation-inspection.log
+fop-saturation-machine-setup.log
+fop-saturation-mvn-compile-91362bf.log
+fop-saturation-mvn-compile-926bc66.log
+fop-saturation-mvn-compile-e13461f.log
+fop-saturation-mvn-compile-initial.log
+fop-saturation-mvn-compile-merged.log
+fop-saturation-mvn-compile-post-commit.log
+fop-saturation-mvn-compile-v2.log
+fop-saturation-mvn-compile-v3.log
+fop-saturation-mvn-compile-v5.log
+fop-saturation-mvn-test-compile-merged.log
+fop-saturation-mvn-test-compile-post-commit.log
+fop-saturation-mvn-test-compile.log
+fop-saturation-prepare-v2.log
+fop-saturation-prepare.log
+fop-saturation-projected-ticket-20261108.md
+fop-saturation-property-index.log
+fop-saturation-python-merged.log
+fop-saturation-python-post-commit.log
+fop-saturation-python-v4.log
+fop-saturation-python-v5.log
+fop-saturation-review-final.log
+fop-saturation-review-index-v2.log
+fop-saturation-review-v2.log
+fop-saturation-review.log
+fop-saturation-test-compile-after-0358.log
+fop-saturation-test-compile-after-0440.log
+fop-saturation-test-compile-committed.log
+fop-saturation-test-compile-final.log
+fop-saturation-testcompile-after-pr959.log
+fop-saturation-tests-after-0358.log
+fop-saturation-tests-after-0440.log
+fop-saturation-tests-after-pr959.log
+fop-saturation-tests-committed.log
+fop-saturation-tests-final.log
+fop-saturation-tests-profiles.log
+fop-saturation-tests-region-refinement.log
+fop-saturation-validation-v2.log
+fop-saturation-validation.log
+fop-saturation-verify-property-v1.log
+fop-saturation-verify-property-v2.log
+fop-saturation-verify-review-v2.log
+fop-saturation-verify-review.log
+fop-saturation-worklist-final.log
+fop-saturation-worklist-v2.log
+fop-saturation-worklist.log
+fop-three-ticket-start-7e67fe85.md
+fopspec-peer-bundle-check.py
+fopspec-peer-review-analysis-8784ed47.log
+fopspec-peer-review-direct-fiptv1d3
+fopspec-peer-review-eymi9b8p
+fopspec-peer-review-handoff-8784ed47.md
+fopspec-peer-review-pilot-replay-8784ed47
+fopspec-peer-ticket-4c3c37ec.md
+gjf.jar
+harness-test-elf67f4r
+harness-test-wgelao9w
+headroom-peer-gate.json
+headroom-peer-perf.data
+headroom-peer-static
+headroom-peer-ticket.md
+headroom-summary-final.json
+headroom-summary-peer.json
+hsperfdata_n
+hsperfdata_root
+implement-row-encoder.py
+interleave-allocation
+interleave-allocation-final.log
+interleave-headroom-after
+interleave-headroom-before
+interleave-headroom-final
+interleave-headroom-final.log
+interleave-headroom-gate-final.json
+interleave-headroom-gate.json
+interleave-identity
+interleave-peer-allocation
+interleave-peer-gate.json
+interleave-peer-headroom
+interleave-peer-original-head
+interleave-peer-ticket.md
+interleave-pytest-final.txt
+interleave-tested-files.json
+interleave-ticket-before-rebase.md
+interleave-ticket-final-reconcile.md
+jmh.lock
+keycloak-integration-pom.xml
+keycloak-mutant-compile-jdk21.log
+keycloak-mutant-compile.log
+keycloak-mutant-final-compile.log
+keycloak-mutant-final-test-compile.log
+keycloak-mutant-pr-initial.md
+keycloak-mutant-prepare-pr.md
+keycloak-mutant-test-compile-jdk21.log
+keycloak-mutant-test-compile.log
+keycloak-mutant-tests.log
+keycloak-owner-direction-20261110
+keycloak-plan-approval-state-0u56k_e2
+keycloak-prepare-pr.md
+keycloak-reuse-driver-pr.md
+keycloak-reuse-pr-final.md
+keycloak-reuse-pr.md
+keycloak-reuse-prepare-e788863-schedule.json
+keycloak-sync-5t0x__3h
+kotlin-daemon.2026-11-08.17-48-48-966.00.log
+kotlin-daemon.2026-11-08.18-30-01-821.00.log
+libfcml0t64_1.3.0-1.1build1_amd64.deb
+libhsdis0-fcml_1.3.0-1.1build1_amd64.deb
+long-slice-context-split-verification.json
+long-slice-plan-before-context-split.md
+long-slice-plan-verification.json
+magicator-dedyn3-branch-whitespace
+magicator-dedyn3-final-pytest.xml
+magicator-dedyn3-formatted-DedynEmitter.java
+magicator-dedyn3-formatted-DedynRecorder.java
+magicator-dedyn3-formatted-LedgerLinks.java
+magicator-dedyn3-mvn-compile.log
+magicator-dedyn3-mvn-test-compile.log
+magicator-dedyn3-pr-prep.py
+magicator-dedyn3-reconcile.dL7ksx
+magicator-dedyn3-replay.EiRvIm
+magicator-dedyn3-review.py
+magicator-test-impact-20261109
+mxcsr-peer-ticket.md
+native-image7217724682409079109.args
+native-peer-artifacts-8jyy_7ys
+native-peer-corpus-yfovddax
+native-peer-mutation-5zanpi1z
+onnxruntime-java11423458235191461679
+onnxruntime-java15065107874937141377
+onnxruntime-java15580510483379968385
+onnxruntime-java17741399529318244057
+onnxruntime-java3488157818558143235
+onnxruntime-java4535241744550058831
+package-service-operator.py
+paid-aws-review-install-lovq2d5j
+pip-build-tracker-qzajnb0z
+pip-ephem-wheel-cache-2zussl95
+pip-modern-metadata-52i4fcyc
+pip-wheel-yoiplz82
+prepare-service-redis-runtime.py
+prepare_long_slice_plan_ticket.py
+pytest-of-n
+reorder-5f8352bc.bundle
+reorder-a64-all-builds.log
+reorder-a64-code-off.bin
+reorder-a64-code-ref.bin
+reorder-a64-pair-unit.log
+reorder-a64-toolchain.cmake
+reorder-a64-unit-k2-iter.log
+reorder-a64-unit-k2-serial.log
+reorder-a64-unit-prefetch.log
+reorder-a64-unit-sched.log
+reorder-a64-unit.log
+reorder-aws-price.json
+reorder-build-diag.log
+reorder-build-k2.log
+reorder-build-off.log
+reorder-build-sched.log
+reorder-code-off.bin
+reorder-code-ref.bin
+reorder-cross-build.log
+reorder-diag-unit.log
+reorder-final-a64.py
+reorder-final-native.py
+reorder-final-python.log
+reorder-full-k2.log
+reorder-gate-k2-initial.json
+reorder-gate-sched-initial.json
+reorder-native-builds.log
+reorder-prfm.bin
+reorder-python-all.log
+reorder-python-contract.log
+reorder-python-evidence.log
+reorder-python-focused.log
+reorder-rebased-python.log
+reorder-report-guard-python.log
+reorder-report-preflight.log
+reorder-toolchain-download.log
+reorder-unit-build.log
+reorder-unit-sched.log
+research-experiment-workflow-pr.md
+research-workflow-migration-c6z18vvl
+retain-provider-admission.py
+retain-row-encoder-receipt.py
+run-redis-dependency.py
+rxrun-45fce6x2
+rxrun-8bz4ez3t
+rxrun-n551s_jp
+sbxprobe-2462037
+scala-maven-1567548004494145453.args
+scala-maven-202812770834483177.args
+scala-maven-2110976704887721493.args
+scala-maven-3464606392432303790.args
+scala-maven-4722473013654771498.args
+scala-maven-522508376872941486.args
+scala-maven-5464068109284799712.args
+script-handoff-backup
+seed_zen4_execution_ticket.py
+service-control-retry-bundle
+service-harness-bundle
+service-heap-retry-bundle
+service-operator-logs.tar.gz
+service-redis-archive-bundle
+service-silent-retry-bundle
+slice-application-a64-toolchain.cmake
+slice-application-before-long-plan.md
+slice-application-commit-message.txt
+slice-application-ticket-before-context-split.md
+slice-application-ticket-before-rebase.md
+slice-eval-2-entry-ticket.md
+slice-eval-2-evaluator-ticket-before.md
+slice-eval-2-final-mvn-compile.log
+slice-eval-2-final-mvn-test-compile.log
+slice-eval-2-mvn-compile.log
+slice-eval-2-mvn-test-compile.log
+slice-eval-2-peer-baseline.log
+slice-eval-2-peer-mvn-compile.log
+slice-eval-2-peer-mvn-test-compile.log
+slice-eval-2-peer-pytest.log
+slice-eval-2-peer-review-ticket.md
+slice-eval-2b-final-run.log
+slice-eval-2b-mvn-compile.log
+slice-eval-2b-mvn-test-compile.log
+slice-eval-2b-pr-final.md
+slice-eval-2b-pr.md
+slice-eval-2b-run.log
+slice-eval-2b-ticket-start.md
+slice-eval-2b-write-handoff.py
+slice-eval-bundle-validation-ticket.md
+slice-eval-context-followup
+slice-eval-context-mvn-compile.log
+slice-eval-design-reconcile-urmjyg6p
+slice-eval-jdk-repair-20261113
+slice-eval-local-prep
+slice-eval-local-prep-ticket.md
+slice-eval-local-unit-tests.txt
+slice-eval-measure-control
+slice-eval-pr1002.md
+slice-eval-run-v3
+slice-eval-ticket-audit-merge.md
+slice-eval-ticket-entry-c396a82a.md
+slice-eval-ticket-final-c396a82a.md
+slice-eval-ticket-publication-c396a82a.md
+slice-eval-ticket-resume-c396a82a.md
+slice-eval-validation-control
+slice-eval-validation-retry-control
+slice-eval.classpath
+slice-eval3-compile-final.log
+slice-eval3-compile-handoff.log
+slice-eval3-compile.log
+slice-eval3-final.log
+slice-eval3-final2.log
+slice-eval3-fixtures
+slice-eval3-pr-final.md
+slice-eval3-pr.md
+slice-eval3-prepare.log
+slice-eval3-prepare2.log
+slice-eval3-testcompile.log
+slice-eval3-unit-final.log
+slice-eval3-unit.log
+slice-trace-a64-output.bin
+slice-trace-a64.bin
+slice-trace-a64.log
+slice-trace-x86-output.bin
+slice-trace-x86.bin
+slice-trace-x86.log
+solarmonero-03-design
+solarmonero-03-evaluate-design-before.md
+solarmonero-03-gate-post-rebase
+solarmonero-03-projected-ticket-before-rebase.md
+solarmonero-03-wheels
+solarmonero-15-prompt-size.json
+solarmonero-15-state-otcjk7ut
+solarmonero-a64-paper-ticket.mBYSIs
+solarmonero-a64-paper-ticket.sTFssw4L
+solarmonero-portfolio-gvbimia_
+solarmonero-portfolio-run-path
+solarmonero-research-plan
+solarmonero03-author-fixed-source.py
+solarmonero03-before-running-gate-rebase.md
+solarmonero03-bytecode
+solarmonero03-compact-prep.py
+solarmonero03-continue-ticket.md
+solarmonero03-finalize-limit.py
+solarmonero03-handoff.py
+solarmonero03-ledger.py
+solarmonero03-memory-case.json
+solarmonero03-memory-regression
+sota1-admit-host.pyc
+sota1-amendment-mvn-compile.log
+sota1-checkpoint-continuation
+sota1-cleanup-proof.py
+sota1-continuation-merge-handoff.md
+sota1-continuation-mvn-compile-final.log
+sota1-continuation-mvn-compile.log
+sota1-continuation-mvn-test-compile.log
+sota1-continuation-python.log
+sota1-continuation-run-ticket-pre-merge.md
+sota1-controller.pyc
+sota1-deadline-all-tests.log
+sota1-deadline-compile.log
+sota1-deadline-final-compile.log
+sota1-deadline-final-tests.log
+sota1-deadline-final-ticket-574efd22cdbceabfa3bf81b9cf5d2b05f1f56fbf96cb2fbd4fb3838be6fd5e16.md
+sota1-deadline-input-verification.log
+sota1-deadline-static-units.log
+sota1-deadline-test-compile.log
+sota1-deadline-tests.log
+sota1-deadline-ticket-c24c197f1095ad51c2345faa91a908856c8c8e3014a6c2145903d13d08f9ca46.md
+sota1-environment_probe.pyc
+sota1-kiota-pr-body.md
+sota1-kiota-retain.py
+sota1-normalizer-mvn-compile.log
+sota1-oracle-validation-pr.md
+sota1-pilot-pr.md
+sota1-pnpm-evidence.py
+sota1-pr994-body.md
+sota1-record-stop.py
+sota1-results-branch-backup-20261112T043208Z
+sota1-stop-branch-backup-20261112T185811Z
+sota1-ticket-resume.md
+sota1-timer-cleanup-agent.json
+sota1-timer-cleanup-check.json
+sota1-v4-ticket-before-sync.md
+sota1-v5-checkpoint-return
+sota1-v5-provider-checkpoint
+sota1-v5-status.txt
+sota1-v5-sync
+sota1-v7-cleanup-ticket-pre-merge.md
+sota1-v7-ticket-before-merge.md
+sota1-v8-final-ticket-38d392b6c2e839a02e0fe1fa9dd46022fd55e3aafd49651c9611447fc22caa24.md
+sota1-v8-reconcile-ticket-d65bc0d5d19ecb70c0a5c505df41c9f7877da42747fcbe0a5a94de5e09957c1b.md
+sota1-v8-recovery-ticket-adabaca2de951863610dce6a341dc7ede1637ecca2330b3a79a99a10f0eda5ce.md
+sota1-validation-mvn-compile.log
+sota1-validation-pr.md
+split_long_slice_contexts.py
+systemd-private-4226aa3437844ff3a24c41a664bcc736-ModemManager.service-94c4ea
+systemd-private-4226aa3437844ff3a24c41a664bcc736-bluetooth.service-3CFiJp
+systemd-private-4226aa3437844ff3a24c41a664bcc736-chrony.service-n6kiUZ
+systemd-private-4226aa3437844ff3a24c41a664bcc736-colord.service-YOcE08
+systemd-private-4226aa3437844ff3a24c41a664bcc736-dbus-broker.service-QYNBAU
+systemd-private-4226aa3437844ff3a24c41a664bcc736-fwupd.service-VgypRb
+systemd-private-4226aa3437844ff3a24c41a664bcc736-polkit.service-yhUdOu
+systemd-private-4226aa3437844ff3a24c41a664bcc736-switcheroo-control.service-shjLW7
+systemd-private-4226aa3437844ff3a24c41a664bcc736-systemd-logind.service-5bKIQU
+systemd-private-4226aa3437844ff3a24c41a664bcc736-systemd-resolved.service-7aouEK
+systemd-private-4226aa3437844ff3a24c41a664bcc736-upower.service-RB9yVg
+test-impact-before-service.md
+test-impact-context-goals-compile.log
+test-impact-context-goals-ticket-before-rebase.md
+test-impact-final-2-jvm-dynamic-oracle-headroom-bench.md
+test-impact-final-audit
+test-impact-final-compile.log
+test-impact-final-evidence.log
+test-impact-final-listener.log
+test-impact-final-log.md
+test-impact-final-pr-preparation.json
+test-impact-final-preparation.json
+test-impact-final-python.log
+test-impact-final-reconciliation.json
+test-impact-final-retained-trace-audit.log
+test-impact-final-test-compile.log
+test-impact-final-trace-byte-comparison.log
+test-impact-final-trace-row-comparison.log
+test-impact-final-validation-receipts.json
+test-impact-final-whitespace.log
+test-impact-gjf.jar
+test-impact-goals-preparation.json
+test-impact-listener-validation.log
+test-impact-mvn-compile.log
+test-impact-published-state-a_udvf8u
+test-impact-redis-archive-manifest.json
+test-impact-retained-audit
+test-impact-selector-catalog-recheck.py
+test-impact-selector-check-0.log
+test-impact-selector-check-1.log
+test-impact-selector-check-2.log
+test-impact-selector-check-3.log
+test-impact-selector-check-4.log
+test-impact-selector-check-5.log
+test-impact-selector-check-6.log
+test-impact-selector-check-7.log
+test-impact-selector-check-8.log
+test-impact-selector-check-9.log
+test-impact-selector-checks.json
+test-impact-selector-preparation.json
+test-impact-selector-preparation.py
+test-impact-selector-rebase.json
+test-impact-selector-ticket-before-rebase.md
+test-impact-selector-validation.py
+test-impact-service-addresses.private
+test-impact-service-compile-heap-fix.log
+test-impact-service-compile-silent-fix.log
+test-impact-service-compile.log
+test-impact-service-continuation-compile-java21.log
+test-impact-service-continuation-compile.log
+test-impact-service-controls-ticket-before-reconcile.md
+test-impact-service-heap-live
+test-impact-service-initial-verification.json
+test-impact-service-live-results
+test-impact-service-operator-20261109
+test-impact-service-operator.py
+test-impact-service-private-attempts
+test-impact-service-results-compile.log
+test-impact-service-results-test-compile.log
+test-impact-service-results-ticket-before-keycloak-push.md
+test-impact-service-results-ticket-before-switch.md
+test-impact-service-silent-live
+test-impact-service-test-compile.log
+test-impact-service-ticket-before-rebase.md
+test-impact-service-ticket-before-warm-reconcile.md
+test-impact-service-ticket-current.md
+test-impact-service-ticket-reconcile-20261110T0113.md
+test-impact-ticket-before-final-rebase.md
+test-impact-ticket-before-followup.md
+test-impact-ticket-before-merge-note.md
+test-impact-ticket-before-rebase.md
+test-impact-validation-receipts.json
+test-impact-verified-compile.log
+test-impact-verified-evidence.log
+test-impact-verified-listener.log
+test-impact-verified-python.log
+test-impact-verified-retained-trace-audit.log
+test-impact-verified-test-compile.log
+test-impact-verified-whitespace.log
+test-jar-build-11491851486114996144
+test-jar-build-12148060649134243488
+test-jar-build-14149141285808930292
+test-jar-build-14154253291758823862
+test-jar-build-15203155863116903250
+test-jar-build-15595438338014772076
+test-jar-build-15769211046771864468
+test-jar-build-15902366638503272485
+test-jar-build-16598788141300204302
+test-jar-build-2258708960844883807
+test-jar-build-3733804939977345936
+test-jar-build-4542892967256555729
+test-jar-build-4602939796704140393
+test-jar-build-7193912559912814670
+test-jar-build-8708608197217420632
+ti-ekstazi-outside-20261109
+ti-fine-20261109
+ti-fine-ekstazi-outside-20261109
+ti-legacy-r2-candidate-fallback-20261109
+ti-legacy-r2-fine-ekstazi-20261109
+ti-legacy-r2-full-suite-20261109
+ti-replay-candidate-fallback-20261109
+ti-replay-fine-ekstazi-20261109
+ti-replay-full-suite-20261109
+tmp.0TOPHReJUZ
+tmp.6aCIifX981
+tmp.YAIgRZqOik
+tmp.ulBvDsKrgp
+tmp0x0ibjfx.png
+tmp47lybgpd.png
+tmp6izb21xa.png
+tmp_mx58jsw.whl
+tmpa73_vxpr
+tmpdl19_5zf.png
+tmpgwmzmn1f.png
+tmpj8x61ml9.png
+tmpmclhv88j.png
+tmpogy_wjvm.png
+tmpulm7j7zy
+tmpxlb5za0k.png
+tmpxx__tiyl.png
+tmpy8thvgug.png
+tmpzv62wyyh.png
+tmux-1000
+update_solarmonero_portfolio.py
+uv-3969a2908a157da1.lock
+uv-4a7de1422161f3af.lock
+vminvocation7522668198165677051.args
+voxd_temp
+x
+xmrun-2u_azrj9
+zen4-ticket-before-handoff-archive.md
+zen4-window-projected-ticket-before-rebase.md
+Android
+AppImages
+Code
+Desktop
+Documents
+Downloads
+Dropbox
+IdeaSnapshots
+Music
+Pictures
+Public
+Templates
+Videos
+bin
+multiply-e17.iwebGh
+snap
+temp
+whisper.cpp
+
+exec
+/bin/bash -lc "readlink -f /home/n/.local/bin/coga; ls -d /home/n/Code/*coga*; rg --files /home/n/Code -g '**/bootstrap/ticket/SKILL.md' -g '**/bootstrap/ticket.md'" in /tmp/coga-prompt-trial-667707cc
+ succeeded in 316ms:
+/home/n/.local/share/uv/tools/coga/bin/coga
+/home/n/Code/coga
+/home/n/Code/coga-autoclose-tests.YiVMjn
+/home/n/Code/coga-checkout-policy-peer-review-tests-20261112
+/home/n/Code/coga-checkout-policy-reconciled-tests-20261112
+/home/n/Code/coga-peer-branchsweep-pytest-f40cab82
+/home/n/Code/coga-policy-review-probes-tests-20261112
+/home/n/Code/coga-prompt-protocol-pytest-667707cc
+/home/n/Code/coga-pytest-launch-authoring-20261112-0206
+/home/n/Code/coga-pytest-prompt-group-20261112-0250
+/home/n/Code/coga-release-rules-peer-tests-20261112
+/home/n/Code/coga-review-v1-11-baseline-748c82e6
+/home/n/Code/coga-review-v1-11-complete-748c82e6
+/home/n/Code/coga-review-v1-11-final-748c82e6
+/home/n/Code/coga-review-v1-11-linux-748c82e6
+/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga/coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/approved/sources/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga/coga/tasks/v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol/sources/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-review-v1-11-complete-748c82e6/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-review-v1-11-complete-748c82e6/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-review-v1-11-final-748c82e6/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-review-v1-11-final-748c82e6/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/codex/coga-pr1224-full314/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-checkout-policy-peer-review-tests-20261112/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/codex/coga-pid-full-932b1655996e/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/codex/coga-pr1224-full314/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-checkout-policy-peer-review-tests-20261112/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-pytest-prompt-group-20261112-0250/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/codex/coga-pid-full-932b1655996e/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-pytest-prompt-group-20261112-0250/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-checkout-policy-reconciled-tests-20261112/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-checkout-policy-reconciled-tests-20261112/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-pytest-launch-authoring-20261112-0206/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-pytest-launch-authoring-20261112-0206/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/claude/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-autoclose-tests.YiVMjn/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-review-v1-11-baseline-748c82e6/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-autoclose-tests.YiVMjn/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/codex/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/codex/coga-pr-full-final-932b1655996e/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/codex/coga-pr-full-final-932b1655996e/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-review-v1-11-linux-748c82e6/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-review-v1-11-linux-748c82e6/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-peer-branchsweep-pytest-f40cab82/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-peer-branchsweep-pytest-f40cab82/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-prompt-protocol-pytest-667707cc/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-prompt-protocol-pytest-667707cc/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-release-rules-peer-tests-20261112/edge-wheels0/A/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+/home/n/Code/coga-release-rules-peer-tests-20261112/edge-wheels0/B/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
+
+exec
+/bin/bash -lc "/home/n/.local/share/uv/tools/coga/bin/python -c \"from importlib.resources import files; print(files('coga.resources').joinpath('templates','coga','bootstrap'))\"; ls -ld coga/skills/bootstrap/ticket /home/n/.config/coga/skills/bootstrap/ticket 2>/dev/null" in /tmp/coga-prompt-trial-667707cc
+ exited 2 in 0ms:
+/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap
+
+exec
+/bin/bash -lc 'cat /home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md; cat /home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md' in /tmp/coga-prompt-trial-667707cc
+ succeeded in 0ms:
+---
+name: bootstrap/ticket
+description: Interview the human, fill in a freshly-scaffolded draft ticket (workflow, contexts, owner, optional main agent, body), create any missing contexts or skills the ticket needs, and run an independent evaluator review before handing back to the human for approval.
+---
+
+# Bootstrap a ticket
+
+Your job is to turn a one-line title into a complete `draft` ticket the human
+can review and launch. You do **not** start the work itself — you set it up.
+
+The human is at the keyboard in an attended agent launch. Ask, don't guess. Keep
+the interview short — 4–6 questions, not a survey.
+
+## Before the interview
+
+New tickets carry a field guide in an HTML comment under `## Context`: the
+frontmatter keys, the frozen workflow shape, and the `## Dev` / `## PR`
+blackboard records. Read it and keep it while filling in the actual content.
+A ticket created before the guide existed may lack it; the editing rules here
+and in the base prompt apply either way, so do not paste the guide into it.
+
+A ticket carries a workflow — the ordered steps the work moves through —
+everywhere except while it is a `draft`. A ticket with no workflow can't be
+activated: `coga mark active` refuses it, and `coga validate` errors on a
+workflow-less `active`/`in_progress`/`blocked`/`paused` ticket. Picking the
+workflow is part of this interview (step 3), and your default is to hand back
+a ticket with one. The one exception is deliberate **concept-capture**: when
+the human wants to stash an idea before its shape is settled, a workflow-less
+*draft* is a valid end state — it simply stays a draft until someone adds a
+workflow. Don't force a workflow onto an idea that isn't ready for one; just
+make the tradeoff explicit (it can't be activated yet).
+
+Match this shape exactly. Don't invent fields the guide doesn't define
+(see the frontmatter rules in the base prompt), and don't reintroduce metadata
+the format removed: there is no `slug:`, `human:`, `assignee:`, or `watchers:`.
+Writing one back makes the ticket invalid and every Coga command refuse it.
+
+**Who holds the ticket is derived, not written.** Coga reads the current
+workflow step's `assignee:` *role* — `owner`, `agent`, or `other-agent` — every
+time it needs an operator. `owner` is a human handoff to the ticket's `owner:`;
+`agent` is the ticket's `agent:`; `other-agent` is that agent's configured peer.
+So choosing the workflow (step 3) is how you choose the handoffs; there is no
+separate assignment to make.
+
+**Frontmatter you may write in this interview** — the explicit exception the
+base prompt allows: `title`, `status`, `owner`, `agent`, `contexts`,
+`skills`, `workflow`, `step`, `secrets`, and any repo extension field, subject
+to the lifecycle restrictions in step 3. `--agent` on `coga ticket` selects
+the interviewer only; never copy it onto the ticket as the main-agent choice.
+
+## Step 1 — Identify the launch shape and open with the matching greeting
+
+This session is greet-first: open the conversation yourself rather than waiting
+for the human to type first. Your **first reply** must greet the human in the
+way that matches how this skill was launched.
+
+Your first user turn is a **kickoff token** that `coga ticket` set to tell you
+the launch shape — read it, not the ticket body, to pick the greeting:
+
+- `Begin (new ticket)` → **New-title launch**.
+- `Begin (editing existing ticket)` → **Existing-ticket edit**.
+- bare `Begin` → **Empty interview** (also recognisable structurally: a
+  `bootstrap/ticket` header id-slug with no `Status:` line).
+
+The token is authoritative because `coga ticket` already resolved create-vs-edit
+before launching you: a freshly-scaffolded draft and a pre-existing draft both
+start with an empty body, so body-emptiness can't tell them apart — the token
+can. Only if the token is somehow absent, fall back to the header/body cues in
+the shapes below:
+
+- **Empty interview** — kickoff bare `Begin`; the header id-slug is
+`bootstrap/ticket`, there is **no `Status:` line**, and the Description is the
+"Persistent launch target" text. You're inside the stateless bootstrap ticket
+with no target. Open with:
+> "You ran `coga ticket` without naming a ticket, so: are you starting a
+> **new** ticket, or editing an **existing** one?"
+Keep the greeting command-light: refer to it as `coga ticket`, not the
+underlying `coga launch bootstrap/ticket` plumbing, and don't name the
+`coga create` command when you describe the New path — "I'll create the
+draft" carries the point. `coga status` is the exception: it's a genuinely
+useful hint, so do offer it by name.
+  - New → ask for a one-line title, then create the draft (run `coga create
+    "<title>"` under the hood — don't surface the command to the human) and edit
+    it directly in this same session.
+  - Existing → ask which slug (offer `coga status` to list them), then read and
+    edit that ticket's files directly — or tell them `coga ticket <slug>`
+    re-launches you straight onto it.
+
+- **New-title launch** — kickoff `Begin (new ticket)`; a real `tasks/<slug>`
+with `Status: draft`. `coga ticket "<title>"` just scaffolded this draft and
+launched you against it. Its body is still empty — that's expected, not a
+signal of anything. Open with:
+> "Your `<slug>` ticket has been created (draft). What should it do, why now,
+> and what would count as done? I'll turn your answer into the ticket."
+
+- **Existing-ticket edit** — kickoff `Begin (editing existing ticket)`; a real
+`tasks/<slug>` at any status (`draft`, `active`, `in_progress`, `blocked`,
+`paused`, `done`, `canceled`, or even an unrecognized value). You're revising a
+ticket that already exists
+— **even if its body is still empty**, which is exactly the state of a draft batch-created with `coga
+create` and then opened here. Open with:
+> "You're editing `<slug>` (status: `<status>`). What would you like to change?"
+
+  Preserve existing useful body text and frontmatter; ask only about the parts
+  they want to change. If the body is empty there's nothing to preserve, so
+  greet as an edit but pivot straight to filling it ("…it's empty right now, so:
+  what should it do, why now, and what would count as done?") —
+  never announce it "has been created". For an
+  `in_progress`, `blocked`, `done`, or `canceled` ticket, note you are revising
+  one already in flight, blocked, or finished — confirm intent if the change
+  looks substantive.
+
+New-title and existing-*draft* tickets both show `Status: draft` with an empty
+body — the kickoff token is what separates them, not the body, so trust it. In
+the rare case the token is missing and you genuinely can't tell, just ask which
+one they meant.
+
+Note: `coga create "<title>"` (the replacement for the deprecated `coga
+draft`) only writes the draft bytes to disk and does **not** run this skill. If
+the human expected the interview, point them at `coga ticket <slug>`.
+
+## Step 2 — Survey what's available
+
+Before suggesting anything, ground yourself in what actually exists:
+
+- Locate the installed package bootstrap root if you need to inspect bundled
+  batteries:
+  `python -c "from importlib.resources import files; print(files('coga.resources').joinpath('templates', 'coga', 'bootstrap'))"`
+- `ls coga/workflows/ <package-bootstrap>/workflows/` (and one level deeper)
+  — known workflows. Repo-local workflows live under `coga/workflows/`;
+  bundled batteries (e.g. `code/with-review`) under package
+  `bootstrap/workflows/`. A local file overrides a bundled one with the same
+  ref.
+- `ls coga/contexts/*/ <package-bootstrap>/contexts/*/` — known contexts
+  (path shape: `<namespace>/<name>/SKILL.md`; reference shape in tickets:
+  `<namespace>/<name>`). If `coga.toml` sets `[layout] contexts`, list that
+  directory instead of `coga/contexts/`; the reference shape is unchanged.
+- `ls coga/skills/*/` — known skills (same path/reference shape).
+- Effective `[agents.*]` after `coga.local.toml` layers over `coga.toml` —
+  known agent types (e.g. `claude`, `codex`).
+
+Don't propose a workflow, context, skill, or agent that isn't in this
+list — create it (step 4) or pick from the list.
+
+## Context and skill selection contract
+
+Treat `contexts:` as prompt payload, not labels. Every context attached to the
+ticket is inlined into the future launch prompt, so broad context choices are a
+token and precision cost.
+
+Rules:
+
+- Select the audience before choosing refs. The user set (`coga/`)
+  supports configuring, launching, authoring, recovering, and understanding
+  refusals in any adopting repo. The Coga-dev set (`coga-dev/`) is local to Coga's own
+  repository and explains building, testing, releasing, or steering Coga;
+  it is not a bundled fallback. Anything required by a shipped surface must
+  be in the user set. The criterion and distribution are owned by
+  `coga/context-layout` ("Context audiences").
+- Attach only context refs whose full body the future launched agent needs to
+  do this task correctly.
+- Do not attach broad orientation contexts by default. Use contexts like
+  `coga/architecture` only when the task directly depends on that knowledge.
+- If the task needs one fact from a broad context, copy that specific fact into
+  the ticket's `## Context` body instead of attaching the whole context.
+- If the same narrow fact recurs across tickets, create or propose a smaller
+  focused context rather than repeatedly attaching a broad one.
+- **Cite, don't attach, a large context the task uses a few facts from.**
+  Name its ref and path in `## Context`, say it is cited rather than attached,
+  name the sections to read, copy the facts the step depends on, and leave the
+  ref off `contexts:`. The threshold, the citation form, and the rule that a
+  cite leaves the same-PR context-update obligation untouched are owned by
+  `coga/knowledge` (`Attach or cite`). Follow its
+  measurement procedure with the candidate refs present, accounting for every
+  planned step. Never write the context's size or token count into the ticket
+  as the justification — it rots.
+- **Do not attach a context the ticket is going to edit.** When the job is to
+  change a context, name its exact path in `## Context` and leave the ref off
+  `contexts:`. Files being edited are read, not composed — the agent opens them
+  first thing regardless — so attaching them pays their full size on *every*
+  step to inline what it already has (one ticket measured ~22.9 KiB per step for
+  two editing targets). This is the case where the naive instinct points the
+  wrong way, because the task is *about* that context.
+- Skills are process knowledge. Select them through the workflow's step
+  `skills:` refs, not by putting skill text into `contexts:`. If a relevant
+  skill exists but no workflow uses it yet, mention the skill ref in the body
+  or propose the workflow change.
+
+The exception is `bootstrap/orient`, which is the orientation ticket itself; it
+intentionally attaches broad coga contexts so an ad-hoc oriented session has
+the operator reference loaded.
+
+## Citing code in `## Context`
+
+Code facts copied into `## Context` are read days or weeks later, against a
+tree that has moved on. Cite them in the form that survives that:
+
+- **Cite module plus symbol, never a bare line number.** Write
+  `git.sync_task_state` or `step_gate.gate_unmet_reason`, not
+  `src/coga/git.py:214`. Line numbers drift within days; one ticket's cold
+  evaluator counted nine stale citations against source ten days newer, one
+  pointing at the wrong module entirely.
+- **When a range genuinely helps, name the symbol first and mark the range
+  as an aid** — `git.sync_task_state` (near line 700 as of this writing) —
+  so a reader hunting through a 7,000-line module still has a starting
+  point, and knows the number is expected to rot.
+- **State the relationship that makes the fact load-bearing, not its
+  coordinates.** "The gate-checked copy and the synced copy are the same
+  `TaskRef`, so they cannot disagree" survives a refactor; "see line 87"
+  does not. The relationship is what the implementer actually needs.
+
+This is the same rule `code/review-design` applies to evaluator findings.
+
+The same holds for a ticket cited in `## Context`: copy the substance this
+task needs, and cite the slug only for provenance. Retro and `coga retire` may
+delete it first. When the source is already gone, recover its body with the
+retired-task recipe in `coga/tickets/discovery` (`Where tasks live and how they are
+named`), which also searches the pre-rename `relay-os/tasks/` tree.
+
+## Step 3 — Interview the human
+
+Cover these, in this order, in plain conversation. Stop pulling once you
+have enough — don't ask every question if the title already implies the
+answer.
+
+1. **Description and done** — what needs to happen, why now, and the smallest
+   observable result that means the ticket is finished, in 2–4 sentences. This
+   becomes the `## Description` body. Write the done criteria as prose inside
+   `## Description` — do **not** add an `## Acceptance Criteria` section.
+   `coga launch` composes only `## Description`, `## Context`, and the
+   blackboard into an agent's prompt, so anything written under another `##`
+   heading never reaches the agent who has to satisfy it. When the workflow
+   has a `code/design` step, that step expands the done sentence into the
+   *Acceptance criteria* checklist under `## Description`; `code/design` is
+   the only author of that checklist, so leave it a sentence here. If the
+   human's answer leaves done implicit, ask one targeted follow-up ("how will
+   you know it worked?") rather than inventing a criterion.
+2. **Context** — what's the agent who picks this up later going to wish they
+   knew? Codebase pointers, gotchas, related tickets, out-of-scope notes.
+   This becomes the `## Context` body.
+3. **Workflow** — which workflow fits? `ls coga/workflows/
+   <package-bootstrap>/workflows/` for the options (e.g. `code/with-review`
+   for a code change shipped via PR — a bundled package `bootstrap/workflows/`
+   battery). Every ticket needs one before activation — a workflow-less ticket
+   can't be activated and `coga validate` errors on a workflow-less active
+   ticket — so pick the lightest workflow that matches the shape of the work,
+   unless the human explicitly picked one. If the task has an irreversible or
+   outward-facing step, pick a workflow with a human gate before it.
+   `code/agent-merge` has no human gate before its merge: pick it only when
+   the human chose it for this ticket or the repo's instructions make it the
+   default for this kind of change. If
+   genuinely nothing fits (e.g. pure concept-capture with no sequence of
+   steps), tell the human: either the repo needs a new workflow, or the idea
+   stays a deliberate workflow-less *draft* (valid, but un-activatable until a
+   workflow is added) until it is ready to be a real ticket.
+4. **Contexts to attach** — which exact context bodies must be included in the
+   future prompt? Keep the list narrow. If only a specific fact is needed, put
+   it in `## Context` instead of attaching the whole context.
+5. **Owner and main agent** — confirm the accountable human; set an agent only
+   if the human chooses one, otherwise leave the draft's agent absent for the
+   configured default at activation.
+6. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
+   entries, the scaffold seeded each one with its default (or `""`) below
+   the `# --- extensions ---` marker. For every declared field that is empty
+   on the draft, ask the human for a value — particularly anything marked
+   `required = true`, since `coga mark active` refuses to activate a ticket
+   with required-but-empty extension values. Fields with declared `values:`
+   (enums) must be set to one of the listed values. Write the chosen value
+   into the frontmatter below the marker, preserving declaration order.
+
+While interviewing, watch for **gaps** — domain knowledge that recurs across
+recent tickets but isn't captured anywhere, or process steps that workflows
+keep needing inline. Surface them in step 4.
+
+For existing `active`, `paused`, or `blocked` tickets, treat this as refinement
+of an approved ticket, not a new ticket. Preserve the current intent unless the
+human explicitly changes it. Do not change `status:`, `step:`, or an existing
+frozen workflow snapshot during ordinary authoring. The one exception is an
+out-of-vocabulary `status:` value: that is malformed metadata, not a lifecycle
+transition. Confirm the intended valid status with the human and repair the
+whole validator-correlated lifecycle shape during this session, because final
+validation rejects malformed state after the interview: remove `step:` when
+repairing to terminal `done` or `canceled`. A repaired live status (`active`,
+`in_progress`, `blocked`, or `paused`) must carry both a **frozen workflow
+snapshot** and a valid current `step:` — never leave its workflow as a bare
+string or its step missing/invalid. If either is malformed, load the selected
+workflow definition, write its frozen `name` plus ordered `steps` (including
+each step's `skills`, `assignee`, and `requires` metadata when present), and
+set `step:` to the intended matching position; use `1 (<first-step-name>)`
+when there is no valid prior position and the human does not select another.
+Do not rewrite an otherwise-valid frozen workflow snapshot.
+
+## Step 4 — Create missing contexts and skills
+
+Choose the owning file using `coga/knowledge` first. A command ticket or
+recurring template owns its capability's contract and procedures; extend that
+owner instead of creating a context merely to make the material attachable.
+
+If the interview reveals a gap that should be a reusable context or skill,
+create the file inline rather than leaving it as a TODO. Bias toward small,
+focused files — under a page each. Use the `_template/` directories as the
+shape:
+
+**Before hand-writing a skill, check whether one can be imported.** When the
+gap is a *skill* (process knowledge), follow `bootstrap/import` first: search
+the external registries for a candidate and decide import / adapt / write. Only
+write a local skill from scratch when nothing external fits. Contexts (domain
+knowledge) are repo-specific — write those locally as below.
+
+- New context: `<contexts-dir>/<namespace>/<name>/SKILL.md` — where
+  `<contexts-dir>` is `coga/contexts/` unless `coga.toml` sets
+  `[layout] contexts` — with
+  frontmatter `name: <namespace>/<name>` and a one-sentence `description:`.
+  Body is domain knowledge — facts, edge cases, what's out of scope. No
+  process.
+- New skill: `coga/skills/<namespace>/<name>/SKILL.md` with the same
+  frontmatter shape. Body is process knowledge — how to do the thing,
+  attached to a workflow step. No domain facts.
+
+Confirm the namespace and name with the human before writing. Once created,
+add the new context to the ticket's `contexts:` list (or, for a new skill,
+note it in the body so the human can wire it into a workflow on review).
+
+If a gap is too speculative to commit to a file, write it to
+the ticket's blackboard region under a **Proposals** section instead — same shape as the
+`bootstrap/dream` skill uses. The human accepts or rejects on review.
+
+## Step 5 — Write the ticket
+
+Edit the exact ticket path from the composed prompt. A new draft normally starts
+as `coga/tasks/<slug>.md`; convert it to directory form only when it needs
+attachments. The base prompt's frontmatter rules apply, with this interview's exception:
+
+- For a draft, set `workflow:` to the workflow name you picked (e.g.
+  `code/with-review`). This is required — a ticket with no workflow can't be
+  activated. Write it as a bare string, and first-launch activation freezes
+  the snapshot and seeds its first step. An existing live ticket keeps its
+  frozen snapshot. If repairing malformed metadata to a live status — or
+  explicitly changing a live ticket's workflow — write the full frozen
+  snapshot and a valid `step:` as described in step 3.
+- Apply the owner, main-agent, context, and extension choices from the interview.
+- If the target file actually has `skill: bootstrap/ticket` in frontmatter
+  from an older seeded flow, remove it. Modern `coga ticket` injects this
+  skill only into the prompt; it should not persist on normal tasks.
+- Preserve the current valid `status:`. You do not activate or start the ticket
+  — the human starts it later with `coga launch`, or queues it without starting
+  via `coga mark active`. If the current value is outside `draft`, `active`,
+  `in_progress`, `blocked`, `paused`, `done`, and `canceled`, repair it to the
+  human-confirmed valid status and make `step:` / `workflow:` consistent with
+  it as described in step 3.
+- Fill the `## Description` and `## Context` body sections from the
+  interview, preserving the inline guide.
+
+Do not call `coga bump`. Guided authoring never advances the target workflow.
+
+## Step 6 — Run the evaluator review
+
+Spawn an independent fresh session to read the filled ticket cold and
+critique it. The evaluator should not have seen your interview — it's
+checking the ticket as a future agent picking it up would.
+
+For Claude Code: use the `Agent` tool with `subagent_type: general-purpose`.
+For Codex or other agents: use whatever sub-session primitive is available
+(e.g. `codex exec`).
+
+Hand the evaluator the path to the ticket and ask it to assess:
+
+- Is the description clear enough that an agent with no prior context could
+  start work?
+- Is it clear what would count as done — could a reviewer tell whether the
+  finished work satisfies the ticket?
+- Does the chosen workflow fit the shape of the work? Any obvious mismatch?
+- Are the attached contexts relevant? Anything important missing?
+- Are any attached contexts broad enough that the needed fact should have been
+  copied into `## Context` instead?
+- Does any cited context (named in `## Context`, off `contexts:`) need to be
+  attached after all because any planned step depends on rules spread across
+  it, and does any cite quote a size or token count as its justification?
+- Is the scope reasonable, or does it bundle multiple tickets' worth of
+  work? If so, recommend a split into sibling tickets in a plain directory,
+  never a parent ticket (`coga/tickets/discovery`). The evaluator only recommends; it
+  does not create tickets. Apply an agreed split yourself, after the human
+  confirms it, with `coga create "<group>/<title>"` and the disposal
+  sequence in `coga/tickets/discovery`.
+- Any assumptions that should be questioned before launch?
+
+Also hand the evaluator the composed prompt's size breakdown, which the
+ticket file alone cannot show — the ticket lists context *refs*, and how
+many tokens each one actually costs only exists after composition. Follow
+the measurement procedure in `coga/knowledge` → `Attach or cite`, including
+its checkout precautions or read-only alternative. The CLI form is:
+
+```
+coga launch <slug> --prompt-report
+```
+
+This prints one small table (layer, ref, bytes, approx tokens) and exits
+without launching — it is not the prompt text, so reading it is cheap. Ask
+the evaluator to flag any layer over roughly 40% of the total as a
+concrete trim candidate.
+
+Judge the layers *proportionally*, not against a fixed size. `launch`
+already prints its own automatic warning when the blackboard alone exceeds
+32 KiB (`BLACKBOARD_WARN_BYTES`), so anything it catches needs no help from
+the evaluator — but an absolute threshold misses proportional bloat. A real
+example: a 16.9 KiB blackboard is only half that threshold and raises no
+warning, yet it was 4,314 of 7,185 tokens — 60% of the entire composed
+prompt, paid on *every* launch of that task. That is the gap this check
+exists to close.
+
+Write the evaluator's response to the ticket's blackboard region under a top-level
+**## Evaluator review** section, verbatim. Don't summarize — the human reads
+it directly.
+
+## Step 7 — Show the summary and ask the human to validate
+
+Before exiting, print a compact summary the human can sanity-check at a
+glance. The point is to surface the choices that are easy to get wrong and
+hard to spot once the ticket has launched — workflow shape and the skills each
+step will run.
+
+Read `coga/workflows/<name>.md` (or
+package `bootstrap/workflows/<name>.md` for a bundled battery) for the
+workflow you picked and pull its step list (each step's `name:` and
+`skills:`). Then print:
+
+```
+<slug> — <title>
+
+Workflow: <name>
+  1. <step-name>  →  <skill-ref>, <skill-ref>
+  2. <step-name>  →  <skill-ref>
+  3. <step-name>  →  (human)
+
+Contexts: <ref>, <ref>          # or "none"
+Skills (ticket-level): <ref>    # omit line if empty
+Owner: <human>
+Main agent: <chosen agent, or default at activation>
+
+Summary
+  <2–3 sentences in your own words: what this ticket is, what done looks
+  like, anything you flagged as a gap or assumption.>
+
+Durable review notes: <1-2 lines with durable evaluator findings, or "none">
+```
+
+Then ask the human directly: "Does this look right, or anything to change
+before you launch?" Wait for their reply. If they redirect — swap the
+workflow, drop a context, reword the description, fix an extension field —
+make the edit and reprint the relevant part of the summary. Only move on
+once they explicitly confirm.
+
+After confirmation, do one final cleanup pass before printing the closing line:
+
+1. Re-read the blackboard authoring sections: `## Evaluator review`,
+   `## Proposals`, and `## Ticket authoring notes` if present.
+2. Fold the durable substance into the ticket body, usually `## Context` or the
+   section where a future implementer will need it. Preserve concrete review
+   findings, risks, constraints, and out-of-scope decisions; do not dump the
+   whole review verbatim.
+3. If the ticket is still `status: draft`, preserve its `## Superseded designs`
+   section, including every dated entry, and reset the rest of the blackboard
+   to the stock placeholder for this ticket title. Follow `coga/blackboard`,
+   "Superseded designs", when archiving a pivot: keep retained headings nested
+   inside the dated entry.
+   Launch supplies only an archive pointer, so keep any rationale needed for
+   current work in `## Description` or `## Context` during this cleanup.
+   Do not leave empty authoring headings behind.
+4. If editing an existing non-draft ticket
+   (`active`, `in_progress`, `blocked`, `paused`, `done`, or `canceled`),
+   preserve unrelated blackboard content such as blockers, dev notes,
+   production notes, and handoff notes; remove only the authoring
+   sections you used.
+5. Re-read the ticket and verify current requirements live under `## Description`
+   or `## Context`, superseded designs remain in their blackboard section,
+   and the blackboard cleanup matches the ticket status.
+
+Once that cleanup is complete, print one closing line. For a draft:
+
+```
+Filled <slug>. Run `coga launch <slug>` when ready. Use `coga mark active <slug>` only to approve it without launching.
+```
+
+For an already-active ticket:
+
+```
+Updated <slug>. Run `coga launch <slug>` when ready to start work.
+```
+
+Optionally `coga slack --task <slug> --message "<short>"` if the ticket
+warrants a heads-up to the channel (a new context was created, the workflow
+changed, etc.). Skip the Slack post for routine fill-ins.
+
+Then exit.
+---
+name: coga/knowledge
+description: The permanent authoring rule for Coga knowledge — which surface owns a fact, one owner per fact, links never load content, when to attach versus cite a topic, and the topic size review policy.
+---
+
+# Where knowledge lives
+
+Every fact has exactly one owning file; when two copies disagree, the owner
+is right. Choose the owner by what the knowledge is:
+
+| Knowledge | Owner |
+| --- | --- |
+| Shared facts and contracts: behavior, invariants, edge cases, product intent used across capabilities | a local topic under the configured contexts root (`<ref>/SKILL.md`), or the package owner of a shipped topic |
+| Reusable process: how to do a thing | a skill (`coga/skills/<ref>/SKILL.md` or bundled) |
+| One ticket-defined capability's behavior and procedure | its command ticket (`bootstrap/<name>/ticket.md`) or recurring template (`recurring/<name>/ticket.md`) |
+| Maintenance procedures specific to that capability | supporting files beside its persistent ticket, linked for reading when needed |
+| Per-ticket field guide: a summary carried by new tickets that links the owning topics | inline ticket template (`src/coga/resources/ticket.md`) |
+| One task's temporary working state | that ticket's blackboard ([coga/blackboard](../blackboard/SKILL.md)) |
+| Execution history | `coga/log.md`, written only by CLI commands |
+| Dated evidence, completed investigations, archived proposals, and other retired history | the repo's dated archive, outside the contexts root |
+
+Humans and agents read the same owning file. Do not keep a short agent
+rendition beside a longer human one: that is two owners of one fact, and the
+copies drift independently. For shared facts, pick the topic whose subject
+already covers the neighbouring facts; when two fit, the more narrowly
+attached one wins, because the fact then costs tokens only where it is needed.
+
+Durability alone does not make a document a context. Command tickets and
+recurring templates persist; their individual executions and period tasks do
+not. Keep a job's contract with the job: phone-home owns its snapshot boundary,
+and Dream owns its phase order. Extract shared facts into a context and
+reusable procedures into a skill when other capabilities need them.
+
+Keep maintenance instructions separate from instructions for each run. A
+template may link a sibling runbook, but recurring creation copies only
+`ticket.py`, not supporting Markdown. Name the persistent template path when
+directing a period to a supporting file; do not assume it is beside that
+period's ticket. Skills and runbooks remain readable documentation for humans.
+
+An owner decision *not* to act ("we looked at X and chose not to do it") is
+product intent, so it belongs with X's standing owner: the shared topic, skill,
+command ticket or recurring template, never only the temporary task that
+recorded it. The lifecycle retires work tickets and period tasks; a decision
+left in one gets re-raised. State what was declined, why, and what would reopen it.
+
+The same retirement breaks links. Retro and `coga delete` remove a ticket
+without repairing inbound references, so a topic that names a ticket by path
+as the owner of an open question dangles once it retires. Point durable
+surfaces at the question's standing owner, not at the transient ticket working
+it, and grep for inbound references to a slug before it retires.
+
+## Narrative links, never restates
+
+An index, README, overview, or neighbouring topic may summarize and link to
+the owner, but carries no specification-grade detail: no ordered lists, exact
+names, counts or field lists that can drift on their own. "Launch stacks
+conduct before task material, ticket last; the order is in
+`coga/prompt-composition`" is a summary; copying the layer list is a second
+specification. Command semantics live with their owning capability. A command
+ticket or recurring template owns its own behavior (`bootstrap/retire/ticket.md`
+owns `coga retire`); rules several jobs share stay in a topic the ticket links.
+`coga/cli` is an index, and installed `coga <cmd> --help` is the syntax authority.
+
+**Sync rule.** A PR that changes an owner greps other surfaces for the fact
+and fixes or deletes any restatement in the same PR. No test enforces this
+across surfaces; the authoring rule is the enforcement and Dream's knowledge
+scan is the backstop. A shipped definition has one committed owner, its
+package copy; a repo copy of the same ref is a deliberate local override, a
+separate artifact, not a second owner to keep in sync. `CLAUDE.md` /
+`AGENTS.md` load in every agent session, so they carry pointers plus only the
+rules needed outside `coga launch`, never an owning statement.
+
+## Links do not load content
+
+Composition includes attached refs only
+([coga/prompt-composition](../prompt-composition/SKILL.md)). A markdown link
+in a topic, skill, or ticket is navigation: the agent reads the target only if
+it chooses to open the file, subject to that repo’s access rules. So an
+overview does not bring in its children. Knowledge a step requires must be
+attached explicitly by ref or named as a required read in the task or skill;
+a navigation link alone does neither.
+
+## Attach or cite
+
+Choose from the two audiences defined in
+[context layout](../context-layout/SKILL.md#context-audiences): user topics
+under `coga/` support operating Coga in adopting repos; the local
+Coga-dev set supports developing Coga itself. Select by the task's need,
+then apply the attach-or-cite test below. A shipped instruction must resolve
+its required knowledge from the user set; a development link is optional
+navigation, never a dependency.
+
+For a job-owned contract or supporting file, name its persistent path and the
+sections to read in the task's `## Context`. Invoke a reusable skill by ref.
+Do not recreate either as a context just to put it in `contexts:`.
+
+`contexts:` is one ticket-wide list, composed whole into every launch of
+every step. Decide per ticket across all planned steps:
+
+- **Attach** when a step must have the facts without being told to look:
+  its correctness depends on rules spread across the topic, or the author
+  cannot predict which facts it will hit. Test: would a launched step go
+  wrong if this were absent from the prompt?
+- **Cite** when steps need a few identifiable facts from a topic that is
+  large relative to the rest of the prompt, or when the ticket will *edit*
+  that topic (it gets read first anyway).
+
+Measure relative size at authoring time with `approx_tokens` from
+`coga launch --prompt-report`, which skips the state sweep, so a trial
+`contexts:` edit stays local; do not edit lifecycle frontmatter to measure,
+and do not quote sizes (they go stale). No topic is
+always-attach or always-cite.
+
+A cite is one sentence in `## Context` naming the ref and path, saying it is
+cited rather than attached, and naming the sections to read, followed by the
+facts the step needs, cited as module plus symbol. Do not justify it by size.
+The copied facts are a snapshot for that ticket, never a second owner. Citing
+does not relax the sync rule: a ticket that changes behavior a cited topic
+owns updates that topic and its dependent references in the same PR.
+
+## Topic size review policy
+
+Each topic is a directory holding `SKILL.md` with only `name` and a
+one-sentence `description` stating its scope. Targets: 60 to 160 lines and
+500 to 1,500 tokens (ceil(chars/4), frontmatter included); overview topics at
+most 1,000 tokens. A topic over 200 lines, 10,000 bytes, or 2,500 tokens is
+reviewed for a split into narrower leaves in its namespace, so tickets can
+attach only the contract they need. An exception needs a recorded reason,
+written in the oversized topic itself as one closing `Size exception:`
+sentence saying why it stays whole. A reason kept only on a ticket
+blackboard or in a PR leaves with them, and the next reader who measures the
+topic cannot tell a decision from drift.
+
+codex
+1. The effective source is the bundled [bootstrap/ticket/SKILL.md](/home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md), specifically Step 1. This session includes the `bootstrap/ticket` authoring skill, and the trial repo has no local override for that ref, so the bundled file supplied it.
+
+2. For a customization in this repository, create/edit [coga/skills/bootstrap/ticket/SKILL.md](/tmp/coga-prompt-trial-667707cc/coga/skills/bootstrap/ticket/SKILL.md), copying the bundled skill and changing its greeting. That same-ref local override takes precedence and keeps your customization repo-specific.
+
+No files changed; four files read.
+tokens used
+27,833
