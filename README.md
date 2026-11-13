@@ -4,11 +4,11 @@
 
 Coga is a local, Git-backed CLI for working with coding agents through editable tasks, knowledge, and workflows.
 
-So why build another agent tool when so many already exist?
+So... Why build another agent tool when so many already exist?
 
-Because none of the tools I've tried—and I've tried a lot—helped me work the way I want to.
+Because none of the tools I've tried —and I've tried a lot— helped me work the way I want to.
 
-I love making things. I want agents to help me think, explore, challenge assumptions, and build—not outsource my thinking just to maximize output. Decisions, friction points, and ways of working should stay visible and open to change. I want to hack the factory, not just the software it produces.
+I love making things. I want agents to help me think and build — not outsource my thinking just to maximize output. Decisions, friction points, and ways of working should stay visible and open to change. I want to hack the factory, not just the software it produces.
 
 | | Principle | What it means |
 |:--:|---|---|
@@ -20,7 +20,7 @@ I love making things. I want agents to help me think, explore, challenge assumpt
 
 ## How the plan evolves
 
-You don't need a finished specification to start. A ticket can be a question to research, a decision to make, or an implementation task. The work can change the plan, and what you learn can shape the next task.
+You don't need a finished specification to start. It starts with a task or a ticke. It can be a question to research, a decision to make, or an implementation task. The work can change the plan, and what you learn can shape the next task.
 
 ```mermaid
 flowchart TD
