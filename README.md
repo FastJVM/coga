@@ -128,7 +128,13 @@ The published PyPI release 0.4.1 predates Coga's native Windows support,
 so install the current GitHub source version instead:
 
 ```powershell
-irm https://astral.sh/uv/install.ps1 | iex
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+This runs the installer without changing your execution policy. Open a new
+terminal, then run:
+
+```powershell
 uv python install 3.11
 uv tool install --python 3.11 "git+https://github.com/FastJVM/coga.git@main"
 coga --version
