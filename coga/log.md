@@ -11016,3 +11016,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-13 08:57 v1 [v1/47-cap-requires-python-and-stop-init-leading-with-a-c] [human:zach] started (active → in_progress) via coga launch
 2026-11-13 08:57 v1 [v1/47-cap-requires-python-and-stop-init-leading-with-a-c] [human:zach] launched (operator=claude, agent=claude)
 2026-11-13 11:11 v1 [marketing/research-how-agents-make-delegated-decisions-geo] [human:zach] created (status=draft)
+2026-11-13 11:13 v1 [marketing/research-how-agents-make-delegated-decisions-geo] [human:zach] activated (draft → active) — auto on launch
