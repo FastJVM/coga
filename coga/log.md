@@ -11001,3 +11001,6 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 23:01 v1 [v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-12 23:01 v1 [v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-12 23:01 v1 [v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-13 07:21 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [human:zach] activated (draft → active) — auto on launch
+2026-11-13 07:21 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [human:zach] started (active → in_progress) via coga launch
+2026-11-13 07:21 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [human:zach] launched (operator=claude, agent=claude)

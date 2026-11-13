@@ -1,6 +1,6 @@
 ---
 title: Fix the README's native-Windows install steps
-status: draft
+status: in_progress
 owner: zach
 workflow:
   name: docs/with-review
@@ -21,6 +21,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -132,5 +133,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-45-fix-the-readme-s-native-windows-install-st-2006e1
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
