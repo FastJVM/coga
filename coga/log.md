@@ -11018,3 +11018,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-13 11:11 v1 [marketing/research-how-agents-make-delegated-decisions-geo] [human:zach] created (status=draft)
 2026-11-13 11:13 v1 [marketing/research-how-agents-make-delegated-decisions-geo] [human:zach] activated (draft → active) — auto on launch
 2026-11-13 11:13 v1 [marketing/research-how-agents-make-delegated-decisions-geo] [human:zach] started (active → in_progress) via coga launch
+2026-11-13 11:13 v1 [marketing/research-how-agents-make-delegated-decisions-geo] [human:zach] launched (operator=zach, launch_agent=claude, agent=claude)
