@@ -302,3 +302,11 @@ checks:
     base: 5a224774c20abff695d9861a57af67040baf975b
     detail: "No whitespace errors."
 ```
+
+## Ad hoc PR verification — 2026-11-12
+
+PR #1224 merged at 786bc7b8930c008d52e4914690f39f78d5f2ba6c after owner-authorized review and merge from the attended chat. No workflow step was bumped here.
+
+The inherited Python 3.14 cyclic-contexts failure was reproduced on main: configuration already rejects the loop, but the diagnostic differs from Python 3.12. Commit 50a74aeb086d529d14ce4820e47dc96b2f988f71 adjusts the existing test to accept either rejection diagnostic and records the interpreter difference in coga-dev/testing. The focused regression passes on Python 3.12.12 and 3.14.4.
+
+Full receipt: 50a74aeb086d529d14ce4820e47dc96b2f988f71; Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.14.4. Command: `PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga-pr1224-py314/bin/python -m pytest -q --basetemp=/home/n/Code/codex/coga-pr1224-full314` -> 4853 passed, 33 skipped in 921.20s. Repository validation exited 0 with 84 OK and no errors. Final PR head bb6297891d96e4b11996301b6fd7a6c721e64b17 has identical src/tests/pyproject.toml/AGENTS.md to that tested commit; reconciliation changed only README and routine state. Documentation navigation passed after reconciliation. Native Windows verification is deferred to release under the owner's updated policy.
