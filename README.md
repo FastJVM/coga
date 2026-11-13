@@ -4,15 +4,17 @@
 
 Coga is a local, Git-backed CLI for working with coding agents through editable tasks, knowledge, and workflows.
 
-I built Coga to scratch my own itch:  I want to make things with increasingly capable coding agents, learn and rethink as I go, and freely hack the system I use to build—not just automate software production.
+So why build another tool when so many already exist?
+
+Coding agents are getting smarter every day, backed by enormous investments. I'm not trying to build another Codex, compete with the next generation of agents, or raise money for yet another AI startup. I'm building Coga to scratch my own itch.
+
+I love making things. I want agents to help me think, explore, challenge assumptions, and build—not just automate the thinking and maximize output. I want the decisions, the friction points, and the ways of working to stay visible and open to change. I want to hack the factory, not just the software it produces.
 
 | | Principle | What it means |
 |:--:|---|---|
-| 🧠 | **Human agency** | Amplify human thinking and creativity, don't automate them away. |
-| 🔄 | **Continuous discovery** | Learn what works, challenge assumptions, and rethink what comes next. |
-| 🛠️ | **Hackable system** | Own and reshape not just the software, but the system that builds it. |
-
-
+| 🧠 | **Human agency** | Keep people in control of what matters. Delegate by choice, not by default. |
+| 🔄 | **Continuous discovery** | Let what you learn challenge what you know and change what you build next. |
+| 🛠️ | **Hackable system** | Own and reshape your tools, knowledge, and ways of working. |
 
 [Browse Coga's own tickets](https://github.com/FastJVM/coga/tree/main/coga/tasks)
 
