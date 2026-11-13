@@ -39,11 +39,11 @@ step: 2 (review-design)
 Finish separating the generic ticket executor from the procedures that use
 it. The CLI/service split already shipped; the remaining work is in
 `src/coga/launch.py`, its consumers, and the boundary between stateless command
-tickets and stateful workflow execution. This includes how every agent launch
-builds its prompt, not just guided ticket authoring. First compare concrete
-prompt forms at representative stages, then implement the selected form. This
-is the 2026-11-12 scope proposal for owner review, not approval to resume the
-paused implementation.
+tickets and stateful workflow execution. Prompt-form experiments and their
+production assembly migration now have their own numbered group at
+`v1/microkernel/03-prompt-assembly/`; this ticket retains the distinct shared
+execution and stateless invocation contracts. This is a scope proposal for
+owner review, not approval to resume the paused implementation.
 
 ### Objectives advanced
 
@@ -52,40 +52,20 @@ a customized ticket must use the same executor without adding a core case.
 Simplification: remove duplicated preparation and command-specific branches;
 a module split alone does not complete this ticket.
 
-### Owner direction — general prompt assembly
+### Boundary with prompt assembly
 
-The ticket is the common unit of work for deterministic code and agent work.
-For an agent phase, assemble the requested skills, context blocks, relevant
-workflow fragment, and the ticket's own intent and working state around a
-minimal base prompt. The base carries only the shared instructions and
-runtime additions needed for that invocation. Procedures belong with their
-tickets, skills and workflows, so customizing those files changes what runs
-without adding a named case to the executor.
+The numbered `03-prompt-assembly/README.md` group owns candidate prompts,
+the comparison protocol, bounded trials and any production assembly migration.
+Its first result may be that no replacement is justified. This ticket owns
+stateless invocation/configuration/publication, session/admission seams and
+removal of duplicated execution setup. Consume the selected shared assembler
+without designing a second applicability mechanism here.
 
-Apply this model wherever Coga builds an agent prompt: ordinary workflow
-steps, stateless command tickets, guided authoring, megalaunch and recurring
-agent sessions. A deterministic phase still executes code through the same
-ticket execution model; it does not become an agent prompt or require an
-agent merely to use the common mechanism.
-
-Do not choose a final prompt layout by intuition alone. Before runtime
-implementation, put complete candidate prompts in this ticket (or sibling
-attachments if needed), showing the assembled result at representative
-stages. Compare the current form with minimal-base alternatives, test them
-with agents on bounded representative tasks, and record the observed behavior
-and tradeoffs. Inspectability and correct behavior matter alongside size.
-Record which base instructions and runtime additions survive and why; the
-exact layout and additions remain design questions until this comparison.
-
-Include at least an ordinary workflow step, guided editing of an existing
-ticket, and a stateless agent procedure. Cover attended versus queued conduct,
-an owner assist, and a script-to-agent handoff where their required material
-differs. Each example must make the ticket, requested skill, relevant context
-blocks and workflow instructions identifiable. Verify which instructions
-actually apply to that session, including its completion and checkout rules.
-Do not copy incompatible procedure rules into a universal base.
-Use representative agent trials, not an exhaustive cross-product of all
-callers and postures; regression tests cover each caller's assembly contract.
+Prompt experiments use the current executor and do not wait for this refactor.
+Design the stateless contract independently with read/report, customization,
+lifecycle and orchestration consumers. A runtime change here that depends on
+a new prompt contract waits for the group's positive experimental decision
+and coordinates its interface with the assembly implementation ticket.
 
 ### Premise check against main
 
@@ -109,7 +89,7 @@ comments, exclude tests/docs, and describe inventory rather than promised saving
 | `launch.launch`, `_LaunchInvocation`, `LaunchResult`, `LaunchBail` | Target admission, preparation, workflow chaining, refresh and outcomes | Generic supervisor; preserve the public seam rather than creating a second launch service |
 | `spawn_agent_session`, `AgentSessionResult`, `build_agent_command`, command representability and usage helpers | One composed agent process; shared with authoring and megalaunch | Proposed session-module boundary, subject to prompt-comparison findings; migrate real callers together if extracted |
 | `launch_script.script_entry_point`, `run_script_phase`, `run_script_chain` | Exact `ticket.py` classifier, execution, refresh and handoff | Keep the existing classifier; split raw execution only if it removes duplication or lifecycle coupling |
-| `compose.compose_prompt_report`, prompt resources, workflow/skill layers, `commands.ticket._authoring_ticket` | Shared prompt assembly plus an authoring projection that still inherits ordinary execution instructions | One general assembly mechanism using the ticket and applicable procedure blocks, with a minimal base selected after prompt trials |
+| Shared composition consumed by launch and authoring | Prompt construction and applicability | Owned by the numbered prompt-assembly group; consume its selected seam without duplicating it |
 | `checkout_policy.select_checkout_policy` (145 lines), `checkouts.py` (1,159 lines) | Select policy from shipped names/instruction equality; perform shared Git mechanics | The dedicated checkout-policy ticket owns declaration and compatibility; this ticket consumes its result |
 | `DISCUSSION_BOOTSTRAP_TICKETS`, `_bootstrap_kickoff`, direct-chat and onboarding cases | Named procedure defaults and special behavior | Move defaults to their owning ticket/caller where possible; retain the actual chat lock/receipt and admission guarantees in shared machinery |
 | `launch_recurring_period`, `launch_with_before_spawn`, `settle_delegated_period` | Recurring leases, publication and held-child admission | Keep explicit typed contracts; queue selection and scheduling remain caller policy |
@@ -126,8 +106,9 @@ through the existing shared operations, not forwarding imports in command files.
 1. Retain one generic supervisor and expose the one-session executor already
    shared by real callers. Reduce its caller-specific setup only where the
    callers can converge without losing their admission/publication semantics.
-   Choose module boundaries after the prompt comparison; a session extraction
-   is a proposed means, not a prerequisite for testing or an end in itself.
+   A session extraction is a proposed means, not a prerequisite for prompt
+   experiments or an end in itself. Coordinate boundaries with the assembly
+   ticket once its contract has experimental support.
    No plugin host, phase registry, or new callback framework.
 2. Establish the minimal stateless command-ticket execution contract needed
    by the read/report and customization tickets. Today `launch` loads a user
@@ -146,12 +127,11 @@ through the existing shared operations, not forwarding imports in command files.
    through the lifecycle CLI; exit zero alone never advances or finishes it.
    An unchanged open step falls through to the agent. Skills never supply
    executable launch plugins, inline scripts, or a static script/agent flag.
-5. Implement the tested prompt form through shared composition, with every
-   agent-spawn caller using it. Resolve applicability before assembly rather
-   than stacking instructions that contradict each other. Keep source paths
-   and per-block reporting inspectable, and preserve failures for required
-   missing skills or contexts. Move procedure-specific instructions out of
-   the base only when their owning ticket, skill or workflow supplies them.
+5. Consume shared composition through the prompt-assembly group's selected
+   seam when moving session callers. This ticket does not select a prompt
+   form or migrate noninteractive autofix assembly; those belong to that
+   group's actual implementation ticket. Keep this change's admission,
+   publication and completion responsibilities explicit.
 6. Preserve native Windows console/Job Object behavior, POSIX supervision,
    environment isolation, secret injection/redaction, startup publication,
    assist receipts, recurring leases and released launch claims. The old
@@ -159,16 +139,10 @@ through the existing shared operations, not forwarding imports in command files.
 
 ### Acceptance and reduction evidence
 
-- [ ] Concrete candidate prompts, bounded agent-trial results and the chosen
-      form are recorded before runtime implementation. The examples cover
-      the session shapes above and explain the minimal base's additions.
-- [ ] Every agent-launch path uses the general assembly mechanism. The ticket,
-      requested skills, context blocks and relevant workflow material are
-      present without contradictory completion or checkout instructions.
-- [ ] Composition regressions cover applicability as well as inclusion:
-      authoring never receives instructions to execute or advance the target
-      workflow, stateless work never inherits a task lifecycle, and stateful
-      execution retains its required completion and handoff contract.
+- [ ] Session changes consume the approved shared composition seam without
+      adding a competing prompt assembler or moving the experimental gate
+      into hidden kernel rules. Any required interface is agreed with the
+      assembly ticket before dependent implementation.
 - [ ] Thin command adapter remains thin; no duplicate public launch API or
       compatibility re-export is added.
 - [ ] Caller policy is editable beside its ticket where selected by design;
@@ -181,8 +155,8 @@ through the existing shared operations, not forwarding imports in command files.
       environment and supervisor tests exercise the moved boundaries. Use the
       full-suite and native Windows receipts required by `coga-dev/testing`.
 - [ ] Update `coga/launch`, `coga/script-tickets`, the checkouts/publication
-      owners, `coga/prompt-composition`, affected prompt/skill/workflow owners
-      and local source map where their contracts actually change.
+      owners and local source map where their execution contracts actually
+      change; prompt/instruction owner changes belong to the assembly ticket.
 
 ## Context
 
@@ -191,31 +165,11 @@ to `declare-each-workflow-step-s-checkout-policy-in-th`. Its implementation can
 precede the session extraction. Read/report and customization depend only on
 the stateless contract they need; recipe job moves need no new session API.
 
-The new prompt comparison, agent trials and choice of form are outstanding
-design work. Keep the current owner `review-design` gate until the owner has
-reviewed those artifacts and selected the form; approving this scope alone
-does not approve runtime implementation. Preserve the paused status, current
-step and frozen workflow during authoring.
-
-Observed prompt failure during this authoring session: the normal ticket loop
-instructs the agent to run `coga bump`, while the requested `bootstrap/ticket`
-skill forbids advancing the edited ticket. `commands.ticket._authoring_ticket`
-replaces skills and removes the current step in memory, but
-`compose.compose_prompt_report` still adds the task execution loop for a
-`TaskRef`. Fix the general applicability boundary, rather than adding another
-instruction that asks the agent to override an earlier one.
-
-Prompt-assembly sources are `src/coga/compose.py` (`compose_prompt_report`,
-`_skill_layers`, `_step_layers`), `src/coga/commands/ticket.py`
-(`_authoring_ticket`, `_run_authoring_session`), and `src/coga/resources/prompt*.md`.
-The current composition contract is cited rather than attached:
-`coga/prompt-composition` at
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md`;
-read "Layer order", "What each layer reads", and "Blocker preamble versus
-authoring" before comparing candidate forms. It currently selects one conduct
-resource, reads attached skills and contexts whole, and omits a skilled step's
-inline workflow section. The new design must explicitly decide how the
-relevant workflow fragment and skill fit together without duplication.
+Keep the existing paused status, owner `review-design` step and frozen
+workflow. The owner reviews this narrowed execution scope separately; neither
+authoring the new drafts nor completing their experiment approves this ticket's
+runtime implementation. This remains a real execution deliverable, not an
+umbrella ticket for the new directory.
 
 The following editing targets are cited rather than attached; read their
 named sections before designing changes and update their owners in the same
@@ -262,7 +216,7 @@ leaf. `cli._should_sweep_coga_state` currently selects sweeping command heads;
 moving a read command under launch must not silently enable that sweep.
 `authoring.finalize_authored` validates changed tickets and publishes their
 required knowledge together; a refusal withholds the general sweep.
-`launch._publish_startup` groups ordinary managed startup before checkout
+`launch._LaunchInvocation._publish_startup` groups ordinary managed startup before checkout
 entry. Use the linked user `state-publication/launch-boundaries/SKILL.md`
 classification and the implementation `log-writers/SKILL.md` inventory when
 changing any caller's publication order.
@@ -274,42 +228,32 @@ cosmetic file splits and broad renames that advance none of the objectives.
 
 <!-- coga:blackboard -->
 
-## Evaluator review
-
-Verdict : le ticket est prêt pour des expériences de prompt bornées. Il n’est pas prêt pour l’implémentation : les candidats, les essais et le choix du propriétaire restent explicitement à produire au gate `review-design`, sans modifier le statut `paused`, l’étape ou le workflow gelé.
-
-L’ensemble est cohérent avec le microkernel. Le ticket demande un résultat observable, rend l’extraction de session conditionnelle aux résultats et conserve les garanties de `ticket.py`. Le défaut d’authoring est confirmé : `commands.ticket._authoring_ticket` retire l’étape, mais `compose.compose_prompt_report` ajoute encore `prompt-ticket.md` à tout `TaskRef`. La séparation entre instructions applicables et simple inclusion est donc un vrai besoin.
-
-Un point de périmètre doit être tranché avant de figer le contrat « toutes les voies » : `recurring_autofix.build_prompt` et `recurring_autofix.analyze_record` construisent et exécutent aussi un prompt agent, hors de `compose` et de `spawn_agent_session`. La section « Owner direction — general prompt assembly » et l’acceptation « Every agent-launch path » les englobent littéralement, mais l’inventaire ne les mentionne pas. Préciser leur inclusion, leur coordination avec un sibling, ou leur exclusion motivée. Cela ne bloque pas les premiers essais représentatifs.
-
-Pour choisir la meilleure forme, les objectifs annoncés — comportement correct, inspectabilité, taille — suffisent à commencer la conception. Avant les essais, consigner cependant un protocole commun : mêmes tâches et entrées pour chaque candidat, instructions attendues ou interdites, résultats observés et limites. Les erreurs de completion, de checkout ou d’autorité doivent éliminer un candidat ; le gain de taille vient ensuite. Les essais agents et les régressions de composition apportent des preuves différentes.
-
-Deux précautions de conception restent utiles :
-
-- « Resolve applicability before assembly » ne doit pas devenir un moteur qui devine la procédure depuis les noms de skills, le texte ou le workflow. Préférer des faits explicites fournis par l’invocation, avec leur provenance visible.
-- Comparer réellement les étapes avec skills et les étapes inline. `compose._step_layers` choisit actuellement l’un ou l’autre ; composer systématiquement les deux pourrait introduire duplication et contradiction. Le ticket laisse correctement ce choix ouvert.
-
-Les citations et lectures de publication sont maintenant précises ; les principaux sujets susceptibles d’être édités ne sont plus attachés. Aucun besoin évident d’attachement supplémentaire. Le périmètre est large, mais reste acceptable pour cette phase de comparaison ; décider des éventuels siblings d’implémentation après le choix du contrat.
-
-Dans le rapport fourni, aucune couche ne dépasse environ 40 %. La plus grande représente 23,6 % pour `coga-dev/testing` en owner review et 24,0 % pour `bootstrap/ticket` en authoring. Les contextes attachés représentent respectivement environ 65 % et 50 % du total : à réexaminer pendant les comparaisons, sans suppression mécanique. Le blackboard ne nécessite pas de réduction. Les chiffres précèdent les dernières modifications documentaires ; mesurer les candidats complets à leur révision d’essai.
-
 ## Verification — 2026-11-12 authoring session
 
-Full Linux suite receipt: base commit `4c691e8bcaaddbb1d75d38fa7dbd6a8dd62ccd22`, with ticket-only working-tree edits (not a clean-commit receipt); Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12.
-Command: `TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-pytest-launch-authoring-20261112-0206`.
-Result: **4853 passed, 33 skipped, 0 failed**, 929.22 seconds. Full output: `/tmp/coga-launch-authoring-pytest-20261112-0206.log`.
-Python 3.11 was not used. This session changes only the ticket; no platform-sensitive runtime implementation or native Windows claim is made.
+Full Linux suite receipt: base commit `9ab4cfa420d1ee4914fa539b14dcb8a06ec5e8a3`, with ticket/index-only working-tree edits (not a clean-commit receipt); Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12.
+Command: `TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-pytest-prompt-group-20261112-0250`.
+Result: **4853 passed, 33 skipped, 0 failed**, 761.20 seconds. Full output: `/tmp/coga-prompt-group-pytest-20261112-0250.log`.
+Python 3.11 was not used. This authoring session changes only tickets and indexes, with no platform-sensitive runtime implementation or native Windows claim.
 
-Subsequently reconciled with `b493f3c8975cced5da16ea84081b5c0bae20a5f8`. Main's new docs/workflow/test edits do not change the launch implementation reviewed here. The suite receipt is not evidence for that newer revision. Scoped ticket validation and `git diff --check` pass after reconciliation.
+Four scoped validations pass. The repo-wide read-only validation reports 87 valid tasks, no errors, and 18 warnings; the three new drafts have only the expected unfrozen-workflow warning. Discovery finds exactly three grouped tickets and no group-root task; README links and `git diff --check` pass. These checks cover ticket organization, not experimental superiority of a prompt candidate.
 
-The second cold review above evaluates the revised scope; candidate prompt trials have not run. The owner confirmed the scope and requested evaluation, without advancing the paused workflow or authorizing runtime implementation.
+The earlier suite on base `4c691e8bcaaddbb1d75d38fa7dbd6a8dd62ccd22` with ticket-only edits passed 4853 tests, skipped 33, and failed none in 929.22 seconds on the same platform/interpreter. Output: `/tmp/coga-launch-authoring-pytest-20261112-0206.log`. Receipts remain tied to their actual bases; later state-only reconciliation is not another suite receipt.
 
-## Refresh handoff — 2026-11-12
+## Scope handoff — 2026-11-12
 
-The body now carries the current-main inventory and proposed boundary.
-The parent refresh owns scope approval; this ticket's existing role,
-status and workflow step are unchanged. No implementation was resumed.
-The earlier design and review evidence remain below for deliberate reading.
+The owner accepted inclusion of noninteractive autofix, a paired trial protocol,
+and explicit invocation facts, then asked for numbered experimental tickets.
+The prompt work now lives in the plain `03-prompt-assembly/` directory; this
+ticket retains stateless invocation/publication and execution decomposition.
+Its paused lifecycle and frozen workflow position are unchanged. No runtime
+implementation or prompt trial has run in this authoring session.
+
+The owner confirmed the numbered group. Its cold review found no blocking
+issue; the autofix contract citation and durable-decision handoff are now in
+the new ticket bodies. The comparison protocol also names observable behavior,
+source-identification tasks, payload and implementation-simplicity measures;
+fixed repetitions and a minimum useful effect remain for its owner review.
+All three new tickets remain drafts. Candidate trials have not run.
 
 ## Superseded designs
 
@@ -604,3 +548,279 @@ first PR and the follow-up ownership recorded in the spec.
 - `PYTHONPATH=/home/n/Code/claude/coga/src python3.12 -m coga.cli validate
   --task microkernel/launch-decomposition --json` passed: 1 task OK,
   no issues.
+
+### 2026-11-12 — Prompt assembly before the experimental split
+
+Superseded by: the numbered `03-prompt-assembly/` group for prompt preparation,
+paired comparison and evidence-gated implementation; the narrowed execution
+scope above retains the original ticket's remaining deliverable.
+Reason: the owner required proving that a new assembler is better before
+replacement, and requested a numbered group rather than one broad ticket.
+The following scope and evaluation are retained as history, not dependencies
+or permission to implement.
+
+#### Description
+
+Finish separating the generic ticket executor from the procedures that use
+it. The CLI/service split already shipped; the remaining work is in
+`src/coga/launch.py`, its consumers, and the boundary between stateless command
+tickets and stateful workflow execution. This includes how every agent launch
+builds its prompt, not just guided ticket authoring. First compare concrete
+prompt forms at representative stages, then implement the selected form. This
+is the 2026-11-12 scope proposal for owner review, not approval to resume the
+paused implementation.
+
+##### Objectives advanced
+
+Ticket ownership: callers should own their procedure and defaults. Hackability:
+a customized ticket must use the same executor without adding a core case.
+Simplification: remove duplicated preparation and command-specific branches;
+a module split alone does not complete this ticket.
+
+##### Owner direction — general prompt assembly
+
+The ticket is the common unit of work for deterministic code and agent work.
+For an agent phase, assemble the requested skills, context blocks, relevant
+workflow fragment, and the ticket's own intent and working state around a
+minimal base prompt. The base carries only the shared instructions and
+runtime additions needed for that invocation. Procedures belong with their
+tickets, skills and workflows, so customizing those files changes what runs
+without adding a named case to the executor.
+
+Apply this model wherever Coga builds an agent prompt: ordinary workflow
+steps, stateless command tickets, guided authoring, megalaunch and recurring
+agent sessions. A deterministic phase still executes code through the same
+ticket execution model; it does not become an agent prompt or require an
+agent merely to use the common mechanism.
+
+Do not choose a final prompt layout by intuition alone. Before runtime
+implementation, put complete candidate prompts in this ticket (or sibling
+attachments if needed), showing the assembled result at representative
+stages. Compare the current form with minimal-base alternatives, test them
+with agents on bounded representative tasks, and record the observed behavior
+and tradeoffs. Inspectability and correct behavior matter alongside size.
+Record which base instructions and runtime additions survive and why; the
+exact layout and additions remain design questions until this comparison.
+
+Include at least an ordinary workflow step, guided editing of an existing
+ticket, and a stateless agent procedure. Cover attended versus queued conduct,
+an owner assist, and a script-to-agent handoff where their required material
+differs. Each example must make the ticket, requested skill, relevant context
+blocks and workflow instructions identifiable. Verify which instructions
+actually apply to that session, including its completion and checkout rules.
+Do not copy incompatible procedure rules into a universal base.
+Use representative agent trials, not an exhaustive cross-product of all
+callers and postures; regression tests cover each caller's assembly contract.
+
+##### Premise check against main
+
+Snapshot: `49b34b229` (2026-11-12); physical line counts include blanks and
+comments, exclude tests/docs, and describe inventory rather than promised savings.
+
+1. The subject exists: the large shared runtime remains.
+2. The old path and API inventory drifted. `commands/launch.py` is now a
+   100-line adapter; `launch.py` is the 4,577-line service. `launch_script.py`
+   is 620 lines. `agent_session.py` and `script_session.py` do not exist.
+3. The prior plan is retained under Superseded designs. Its substance is
+   restated here; retired tickets and archived audit pages are not dependencies.
+4. Part shipped in `b3007ef2e`: the plain Python launch API, result/error
+   boundary and thin Typer adapter. Drop that extraction from remaining work.
+   Production callers now import `coga.launch`, not `commands.launch`.
+
+##### Current responsibility inventory
+
+| Surface | Current responsibility | Proposed boundary |
+| --- | --- | --- |
+| `launch.launch`, `_LaunchInvocation`, `LaunchResult`, `LaunchBail` | Target admission, preparation, workflow chaining, refresh and outcomes | Generic supervisor; preserve the public seam rather than creating a second launch service |
+| `spawn_agent_session`, `AgentSessionResult`, `build_agent_command`, command representability and usage helpers | One composed agent process; shared with authoring and megalaunch | Proposed session-module boundary, subject to prompt-comparison findings; migrate real callers together if extracted |
+| `launch_script.script_entry_point`, `run_script_phase`, `run_script_chain` | Exact `ticket.py` classifier, execution, refresh and handoff | Keep the existing classifier; split raw execution only if it removes duplication or lifecycle coupling |
+| `compose.compose_prompt_report`, prompt resources, workflow/skill layers, `commands.ticket._authoring_ticket` | Shared prompt assembly plus an authoring projection that still inherits ordinary execution instructions | One general assembly mechanism using the ticket and applicable procedure blocks, with a minimal base selected after prompt trials |
+| `checkout_policy.select_checkout_policy` (145 lines), `checkouts.py` (1,159 lines) | Select policy from shipped names/instruction equality; perform shared Git mechanics | The dedicated checkout-policy ticket owns declaration and compatibility; this ticket consumes its result |
+| `DISCUSSION_BOOTSTRAP_TICKETS`, `_bootstrap_kickoff`, direct-chat and onboarding cases | Named procedure defaults and special behavior | Move defaults to their owning ticket/caller where possible; retain the actual chat lock/receipt and admission guarantees in shared machinery |
+| `launch_recurring_period`, `launch_with_before_spawn`, `settle_delegated_period` | Recurring leases, publication and held-child admission | Keep explicit typed contracts; queue selection and scheduling remain caller policy |
+| `_format_prompt_report`, push-auth preflight, agent skill-view refresh | Diagnostics and execution readiness | Reports belong to the read/report sibling; support classification belongs to the support sibling; required point-of-use checks remain enforced |
+
+Callers to migrate together with any session extraction: `commands/ticket.py`,
+both megalaunch modules, `recurring_runner.py`, and the packaged
+`bootstrap/retire/ticket.py`. `cli.py` also consumes `checkout_guard_scope`.
+Several callers still use private service helpers; eliminate those dependencies
+through the existing shared operations, not forwarding imports in command files.
+
+##### Proposed changes and contracts
+
+1. Retain one generic supervisor and expose the one-session executor already
+   shared by real callers. Reduce its caller-specific setup only where the
+   callers can converge without losing their admission/publication semantics.
+   Choose module boundaries after the prompt comparison; a session extraction
+   is a proposed means, not a prerequisite for testing or an end in itself.
+   No plugin host, phase registry, or new callback framework.
+2. Establish the minimal stateless command-ticket execution contract needed
+   by the read/report and customization tickets. Today `launch` loads a user
+   config and its CLI exit normally sweeps state; a read command currently
+   needs neither publication nor a configured user. A blind alias therefore
+   changes behavior. Design explicit generic invocation policy for this
+   distinction, with no command-name allowlist, before migrating those heads.
+   Source inspection/help must remain usable with dirty state, no agent/TTY,
+   and no Git writes. A write command retains its publication boundary.
+3. Coordinate the narrow completion seam with lifecycle and orchestration.
+   Script launch clears the outer supervisor/expected-task environment. A
+   nested command ticket cannot silently become `block`, `bump`, or a
+   bootstrap-completing `slack` call. Preserve the existing completion
+   primitives until a reviewed equivalent proves identity and termination.
+4. Keep stateful script behavior intact: a script completes its own step
+   through the lifecycle CLI; exit zero alone never advances or finishes it.
+   An unchanged open step falls through to the agent. Skills never supply
+   executable launch plugins, inline scripts, or a static script/agent flag.
+5. Implement the tested prompt form through shared composition, with every
+   agent-spawn caller using it. Resolve applicability before assembly rather
+   than stacking instructions that contradict each other. Keep source paths
+   and per-block reporting inspectable, and preserve failures for required
+   missing skills or contexts. Move procedure-specific instructions out of
+   the base only when their owning ticket, skill or workflow supplies them.
+6. Preserve native Windows console/Job Object behavior, POSIX supervision,
+   environment isolation, secret injection/redaction, startup publication,
+   assist receipts, recurring leases and released launch claims. The old
+   "no locks exist" inventory is obsolete: direct chat has a checkout guard.
+
+##### Acceptance and reduction evidence
+
+- [ ] Concrete candidate prompts, bounded agent-trial results and the chosen
+      form are recorded before runtime implementation. The examples cover
+      the session shapes above and explain the minimal base's additions.
+- [ ] Every agent-launch path uses the general assembly mechanism. The ticket,
+      requested skills, context blocks and relevant workflow material are
+      present without contradictory completion or checkout instructions.
+- [ ] Composition regressions cover applicability as well as inclusion:
+      authoring never receives instructions to execute or advance the target
+      workflow, stateless work never inherits a task lifecycle, and stateful
+      execution retains its required completion and handoff contract.
+- [ ] Thin command adapter remains thin; no duplicate public launch API or
+      compatibility re-export is added.
+- [ ] Caller policy is editable beside its ticket where selected by design;
+      each retained named special case has its concrete invariant recorded.
+- [ ] Read-only stateless dispatch and write dispatch have explicit, tested
+      config, stream, exit, publication and checkout behavior.
+- [ ] At least one real dependency/duplicate path is removed; report the
+      whole-system evidence required by `coga-dev/microkernel/objectives`.
+- [ ] Existing launch, restart, script, authoring, megalaunch, recurring,
+      environment and supervisor tests exercise the moved boundaries. Use the
+      full-suite and native Windows receipts required by `coga-dev/testing`.
+- [ ] Update `coga/launch`, `coga/script-tickets`, the checkouts/publication
+      owners, `coga/prompt-composition`, affected prompt/skill/workflow owners
+      and local source map where their contracts actually change.
+
+#### Context
+
+The owning scope is this ticket; workflow checkout declaration belongs solely
+to `declare-each-workflow-step-s-checkout-policy-in-th`. Its implementation can
+precede the session extraction. Read/report and customization depend only on
+the stateless contract they need; recipe job moves need no new session API.
+
+The new prompt comparison, agent trials and choice of form are outstanding
+design work. Keep the current owner `review-design` gate until the owner has
+reviewed those artifacts and selected the form; approving this scope alone
+does not approve runtime implementation. Preserve the paused status, current
+step and frozen workflow during authoring.
+
+Observed prompt failure during this authoring session: the normal ticket loop
+instructs the agent to run `coga bump`, while the requested `bootstrap/ticket`
+skill forbids advancing the edited ticket. `commands.ticket._authoring_ticket`
+replaces skills and removes the current step in memory, but
+`compose.compose_prompt_report` still adds the task execution loop for a
+`TaskRef`. Fix the general applicability boundary, rather than adding another
+instruction that asks the agent to override an earlier one.
+
+Prompt-assembly sources are `src/coga/compose.py` (`compose_prompt_report`,
+`_skill_layers`, `_step_layers`), `src/coga/commands/ticket.py`
+(`_authoring_ticket`, `_run_authoring_session`), and `src/coga/resources/prompt*.md`.
+The current composition contract is cited rather than attached:
+`coga/prompt-composition` at
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md`;
+read "Layer order", "What each layer reads", and "Blocker preamble versus
+authoring" before comparing candidate forms. It currently selects one conduct
+resource, reads attached skills and contexts whole, and omits a skilled step's
+inline workflow section. The new design must explicitly decide how the
+relevant workflow fragment and skill fit together without duplication.
+
+The following editing targets are cited rather than attached; read their
+named sections before designing changes and update their owners in the same
+implementation PR:
+
+- `coga/launch`,
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md`:
+  "Phases and routing", "Agent preflight order", "The step chain", and
+  "Options and exits". Agent readiness checks must still precede startup
+  writes; a stateless target never acquires workflow chaining.
+- `coga/script-tickets`,
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md`:
+  "One deterministic phase", "Chaining", and "COGA_TASK_* contract".
+  `launch_script.run_script_phase` precedes agent preparation, exit zero does
+  not advance a stateful step, and script children must not inherit authority
+  to terminate an outer supervised session.
+- `coga-dev/internals/agent-spawn`,
+  `docs/contexts/coga-dev/internals/agent-spawn/SKILL.md`: "Launch API and
+  phases", "Order inside one call", "Per-caller parameters", "Large prompts",
+  and "The supervisor". `spawn_agent_session` owns one session; its callers
+  have distinct admission and publication contracts. Preserve command-line
+  representability checks before effects and the supervisor's completion
+  channel when moving composition or session code.
+- `coga-dev/codebase`, `docs/contexts/coga-dev/codebase/SKILL.md`: "Source map"
+  and "Contribution rules". Migrate real callers with a shared extraction;
+  update the source map instead of leaving a second API in a command module.
+- `coga/checkouts`,
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md`:
+  "Start, work, end" and "Which checkout you invoke Coga from". Shared
+  checkout mechanics and truthful runtime notices remain required; the
+  checkout-policy sibling owns replacement of the hidden policy table.
+- `coga/state-publication`,
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md`:
+  "When Coga publishes", "Control versus feature checkouts", and "Prepared
+  ticket transactions". Preserve write transactions and held knowledge while
+  making read-only stateless dispatch free of publication effects.
+
+For publication implementation, cite rather than attach
+`coga-dev/internals/state-publication` at
+`docs/contexts/coga-dev/internals/state-publication/SKILL.md`: read
+"Invariants", "The end-of-command sweep", and "Guided-authoring
+finalization", plus "Ordinary managed startup" in its `publish/SKILL.md`
+leaf. `cli._should_sweep_coga_state` currently selects sweeping command heads;
+moving a read command under launch must not silently enable that sweep.
+`authoring.finalize_authored` validates changed tickets and publishes their
+required knowledge together; a refusal withholds the general sweep.
+`launch._publish_startup` groups ordinary managed startup before checkout
+entry. Use the linked user `state-publication/launch-boundaries/SKILL.md`
+classification and the implementation `log-writers/SKILL.md` inventory when
+changing any caller's publication order.
+
+Drop the already-shipped Typer/service split, removed `project` caller,
+skill-backed script resolution, automatic script completion, duplicate live
+definitions and archive-audit editing from this implementation scope. Defer
+cosmetic file splits and broad renames that advance none of the objectives.
+
+#### Independent evaluation before the split
+
+Verdict : le ticket est prêt pour des expériences de prompt bornées. Il n’est pas prêt pour l’implémentation : les candidats, les essais et le choix du propriétaire restent explicitement à produire au gate `review-design`, sans modifier le statut `paused`, l’étape ou le workflow gelé.
+
+L’ensemble est cohérent avec le microkernel. Le ticket demande un résultat observable, rend l’extraction de session conditionnelle aux résultats et conserve les garanties de `ticket.py`. Le défaut d’authoring est confirmé : `commands.ticket._authoring_ticket` retire l’étape, mais `compose.compose_prompt_report` ajoute encore `prompt-ticket.md` à tout `TaskRef`. La séparation entre instructions applicables et simple inclusion est donc un vrai besoin.
+
+Un point de périmètre doit être tranché avant de figer le contrat « toutes les voies » : `recurring_autofix.build_prompt` et `recurring_autofix.analyze_record` construisent et exécutent aussi un prompt agent, hors de `compose` et de `spawn_agent_session`. La section « Owner direction — general prompt assembly » et l’acceptation « Every agent-launch path » les englobent littéralement, mais l’inventaire ne les mentionne pas. Préciser leur inclusion, leur coordination avec un sibling, ou leur exclusion motivée. Cela ne bloque pas les premiers essais représentatifs.
+
+Pour choisir la meilleure forme, les objectifs annoncés — comportement correct, inspectabilité, taille — suffisent à commencer la conception. Avant les essais, consigner cependant un protocole commun : mêmes tâches et entrées pour chaque candidat, instructions attendues ou interdites, résultats observés et limites. Les erreurs de completion, de checkout ou d’autorité doivent éliminer un candidat ; le gain de taille vient ensuite. Les essais agents et les régressions de composition apportent des preuves différentes.
+
+Deux précautions de conception restent utiles :
+
+- « Resolve applicability before assembly » ne doit pas devenir un moteur qui devine la procédure depuis les noms de skills, le texte ou le workflow. Préférer des faits explicites fournis par l’invocation, avec leur provenance visible.
+- Comparer réellement les étapes avec skills et les étapes inline. `compose._step_layers` choisit actuellement l’un ou l’autre ; composer systématiquement les deux pourrait introduire duplication et contradiction. Le ticket laisse correctement ce choix ouvert.
+
+Les citations et lectures de publication sont maintenant précises ; les principaux sujets susceptibles d’être édités ne sont plus attachés. Aucun besoin évident d’attachement supplémentaire. Le périmètre est large, mais reste acceptable pour cette phase de comparaison ; décider des éventuels siblings d’implémentation après le choix du contrat.
+
+Dans le rapport fourni, aucune couche ne dépasse environ 40 %. La plus grande représente 23,6 % pour `coga-dev/testing` en owner review et 24,0 % pour `bootstrap/ticket` en authoring. Les contextes attachés représentent respectivement environ 65 % et 50 % du total : à réexaminer pendant les comparaisons, sans suppression mécanique. Le blackboard ne nécessite pas de réduction. Les chiffres précèdent les dernières modifications documentaires ; mesurer les candidats complets à leur révision d’essai.
+
+## Recipe Failure
+
+Recipe: `publish-state`
+Exit: 2
+Task: `v1/microkernel/03-launch-decomposition`
+Recorded: 2026-11-13T05:32:23+00:00
+
+    publish-state: /home/n/Code/coga/coga/tasks/v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol.md is not a regular file

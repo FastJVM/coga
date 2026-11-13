@@ -25,6 +25,11 @@ These are proposals awaiting owner review. No child implementation resumes
 before the owner accepts the refreshed scope; accepting the group does not
 advance a child's own frozen workflow or owner gate.
 
+The owner subsequently separated prompt assembly into an
+[experiment-first numbered group](03-prompt-assembly/README.md): compare
+complete candidates before deciding whether to replace production assembly.
+Its draft tickets do not advance the existing execution ticket's owner gate.
+
 ## Objectives (owner, clarified 2026-11-12)
 
 The [microkernel objectives](../../../../docs/contexts/coga-dev/microkernel/objectives/SKILL.md)
@@ -76,7 +81,8 @@ Use those criteria for each child's design and implementation evidence.
 | Ticket | Current-main verdict and proposed remainder | Objectives advanced |
 | --- | --- | --- |
 | [Checkout declaration](02-declare-each-workflow-step-s-checkout-policy-in-th.md) | Not shipped. Own the step field, freeze/validation, selection, legacy fallback and workflow guidance; launch only consumes it | Hackability, ticket ownership, simpler policy |
-| [Launch decomposition](03-launch-decomposition.md) | Part shipped: the CLI/service split is done. Focus on the shared session boundary, generic stateless command semantics and removal of caller-specific duplication | All three |
+| [Prompt assembly experiments](03-prompt-assembly/README.md) | Prepare candidates and protocol, compare observed behavior, then migrate all prompt builders only if the evidence supports replacement | All three |
+| [Launch decomposition](03-launch-decomposition.md) | Part shipped: the CLI/service split is done. Retain shared execution and stateless invocation contracts; prompt experiments and migration have their own group | All three |
 | [Recurring recipes](04-gigantic-refactor-move-recurring-recipes-out-of-co.md) | Distribution prerequisite shipped; five job moves remain. Audit all 12 entries and propose a second pass on two command adapters | Ticket ownership, hackability, simpler registry/reporting |
 | [Editable packaged behavior](05-make-packaged-behavior-discoverable-and-editable.md) | New gap ticket. Resolve effective sources and obtain complete local overrides, including implementation behind wheel shims | All three |
 | [Read/report commands](06-read-report-commands-as-ticket-workflows.md) | Rendering partly shared already. Move report policy only after a generic stateless path preserves read-only behavior | All three |
@@ -92,6 +98,8 @@ accessibility draft is included in scope review, not silently added to execution
 
 1. **Owner scope review of the refresh.** Confirm the revised boundaries and
    the new accessibility ticket before activating or advancing child work.
+   Prompt assembly follows its numbered group's experiment-first path; it
+   does not start with a production refactor.
 2. **Remove the first customization barrier.** Implement checkout declaration
    independently. In the launch ticket, settle the minimal stateless read/write
    and completion requirements with their actual consumers. The initial five

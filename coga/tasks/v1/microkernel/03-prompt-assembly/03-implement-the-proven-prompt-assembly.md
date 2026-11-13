@@ -2,14 +2,55 @@
 title: 03 Implement the proven prompt assembly
 status: draft
 owner: nicktoper
-workflow: null
+contexts:
+  - coga-dev/microkernel/objectives
+  - coga-dev/principles
+  - coga-dev/codebase/gotchas
+  - coga-dev/testing
+  - coga-dev/microkernel
+  - coga-dev/project-stage
+workflow: code/design-then-implement
 ---
 
 ## Description
 
-Implement the owner-selected prompt assembly only after paired trials demonstrate an observable gain without violating execution guarantees, including noninteractive recurring autofix analysis.
+Implement the general prompt assembly form only after the owner accepts paired evidence that it improves on the current form. The ticket is the common unit of deterministic code and agent work. Agent prompts assemble the selected minimal base, requested skills, relevant context blocks and workflow material, ticket intent/state and explicit invocation additions through one inspectable composition mechanism. Done means every in-scope production prompt builder uses the selected contract, its behavior and provenance match the demonstrated form, real duplicate or command-specific assembly paths have been removed, and the required regressions, documentation and review receipts are complete.
+
+### Positive experimental gate
+
+Do not activate or begin this ticket until `v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly` has an owner-recorded positive selection, not merely status `done`. A negative or inconclusive comparison leaves this draft unlaunched. During design, copy the selected complete prompts, comparison result, applicability contract, required base additions and limitations into this ticket or its attachments. Do not depend on predecessor tickets remaining live. A material change to the selected form requires renewed comparison and owner review before replacement.
+
+### Scope and boundary
+
+Migrate ordinary workflow prompts, stateless agent procedures, guided authoring, megalaunch, recurring sessions AND noninteractive `recurring_autofix.build_prompt` / `recurring_autofix.analyze_record`. Preserve the latter's structured-output/parse, transport, secret and failure contracts; sharing composition does not require an interactive supervisor. Migrate real callers together with the shared assembly seam. Do not introduce a second public launch API, forwarding re-exports or a command-name allowlist.
+
+The assembler receives explicit invocation facts and resolves declared file references. It must not guess procedure from command/skill/workflow names or compare instruction text to shipped copies. Make each composed block's effective source and selection reason inspectable. Preserve local-first resolution and refusal of required missing or unreadable inputs. Consume the approved skilled/inline workflow rule; do not blindly compose both.
+
+Authoring must not instruct execution or advancement of the target ticket. Stateless agent work must not acquire a task lifecycle. Stateful work must retain its applicable completion and checkout guarantees. Deterministic-only `ticket.py` execution remains code, with no prompt or configured-agent requirement; exit zero still never advances a stateful step. Invocation conduct and runtime checkout notices must remain truthful.
+
+### Verification and simplification
+
+Exercise every migrated production caller through composition and integration regressions, including noninteractive analysis. Preserve environment isolation, secrets/redaction, command representability, completion authority, publication order, checkout returns, assist receipts, recurring leases and released launch claims wherever the changed boundary touches them. Report the whole-system production-code and dependency-path delta at named revisions, separating relocation from deletion/deduplication and tests/docs from production code.
+
+Update `coga/prompt-composition`, changed prompt resources and instruction owners, affected launch/script/checkout/publication contracts, autofix's owning procedure, and the local source map in the same implementation PR. An extraction earns its place through the selected contract and real migrated consumers. The separate launch-decomposition ticket owns the stateless invocation/publication and shared execution contracts; consume them without bundling their full refactor into this ticket.
 
 ## Context
+
+This draft implements evidence selected in the numbered group's ticket 02; it does not choose the winning prompt form. The owner reviews its design before code through `code/design-then-implement`. Leave the draft workflow as a reference until activation; do not copy the old launch ticket's paused workflow position into this new scope.
+
+Implementation sources: `src/coga/compose.py` (`compose_prompt_report`, `_step_layers`), `src/coga/commands/ticket.py` (`_authoring_ticket`, `_run_authoring_session`), `src/coga/launch.py` (`spawn_agent_session`, `_LaunchInvocation`), both megalaunch modules, `src/coga/recurring_runner.py`, and `src/coga/recurring_autofix.py` (`build_prompt`, `analyze_record`, `build_analyze_command`). Inventory actual callers again at implementation time.
+
+Editing targets are cited rather than attached. Read `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md` ("Layer order", "What each layer reads", "Blocker preamble versus authoring"); `docs/contexts/coga-dev/internals/agent-spawn/SKILL.md` ("Order inside one call", "Per-caller parameters", "Large prompts", "The supervisor"); and `docs/contexts/coga-dev/internals/state-publication/SKILL.md` ("Invariants", "The end-of-command sweep", "Guided-authoring finalization") plus "Ordinary managed startup" in its `publish/SKILL.md` leaf. `launch._LaunchInvocation._publish_startup` groups ordinary startup before checkout entry; `authoring.finalize_authored` validates and publishes the required authored set together.
+
+User contract owners resolve under `src/coga/resources/templates/coga/bootstrap/contexts/`: `coga/launch` ("Phases and routing", "Agent preflight order", "The step chain"), `coga/script-tickets` ("One deterministic phase", "Chaining", "COGA_TASK_* contract"), `coga/checkouts` ("Start, work, end"), and `coga/state-publication` ("When Coga publishes", "Prepared ticket transactions"). The source map is `docs/contexts/coga-dev/codebase/SKILL.md`, "Source map". Read and update those owners where the actual change affects their contract.
+
+The autofix owner is also cited rather than attached:
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md`,
+"The loop". Preserve its one-shot, text-only, non-mutating analyst contract,
+surfacing of unparseable replies and independence from the sweep's exit code.
+The shared assembly must not inject an interactive lifecycle into that path.
+
+The checkout-policy declaration sibling owns checkout selection and compatibility; this ticket owns no competing policy table. The paused launch-decomposition ticket remains a distinct delivery scope, not an umbrella. Decide any narrower invocation/session interface with that ticket's owner before depending on it, without making exploratory prompt trials depend on unfinished runtime work.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

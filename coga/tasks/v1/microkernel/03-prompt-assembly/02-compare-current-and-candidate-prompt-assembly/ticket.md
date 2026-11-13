@@ -1,15 +1,49 @@
 ---
-title: 01 Define prompt candidates and trial protocol
+title: 02 Compare current and candidate prompt assembly
 status: draft
 owner: nicktoper
-workflow: null
+contexts:
+  - coga-dev/microkernel/objectives
+workflow: draft-for-human
 ---
 
 ## Description
 
-Define complete candidate prompts and a fair comparison protocol before running trials or changing production prompt assembly.
+Test whether a candidate prompt assembler is actually better than the current one before replacing production assembly. Execute the paired, bounded protocol approved in ticket 01, retain complete input/output evidence, and let the owner judge the results. This ticket is done when the approved trials have been run or their limitations explicitly recorded, the report is reproducible and inspectable, and the owner's decision is recorded as a selected candidate, no demonstrated gain, or inconclusive. Completion of this ticket alone is not permission to implement a replacement.
+
+### Prerequisite and execution
+
+Do not begin trials until `v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol` has produced its owner-approved protocol, complete candidates, fixtures and bounded budget. Copy the needed approved inputs into this ticket's attachments so their later retirement cannot invalidate the evidence. Record the source revisions and approval provenance.
+
+Run baseline and candidate with the same task inputs, starting state and agent settings, using the protocol's pairing, repetitions and observations. Preserve the actual rendered prompt for each run and its block/source manifest, outcomes, failures, deviations and limits. Use isolated fixture repositories with local publication targets and notifications disabled so a trial's lifecycle or checkout actions cannot alter live work. Never recursively invoke `coga launch` inside an agent launch; use bounded independent agent sessions or the approved subprocess/test seam.
+
+The noninteractive recurring autofix prompt is included, with its output parsing and exit behavior checked as such. The deterministic-only control must still run code without prompt composition or an agent. Assess skilled and inline workflow cases and the representative invocation cases selected in the protocol; do not silently drop failing cases or change criteria after seeing results.
+
+### Decision before replacement
+
+Apply the approved correctness gates first. A candidate that loses completion, checkout, authority, required-input or deterministic-execution guarantees cannot win. For candidates that pass, compare demonstrated improvements and costs using the pre-agreed measures. Distinguish static composition regressions from observed agent behavior; neither substitutes for the other. Prompt-size estimates do not establish task-success improvements.
+
+The report must support an explicit owner decision. If the candidate is not better or the evidence is inconclusive, record that result and leave ticket 03 unlaunched; do not force a rewrite to justify the experiment. If one wins, retain the exact selected prompt form, explicit applicability facts, required additions, block provenance and known limits as the implementation input. Any materially revised candidate needs a new comparison before it can replace production.
+
+Distinguish observed results from an enduring product decision. Transfer any
+enduring ruling, including a deliberate refusal to replace the assembler and
+its reopening conditions, to the owner `coga/prompt-composition`. A positive
+selection is carried by ticket 03's documentation change. Otherwise, create
+a narrow `docs/with-review` follow-up with the complete decision before
+finishing `report-to-coga`; do not leave its only copy in a temporary report.
+This experiment workflow does not itself edit the packaged topic.
+
+No production prompt or launcher changes belong here. Executing the experiment is separate from implementing the winning form.
 
 ## Context
+
+Owns the comparison evidence and result; ticket 01 owns protocol preparation and ticket 03 owns any production implementation. Ticket 02 may finish successfully with a negative result. Its `done` status must not be treated as proof that ticket 03 is eligible.
+
+Read the copied approved protocol first, then the actual resolved source for baseline and candidates. The source inventory must include `src/coga/recurring_autofix.py` (`build_prompt`, `analyze_record`) as well as `src/coga/compose.py` and the shared-session callers. Neither the paused launch-decomposition scope nor a previous suite receipt proves a candidate improves behavior.
+
+Cited rather than attached: `coga-dev/testing`, `docs/contexts/coga-dev/testing/SKILL.md`, "Verification tiers and receipts". Record the exact revision, working-tree differences, platform, agent CLI/version and model settings when available, actual commands, counts and runtime for every run. Mark unavailable information and native-platform limits explicitly. Do not claim that mocked transport tests establish native Windows behavior.
+
+Workflow `draft-for-human` is for conducting bounded experiments and preparing a decision report, followed by the owner's judgment and recording of that decision. The deliverables are trial inputs, prompt specimens, transcripts and results, not product code or a permanent harness. A new reusable code artifact requires a separately reviewed code scope rather than silently extending this experiment.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
