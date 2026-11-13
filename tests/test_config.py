@@ -2072,7 +2072,9 @@ def test_layout_ignored_context_scaffold_remains_allowed(layout_repo: Path) -> N
 def test_layout_contexts_cyclic_root_rejected(layout_repo: Path) -> None:
     (layout_repo / "loop").symlink_to("loop")
     _set_layout_contexts(layout_repo, "loop")
-    with pytest.raises(ConfigError, match="cyclic symlink"):
+    # resolve(strict=False) can leave the loop unresolved on newer Python;
+    # the subsequent symlink traversal check must still reject the root.
+    with pytest.raises(ConfigError, match="cyclic symlink|traverses the symlink"):
         load_config(layout_repo)
 
 
