@@ -1,6 +1,6 @@
 ---
 title: Fix the checkouts topics' attachment claim and add their size exceptions
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
