@@ -824,3 +824,5 @@ Task: `v1/microkernel/03-launch-decomposition`
 Recorded: 2026-11-13T05:32:23+00:00
 
     publish-state: /home/n/Code/coga/coga/tasks/v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol.md is not a regular file
+
+Resolved: the strict recipe accepts existing regular files as required paths, not deleted files. Retried with the six current files; publication succeeded at `ea76d6734fc9508a89e1ea7bba95ee1645abb6d7`. Verified that both former file-form copies are absent from `origin/main` and only the intended three grouped tickets plus README remain. The checkout is clean on main; no launch or workflow transition occurred.
