@@ -10968,3 +10968,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 18:19 v1 [hold-dirty-context-edits-on-feature-checkouts-unti] [human:nicktoper] auto-bumped on merge of PR #1199 → done
 2026-11-12 18:19 v1 [keep-unfinished-dependency-blockers-open-in-megala] [human:nicktoper] auto-bumped on merge of PR #1195 → done
 2026-11-12 18:19 v1 [make-retro-check-inbound-doc-links-before-deleting] [human:nicktoper] auto-bumped on merge of PR #1223 → done
+2026-11-12 18:19 v1 [remove-the-fixed-uninstall-hint-hazard-from-the-go] [human:nicktoper] auto-bumped on merge of PR #1220 → done
