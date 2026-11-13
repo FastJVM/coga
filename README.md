@@ -10,6 +10,9 @@
 | 🛠️ | **Hackable system** | Own and reshape not just the software, but the system that builds it. |
 
 I built Coga to scratch my own itch: I want to make things with increasingly capable coding agents, learn and rethink as I go, and freely hack the system I use to build—not just automate software production.
+
+Coga is a local, Git-backed CLI for working with coding agents through editable tasks, knowledge, and workflows.
+
 [Browse Coga's own tickets](https://github.com/FastJVM/coga/tree/main/coga/tasks)
 
 ## How the plan evolves
