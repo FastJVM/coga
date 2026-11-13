@@ -22,6 +22,13 @@ steps:
       - code/address-pr-comments
 ---
 
+## Before choosing this workflow
+
+This workflow needs a second agent to review the code. Check `[agents.*]` in
+`coga/coga.toml` and `coga.local.toml`. If only one agent is configured — or
+three or more with no `peer =` on the main agent — use `code/with-self-review`
+instead.
+
 A step that declares `skills:` does **not** compose the `## <step>` section
 below: Coga builds that step-specific layer from the declared skill files, and
 the inline section is never read by the launched agent. The base prompt,
