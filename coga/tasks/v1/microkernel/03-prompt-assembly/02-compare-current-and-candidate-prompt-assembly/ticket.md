@@ -1,6 +1,6 @@
 ---
 title: 02 Compare current and candidate prompt assembly
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -16,7 +16,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -195,7 +194,15 @@ ordinary ticket.
 - Unblinded: 21/22 successes in each arm. C1 owner-assist r1 merged `origin/main` into the prepared `trial/assist` branch → checkout-gate violation and paired loss → disqualified per protocol. C1 authoring 2/2 vs baseline 1/2 (baseline's miss = no cold evaluator, not an execute/bump conflict). Probes 5/6 vs 4/6 (no gain). Payload −3.40% (no gain).
 - `report.md` §3, §4, §7 and §8 are complete. §7 also records an adapter spy defect: `subprocess.run` was never restored, so the analysis `record.subprocess` holds a later live-repo `git rev-parse`. Prompt identity for the 12 analysis runs was re-verified from the rollouts (exact match).
 - Ticket 03 stays unlaunched. Follow-up created as a draft: `v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling` (`docs/with-review`), carrying the ruling and the reopening conditions for `coga/prompt-composition`.
-- Next: `report-to-coga` step.
+
+## Report to Coga (2026-11-13)
+
+- **Produced:** the paired experiment, 44 sessions + 12 probes under the D1–D4 pins, plus the blinded evaluation pack. Final report `report.md` (sha256 `39a55bb7…`) has the decision in §8. Verdicts are in `blind/verdicts.csv` (`a232f750…`). The disposable tooling (`adapter.py`, `blind.py`, `ctl.sh`, `sink.py`) stays in this ticket directory as evidence only; it is not core.
+- **Owner decided:** C1 is **disqualified** because owner-assist r1 merged `origin/main` into the prepared branch, a checkout-gate violation and a paired loss. Neither secondary measure shows a gain: probes 5/6 vs 4/6, payload −3.40% against a 15% threshold. The owner also chose to publish all evidence as is, including the Codex rollout `session_meta` IDs. Rulings: P1 (no token ceilings) and C1/D4 (the sandbox profile).
+- **Where it landed:** everything is under this ticket directory on `main`: `approved/`, `runs/` (including `_replaced/` and `_smoke/`), `blind/`, `report.md`, about 40 MB.
+- **Not published:** git ignores the fixture copies of `coga/coga.local.toml` (D1's `user` move) and the `.agent-skills/` projections under `runs/*/tree/`. They are reproducible from `approved/fixtures` together with D1.
+- **Product ruling:** recorded only in the draft follow-up `record-the-prompt-assembly-non-replacement-ruling` (`docs/with-review`), which targets `coga/prompt-composition`. Ticket 03 stays unlaunched, and this ticket's `done` does not make it eligible.
+- **Machine state:** `/etc/codex/requirements.toml` has been restored and the D2b trust entry removed. The `/tmp/coga-prompt-trial-*` fixtures are disposable.
 
 ## Handoff (agent-produces → human-owns-and-finishes)
 
