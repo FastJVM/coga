@@ -2,24 +2,12 @@
 title: Research how agents make delegated decisions (GEO)
 status: draft
 owner: zach
-workflow:
-  name: draft-for-human
-  steps:
-  - name: agent-produces
-    skills: []
-    assignee: agent
-  - name: human-owns-and-finishes
-    skills: []
-    assignee: owner
-  - name: report-to-coga
-    skills: []
-    assignee: agent
-step: 1 (agent-produces)
+workflow: human/run
 ---
 
 ## Description
 
-Nico asked Zach (Nov 13) to spend 1–2 hours researching how agents make decisions that people delegate to them, which Nico called "search engine optimization for agents" and is usually called GEO (generative engine optimization). Then Zach reports back to Nico: "here's where you're right, here's where you're wrong, and here's what you forgot." Zach wants to do the research together with an agent.
+Nico asked Zach (Nov 13) to spend 1–2 hours researching how agents make decisions that people delegate to them, which Nico called "search engine optimization for agents" and is usually called GEO (generative engine optimization). Then Zach reports back to Nico: "here's where you're right, here's where you're wrong, and here's what you forgot." This is Zach's research and Zach's conclusion. An agent supports it only as a sounding board in assist sessions (`coga launch <slug> --agent claude`): it answers Zach's questions, finds and checks sources, and pushes back on reasoning. It doesn't write the verdict or close the ticket.
 
 Done when Zach has sent Nico a write-up that takes each of the six claims below and says right, wrong or more complicated, with sources; lists what the thesis leaves out; and says what it means for coga (README and docs written for agents, coga as the first test run).
 
