@@ -1,10 +1,23 @@
 ---
 title: 02 Compare current and candidate prompt assembly
-status: draft
+status: in_progress
 owner: nicktoper
 contexts:
-  - coga-dev/microkernel/objectives
-workflow: draft-for-human
+- coga-dev/microkernel/objectives
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: owner
+  - name: report-to-coga
+    skills: []
+    assignee: agent
+step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
