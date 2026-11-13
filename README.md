@@ -1,6 +1,6 @@
 # Coga
 
-**Build with your agents. Hack your system.**
+**Build. Rethink. Hack.**
 
 
 Coga helps you learn what works, what doesn't, and use those discoveries to shape what you build next. It's a local CLI for working with coding agents as ideas evolve. Each task can explore a question, test an assumption, or build something. What you discover can challenge earlier decisions, reshape the plan, or become reusable knowledge and skills. Everything stays in editable Markdown in Git, where humans and agents can revisit, question, and refine it.
