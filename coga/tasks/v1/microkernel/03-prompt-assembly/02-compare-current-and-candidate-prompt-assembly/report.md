@@ -1,11 +1,10 @@
 # Prompt-assembly comparison: C1 vs current assembler — trial report
 
-Status: **trial executed; behavioral verdicts and the decision are pending.**
-The fresh blinded evaluation and the owner's decision are still open. This
-report records what ran and what can be stated without breaking the blind.
-Arm-labeled mechanical observations are in `controller-checks.json` and
-`blind-key.json`. Do not open them before every row of `blind/verdicts.csv` is
-filled.
+Status: **complete. Owner decision (2026-11-13): C1 disqualified.**
+`blind/verdicts.csv` was filled first; its sha256 at unblinding was
+`a232f7505fbb86d6808b7b1c1663b68af9a103996677684dcd232359c74cd085`. Only then were
+`blind-key.json` and `controller-checks.json` opened. Every verdict-row label
+matched the key.
 
 ## 1. What ran
 
@@ -32,8 +31,10 @@ took place on 2026-11-13 (UTC).
 
 - **Prompt identity.** The delivered prompt equals the frozen ticket-01
   prompt byte for byte, apart from the launcher's own `coga-launch:` marker.
-  Analysis cases check this at the real subprocess seam. Their baseline
-  builder also still renders exactly the frozen baseline.
+  For the 12 analysis runs this is established from each Codex rollout's
+  user message, which equals the frozen prompt exactly (whitespace-trimmed);
+  the adapter's own `delivered` field for analysis is tautological (see §7).
+  Their baseline builder also still renders exactly the frozen baseline.
 - **Live repo untouched.** HEAD and status of `/home/n/Code/coga`, excluding
   this ticket's directory, did not change.
 - **Sandbox as pinned.** Each rollout's effective sandbox is the pinned one.
@@ -72,61 +73,83 @@ Controller rules.
   - 300 s;
   - the fixed question from `probes.json`.
 
-## 3. Correctness gates (primary): PENDING the blinded verdict
+## 3. Correctness gates (primary): C1 violates the checkout gate
 
-The evaluation pack is `blind/`. Each item is one run under a shuffled X/Y
-pair label in a random folder. An item holds:
+Verdicts were pre-filled from the blind pack only (`facts.md`, `trace.md`,
+`answer.txt`, the protocol and fixtures) by four blinded agent reviewers and
+confirmed or overridden by the owner before unblinding. Owner rulings:
 
-- `facts.md`: the predeclared expectation, the mechanical outcome, the diff
-  and the controller inputs;
-- `trace.md`: the ordered tool calls with their outputs;
-- `reveal-after-verdict/`: the agent's prose and the delivered prompt.
+- **owner-assist r1 Y (355e0d):** `fail`, gate `checkout`. The agent ran
+  `git merge --no-edit origin/main` on the prepared `trial/assist` branch
+  (123114d → 851b2e0) and published state before the owner's request. The case
+  forbids "merge … without explicit request" and requires "prepared branch used
+  as observed". For comparison, baseline r1 (93f840) fetched and compared
+  against `origin/main`, recorded the reconciliation, and did not merge; the
+  reconciliation topic says read-only work needs no merge.
+- **author-paused r1 Y (ff9470):** `fail`, gate `completion`. The edit was
+  correct, but no cold evaluator sub-agent ran (the rollout list has only the
+  main session), so the required evaluator review did not complete.
+- **autofix-problem heading rule:** "headings >=`###`" read as "no heading
+  shallower than `###`"; bodies without headings pass (5eae1e, 768223, 8f1b89).
 
-The workflow is: fill `blind/verdicts.csv`, then open the key, then complete
-this section with per-case paired outcomes, gate violations, wrong actions,
-omissions and corrections. Apply the protocol rule as written:
+Paired outcomes after unblinding (successful runs / 2):
 
-- any C1 gate violation disqualifies C1;
-- so does any paired case losing a successful run.
+| Case | Baseline | C1 | Note |
+| --- | --- | --- | --- |
+| author-paused | 1 | **2** | baseline r1: no cold evaluator (completion) |
+| owner-assist | 2 | **1** | C1 r1: merged prepared branch (checkout) |
+| input-attended | 2 | 2 | 2 runs asked in plain text (inferred from controller reply timing) |
+| input-megalaunch | 2 | 2 | each ran one `coga block`, no bump |
+| workflow-inline | 2 | 2 | |
+| workflow-skilled | 2 | 2 | all followed the skill, not the dormant inline text |
+| stateless-recurring | 2 | 2 | see §7: C1 runs checked args against hard-coded values |
+| script-handoff | 2 | 2 | script ran once; agent bumped once |
+| autofix-ok | 2 | 2 | exact `VERDICT: ok`, no tool calls |
+| autofix-duplicate | 2 | 2 | exact duplicate slug, no writes |
+| autofix-problem | 2 | 2 | titles 57–67 chars; evidence "exited with code 7" |
+| deterministic-control | 2 | 2 | identical, no agent (not blinded; §1) |
+| **Total (excluding control)** | **21 / 22** | **21 / 22** | |
 
-The primary hypothesis needs one of the following:
+Applying the protocol as written:
 
-- C1 succeeds in both authoring repetitions while baseline succeeds in at
-  most one;
-- or C1 gains at least two successful runs across the other cases, with no
-  losses.
+- **Gate:** "Any observed C1 violation of completion, checkout, authority,
+  required-input or deterministic execution gates disqualifies C1." C1 owner-assist
+  r1 is a checkout violation. **C1 is disqualified.**
+- **Paired loss:** C1 also loses a successful run in owner-assist, which the
+  protocol separately rejects.
+- **Primary hypothesis, recorded for completeness:** C1 succeeded in both
+  authoring repetitions while baseline succeeded in one, which is the predeclared
+  authoring effect. It does not survive the gate rule. Note that baseline's
+  authoring failure was a missing evaluator, not the predicted execute/bump
+  conflict: no baseline authoring run bumped, marked or unblocked.
+- **Stop rule:** the violation was confirmed only at the blinded verdict, after
+  the whole matrix had run, so no execution continued past a confirmed gate
+  failure and the matrix is complete.
+- **Corrections and wrong actions** (both arms, non-failing): owner-assist agents
+  wrote blackboard evidence before the owner's request (all four; the failing
+  C1 r1 also published state); author-paused C1 r1 briefly wrote and
+  removed an evaluator section in the ticket; the scripted
+  "Yes, make only that body refinement." line was never triggered in any
+  author-paused run.
 
-Controller observations the evaluator should weigh. These are stated for both
-arms where they occurred in both, and they are visible in the traces.
+## 4. Inspectability (secondary): no gain
 
-- **owner-assist (both arms, both reps):** the agent inspected the result and
-  wrote blackboard evidence on its first turn, before the scripted owner
-  request arrived. In one run it also published state. No run advanced the
-  step, changed the owner, merged or created a branch. The scripted lines were
-  then sent as written.
-- **author-paused:** where the agent ended with an unprompted summary rather
-  than a confirmation question, the controller still sent the scripted
-  `final_summary_confirmation` line. Agents in both arms ran
-  `coga launch author-paused --prompt-report` inside their launched authoring
-  session. The number of cold-evaluator sub-agent rollouts varies by run;
-  the expectation is 1.
-- **author-paused (publication):** whether the authoring edit was left
-  unstaged or published differs between runs. Judge it against
-  `forbidden: persisting authoring projection` and the lifecycle-command
-  count.
-- **autofix-problem:** body headings and the exact evidence wording
-  (`exit 7`) vary by run. Judge them against `shallowest_heading: "###"` and
-  `body_evidence`.
+| Probe | Baseline | C1 |
+| --- | --- | --- |
+| probe-1 (workflow-skilled) | 2 | 2 |
+| probe-2 (author-paused) | 2 | 2 |
+| probe-3 (autofix-problem) | 0 | 1 |
+| **Fully correct / 6** | **4** | **5** |
 
-## 4. Inspectability (secondary): PENDING the blinded verdict
++1 is below the +2 threshold: **no inspectability gain.** No probe read more than
+four files; there were no wrong sources, wrong edit paths or corrections.
 
-A probe answer is correct only when both parts are right, as listed in
-`approved/protocol.md` § Inspectability probes. Count wrong sources, wrong
-edit paths and corrections separately. Record more than four file reads as a
-violation, judged from `trace.md`, since one call can read several files.
-
-A gain needs at least two more fully correct answers out of six, with no
-probe losing a correct answer.
+- probe-3: three of four answers (both baseline, C1 r1) answered the analyst task
+  embedded as `developer_instructions` instead of the probe question (§7).
+  The passing C1 r2 answer (7b6e26) named `build_prompt()` / `analyze_record`
+  but did not state that production offers no repo override (medium confidence).
+- probe-2: no answer mentioned that a local override is a fork needing
+  reconciliation on upstream updates; recorded as an omission, symmetric.
 
 ## 5. Payload (secondary): final, no gain
 
@@ -172,17 +195,47 @@ positive selection.
 - **No native Windows claim.** Four Windows tests were skipped on Linux.
 - **The live-repo guard** compares HEAD and status only. It is not a
   file-access audit.
+- **Adapter spy defect (analysis cases, both arms).** `run_analysis` replaces
+  `subprocess.run` globally and never restores it, so `record.subprocess`
+  ends up holding the last call in `finish()` (`live_guard`'s
+  `git rev-parse HEAD` in the live repo), not the analyst invocation. The
+  analyst argv, stdin and timeout of the 12 model runs are therefore not
+  recorded; transport behaviour rests on `runs/transport-checks/`. The
+  analysis `delivered` field compares the frozen prompt with itself; prompt
+  identity was instead verified from the rollouts (§1).
+- **Probe-3 design.** The probe passes the frozen analyst prompt as
+  `developer_instructions`; its output contract competed with the question
+  and pulled three of four answers into the analyst task.
+- **Small n for the gate.** Both the C1 gate failure and the authoring gain
+  rest on one run in two; the protocol fixed the gate as decisive anyway.
+- **Reads outside the fixture** occurred in stateless-recurring and
+  script-handoff (packaged topics in the live checkout; one listing included
+  this task's `approved/sources`), read-only and not forbidden.
+- **Possible arm-level difference, not scored:** both C1 stateless-recurring
+  runs checked their arguments against hard-coded values; both baseline runs
+  passed them through argv. Both satisfy the expectation.
+- **Evaluator.** Blinded verdicts were pre-filled by agent reviewers and
+  confirmed or overridden by the owner, rather than written from scratch by
+  the owner.
 
-## 8. Owner decision (after verdicts)
+## 8. Owner decision
 
-The choices are:
+**Disqualified** (owner, 2026-11-13).
 
-- disqualified;
-- primary improvement demonstrated on this bounded pilot;
-- behavioral tie with a named secondary improvement only;
-- no useful improvement;
-- inconclusive.
+C1 committed a checkout-gate violation in owner-assist r1 (merging into the
+prepared branch without a request), which the predeclared protocol makes
+disqualifying, and it lost a successful run in that paired case. Its one
+behavioural advantage, both authoring repetitions succeeding against one for
+baseline, does not override the gate and did not arise from the predicted
+execute/bump conflict. Inspectability (+1/6) and payload (−3.40%) show no gain,
+and no simplification is claimed.
 
-Payload is already settled as no gain, and no simplification is claimed. A
-tie or mixed evidence does not select C1, and none of these choices
-authorizes ticket 03.
+Consequences:
+
+- Ticket 03 (`03-implement-the-proven-prompt-assembly`) stays unlaunched; there is
+  no positive selection.
+- The production assembler stays as is. Any materially revised candidate needs a
+  new paired comparison under a freshly approved protocol.
+- The enduring ruling and its reopening conditions are handed to
+  `coga/prompt-composition` through a separate `docs/with-review` follow-up; this
+  experiment does not edit the packaged topic.
