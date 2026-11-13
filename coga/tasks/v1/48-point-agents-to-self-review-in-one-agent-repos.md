@@ -1,6 +1,6 @@
 ---
 title: Point agents to self-review in one-agent repos
-status: in_progress
+status: done
 owner: zach
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
