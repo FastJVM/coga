@@ -6,7 +6,9 @@ Coga is a local, Git-backed CLI for working with coding agents through editable 
 
 So why build another agent tool when so many already exist?
 
-I love making things. I've tried plenty of agent tools, but none gave me enough room to question the decisions shaping the work. I want agents to help me think, explore, challenge assumptions, and build—not outsource the thinking just to maximize output. Decisions, friction points, and ways of working should stay visible and open to change. I want to hack the factory, not just the software it produces.
+Because none of the tools I've tried—and I've tried a lot—helped me work the way I want to.
+
+I love making things. I want agents to help me think, explore, challenge assumptions, and build—not outsource my thinking just to maximize output. Decisions, friction points, and ways of working should stay visible and open to change. I want to hack the factory, not just the software it produces.
 
 | | Principle | What it means |
 |:--:|---|---|
