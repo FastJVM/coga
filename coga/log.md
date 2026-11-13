@@ -11004,3 +11004,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-13 07:21 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [human:zach] activated (draft → active) — auto on launch
 2026-11-13 07:21 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [human:zach] started (active → in_progress) via coga launch
 2026-11-13 07:21 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [human:zach] launched (operator=claude, agent=claude)
+2026-11-13 08:32 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [agent:claude] advanced to step 2 (peer-review) → codex

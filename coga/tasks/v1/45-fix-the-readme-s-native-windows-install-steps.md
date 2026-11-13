@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -140,3 +140,18 @@ branch: coga/v1-45-fix-the-readme-s-native-windows-install-st-2006e1
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implement handoff — 2026-11-13
+
+Scope narrowed by the owner (Zach, attended session): fix only the must-fix item.
+Commit 2dadbae55 changes the Windows uv bullet to
+`powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+and adds "open a new terminal" before `uv python install 3.11`, which walk 1 S1 needed.
+That step also keeps a no-Python machine off the CPython 3.15/PyYAML/MSVC path (v1/20 note).
+Verification: README-only prose diff; the command matches uv's documented form and v1/31's S1 route. No tests apply.
+Branch pushed. The upstream config wasn't set, because the sandbox locks .git/config. The rebase was skipped
+because the projected ticket blocks it. origin/main moved only by this ticket's state commits (log.md and this ticket), so the README doesn't conflict.
+
+Deferred by owner decision, still open: finding 10 (no `python` cmd), findings 4/7 (no repo-creation step),
+finding 6 (`git var` pre-check vs init's `--global`), "tested on Windows 11" wording,
+and the pre-1.0 install source (v1/43). These need a follow-up ticket if wanted.
