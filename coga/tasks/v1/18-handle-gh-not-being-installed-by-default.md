@@ -34,8 +34,11 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
+contexts:
+- coga/init
+- coga-dev/microkernel
 ---
 
 ## Description
@@ -76,7 +79,7 @@ it from https://cli.github.com" message, not the "optional tools" heading.
 `init` still never fails because `gh` is missing. `tests/test_init.py`
 covers the no-package-manager path for each platform, and the fallback
 after a failed package-manager install, through an injectable install seam.
-No test touches the network. The install topic describes the new
+No test touches the network. The `coga/init` topic describes the new
 behaviour.
 
 ### Owner direction
@@ -90,6 +93,10 @@ behaviour.
   `git` is the only tool that stops init, and a user who never opens PRs must
   still be able to init. Every `gh` consumer already enforces it at the point
   of use. Ask the owner before turning a missing `gh` into an init failure.
+- Zach on 2026-11-12, at `review-design`: approved the resolutions of the
+  evaluator's four must-fix findings and the four open questions now written
+  into *Design decisions*, acceptance criteria and *Proposed shape*. Zach
+  also wants to hand-test the change in VMware VMs (see the VM criterion).
 
 ### Design decisions
 
@@ -126,10 +133,13 @@ approves it at `review-design`.
   - Updating: `gh` prints its own "new release available" notice. The user
     updates by re-downloading from https://cli.github.com, or by installing a
     package manager. `coga init` installs only when `gh` is missing and never
-    upgrades it. The install topic says so.
-- **Install directory.** `_gh_install_dir()` returns the first candidate
-  that exists, is a directory, is writable (`os.access(W_OK)`), and is on
-  `PATH` (reuse `init._on_path`):
+    upgrades it. The `coga/init` topic says so.
+- **Install directory: plan, never create, before consent.** Planning the
+  destination (`plan_install_dir()`) writes nothing. It returns the first
+  eligible candidate. A candidate is eligible when it is on `PATH` (reuse
+  `_on_path`), is not a system directory (below), and either exists as a
+  writable directory (`os.access(W_OK)`) or does not exist yet and its
+  nearest existing ancestor is a writable directory. Candidates, in order:
   1. The parent of the unresolved `shutil.which("coga")`. This is the
      directory the user already runs coga from: uv tool's and pipx's
      `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows). Skip it when
@@ -140,10 +150,61 @@ approves it at `review-design`.
   2. `Path.home() / ".local" / "bin"` on all three platforms.
   3. `Path.home() / "bin"`, POSIX only.
 
-  System directories (`/usr/local/bin`, Windows `WindowsApps`) are never
-  written. If no candidate qualifies, fall back to `~/.local/bin`, created
-  with `parents=True`, and report it as off-`PATH`. If that cannot be created
-  or written either, the route is unavailable.
+  **System directories are never eligible**, even when the coga shim lives
+  there. A candidate is a system directory unless it resolves inside
+  `Path.home()`. This excludes `/usr/local/bin`, `/opt/homebrew/bin`,
+  `/usr/bin`, `Program Files` and `WindowsApps`.
+
+  If no candidate qualifies, the plan is `~/.local/bin`, marked as expected
+  off-`PATH`. It is eligible only if it exists writable or its nearest
+  existing ancestor is writable. Otherwise the route is unavailable, with no
+  prompt.
+
+  The directory is created (`mkdir(parents=True, exist_ok=True)`) only
+  after the user says yes *and* the digest verifies. Whether the install is
+  `INSTALLED` or `OFF_PATH` is decided afterwards from
+  `shutil.which("gh")`, not from the plan. A missing `~/.local/bin` that is
+  already listed on `PATH` therefore ends as `INSTALLED`, and the
+  `gh auth login` offer follows.
+- **Exclusive atomic publication.** Never use `os.replace`, which overwrites.
+  Write the binary to a temp file in the destination directory
+  (`tempfile.mkstemp(dir=...)`), flush and `fsync`, chmod 0755 on POSIX,
+  then publish with an operation that fails if the destination exists:
+  - POSIX: `os.link(tmp, dest)`, then unlink the temp file;
+  - Windows: `os.rename(tmp, dest)`, which raises `FileExistsError` when
+    `dest` exists.
+
+  A destination that exists in any form, including a symlink or a dangling
+  symlink (`os.path.lexists`), is never followed or replaced. A
+  `FileExistsError` at publication, even when the earlier check saw nothing,
+  removes the temp file and reports "`<dest>` already exists, not
+  overwritten" (`FAILED`). Any other `OSError` from `os.link` (for example a
+  filesystem without hard links) removes the temp file and is `FAILED` with
+  its reason. The temp file is removed on every failure path.
+- **"No `gh` package" means the manifest, not the distro.** The package
+  manager route is skipped, and the download becomes the *first* prompt,
+  only when it is unusable before running anything: no manager found, no
+  `gh` recipe for that manager in `dependencies.DEPENDENCIES` (static
+  check), or root needed with no `sudo`. When the distro's configured
+  repositories lack `gh` (older Debian/Ubuntu, RHEL without GitHub's repo),
+  the manager exits non-zero. That is a package-manager *failure*, followed
+  by the second offer. No availability preflight (`apt-cache`, `dnf info`).
+- **Placement: a co-versioned part of `init`'s contract.** `init` is not in
+  `coga-dev/microkernel`'s open-placement table. The new code earns its
+  package home under rule 2 (reviewed, co-versioned command contract): the
+  pinned `gh` version and SHA-256 table is the integrity anchor *because* it
+  ships in coga's own release. An edge copy using only stable CLI and
+  filesystem interfaces could be swapped or drift independently of the
+  wheel and would lose that guarantee. So the pin table and the download
+  route stay in the package as `src/coga/gh_release.py`, imported only by
+  `commands/init.py`. It is not shared infra, and the spec no longer cites
+  `agent_cli_setup.py` as precedent. The `coga-dev/microkernel` topic needs
+  no change.
+- **Pin maintenance.** The pin is bumped by hand at each coga release, and
+  sooner for a `gh` security release. Re-verify all six digests against
+  `gh_<v>_checksums.txt`. The `coga/init` topic and the module docstring say so.
+- **Off-`PATH` fallback: install anyway.** Owner-approved: a working binary
+  plus "add this directory to PATH" beats a link alone.
 - **Shown before the confirm.** The exact URL
   (`https://github.com/cli/cli/releases/download/v<v>/<asset>`), the pinned
   SHA-256, and the destination file path. When the destination is the
@@ -163,8 +224,8 @@ approves it at `review-design`.
   `_host_ignores_coga` and `_check_git_identity` before
   `_offer_optional_tools`. Each of these either needs a repo the user created
   with `git init` (which triggers the CLT install) or runs `git` and hits
-  the stub. The install topic's "macOS: check Git before init" already
-  covers this. Better stub detection is not part of this ticket.
+  the stub. The README's macOS Git note (`xcode-select --install`)
+  already covers this. Better stub detection is not part of this ticket.
 - **Linux with a package manager but no sudo.** `_offer_install` gives up
   without prompting. The new chain treats that as "package manager
   unavailable" and offers the download.
@@ -178,20 +239,34 @@ approves it at `review-design`.
 - [ ] If that install exits non-zero, or leaves `gh` off `PATH`, init asks
       once more and offers the release download. It never repeats the
       package-manager prompt.
-- [ ] No package manager, a manager without a `gh` package, or root needed
-      with no `sudo`: the *first* prompt is the release download, on
-      darwin, win32 and linux alike.
+- [ ] No package manager, a manager with no `gh` recipe in
+      `dependencies.DEPENDENCIES`, or root needed with no `sudo`: the
+      *first* prompt is the release download, on darwin, win32 and linux
+      alike. A distro whose repositories lack `gh` makes the manager exit
+      non-zero, which follows the failure path above (two prompts).
+- [ ] Declining the package-manager offer ends the chain: the download is
+      never offered and the downloader is never called.
 - [ ] The download prompt prints the URL, the pinned SHA-256 and the
       destination path before the confirm (default from `dep.offer_install`,
       that is yes).
 - [ ] On a yes, init downloads the asset for the platform and architecture,
       verifies the pinned SHA-256 before writing anything, and copies only
-      the `gh` binary into the chosen directory. The write is atomic: a temp
-      file in the same directory, then `os.replace`. On POSIX the file is
-      mode 0755. It never overwrites an existing file at the destination;
-      that case is reported and the route is unavailable.
+      the `gh` binary into the chosen directory, creating that directory
+      only now. Publication is atomic and exclusive (see *Exclusive atomic
+      publication*): a temp file in the same directory, then `os.link`
+      (POSIX) or `os.rename` (Windows). It never uses `os.replace`. On POSIX
+      the file is mode 0755. An existing destination, including a symlink
+      or one created after the initial check, is never overwritten; init
+      reports it and the temp file is removed.
+- [ ] Declining, or any failure before publication, leaves the filesystem
+      unchanged: no destination directory is created and no file is
+      written.
 - [ ] On success `shutil.which("gh")` resolves, and the existing
       `_offer_gh_login` offer follows.
+- [ ] `INSTALLED` versus `OFF_PATH` is decided by `shutil.which("gh")`
+      after the write, not by the plan.
+- [ ] No system directory (anything not inside `Path.home()`) is ever
+      chosen, even when the coga shim lives there.
 - [ ] Installed into the off-`PATH` fallback: init says so explicitly,
       naming the path and asking the user to add the directory to `PATH`.
       It reuses the existing "not on PATH yet — open a new shell" note,
@@ -226,28 +301,59 @@ approves it at `review-design`.
       - download declined → "needed" message, nothing written.
       - checksum mismatch → nothing written, "needed" message.
       - existing file at the destination → not overwritten.
+      - destination (regular file, and separately a dangling symlink)
+        created after the plan but before publication → not overwritten,
+        temp file removed, "needed" message.
       - fallback directory off `PATH` → explicit note, no "needed" message.
+      - declining with a nonexistent fallback directory → the directory is
+        still absent afterwards.
+      - nonexistent `~/.local/bin` already listed on `PATH` → created after
+        the yes, outcome `INSTALLED`, `gh auth login` offered.
       - install-directory choice: the coga-shim directory wins, a venv
-        `bin` inside `sys.prefix` is skipped, then `~/.local/bin`.
+        `bin` inside `sys.prefix` is skipped, then `~/.local/bin`; a
+        writable coga-shim directory outside the home (for example
+        `/usr/local/bin`) is skipped.
+      - download raising (`URLError`/`OSError`) → one-line reason, "needed"
+        message, no traceback.
+      - archive with the binary missing, or duplicated → `FAILED`, nothing
+        written.
+      - Linux manager needing root with no `sudo` → download is the first
+        prompt; `sudo` refused (non-zero exit) → second offer.
+      - package-manager offer declined → download never offered.
       - asset selection for each supported `(platform, machine)` pair, plus
         an unsupported one.
       - the pin table has a 64-hex digest for every supported pair.
 
       Existing `test_dep_check_*` assertions on "Optional tools not on PATH"
-      / "gh: install from" move to the new message.
-- [ ] The `coga/install` topic describes the new chain, the download route,
-      the pinned version and how to update `gh`. The package copy and its
-      legacy live twin under `docs/contexts/` are byte-identical
-      (`tests/test_packaging.py`).
+      / "gh: install from" move to the new message. Preflight tests that
+      patch `_offer_install` (notably
+      `test_init_offers_optional_tools_once_preflight_passes`) are updated
+      to the new `_offer_gh` seam and stay green, as does
+      `test_init_offers_nothing_when_preflight_fails`.
+- [ ] The `coga/init` topic (package copy only; it has no live twin)
+      describes the new chain, the download route, the pinned version and
+      how to update `gh`. `tests/test_packaging.py` passes.
 - [ ] `docs/contexts/coga-dev/codebase/SKILL.md` lists the new module next
       to `dependencies.py`.
 - [ ] `python -m pytest` passes.
+- [ ] **Owner VM walk (hand test, before merge).** Zach runs the branch in
+      VMware VMs, installing coga from the branch commit (never PyPI) and
+      recording the SHA. Native Windows (`coga-win11-walk`, from the
+      `bare + tools` snapshot, no `gh`, winget removed or `gh` not
+      installable through it) is the minimum. Add macOS or a Linux guest
+      when one is available. Check: the prompt renders as specified (URL,
+      digest, destination), a yes yields a working `gh --version` in the
+      same process and a new shell, `gh auth login` is offered, and a
+      decline prints the "needed" line. The `implement` agent writes the
+      exact walk script on the blackboard. The result is recorded there
+      too. Mocked-platform unit tests do not count as native verification.
 
 ### Proposed shape
 
-1. **New module `src/coga/gh_release.py`.** It is part of the `init`
-   command's implementation, as `agent_cli_setup.py` is for agent CLIs. It
-   is not shared infra and is not a new command. Contents:
+1. **New module `src/coga/gh_release.py`.** It is the co-versioned part of
+   `init`'s contract (see *Placement* above), imported only by
+   `commands/init.py`. It is not shared infra and is not a new command.
+   Contents:
    - `GH_VERSION = "2.103.3"` and
      `GH_ASSET_SHA256: dict[tuple[str, str], str]`, keyed by
      `(os, arch)` with os ∈ {`macOS`, `windows`, `linux`} and
@@ -263,10 +369,15 @@ approves it at `review-design`.
      `("bin", asset.binary)`, using `zipfile` for `.zip` and `tarfile` for
      `.tar.gz` (a regular-file member only). It never extracts the whole
      archive, and raises if the match count is not exactly one.
-   - `install_dir() -> tuple[Path, bool]` (directory, on_path), following
-     the rule above. Import `_on_path` from init, or move it here and
-     re-export it. Prefer moving it, since this module would be its second
-     user.
+   - `plan_install_dir() -> InstallPlan | None`, with `directory` and
+     `expected_on_path`. Pure apart from reading the filesystem and
+     environment, and never creating anything. It follows the rule above.
+     Import `_on_path` from init, or move it here and re-export it. Prefer
+     moving it, since this module would be its second user.
+   - `publish_binary(directory: Path, name: str, data: bytes) -> Path`. It
+     creates the directory, writes the temp file and publishes exclusively
+     (`os.link` / `os.rename`). It raises `FileExistsError` for an existing
+     destination and always removes the temp file on failure.
 2. **`src/coga/commands/init.py`.**
    - Add a small `InstallOutcome` enum: `INSTALLED`, `OFF_PATH`, `DECLINED`,
      `FAILED`, `UNAVAILABLE`.
@@ -276,9 +387,10 @@ approves it at `review-design`.
      A not-on-`PATH` result after a successful package-manager run stays
      `FAILED` for this purpose and still prints today's note.
    - `_offer_gh_release(dep) -> InstallOutcome` runs the download route:
-     resolve the asset and directory (`UNAVAILABLE` without a prompt), print
-     the URL, digest and destination, confirm, then download, verify,
-     extract and write atomically. Catch `OSError`/`URLError`/archive errors
+     resolve the asset and plan the directory (`UNAVAILABLE` without a
+     prompt), print the URL, digest and destination, confirm, then
+     download, verify, extract, and publish with `publish_binary`. Classify
+     the result with `shutil.which("gh")`. Catch `OSError`/`URLError`/archive errors
      into `FAILED` with a one-line reason.
    - `_offer_gh(dep) -> InstallOutcome` chains the two routes as the ticket
      orders them. A `DECLINED` from either ends the chain.
@@ -297,13 +409,14 @@ approves it at `review-design`.
      `Path.home()` lands in the test dir.
 
    Add the cases listed in the acceptance criteria.
-5. **Docs.** Update the `coga/install` topic (package copy plus legacy
-   twin):
-   - the `gh` Prerequisites bullet: needed for PR workflows, init offers it,
-     init never fails without it;
-   - the interactive-install paragraph: the package-manager route, then the
-     release download (pinned version, verified digest, destination rule,
-     no sudo), then the link;
+5. **Docs.** Update the `coga/init` topic's external-CLI paragraph
+   (package copy at
+   `src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`):
+   - `gh` is needed for PR workflows, init offers it, init never fails
+     without it;
+   - the install order: the package-manager route, then the release
+     download (pinned version, verified digest, destination rule, no sudo),
+     then the link;
    - one sentence on updating a downloaded `gh`.
 
    Add the module line in `coga-dev/codebase`.
@@ -368,14 +481,13 @@ intact.
 
 ### Docs to update in the same PR
 
-- `src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`
-  is the owner. Its legacy live twin `docs/contexts/coga/install/SKILL.md`
-  must stay byte-identical, which `tests/test_packaging.py` enforces. Edit
-  both.
-- Two sections describe today's behaviour:
-  - "Prerequisites" calls `gh` "recommended but not required at init".
-  - The paragraph on what interactive `coga init` offers to install names
-    the package managers.
+- The `coga/install` topic was retired on 2026-11-04 (`8a88b5ada`,
+  v1/26) after this design was written; its init-offer facts moved to
+  `coga/init`. The owner is now
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`
+  (package only; `docs/contexts/coga/` no longer exists). Its external-CLI
+  paragraph ("Offers default to yes, use the machine's package manager …
+  missing `gh` warns") describes today's behaviour and must be updated.
 - The README install section is out of scope.
   `v1/17-separate-installing-coga-from-installing-its-depen` owns the README's
   required/optional dependency split and will cite this ticket's outcome.
@@ -524,34 +636,52 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Design status
 
-Design written 2026-11-04 (design step): the spec is under `## Description`
-(decisions, acceptance criteria, proposed shape, out of scope), and release
-facts and pinned digests are under `## Context`. Recommended mechanism: a
-pinned, SHA-256-verified official release archive, installed into coga's own
-bin directory or `~/.local/bin`, as route 2 after the package manager.
+Design written 2026-11-04 (design step), evaluated the same day (four
+must-fix findings), and **approved by Zach at `review-design` on
+2026-11-12** with the resolutions below folded into the spec. Next:
+`implement`.
 
-## Open Questions
+## Owner decisions (2026-11-12, review-design)
 
-1. **Pin versus latest.** The design pins the `gh` version and digests in
-   the coga package. That gives stronger integrity and no API or rate-limit
-   exposure, but `gh` goes stale between coga releases. The alternative is
-   to resolve `releases/latest` through its redirect and verify against
-   that release's checksums file. That gets the newest `gh` but proves only
-   transport integrity. Is the pin acceptable, and who bumps it, and when
-   (for example, at each coga release)?
-2. **Off-`PATH` fallback.** When no writable directory on `PATH` exists,
-   the design still installs into `~/.local/bin` and tells the user to add
-   it to `PATH`. Init does not edit shell profiles or the Windows user
-   `PATH`. Is "installed, add this directory to PATH" acceptable, or should
-   init skip the download and show only the "needed" link in that case?
-3. **Placement.** The design proposes a new `src/coga/gh_release.py` as part
-   of `init`'s implementation, like `agent_cli_setup.py`, rather than
-   growing `commands/init.py`, which is about 1,860 lines. Does that fit
-   the microkernel rule, or should the helpers stay inside `init.py`?
-4. **Follow-up ticket?** Should detecting the macOS `/usr/bin/git` stub
-   (`xcode-select -p` failing) become its own ticket? It stops a fresh-Mac
-   user before the `gh` offer, and the install topic covers it only by hand
-   today.
+Open questions, answered:
+
+1. **Pin versus latest:** pin. Bumped by hand at each coga release, sooner
+   for a `gh` security release; re-verify all six digests then.
+2. **Off-`PATH` fallback:** install anyway and tell the user to add the
+   directory to `PATH`.
+3. **Placement:** `src/coga/gh_release.py`, justified under microkernel
+   rule 2 (the pin table is the integrity anchor only because it is
+   co-versioned with the wheel), not by the `agent_cli_setup` precedent.
+4. **macOS `git` stub detection:** separate follow-up ticket, not this one.
+   Not yet created; open it with `coga ticket` when convenient.
+
+Evaluator must-fix dispositions (all accepted; see *Design decisions*):
+
+1. Exclusive publication: temp file, then `os.link` (POSIX) /
+   `os.rename` (Windows); never `os.replace`; symlinks count as existing;
+   race test added.
+2. `plan_install_dir()` never creates; creation after yes + digest;
+   `INSTALLED`/`OFF_PATH` from `shutil.which("gh")`; the two requested tests
+   added.
+3. "No `gh` package" means no manifest recipe (download first); distro
+   repositories lacking `gh` is a manager failure (second offer); no
+   preflight.
+4. Placement rationale rewritten as above.
+
+Optional recommendations: system directories excluded (outside
+`Path.home()`) with a test; extra failure tests and the preflight-test
+update added to the criteria; `coga/init` (the retired `coga/install`'s
+successor, see below) and `coga-dev/microkernel` attached as contexts. The `op` drift in `coga/init` /
+`coga-dev/current-direction` stays out of scope.
+
+**Docs target moved:** `coga/install` was retired on 2026-11-04 by v1/26
+(`8a88b5ada`); the spec now targets `coga/init` (package copy only). The
+`op` drift the evaluator flagged was already fixed by that commit.
+
+**Owner hand test:** Zach wants to walk the branch in VMware (Windows
+`coga-win11-walk` at minimum) to see how the prompts render and whether
+the install works. That is an acceptance criterion; `implement` leaves a
+walk script here.
 
 ## Evaluator review
 
