@@ -1,6 +1,6 @@
 ---
 title: Research how agents make delegated decisions (GEO)
-status: active
+status: in_progress
 owner: zach
 workflow:
   name: human/run
