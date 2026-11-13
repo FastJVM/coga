@@ -2,12 +2,11 @@
 
 **Build. Rethink. Hack.**
 
-Coga is a local, Git-backed CLI for working with coding agents through editable tasks, knowledge, and workflows... 
+Coga is a local, Git-backed CLI for working with coding agents through editable tasks, knowledge, and workflows.
 
-So what's new here ? Why build another tool to manage agents when so many already exist?
+So why build another agent tool when so many already exist?
 
-Because none of the current tool (and I played with a lot) could help me in my endeavour. I love making things. I want agents to help me think, explore, challenge assumptions, and build. Not delegate my thinking to maximize output. I want the decisions, the friction points, and the ways of working to stay visible and open to change. I want to hack the factory, not just the software it produces.
-
+I love making things. I've tried plenty of agent tools, but none gave me enough room to question the decisions shaping the work. I want agents to help me think, explore, challenge assumptions, and build—not outsource the thinking just to maximize output. Decisions, friction points, and ways of working should stay visible and open to change. I want to hack the factory, not just the software it produces.
 
 | | Principle | What it means |
 |:--:|---|---|
@@ -54,22 +53,34 @@ coga launch add-a-health-check-endpoint --prompt-report  # inspect the prompt la
 coga launch add-a-health-check-endpoint                  # start the agent in your terminal
 ```
 
-The ticket is an ordinary Markdown file under `coga/tasks/`. It can hold an unresolved question, not just a request for code. For example, [a Coga ticket about oversized blackboards](https://github.com/FastJVM/coga/blob/dc6832e0b625b3c8d4661fa3ef126c66be42faf6/coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md) came from a Dream scan: two other tickets had independently found the same remedy, but no shared guidance existed for the next agent. The follow-up captured the remedy in durable project knowledge rather than leaving it in two separate task histories.
+The ticket is an ordinary Markdown file under `coga/tasks/`. It can be a
+question to investigate, not just a request for code.
 
-At launch, Coga assembles the ticket, its selected contexts, and its current workflow step into a fresh prompt. You can inspect and edit what the next session sees.
+**Example — challenge an assumption.** Suppose the agent proposes a health
+check that returns `200` whenever the process is running. You spot the problem:
+the process could be alive while its database is unavailable. You edit the
+ticket's `## Description` to require readiness, not just liveness:
+
+```md
+### Readiness
+Return `503` when the required database is unavailable.
+```
+
+Record the reason in the ticket's blackboard. If other tasks need this rule,
+move it into a reusable project context and attach that context to those
+tickets. On the next `coga launch`, the current ticket, selected contexts,
+and workflow step form the agent's fresh prompt. The correction carries
+forward without relying on the previous chat.
 
 ## Why use Coga instead of just the agent?
 
-You keep using Claude Code or Codex to plan, investigate, and build. Coga gives you a shared plan and working knowledge that you can inspect, correct, and carry across sessions:
+Keep using Claude Code or Codex to plan, investigate, implement, and review.
+Coga makes the work around those agent sessions explicit and editable:
 
-- **Go where neither could alone.** Agents produce plans fast; people see the whole and question it. Coga keeps the whole plan in text you can see at once and rearrange: split a task, test a premise first, park work, change direction. Each later session, by any agent, starts from the rearranged plan.
-- **Understand and shape the plan.** Let the agent propose an approach, then read and refine what it intends to build. Add missing constraints, question assumptions, and decide what success means. The same edited plan helps you judge the work and gives the agent direction.
-- **Manage context rot with readable handoffs.** At each step, the agent records useful findings, decisions, and open questions. The next session starts fresh from the current ticket, notes, and selected knowledge. You can inspect, correct, and share what carries forward.
-- **Choose knowledge and skills for the task.** Select the facts, constraints, and procedures to include at launch. Make important guidance available from the start, and keep irrelevant or outdated instructions out of the task's prompt.
-- **Change course when the premise changes.** Split a vague task, test an assumption first, or cancel work when the original direction no longer makes sense. Agents can surface evidence; people decide what is worth pursuing.
-- **Let stable work run with less steering.** A clear ticket plus relevant contexts and step skills gives an agent more of what it needs before it starts. Coga can continue across agent-assigned steps, including peer review, and stop at blockers or explicit human gates rather than requiring you to restate project knowledge each session.
-- **Put reviews where they matter.** Work interactively, add human review gates, or delegate work to run unattended. Choose the points where you want to check the plan, findings, or implementation.
-- **Keep what you learn.** Record useful discoveries in project contexts and reusable methods in skills so later tasks can draw on them, even when a different agent does the work.
+- **Shape the plan.** Review agent-proposed approaches and success criteria; split, defer, or cancel tasks when evidence changes the direction.
+- **Carry decisions across sessions.** Use a ticket's blackboard for working findings, contexts for shared constraints, and skills for reusable procedures. Humans and agents can inspect and correct those Git-backed files.
+- **Choose what the agent sees.** Attach relevant contexts and skills to the task rather than loading every note into every prompt.
+- **Decide when to delegate.** Work interactively, route steps to another agent for peer review, add human gates, or queue stable work unattended. Blockers and explicit human gates interrupt unattended work.
 
 The [research behind these choices](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/principles/reading-list.md#context-skills-and-plan-review) covers context rot, selective guidance, and reviewing plans before implementation.
 
@@ -78,59 +89,64 @@ The [research behind these choices](https://github.com/FastJVM/coga/blob/main/do
 Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks). Its history contains architectural assumptions that changed after real use:
 
 - **One repo, not a project federation.** Early Relay (Coga's original name) assumed one CLI should manage multiple projects through `[projects.*]` and `--project`. In practice, each repository configured only one project. The team [revised the spec](https://github.com/FastJVM/coga/commit/8dcd8c3d8241cad5028ca9f251e45db082b5f6a7), then [simplified the CLI and tests](https://github.com/FastJVM/coga/commit/3654b67d588c5f0000231377fa9bec5298b3db5f) rather than keeping an abstraction it didn't need.
-- **A finding in a ticket is not necessarily durable knowledge.** Dream originally ran cleanup before its knowledge scan, so some completed tickets were already gone when scanning began. Its findings also landed in a blackboard that would be retired with the task. The team [redesigned Dream](https://github.com/FastJVM/coga/commit/22532446c317c701e556720dd929060ef11e9689) to scan first and route discoveries to reviewable PRs, draft tickets, or recorded markers—not leave them only in temporary notes.
+- **A finding in a ticket is not necessarily durable knowledge.** Dream, Coga's recurring maintenance pass, originally ran cleanup before its knowledge scan, so some completed tickets were already gone when scanning began. Its findings also landed in a blackboard that would be retired with the task. The team [redesigned Dream](https://github.com/FastJVM/coga/commit/22532446c317c701e556720dd929060ef11e9689) to scan first and route discoveries to reviewable PRs, draft tickets, or recorded markers—not leave them only in temporary notes.
 
 **Keeping history is not enough.** Important decisions must be promoted into durable guidance and selected for the next task that needs them. Coga's [tickets](https://github.com/FastJVM/coga/tree/main/coga/tasks) and [Git-backed history](https://github.com/FastJVM/coga/blob/main/coga/log.md) make that evolution inspectable.
 
 ## Get started
 
-Agent sessions run on Linux, macOS, or native Windows. Coga runs inside an
-existing Git repository; outside one, `coga init` stops. You'll need working
-Git and either Claude Code (`claude`) or Codex (`codex`) installed; Coga does
-not install or link to an installer for either agent. Coga requires Python
-3.11+, but the
-recommended `uv` installer can obtain a compatible Python for you.
+Coga runs inside an existing Git repository. You need Git, Python 3.11+
+(`uv` can install it), and at least one coding agent CLI: Claude Code
+(`claude`) or Codex (`codex`). Coga doesn't install those agents.
 
-**On native Windows** (tested on Windows Server 2025), work in PowerShell, for
-example in Windows Terminal; Coga needs no bash or WSL. PyPI release 0.4.1
-predates the Windows port and does not run there.
+### Install on macOS or Linux
 
-- Install uv with `irm https://astral.sh/uv/install.ps1 | iex`, then run
-  `uv python install 3.11`.
-- Install Git for Windows. Its default `core.autocrlf=true` is fine: Coga
-  writes LF and Git normalizes.
-- Claude Code's native installer is the tested agent. Codex is untested on
-  native Windows.
-- `coga launch --idle-timeout` is unavailable there, because the agent owns the
-  console; use `--max-session` for a wall-clock limit.
+Check `git --version` first. On macOS, if Git asks for developer tools,
+run `xcode-select --install`; full Xcode isn't required. On Linux,
+install Git using your distribution's package manager.
 
-On macOS, check that `git --version` works. If it prompts for developer
-tools, run `xcode-select --install`; Git installed another way works too.
-Full Xcode is not required. On Linux, install Git with your distribution's
-package manager if `git --version` fails.
-
-If `uv` isn't installed yet, get it first (macOS/Linux):
+If you don't have `uv` yet:
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 See [other uv installation methods](https://docs.astral.sh/uv/getting-started/installation/).
-Open a new terminal if `uv` isn't on your `PATH` after installation.
+Open a new terminal if `uv` isn't on your `PATH`, then run:
 
 ```sh
 uv tool install coga
 coga --version
 ```
 
-If `coga` isn't found, uv's tool directory isn't on your `PATH`: run
-`uv tool update-shell`, then open a new terminal.
+### Install on native Windows
 
-Change into your project's Git repository. Check `git var GIT_AUTHOR_IDENT`
-before init. If Git asks for an identity, set `git config user.name "Your Name"`
-and `git config user.email "you@example.com"` with your own details in this
-repo.
-Then run:
+Use PowerShell (for example, in Windows Terminal) and install Git for Windows.
+The published PyPI release 0.4.1 predates Coga's native Windows support,
+so install the current GitHub source version instead:
+
+```powershell
+irm https://astral.sh/uv/install.ps1 | iex
+uv python install 3.11
+uv tool install --python 3.11 "git+https://github.com/FastJVM/coga.git@main"
+coga --version
+```
+
+Native Windows has been tested on Windows Server 2025 with Claude Code's
+native installer; Codex has not yet been tested there. Bash and WSL aren't
+required, and Git for Windows's default `core.autocrlf=true` is supported.
+`coga launch --idle-timeout` is unavailable on native Windows; use
+`--max-session` for a wall-clock limit.
+
+If `coga` isn't found after either installation, run `uv tool update-shell`
+and open a new terminal.
+
+### Initialize a repository
+
+Change into your project's existing Git repository. Outside a Git repo,
+`coga init` stops. Check `git var GIT_AUTHOR_IDENT`; if Git asks for an
+identity, set `git config user.name "Your Name"` and
+`git config user.email "you@example.com"` with your own details for this repo.
 
 ```sh
 coga init --user YOUR_NAME
@@ -139,11 +155,12 @@ coga init --user YOUR_NAME
 In a repo new to Coga, init commits the Coga files. In a clone that already
 uses Coga, it sets up your local identity and agent links without a commit
 ([init details](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)).
-Coga installs no agent CLI and provides no agent-installer link. In an
-interactive terminal, when exactly one supported CLI is present, init offers
-to make that one your default agent. It seeds the onboarding
-ticket only for an otherwise empty repo; a short starter README, LICENSE or
-`.gitattributes` still counts as empty. Choose how to begin:
+Coga installs no agent CLI. In an interactive terminal, if exactly one
+supported CLI is present, init offers to make it your default agent.
+It seeds an onboarding ticket only for an otherwise empty repo; a short starter
+README, LICENSE, or `.gitattributes` still counts as empty.
+
+Choose how to begin:
 
 ```sh
 # New, otherwise empty Git repo: discuss the idea and draft a first plan
@@ -159,16 +176,15 @@ coga status
 To use Codex explicitly, run `coga build --agent codex` or
 `coga ticket "Your task title" --agent codex`.
 In the shipped setup, chat and ticket interviews default to Claude even when
-new tasks use Codex.
-You can also edit any ticket directly in Markdown.
+new tasks use Codex. You can also edit any ticket directly in Markdown.
 
 For a walkthrough to a reviewed PR, follow [Your first task](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md).
-That PR path needs a GitHub remote you can push to and [GitHub CLI](https://cli.github.com/)
-authentication (`gh auth login`). The guide explains the choice between a
-peer review using both agent CLIs and a workflow using one agent.
-GitHub CLI is optional for init and work that does not use GitHub;
+That path needs a GitHub remote you can push to and
+[GitHub CLI](https://cli.github.com/) authentication (`gh auth login`).
+The guide explains peer review using both agent CLIs and a workflow using
+one agent. GitHub CLI is optional for init and work that does not use GitHub;
 [1Password CLI](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md)
-is needed only for tickets that declare `op://` secrets.
+is needed only for tickets declaring `op://` secrets.
 
 Upgrade with `uv tool upgrade coga`. To remove Coga from a repo, run
 `coga uninstall`; the [uninstall guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md)
@@ -180,6 +196,7 @@ Everything Coga manages is visible under `coga/`:
 
 - **Tickets** (`coga/tasks/`) — specific outcomes, attached context, workflow, and working notes. [How tickets work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md).
 - **Contexts** — durable facts, constraints, and decisions you choose to attach to tasks. [How knowledge works](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
+- **Skills** (`coga/skills/` or bundled) — reusable procedures selected for tickets and workflow steps. [How knowledge works](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
 - **Workflows** — agent steps and human review gates. [How workflows work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **History** (`coga/log.md`) — task transitions kept separately from the prompt sent to an agent.
 
