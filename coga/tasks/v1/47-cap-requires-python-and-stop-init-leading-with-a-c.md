@@ -1,7 +1,7 @@
 ---
 title: Cap requires-python and stop init leading with a coga.toml edit
 status: in_progress
-owner: zach
+owner: nicktoper
 workflow:
   name: code/with-review
   steps:
@@ -29,32 +29,13 @@ agent: claude
 
 ## Description
 
-`pyproject.toml:10` sets `requires-python = ">=3.11"` with no upper bound, so
-`uv tool install coga` can resolve a CPython newer than any published wheel
-and fall back to a source build. Separately, `coga init` makes "Edit
-`coga/coga.toml`" its second instruction, and a fresh Mac has nothing
-installed that opens a `.toml` file. Both are findings from the macOS install
-walk on `v1/29` and nothing else tracks them.
+On a machine with no Python, `uv tool install coga` picks the newest Python
+(3.15). One dependency, PyYAML, has no ready-made package for 3.15, so it
+compiles. On a Mac without developer tools that pops up an install dialog, but
+Coga still works. Decide whether to cap Python at the tested 3.11 or leave it.
 
-Done when: the declared Python range keeps `uv tool install coga` on a wheel,
-and init's next steps do not require editing a file before the user can
-proceed.
-
-## Context
-
-### Why
-
-- Finding 7 on `v1/29-test-and-fix-install-on-macos-and-windows`, where a
-  source build triggered the Command Line Tools dialog mid-install.
-- The README now tells macOS users to check `git --version` before installing,
-  which hides the symptom on a stock Mac but leaves the cause in place.
-- `nothing-exercises-python-3-11-the-declared-floor` is canceled, so no ticket
-  covers the Python range.
-- Findings 9, 10 and 11 on the same walk: init's next steps assume shell
-  knowledge and lead with a `coga.toml` edit the user does not need yet.
-- The next-steps list is built in `src/coga/commands/init.py` around line 1546.
-- `v1/24-mention-coga-build-in-the-install-flow` is the nearest draft and
-  covers `coga build`, not this.
+Also: when no agent CLI is found, `coga init` tells the user to uncomment a
+table in `coga.toml`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
