@@ -631,6 +631,10 @@ ordinary ticket.
 Previous ref: `marketing/fix-installer/handle-gh-not-being-installed-by-default` (renamed 2026-10-27); earlier audit lines retain that ref.
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/v1-18-handle-gh-not-being-installed-by-default-815280
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
