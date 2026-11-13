@@ -1,7 +1,7 @@
 ---
 title: Correct state-publication internals for pending-publication and the deferred
   done marker
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
