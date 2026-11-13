@@ -102,13 +102,43 @@ external CLIs: in an interactive terminal it offers to install a missing
 `gh auth login` if the active github.com account is not logged in) only once
 every precondition has passed, before scaffolding. Only `git` is enforced;
 other tools are checked where used, and `coga.dependencies` is the source of
-truth for the set. Offers default to yes, use the machine's package manager
-(brew, winget, apt-get, dnf or pacman; `sudo` on Linux) and print the command
-first. Without a terminal, a known manager or a package, init prints the
-install link instead: missing `git` still stops init, missing `gh` warns.
-Init never offers `op` (your secrets manager is your choice); a missing `op`
-gets one note naming what needs it. Each install runs only on a yes, so an
-invocation that must exit changes nothing on the machine. Agent CLIs are not
+truth for the set. Offers default to yes and print what they will do first.
+`git` is offered only through the machine's package manager (brew, winget,
+apt-get, dnf or pacman; `sudo` on Linux); without a terminal, a manager or a
+package, init prints its link and stops. Init never offers `op` (your
+secrets manager is your choice); a missing `op` gets one note naming what
+needs it. Each install runs only on a yes, so an invocation that must exit
+changes nothing on the machine.
+
+**`gh`** is needed for PR workflows, but init never fails without it: every
+`gh` consumer enforces it at its point of use. A missing `gh` gets up to two
+offers, never the same one twice, and a "no" at either ends the chain:
+
+1. The package manager, as for `git`, when one is usable: found, with a `gh`
+   recipe in `coga.dependencies`, and with `sudo` when root is needed.
+2. The official release archive, pinned in `coga.gh_release` (2.103.3 at
+   the time of writing). It is the first offer when no manager is usable,
+   and the second when the manager install fails: a non-zero exit (a distro
+   repository without `gh`, a refused `sudo`) or `gh` still off `PATH`. The
+   prompt shows the URL, the pinned SHA-256 and the destination. On a yes,
+   init verifies the digest before writing, copies only the `gh` binary and
+   never replaces an existing file. It needs no package manager or `sudo`.
+   The destination is the first directory on `PATH` inside your home that
+   is writable: the one `coga` runs from (not a project virtualenv), then
+   `~/.local/bin`, then `~/bin` on macOS and Linux. System directories such
+   as `/usr/local/bin` are never used. With none on `PATH`, init still
+   installs into `~/.local/bin` and tells you to add it to `PATH`. An
+   unsupported architecture (32-bit, armv6/7) gets no download offer.
+3. Otherwise (declined, every route failed, or no terminal) init prints
+   "`gh` is needed for PR workflows, install it from
+   https://cli.github.com" and continues.
+
+Init installs `gh` only when it is missing and never upgrades it. A
+downloaded `gh` announces its own new releases; update it by downloading
+again from https://cli.github.com, or switch to a package manager. The pin
+is bumped by hand at each Coga release (sooner for a `gh` security release)
+after re-verifying all six digests against the release's
+`gh_<version>_checksums.txt`. Agent CLIs are not
 in that set: Coga never installs one or says where to get one. Init runs
 before any `coga.toml` exists, so it scans the machine for them rather than
 reading config. In an interactive terminal it prints that scan, before

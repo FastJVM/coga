@@ -69,6 +69,9 @@ The repo separates implementation from the OS it operates:
   disposal order), `retire_worklist.py` (`retires.md`).
 - `dependencies.py` (supporting-tool install manifest, supported agent CLI
   scan order, and the shared missing-agent requirement).
+- `gh_release.py` (init's `gh` release-download route: the pinned version
+  and SHA-256 table, asset choice, install-directory plan and exclusive
+  publication; imported only by `commands/init.py`).
 - `skill_manager.py` (`coga skill`; `gh_skill_repo` decides GitHub-backed
   membership, `classify_gh_update_output` maps `gh` output to outcomes; a
   legacy digest that includes machine-local directories may still prove a

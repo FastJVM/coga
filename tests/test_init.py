@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+import hashlib
+import io
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tomllib
+import urllib.error
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -16,6 +21,7 @@ from conftest import load_phone_home
 from typer.testing import CliRunner
 
 import coga.agent_skills as agent_skills
+import coga.gh_release as gh_release
 import coga.git as git_module
 import coga.logfile as logfile
 from coga.cli import app
@@ -2745,15 +2751,16 @@ def test_dep_check_crashes_on_missing_git(
 def test_dep_check_warns_but_does_not_crash_on_optional_tools(
     monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """Non-interactive: a missing `gh` is a warning with its install hint,
-    never a prompt or a crash; a missing `op` gets its own note instead of a
-    line under the heading that reads as a tool init handles."""
+    """Non-interactive: a missing `gh` is the plain "needed" line with its
+    install link, never a prompt or a crash; a missing `op` gets its own note
+    instead of a line that reads as a tool init handles."""
     monkeypatch.setattr(
         "coga.commands.init.shutil.which", _which_missing({"gh", "op"})
     )
     _real_dep_check()  # must not raise
     err = capsys.readouterr().err
-    assert "gh: install from https://cli.github.com" in err
+    assert GH_NEEDED in err
+    assert "Optional tools not on PATH" not in err
     assert "op: install from" not in err  # not listed as a tool init handles
     assert "init does not install it" in err
     assert "a ticket declares an `op://vault/item/field` secret" in err
@@ -2776,6 +2783,21 @@ def test_dep_check_crash_lists_only_required_tools(
     assert "op:" not in required
 
 
+GH_NEEDED = "`gh` is needed for PR workflows, install it from https://cli.github.com"
+
+
+def _path_lookup(name: str) -> str | None:
+    """`shutil.which` over the test's own PATH, by file presence alone.
+
+    Checks `<name>` and `<name>.exe` so a mocked platform's binary resolves
+    on any host OS."""
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        for candidate in (name, f"{name}.exe"):
+            if entry and (Path(entry) / candidate).is_file():
+                return str(Path(entry) / candidate)
+    return None
+
+
 def _interactive(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -2784,20 +2806,28 @@ def _interactive(
     platform: str = "darwin",
     gh_logged_in: bool = True,
     gh_supports_active: bool = True,
+    fail_install: bool = False,
+    path_tools: frozenset[str] = frozenset(),
 ) -> list[list[str]]:
     """Fake a tty on `platform` with `missing` tools; installs succeed.
 
     Returns the argv of every subprocess init ran; `answers` feed the
-    confirm prompts in order."""
+    confirm prompts in order. `fail_install` makes every package-manager
+    run exit 1. Tools in `path_tools` resolve from the test's real PATH
+    (`_path_lookup`) instead, so a package-manager "success" leaves them
+    missing and a published release binary is found where it landed."""
     absent = set(missing)
     calls: list[list[str]] = []
     monkeypatch.setattr("coga.commands.init.sys.platform", platform)
     monkeypatch.setattr("coga.commands.init.sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("coga.commands.init.sys.stdout.isatty", lambda: True)
-    monkeypatch.setattr(
-        "coga.commands.init.shutil.which",
-        lambda name: None if name in absent else f"/usr/bin/{name}",
-    )
+
+    def fake_which(name: str) -> str | None:
+        if name in path_tools:
+            return _path_lookup(name)
+        return None if name in absent else f"/usr/bin/{name}"
+
+    monkeypatch.setattr("coga.commands.init.shutil.which", fake_which)
     monkeypatch.setattr("coga.commands.init.os.geteuid", lambda: 1000, raising=False)
     prompts = iter(answers)
     monkeypatch.setattr(
@@ -2812,6 +2842,8 @@ def _interactive(
                     argv, 1, "", "unknown flag: --active\n"
                 )
             return subprocess.CompletedProcess(argv, 0 if gh_logged_in else 1, "", "")
+        if fail_install:
+            return subprocess.CompletedProcess(argv, 1)
         tool = {"github-cli": "gh"}.get(argv[-1], argv[-1])
         absent.discard(tool)
         return subprocess.CompletedProcess(argv, 0)
@@ -2833,7 +2865,9 @@ def test_dep_check_declined_gh_only_warns(monkeypatch: pytest.MonkeyPatch, capsy
     calls = _interactive(monkeypatch, missing={"gh"}, answers=[False])
     _real_dep_check()
     assert calls == []
-    assert "gh: install from" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert GH_NEEDED in err
+    assert "Optional tools not on PATH" not in err
 
 
 def test_dep_check_linux_uses_sudo_and_distro_package(
@@ -2916,6 +2950,471 @@ def test_dep_check_gh_login_falls_back_without_active_flag(
     assert ["/usr/bin/gh", "auth", "login"] not in calls
 
 
+# --- `gh` release-download route -------------------------------------------
+
+# Package managers each mocked platform would find; removing them leaves the
+# release download as the only route.
+_MANAGERS = {
+    "darwin": {"brew"},
+    "win32": {"winget"},
+    "linux": {"apt-get", "dnf", "pacman", "brew"},
+}
+_GH_KEY = {"darwin": ("macOS", "amd64"), "win32": ("windows", "amd64"), "linux": ("linux", "amd64")}
+
+
+def _gh_archive(platform: str, members: dict[str, bytes] | None = None) -> bytes:
+    """An in-memory release archive in `platform`'s real layout."""
+    asset = gh_release.release_asset(platform, "x86_64")
+    assert asset is not None
+    if members is None:
+        top = "" if platform == "win32" else asset.name.split(".")[0] + "/"
+        members = {f"{top}bin/{asset.binary}": b"fake gh binary", f"{top}LICENSE": b"MIT"}
+    buffer = io.BytesIO()
+    if asset.name.endswith(".zip"):
+        with zipfile.ZipFile(buffer, "w") as zf:
+            for name, data in members.items():
+                zf.writestr(name, data)
+    else:
+        with tarfile.open(fileobj=buffer, mode="w:gz") as tf:
+            for name, data in members.items():
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                tf.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
+
+
+def _release_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    platform: str = "darwin",
+    answers: list[bool],
+    managers: bool = False,
+    local_bin_on_path: bool = True,
+    archive: bytes | None = None,
+    pin_archive: bool = True,
+    **interactive_kwargs,
+) -> tuple[list[list[str]], list[str], Path]:
+    """A fake home and PATH for the release route; downloads are recorded.
+
+    `~/.local/bin` does not exist up front. Unless `managers`, the
+    platform's package managers are absent. The archive's digest is pinned
+    in place of the real one unless `pin_archive` is False. Returns the
+    subprocess calls, the download URLs, and the home directory."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    entries = [str(home / ".local" / "bin")] if local_bin_on_path else []
+    monkeypatch.setenv("PATH", os.pathsep.join(entries))
+    monkeypatch.setattr("coga.gh_release.platform.machine", lambda: "x86_64")
+    data = _gh_archive(platform) if archive is None else archive
+    if pin_archive:
+        monkeypatch.setitem(
+            gh_release.GH_ASSET_SHA256, _GH_KEY[platform], hashlib.sha256(data).hexdigest()
+        )
+    downloads: list[str] = []
+
+    def fake_download(url: str) -> bytes:
+        downloads.append(url)
+        return data
+
+    monkeypatch.setattr(gh_release, "download", fake_download)
+    missing = {"gh"} | (set() if managers else _MANAGERS[platform])
+    calls = _interactive(
+        monkeypatch,
+        missing=missing,
+        answers=answers,
+        platform=platform,
+        path_tools=frozenset({"gh", "coga"}),
+        **interactive_kwargs,
+    )
+    return calls, downloads, home
+
+
+@pytest.mark.parametrize("platform", ["darwin", "win32", "linux"])
+def test_gh_release_installs_without_a_package_manager(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, platform: str
+) -> None:
+    """No package manager: the release download is the first prompt. A yes
+    creates the missing `~/.local/bin` (already listed on PATH), publishes
+    only the binary, and `gh auth login` follows."""
+    calls, downloads, home = _release_env(
+        monkeypatch, tmp_path, platform=platform, answers=[True, True], gh_logged_in=False
+    )
+    _real_dep_check()
+    asset = gh_release.release_asset(platform, "x86_64")
+    dest = home / ".local" / "bin" / asset.binary
+    assert downloads == [asset.url]
+    assert dest.read_bytes() == b"fake gh binary"
+    assert sorted(p.name for p in dest.parent.iterdir()) == [asset.binary]
+    if os.name != "nt":
+        assert dest.stat().st_mode & 0o777 == 0o755
+    assert [str(dest), "auth", "login"] in calls
+    out = capsys.readouterr()
+    assert "Will run" not in out.out  # no package-manager prompt
+    assert asset.url in out.out
+    assert asset.sha256 in out.out
+    assert str(dest) in out.out
+    assert GH_NEEDED not in out.err
+    assert "Optional tools not on PATH" not in out.err
+
+
+def test_gh_release_offered_after_package_manager_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    calls, downloads, home = _release_env(
+        monkeypatch, tmp_path, answers=[True, True], managers=True, fail_install=True
+    )
+    _real_dep_check()
+    assert ["brew", "install", "gh"] in calls
+    assert len(downloads) == 1
+    assert (home / ".local" / "bin" / "gh").is_file()
+    out = capsys.readouterr()
+    assert out.out.count("Will run: brew install gh") == 1  # never asked twice
+    assert "Falling back to the official `gh` release" in out.out
+    assert GH_NEEDED not in out.err
+
+
+def test_gh_release_offered_when_package_manager_leaves_gh_off_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    calls, downloads, _ = _release_env(
+        monkeypatch, tmp_path, answers=[True, True], managers=True
+    )
+    _real_dep_check()
+    assert ["brew", "install", "gh"] in calls
+    assert len(downloads) == 1
+    out = capsys.readouterr()
+    assert "not on PATH yet — open a new shell" in out.err
+    assert GH_NEEDED not in out.err
+
+
+def test_gh_release_never_offered_after_package_manager_decline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    calls, downloads, home = _release_env(
+        monkeypatch, tmp_path, answers=[False], managers=True
+    )
+    _real_dep_check()  # a second prompt would exhaust `answers`
+    assert calls == [] and downloads == []
+    assert not (home / ".local").exists()
+    assert GH_NEEDED in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("local_bin_on_path", [True, False])
+def test_gh_release_declined_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, local_bin_on_path: bool
+) -> None:
+    _, downloads, home = _release_env(
+        monkeypatch, tmp_path, answers=[False], local_bin_on_path=local_bin_on_path
+    )
+    _real_dep_check()
+    assert downloads == []
+    assert not (home / ".local").exists()  # the planned directory is not created
+    err = capsys.readouterr().err
+    assert GH_NEEDED in err
+    assert "Optional tools not on PATH" not in err
+
+
+def test_gh_release_checksum_mismatch_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    _, downloads, home = _release_env(
+        monkeypatch, tmp_path, answers=[True], pin_archive=False
+    )
+    _real_dep_check()
+    assert len(downloads) == 1
+    assert not (home / ".local").exists()
+    err = capsys.readouterr().err
+    assert "checksum mismatch" in err
+    assert err.index("checksum mismatch") < err.index(GH_NEEDED)
+    assert "Traceback" not in err
+
+
+@pytest.mark.parametrize(
+    "error", [urllib.error.URLError("no route to host"), OSError("disk on fire")]
+)
+def test_gh_release_download_error_is_one_line(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, error: OSError
+) -> None:
+    _, _, home = _release_env(monkeypatch, tmp_path, answers=[True])
+
+    def broken(url: str) -> bytes:
+        raise error
+
+    monkeypatch.setattr(gh_release, "download", broken)
+    _real_dep_check()
+    assert not (home / ".local").exists()
+    err = capsys.readouterr().err
+    reason = "no route to host" if isinstance(error, urllib.error.URLError) else "disk on fire"
+    assert f"Could not install `gh` from https://github.com/cli/cli/releases/download/v{gh_release.GH_VERSION}/" in err
+    assert reason in err
+    assert GH_NEEDED in err
+    assert "Traceback" not in err
+
+
+@pytest.mark.parametrize(
+    "members",
+    [
+        {"gh_x/LICENSE": b"MIT"},
+        {"a/bin/gh": b"one", "b/bin/gh": b"two"},
+    ],
+    ids=["missing", "duplicated"],
+)
+def test_gh_release_bad_archive_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, members: dict[str, bytes]
+) -> None:
+    _, _, home = _release_env(
+        monkeypatch, tmp_path, answers=[True], archive=_gh_archive("darwin", members)
+    )
+    assert init_cmd._offer_gh_release(
+        init_cmd._dependency("gh"), after_failure=False
+    ) is init_cmd.InstallOutcome.FAILED
+    assert not (home / ".local").exists()
+    assert "bin/gh" in capsys.readouterr().err
+
+
+def test_gh_release_never_overwrites_an_existing_destination(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    """A `gh` already in the off-PATH fallback is reported, not replaced,
+    and nothing is downloaded or asked."""
+    _, downloads, home = _release_env(
+        monkeypatch, tmp_path, answers=[], local_bin_on_path=False
+    )
+    dest = home / ".local" / "bin" / "gh"
+    dest.parent.mkdir(parents=True)
+    dest.write_bytes(b"mine")
+    _real_dep_check()
+    assert downloads == []
+    assert dest.read_bytes() == b"mine"
+    err = capsys.readouterr().err
+    assert f"{dest} already exists, not overwritten." in err
+    assert GH_NEEDED in err
+
+
+@pytest.mark.parametrize("kind", ["file", "dangling-symlink"])
+def test_gh_release_destination_created_before_publication(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, kind: str
+) -> None:
+    """Another install landing between the plan and the exclusive publish
+    keeps its file (or link); the temp file is removed."""
+    _, _, home = _release_env(monkeypatch, tmp_path, answers=[True])
+    bin_dir = home / ".local" / "bin"
+    dest = bin_dir / "gh"
+    publish_name = "rename" if os.name == "nt" else "link"
+    real_publish = getattr(os, publish_name)
+
+    def racing_publish(src, dst, *args, **kwargs):
+        if kind == "file":
+            Path(dst).write_bytes(b"theirs")
+        else:
+            try:
+                os.symlink(bin_dir / "nowhere", dst)
+            except OSError:
+                pytest.skip("symlinks unavailable on this host")
+        return real_publish(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(os, publish_name, racing_publish)
+    _real_dep_check()
+    if kind == "file":
+        assert dest.read_bytes() == b"theirs"
+    else:
+        assert dest.is_symlink() and not dest.exists()
+    assert [p.name for p in bin_dir.iterdir()] == ["gh"]  # temp file removed
+    err = capsys.readouterr().err
+    assert f"{dest} already exists, not overwritten." in err
+    assert GH_NEEDED in err
+
+
+def test_gh_release_off_path_fallback_installs_with_a_note(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    calls, _, home = _release_env(
+        monkeypatch, tmp_path, answers=[True], local_bin_on_path=False
+    )
+    _real_dep_check()
+    bin_dir = home / ".local" / "bin"
+    assert (bin_dir / "gh").is_file()
+    assert not any(argv[1:3] == ["auth", "login"] for argv in calls)
+    out = capsys.readouterr()
+    assert f"{bin_dir} is not on PATH yet" in out.out  # said before the confirm
+    assert f"add {bin_dir} to PATH, then open a new shell" in out.err
+    assert GH_NEEDED not in out.err
+
+
+def test_gh_release_nonexistent_local_bin_on_path_is_installed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _, _, home = _release_env(monkeypatch, tmp_path, answers=[True])
+    assert not (home / ".local" / "bin").exists()
+    outcome = init_cmd._offer_gh_release(init_cmd._dependency("gh"), after_failure=False)
+    assert outcome is init_cmd.InstallOutcome.INSTALLED
+    assert (home / ".local" / "bin" / "gh").is_file()
+
+
+def test_gh_release_linux_without_sudo_downloads_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    calls, downloads, _ = _release_env(
+        monkeypatch, tmp_path, platform="linux", answers=[True], managers=True
+    )
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: _path_lookup(name) if name in {"gh", "coga"} else (
+            None if name in {"sudo", "dnf", "pacman", "brew"} else f"/usr/bin/{name}"
+        ),
+    )
+    _real_dep_check()
+    assert not any("apt-get" in argv for argv in calls)
+    assert len(downloads) == 1
+    out = capsys.readouterr()
+    assert "Will run" not in out.out
+    assert "`gh` is not installed (needed for PR workflows)" in out.out
+
+
+def test_gh_release_offered_after_refused_sudo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls, downloads, _ = _release_env(
+        monkeypatch,
+        tmp_path,
+        platform="linux",
+        answers=[True, True],
+        managers=True,
+        fail_install=True,
+    )
+    _real_dep_check()
+    assert ["sudo", "apt-get", "install", "-y", "gh"] in calls
+    assert len(downloads) == 1
+
+
+def test_gh_release_unsupported_machine_is_not_offered(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    _, downloads, _ = _release_env(monkeypatch, tmp_path, answers=[])
+    monkeypatch.setattr("coga.gh_release.platform.machine", lambda: "armv7l")
+    _real_dep_check()  # no prompt: `answers` is empty
+    assert downloads == []
+    assert GH_NEEDED in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("platform", "machine", "name", "binary"),
+    [
+        ("darwin", "arm64", "gh_{v}_macOS_arm64.zip", "gh"),
+        ("darwin", "x86_64", "gh_{v}_macOS_amd64.zip", "gh"),
+        ("linux", "x86_64", "gh_{v}_linux_amd64.tar.gz", "gh"),
+        ("linux", "aarch64", "gh_{v}_linux_arm64.tar.gz", "gh"),
+        ("win32", "AMD64", "gh_{v}_windows_amd64.zip", "gh.exe"),
+        ("win32", "ARM64", "gh_{v}_windows_arm64.zip", "gh.exe"),
+    ],
+)
+def test_gh_release_asset_selection(
+    platform: str, machine: str, name: str, binary: str
+) -> None:
+    asset = gh_release.release_asset(platform, machine)
+    expected = name.format(v=gh_release.GH_VERSION)
+    assert asset is not None
+    assert asset.name == expected
+    assert asset.binary == binary
+    assert asset.url == (
+        f"https://github.com/cli/cli/releases/download/v{gh_release.GH_VERSION}/{expected}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("platform", "machine"), [("linux", "i686"), ("linux", "armv7l"), ("freebsd14", "amd64")]
+)
+def test_gh_release_asset_unsupported(platform: str, machine: str) -> None:
+    assert gh_release.release_asset(platform, machine) is None
+
+
+def test_gh_release_pins_a_digest_for_every_supported_pair() -> None:
+    assert set(gh_release.GH_ASSET_SHA256) == {
+        (os_name, arch)
+        for os_name in ("macOS", "linux", "windows")
+        for arch in ("amd64", "arm64")
+    }
+    for digest in gh_release.GH_ASSET_SHA256.values():
+        assert re.fullmatch(r"[0-9a-f]{64}", digest)
+
+
+def _plan_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, path: list[Path], coga: Path | None
+) -> Path:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("PATH", os.pathsep.join(str(p) for p in path))
+    monkeypatch.setattr(
+        "coga.gh_release.shutil.which",
+        lambda name: str(coga / "coga") if name == "coga" and coga else None,
+    )
+    return home
+
+
+def test_gh_release_plan_prefers_the_coga_shim_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    shim = tmp_path / "home" / "tools" / "bin"
+    local_bin = tmp_path / "home" / ".local" / "bin"
+    _plan_env(monkeypatch, tmp_path, path=[local_bin, shim], coga=shim)
+    shim.mkdir(parents=True)
+    plan = gh_release.plan_install_dir()
+    assert plan == gh_release.InstallPlan(shim, expected_on_path=True)
+
+
+def test_gh_release_plan_skips_a_virtualenv_shim(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    venv = tmp_path / "home" / "project" / ".venv"
+    venv_bin = venv / "bin"
+    local_bin = tmp_path / "home" / ".local" / "bin"
+    _plan_env(monkeypatch, tmp_path, path=[venv_bin, local_bin], coga=venv_bin)
+    venv_bin.mkdir(parents=True)
+    monkeypatch.setattr(sys, "prefix", str(venv))
+    monkeypatch.setattr(sys, "base_prefix", str(tmp_path / "python"))
+    plan = gh_release.plan_install_dir()
+    assert plan == gh_release.InstallPlan(local_bin, expected_on_path=True)
+    assert not local_bin.exists()  # planning creates nothing
+
+
+def test_gh_release_plan_skips_a_system_shim_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A writable coga-shim directory outside the home (`/usr/local/bin`)
+    is never chosen."""
+    system_bin = tmp_path / "usr" / "local" / "bin"
+    system_bin.mkdir(parents=True)
+    _plan_env(monkeypatch, tmp_path, path=[system_bin], coga=system_bin)
+    plan = gh_release.plan_install_dir()
+    assert plan == gh_release.InstallPlan(
+        tmp_path / "home" / ".local" / "bin", expected_on_path=False
+    )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="~/bin is a POSIX-only candidate")
+def test_gh_release_plan_falls_back_to_home_bin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    home_bin = tmp_path / "home" / "bin"
+    _plan_env(monkeypatch, tmp_path, path=[home_bin], coga=None)
+    assert gh_release.plan_install_dir() == gh_release.InstallPlan(
+        home_bin, expected_on_path=True
+    )
+
+
+def test_gh_release_plan_none_without_a_writable_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    home = _plan_env(monkeypatch, tmp_path, path=[], coga=None)
+    (home / ".local").write_text("not a directory", encoding="utf-8")
+    assert gh_release.plan_install_dir() is None
+
+
 @pytest.mark.parametrize(
     "case", ["no_user", "not_git", "initialized", "clone_without_user"]
 )
@@ -2951,6 +3450,7 @@ def test_init_offers_nothing_when_preflight_fails(
     monkeypatch.setattr(
         init_cmd, "_offer_install", lambda dep, manager: offers.append(dep.name)
     )
+    monkeypatch.setattr(init_cmd, "_offer_gh", lambda dep: offers.append(dep.name))
     monkeypatch.setattr(
         init_cmd, "_offer_gh_login", lambda: offers.append("gh auth login")
     )
@@ -2972,12 +3472,12 @@ def test_init_offers_optional_tools_once_preflight_passes(
         lambda name: None if name in {"gh", "op"} else real_which(name),
     )
 
-    def offer(dep, manager):
+    def offer(dep):
         offers.append(dep.name)
         assert not (target / "coga").exists()  # offered before any write
-        return False
+        return init_cmd.InstallOutcome.DECLINED
 
-    monkeypatch.setattr(init_cmd, "_offer_install", offer)
+    monkeypatch.setattr(init_cmd, "_offer_gh", offer)
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert offers == ["gh"]  # `op` is never offered, even when missing

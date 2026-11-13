@@ -3,9 +3,9 @@
 `coga init` writes everything from scratch into `<path>/coga/`. Templates come
 from the installed coga package. Init installs no Python packages, skills, or
 agent CLIs; in an interactive terminal it offers (never forces) to install
-missing supporting CLIs such as `gh`, only after every precondition has
-passed. On a repo whose `coga/` already exists it
-refuses — unless the gitignored machine-local half
+a missing `gh` (package manager first, then the pinned official release in
+`coga.gh_release`), only after every precondition has passed. On a repo
+whose `coga/` already exists it refuses — unless the gitignored machine-local half
 (`coga.local.toml` with a `user`, the agent skill symlinks) is missing, which
 is what a fresh clone looks like: then `coga init --user NAME` creates only
 that half and commits nothing.
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import enum
 from importlib.resources.abc import Traversable
 import json
 import os
@@ -30,6 +31,7 @@ from pathlib import Path
 import tomlkit
 import typer
 
+from coga import gh_release
 from coga.agent_skills import refresh_agent_skill_view
 from coga.paths import LocalOverrideError
 from coga.aliases import ONBOARDING_TASK
@@ -432,45 +434,141 @@ def _require_init_tools() -> None:
 
 
 def _offer_optional_tools() -> None:
-    """Offer missing optional CLIs and `gh auth login`; warn on what is left.
+    """Offer a missing `gh` and `gh auth login`; say plainly what is left.
 
     `_do_init` calls it once every precondition has passed, just before the
     first write, so a malformed or redundant invocation never installs or
-    authenticates anything. In an interactive terminal each missing optional
-    tool with an `offer_install` default (`gh`) is offered through the
-    machine's package manager, printing the exact command first, and `gh` is
-    then offered `gh auth login` if its active github.com account is not
-    logged in. A tool still missing is only a warning: each is enforced again
-    at its point of need. `op` is deliberately not in that set — it carries
-    `offer_install=None`, so it is never offered and never listed as a tool
-    init handles; `_note_missing_op` notes it on its own instead. Agent CLIs
-    are not warned about here either: init installs none, and the next steps
-    name the prerequisite when neither one resolves.
+    authenticates anything. `gh` is needed for PR workflows but never
+    enforced here: in an interactive terminal a missing `gh` runs the
+    `_offer_gh` chain, then `gh` is offered `gh auth login` if its active
+    github.com account is not logged in. A `gh` still missing (declined,
+    every route failed, or no terminal) prints `GH_NEEDED_MESSAGE` and init
+    continues; every `gh` consumer enforces it again at its point of need.
+    `op` is deliberately not offered — it carries `offer_install=None` —
+    and `_note_missing_op` notes it on its own instead. Agent CLIs are not
+    warned about here either: init installs none, and the next steps name
+    the prerequisite when neither one resolves.
     """
     interactive = _interactive()
-    manager = _package_manager() if interactive else None
-    optional = [
-        dep
-        for dep in DEPENDENCIES
-        if not dep.required_at_init
-        and dep.offer_install is not None
-        and shutil.which(dep.name) is None
-        and not (interactive and _offer_install(dep, manager))
-    ]
-    if interactive and "gh" not in {dep.name for dep in optional}:
+    gh = _dependency("gh")
+    if shutil.which(gh.name) is None:
+        outcome = _offer_gh(gh) if interactive else InstallOutcome.UNAVAILABLE
+        if outcome not in (InstallOutcome.INSTALLED, InstallOutcome.OFF_PATH):
+            typer.secho(
+                GH_NEEDED_MESSAGE.format(install=gh.install),
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+    if interactive:
         _offer_gh_login()
-    if optional:
-        typer.secho(
-            "\n".join(
-                [
-                    "Optional tools not on PATH (init continues without them):",
-                    *(f"  - {dep.name}: install from {dep.install}" for dep in optional),
-                ]
-            ),
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
     _note_missing_op()
+
+
+GH_NEEDED_MESSAGE = "`gh` is needed for PR workflows, install it from {install}"
+
+
+class InstallOutcome(enum.Enum):
+    """How one install offer ended."""
+
+    INSTALLED = "installed"  # on the current process's PATH
+    OFF_PATH = "off-path"  # installed, but visible only after a PATH change
+    DECLINED = "declined"  # the user said no; the chain ends
+    FAILED = "failed"  # tried and did not end on PATH
+    UNAVAILABLE = "unavailable"  # route unusable here; nothing was asked
+
+
+def _dependency(name: str) -> Dependency:
+    return next(dep for dep in DEPENDENCIES if dep.name == name)
+
+
+def _offer_gh(dep: Dependency) -> InstallOutcome:
+    """Get `gh` onto the machine: package manager first, then the release.
+
+    The package-manager offer is unchanged from `_offer_install`. When it is
+    unusable before running anything (no manager, no `gh` recipe for it, or
+    root needed without `sudo`), the release download is the first prompt.
+    When it runs and fails (non-zero exit, including a distro repository
+    without `gh` or a refused `sudo`, or `gh` still off PATH), the download
+    is offered once as the second prompt. A "no" at either prompt ends the
+    chain, and no route is ever offered twice.
+    """
+    outcome = _install_with_manager(dep, _package_manager())
+    if outcome in (InstallOutcome.INSTALLED, InstallOutcome.DECLINED):
+        return outcome
+    return _offer_gh_release(dep, after_failure=outcome is InstallOutcome.FAILED)
+
+
+def _offer_gh_release(dep: Dependency, *, after_failure: bool) -> InstallOutcome:
+    """Offer the pinned official `gh` release archive; install it on a yes.
+
+    Shows the URL, pinned SHA-256 and destination before confirming. On a
+    yes it downloads, verifies the digest, extracts only the binary and
+    publishes it exclusively (`coga.gh_release`). Whether the result is
+    `INSTALLED` or `OFF_PATH` is decided by `shutil.which` afterwards, not
+    by the plan. Any failure is one yellow line, never a traceback.
+    """
+    asset = gh_release.host_asset()
+    plan = gh_release.plan_install_dir() if asset is not None else None
+    if asset is None or plan is None:
+        return InstallOutcome.UNAVAILABLE
+    dest = plan.directory / asset.binary
+    if os.path.lexists(dest):
+        _warn_gh_release(f"{dest} already exists, not overwritten.")
+        return InstallOutcome.FAILED
+    if after_failure:
+        typer.echo("Falling back to the official `gh` release from GitHub.")
+    else:
+        first_line = dep.purpose.split(" — ")[0].split(". ")[0]
+        typer.echo(f"`{dep.name}` is not installed ({first_line}).")
+    typer.echo(
+        f"  Will download `gh` {gh_release.GH_VERSION} (no package manager or "
+        "sudo needed):"
+    )
+    typer.echo(f"    URL:     {asset.url}")
+    typer.echo(f"    SHA-256: {asset.sha256}")
+    typer.echo(f"    Install: {dest}")
+    if not plan.expected_on_path:
+        typer.echo(
+            f"  {plan.directory} is not on PATH yet; you will need to add it."
+        )
+    if not typer.confirm("Download and install it now?", default=dep.offer_install):
+        return InstallOutcome.DECLINED
+    try:
+        archive = gh_release.download(asset.url)
+        gh_release.verify(archive, asset)
+        binary = gh_release.extract_binary(archive, asset)
+        installed = gh_release.publish_binary(plan.directory, asset.binary, binary)
+    except FileExistsError:
+        _warn_gh_release(f"{dest} already exists, not overwritten.")
+        return InstallOutcome.FAILED
+    except (OSError, gh_release.ReleaseError) as exc:
+        reason = getattr(exc, "reason", None) or exc
+        _warn_gh_release(f"Could not install `gh` from {asset.url}: {reason}")
+        return InstallOutcome.FAILED
+    if shutil.which(dep.name) is None:
+        _note_not_on_path(dep.name, installed)
+        return InstallOutcome.OFF_PATH
+    typer.echo(f"Installed `gh` {gh_release.GH_VERSION} to {installed}.")
+    return InstallOutcome.INSTALLED
+
+
+def _warn_gh_release(message: str) -> None:
+    typer.secho(message, fg=typer.colors.YELLOW, err=True)
+
+
+def _note_not_on_path(name: str, installed: Path | None = None) -> None:
+    """Say an install succeeded but is not visible on PATH in this process."""
+    if installed is None:
+        message = (
+            f"Installed `{name}`, but it is not on PATH yet — open a new "
+            "shell, then re-run `coga init` if it is required."
+        )
+    else:
+        message = (
+            f"Installed `{name}` to {installed}, but it is not on PATH yet — "
+            f"add {installed.parent} to PATH, then open a new shell."
+        )
+    typer.secho(message, fg=typer.colors.YELLOW, err=True)
 
 
 def _note_missing_op() -> None:
@@ -517,18 +615,28 @@ def _package_manager() -> str | None:
 
 def _offer_install(dep: Dependency, manager: str | None) -> bool:
     """Ask to install `dep` with `manager`; True when it is now on PATH."""
+    return _install_with_manager(dep, manager) is InstallOutcome.INSTALLED
+
+
+def _install_with_manager(dep: Dependency, manager: str | None) -> InstallOutcome:
+    """Offer `dep` through `manager`, printing the exact command first.
+
+    `UNAVAILABLE` (nothing asked) when there is no manager, no recipe for it
+    in `dep.packages`, or root is needed with no `sudo`. A successful run
+    that leaves `dep` off PATH is `FAILED`, after the not-on-PATH note.
+    """
     if dep.offer_install is None or manager not in dep.packages:
-        return False
+        return InstallOutcome.UNAVAILABLE
     argv = [*PACKAGE_MANAGERS[manager], *dep.packages[manager]]
     if manager in NEEDS_ROOT and hasattr(os, "geteuid") and os.geteuid() != 0:
         if shutil.which("sudo") is None:
-            return False
+            return InstallOutcome.UNAVAILABLE
         argv.insert(0, "sudo")
     first_line = dep.purpose.split(" — ")[0].split(". ")[0]
     typer.echo(f"`{dep.name}` is not installed ({first_line}).")
     typer.echo(f"  Will run: {shlex.join(argv)}")
     if not typer.confirm("Install it now?", default=dep.offer_install):
-        return False
+        return InstallOutcome.DECLINED
     result = subprocess.run(argv, check=False)
     if result.returncode != 0:
         typer.secho(
@@ -536,16 +644,11 @@ def _offer_install(dep: Dependency, manager: str | None) -> bool:
             fg=typer.colors.YELLOW,
             err=True,
         )
-        return False
+        return InstallOutcome.FAILED
     if shutil.which(dep.name) is None:
-        typer.secho(
-            f"Installed `{dep.name}`, but it is not on PATH yet — open a new "
-            "shell, then re-run `coga init` if it is required.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        return False
-    return True
+        _note_not_on_path(dep.name)
+        return InstallOutcome.FAILED
+    return InstallOutcome.INSTALLED
 
 
 def _offer_gh_login() -> None:
@@ -1982,15 +2085,3 @@ def _git_commit_coga_os(
         error = stderr or f"{shlex.join(str(arg) for arg in exc.cmd)} exited {exc.returncode}"
         return None, GitCommitFailure(phase, error, tuple(paths))
 
-
-def _on_path(directory: Path) -> bool:
-    resolved = directory.resolve() if directory.exists() else directory
-    for entry in os.environ.get("PATH", "").split(os.pathsep):
-        if not entry:
-            continue
-        try:
-            if Path(entry).resolve() == resolved:
-                return True
-        except OSError:
-            continue
-    return False

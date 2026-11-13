@@ -7,7 +7,8 @@ feature is used (a softer, deferred failure at the point of need).
 
 `coga init` reads `required_at_init` to decide what to enforce before doing
 anything, and `offer_install` / `packages` to offer installing a missing tool
-through the machine's package manager. Agent CLIs are separate: `AGENT_CLIS`
+through the machine's package manager (for `gh`, then through its pinned
+official release, `coga.gh_release`). Agent CLIs are separate: `AGENT_CLIS`
 holds one `AgentCLI` record per supported agent in scan order, and Coga
 resolves the configured `cli` only at the point of need. Coga never installs
 an agent CLI or names an agent installer; a missing one is a `coga.toml` fix.
@@ -88,14 +89,16 @@ DEPENDENCIES: tuple[Dependency, ...] = (
     Dependency(
         name="gh",
         purpose=(
-            "GitHub PR workflows — opening PRs, the merged-ticket autoclose "
-            "sweep, and the explicit `gh skill`-backed `coga skill install` / "
-            "`update`. Run `gh auth login` once installed. Not required at "
-            "init: init installs no skills, and every consumer enforces `gh` "
-            "at the point of need — `coga skill install`, the open-pr step, "
-            "and the autoclose sweep fail loud with setup hints, and "
-            "`coga validate --check-github` probes install/auth proactively — "
-            "so init works on a machine that never opens PRs."
+            "needed for PR workflows — opening PRs, the merged-ticket "
+            "autoclose sweep, and the explicit `gh skill`-backed `coga skill "
+            "install` / `update`. Run `gh auth login` once installed. Init "
+            "offers to install it (package manager, then the pinned official "
+            "release in `coga.gh_release`) but still proceeds without it: "
+            "every consumer enforces `gh` at the point of need — `coga skill "
+            "install`, the open-pr step, and the autoclose sweep fail loud "
+            "with setup hints, and `coga validate --check-github` probes "
+            "install/auth proactively — so init works on a machine that "
+            "never opens PRs."
         ),
         install="https://cli.github.com",
         required_at_init=False,
