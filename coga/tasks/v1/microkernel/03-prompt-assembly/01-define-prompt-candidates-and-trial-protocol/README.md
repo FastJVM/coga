@@ -1,6 +1,6 @@
 # Prompt assembly review package
 
-Draft for the owner; no trials have run and no candidate is selected.
+Owner-approved package; no trials have run and no candidate is selected.
 Preparing this package is step `agent-produces`. Approval belongs to
 `human-owns-and-finishes`; recording that approval belongs to `report-to-coga`.
 
@@ -39,15 +39,50 @@ main or this package's eventual publication commit has identical builders.
 
 ## Owner decision record
 
-Status: **unapproved draft**. The attended session authorized drafting one
-candidate, two repetitions and instruction correctness as the primary measure.
-That authorization does not approve the complete protocol or start ticket 02.
+Status: **approved by the owner on 2026-11-12** during step
+`human-owns-and-finishes`, which the owner explicitly advanced. Recorded in
+step `report-to-coga`.
 
-Before ticket 02: record the owner's accepted package revision/tree hash and
-any edits, the exact agent CLI/version/model/settings, and acceptance of all
-cases, applicability rules, repetition/order schedule, session limits,
-thresholds and stop rules. A changed package needs a new explicit approval.
-Do not fill this record with inferred consent or label draft choices accepted.
+Accepted without edits: the complete baseline and C1 examples, the
+applicability contract, all cases and predeclared expected outcomes, paired
+controls and counterbalanced order, the session limits with the 60-session
+ceiling and its reserve, primary and secondary thresholds, hard gates, stop
+rules and separate-dimension reporting, all as written in `protocol.md`.
+Accepted review-package tree SHA-256 (method in `sources.json`):
+`f5ee59e2cd8ebf2d88f17f5ea9623b4699bee2cad3b1fa5a6cc34cec5e10dbbc`.
+Writing this record changed only this README section and its intro line; the
+resulting metadata-only hashes are recorded separately in `sources.json`
+under `decision_record`. Every other attachment is byte-identical to the
+accepted package.
+
+Owner clarifications: keep two repetitions per arm and case; no expanded
+reliability study at this stage. The owner judges the results at the end.
+Report the observed outcomes and their limits without claiming broader
+reliability. Correctness gates remain in force. Approval does not select C1
+and does not authorize production migration.
+
+Execution pins selected by the owner, applied identically to both arms:
+Codex, model `gpt-6.1-sol` ("Sol"), reasoning effort `medium`. Observed on
+2026-11-12 (no model session started):
+
+| Pin | Value |
+| --- | --- |
+| CLI | `codex-cli 0.167.2` |
+| Executable | `/home/n/.codex/packages/standalone/releases/0.167.2-x86_64-unknown-linux-musl/bin/codex` |
+| Executable SHA-256 | `a9672d0fa0dd8fcf8cad136fa0d056b914bc046f5ac3d78f4a5cf390655af56b` |
+| Model | `gpt-6.1-sol` from the local model cache; `medium` listed as supported. This identifier is not an immutable provider version: keep each pair adjacent; a detected change invalidates the pair |
+| Reasoning | The local Codex config defaults to `high`, so every run passes `-m gpt-6.1-sol -c model_reasoning_effort="medium"` explicitly |
+| Sampling/seed | `codex exec --help` exposes no temperature or seed flag; none is passed |
+| OS / Python | Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12 |
+| Coga agent config | `coga/coga.toml` SHA-256 `1d64d233bb7ba4fb8a810cf20bd1c1e3f448884b282fd0805311539cff8234e2`: `launch_args = "--no-daemon"`, `discussion = "-c developer_instructions={prompt}"` |
+| Transport templates | Ordinary/queued interactive: `codex --no-daemon <pins> <prompt>` (positional first message); guided authoring/discussion: `codex --no-daemon <pins> -c developer_instructions=<prompt>`, then the fixture kickoff as a separate turn; autofix one-shot: `codex <pins> exec <prompt>` (`DEFAULT_ANALYZE_TEMPLATES`) |
+| Token/time limits | Per-case limits and totals in `protocol.md` "Budget and conduct script" |
+
+Pins still open, to settle with the owner before the first ticket 02 session:
+the trial/prototype revision (it does not exist yet), the sandbox and
+approval policy passed to Codex for the trial fixture, the environment-key
+policy, and a recheck of every pin above. Any change requires recording it,
+and a changed package requires new explicit approval.
 
 Limitations to judge: synthetic tasks are deliberately small; two repetitions
 cannot establish a general agent-performance effect. The C1 design adds caller

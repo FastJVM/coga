@@ -1,6 +1,6 @@
 ---
 title: 01 Define prompt candidates and trial protocol
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -16,7 +16,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -262,3 +261,23 @@ No branch or PR exists: this step only edits routine ticket state on main,
 under launch's return ownership. Attachment hashes and git diff --check passed;
 the scoped read-only validation command above returned ok_count 1, no issues.
 the full Linux receipt above remains the preparation receipt, not a new run.
+
+## Report (report-to-coga)
+
+Produced: the complete review package beside this ticket (indexed in
+README.md). Owner decision: approved without edits, two repetitions per
+arm/case, Codex `gpt-6.1-sol` at `medium` for both arms; no C1 selection, no
+production migration, no trials run. Final artifact: README.md "Owner
+decision record" now carries the approval, clarifications and observed
+execution/transport pins.
+
+Hashes: accepted tree `f5ee59e2...0dbbc` reverified before editing. The
+record changed only README.md; metadata-only hashes are in sources.json
+`decision_record` (README `940e8d06...20bd5`, tree after record
+`3da24c2f...06977`). All 78 other attachments match their accepted hashes.
+
+Pin note: local Codex config defaults to reasoning `high`, so ticket 02 must
+pass `-m gpt-6.1-sol -c model_reasoning_effort="medium"` on every run. Codex
+exec has no seed/temperature flag. Still open for the owner before ticket
+02's first session: trial/prototype revision, sandbox/approval policy,
+environment-key policy, and a recheck of all pins.

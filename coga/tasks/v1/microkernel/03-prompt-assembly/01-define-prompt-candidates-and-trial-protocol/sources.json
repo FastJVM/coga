@@ -256,5 +256,13 @@
     "sources/src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md": "cac5d53bd7112633b39f1048f86097a7ddef3748bc366a76adb3b599bad59d9d"
   },
   "artifact_tree_sha256": "f5ee59e2cd8ebf2d88f17f5ea9623b4699bee2cad3b1fa5a6cc34cec5e10dbbc",
-  "artifact_tree_method": "SHA-256 of sorted relative-path + NUL + SHA-256 hex + LF entries; excludes live ticket.md and sources.json itself"
+  "artifact_tree_method": "SHA-256 of sorted relative-path + NUL + SHA-256 hex + LF entries; excludes live ticket.md and sources.json itself",
+  "decision_record": {
+    "note": "artifact_sha256 and artifact_tree_sha256 above remain the owner-accepted review package. Recording the approval changed only README.md (intro line and Owner decision record section); these are the resulting metadata-only hashes.",
+    "accepted_artifact_tree_sha256": "f5ee59e2cd8ebf2d88f17f5ea9623b4699bee2cad3b1fa5a6cc34cec5e10dbbc",
+    "changed_files": {
+      "README.md": "940e8d068527558888cd17e91acf1204af8dd01161214b9495c5d62e60f20bd5"
+    },
+    "artifact_tree_sha256_after_record": "3da24c2f46a67e71345667bed4e7aa4b0939679b3eb368e8e6b4f8ad4a706977"
+  }
 }
