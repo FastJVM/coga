@@ -2,13 +2,12 @@
 
 **Build. Rethink. Hack.**
 
-Coga is a local, Git-backed CLI for working with coding agents through editable tasks, knowledge, and workflows.
+Coga is a local, Git-backed CLI for working with coding agents through editable tasks, knowledge, and workflows... 
 
-So why build another tool when so many already exist?
+So what's new here ? Why build another tool to manage agents when so many already exist?
 
-Coding agents are getting smarter every day, backed by enormous investments. I'm not trying to build another Codex, compete with the next generation of agents, or raise money for yet another AI startup. I'm building Coga to scratch my own itch.
+Because none of the current tool (and I played with a lot) could help me in my endeavour. I love making things. I want agents to help me think, explore, challenge assumptions, and build. Not delegate my thinking to maximize output. I want the decisions, the friction points, and the ways of working to stay visible and open to change. I want to hack the factory, not just the software it produces.
 
-I love making things. I want agents to help me think, explore, challenge assumptions, and build—not just automate the thinking and maximize output. I want the decisions, the friction points, and the ways of working to stay visible and open to change. I want to hack the factory, not just the software it produces.
 
 | | Principle | What it means |
 |:--:|---|---|
