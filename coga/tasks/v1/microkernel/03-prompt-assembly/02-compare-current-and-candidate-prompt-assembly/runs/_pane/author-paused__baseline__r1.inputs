@@ -1,0 +1,4 @@
+2026-11-13T18:39:25Z	Add this sentence to the Description: Verify the output before handoff. Preserve the paused status, current step and frozen workflow. Do not run the work.
+2026-11-13T18:40:41Z	Confirmed. Keep it paused; do not advance.
+2026-11-13T18:41:27Z	<key C-c>
+2026-11-13T18:41:35Z	<key C-c>

@@ -1,0 +1,12 @@
+version = 1
+user = "trial-owner"
+default_status = "draft"
+[agents.claude]
+cli = "claude"
+file = "CLAUDE.md"
+[git]
+enabled = true
+remote = "origin"
+control_branch = "main"
+[notification.slack]
+enabled = false

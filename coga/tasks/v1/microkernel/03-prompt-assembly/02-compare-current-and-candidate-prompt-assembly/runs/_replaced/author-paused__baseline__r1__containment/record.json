@@ -1,0 +1,168 @@
+{
+ "case": "author-paused",
+ "arm": "baseline",
+ "rep": 1,
+ "invocation": {
+  "operation": "author",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "author-paused",
+  "launch_context": "attended",
+  "include_blocker_preamble": false,
+  "completion": "authoring return",
+  "owner_assist": false,
+  "checkout": null,
+  "script_result": null,
+  "kickoff": "Begin (editing existing ticket)",
+  "discussion": true,
+  "launch_arguments": [],
+  "fixture_ticket": "fixtures/cases/author-paused/coga/tasks/author-paused/ticket.md",
+  "transport": "discussion template + separate kickoff, PTY",
+  "invocation_source": "commands.ticket._run_authoring_session"
+ },
+ "start_utc": "2026-11-13T17:34:45.701173+00:00",
+ "pre": {
+  "head": "79323a8dad5d9917646388247bd4df623a95b78a",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\n",
+  "local_refs": "refs/heads/main 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/remotes/origin/main 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/remotes/origin/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/author-paused/ticket.md": "261f636c1fd82aa869b69e9f1646183697d4cd8a545492c8ea2bc28be81b5f41",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "988204154f52ae3ece1da6d05da5c590c2b93d74af34e2354a2708b34e26f31d"
+ },
+ "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8",
+ "spawn_kwargs": {
+  "max_session": 720.0,
+  "launch_context": "attended",
+  "include_blocker_preamble": false,
+  "commit_log": true,
+  "actor": "human:trial-owner",
+  "log_message": "ticket authoring launched (trial adapter)",
+  "discussion": true,
+  "kickoff": "Begin (editing existing ticket)",
+  "label": "Ticket",
+  "secrets_are_scoped": false,
+  "stateless_identity": [
+   "bootstrap/ticket",
+   "author-paused"
+  ]
+ },
+ "argv": [
+  "codex",
+  "--no-daemon",
+  "-m",
+  "gpt-6.1-sol",
+  "-c",
+  "model_reasoning_effort=medium",
+  "-s",
+  "workspace-write",
+  "-a",
+  "never",
+  "-c",
+  "sandbox_workspace_write.writable_roots=[\"/tmp\"]",
+  "-c",
+  "sandbox_workspace_write.network_access=true",
+  "-c",
+  "projects.\"/tmp/coga-prompt-trial-667707cc\".trust_level=\"trusted\"",
+  "-c",
+  "<prompt sha256=a1f979ae6db99ff69e0725d83af54c1885d638fd8f37bf33986f0c6bc91cd893 bytes=37132>",
+  "Begin (editing existing ticket)"
+ ],
+ "env_keys": [
+  "COGA_COGA_OS_ROOT",
+  "COGA_REPO_ROOT",
+  "COGA_TASK_BLACKBOARD",
+  "COGA_TASK_DIR",
+  "COGA_TASK_SLUG",
+  "COGA_TASK_TICKET",
+  "COLORTERM",
+  "HOME",
+  "LANG",
+  "LOGNAME",
+  "PATH",
+  "SHELL",
+  "TERM",
+  "USER"
+ ],
+ "result": {
+  "exit_code": 0,
+  "termination_kind": "natural",
+  "termination_reason": null,
+  "done_signalled": false
+ },
+ "wall_seconds": 270.6,
+ "end_utc": "2026-11-13T17:39:16.333651+00:00",
+ "delivered": {
+  "bytes": 37109,
+  "sha256": "91240e59fb15c11944098368a3714bfdefd00e4f35c162f7a6c4a1d93fc98374",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "83b6b92c2df68989e21d0183454ad9924f2ebcc0",
+  "branch": "main",
+  "status": " M coga/tasks/author-paused/ticket.md\n",
+  "origin_refs": "refs/heads/main 83b6b92c2df68989e21d0183454ad9924f2ebcc0\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\n",
+  "local_refs": "refs/heads/main 83b6b92c2df68989e21d0183454ad9924f2ebcc0\nrefs/heads/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/remotes/origin/main 83b6b92c2df68989e21d0183454ad9924f2ebcc0\nrefs/remotes/origin/trial/assist 79323a8dad5d9917646388247bd4df623a95b78a\nrefs/worktree/coga/published 5eb40dad2145052f52fe99317e364fbf32febb95\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dd8a56c02f9a8f4f4c2cbe5ec19a5fc65729e13ce013dd87803af097ac34d18d",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/author-paused/ticket.md": "0b90f6e915b0e63896b5cc105bd1d7b2cb713ca080d2077c7b89b94e5f2e4f42",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "92bf57bfec8dc6e2418aa055ff3ad69f37525e9f2e6dceedd2ca4bbf7d1416eb",
+  "diff": "diff --git a/coga/log.md b/coga/log.md\nindex bf18b2a..a5d1e1e 100644\n--- a/coga/log.md\n+++ b/coga/log.md\n@@ -1 +1,3 @@\n # Trial lifecycle log\n+2026-11-13 09:34 v1 [author-paused] [human:trial-owner] ticket authoring launched (trial adapter)\n+2026-11-13 09:39 v1 [bootstrap/ticket] [system] {\"agent\":\"codex\",\"agent_turns\":5,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":493056,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":270.448709,\"ended_at\":\"2026-11-13T17:39:16.181759Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":2,\"input_tokens\":25461,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Updated `author-paused` and completed review cleanup. It remains paused with its current step, frozen workflow, and owner note preserved. No work ran or advancement occurred.\",\"outcome_status\":\"completed\",\"output_tokens\":2049,\"provider\":\"openai\",\"request\":\"Add this sentence to the Description: Verify the output before handoff. Preserve the paused status, current step and frozen workflow. Do not run the work. Confirmed. Keep it paused; do not advance.\",\"schema\":2,\"session_id\":\"01a1d5fb-5afb-7870-bc0f-f1068b416222\",\"slug\":\"bootstrap/ticket\",\"started_at\":\"2026-11-13T17:34:45.733050Z\",\"step\":null,\"title\":\"author-paused\",\"ts\":\"2026-11-13T17:39:16.181759Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}\ndiff --git a/coga/tasks/author-paused/ticket.md b/coga/tasks/author-paused/ticket.md\nindex e94603a..8d0580a 100644\n--- a/coga/tasks/author-paused/ticket.md\n+++ b/coga/tasks/author-paused/ticket.md\n@@ -19,11 +19,11 @@ step: 1 (write)\n \n ## Description\n \n-Preserve the existing intent: write the agreed result after the owner resumes execution.\n+Preserve the existing intent: write the agreed result after the owner resumes execution. Verify the output before handoff.\n \n ## Context\n \n-Use only the isolated trial repository.\n+Use only the isolated trial repository. Before execution resumes, the owner must specify the agreed output value. The workflow writes it to sibling `result.txt` and reads it back; the reporting skill records the path and observed content.\n \n <!-- coga:blackboard -->\n \n",
+  "log": "83b6b92c2df68989e21d0183454ad9924f2ebcc0 Log: bootstrap/ticket\n634a5156c1d87ecef00c0ce12f9bf59b5c0bfc94 Log: author-paused\n",
+  "origin_log": "83b6b92c2df68989e21d0183454ad9924f2ebcc0 Log: bootstrap/ticket\n634a5156c1d87ecef00c0ce12f9bf59b5c0bfc94 Log: author-paused\n79323a8dad5d9917646388247bd4df623a95b78a Trial fixture: author-paused\n",
+  "tickets": {
+   "coga/tasks/author-paused/ticket.md": {
+    "title": "author-paused",
+    "status": "paused",
+    "owner": "trial-owner",
+    "agent": "claude",
+    "contexts": [
+     "trial/format"
+    ],
+    "skills": [
+     "trial/report"
+    ],
+    "workflow": {
+     "name": "trial/inline",
+     "steps": [
+      {
+       "name": "write",
+       "assignee": "agent"
+      },
+      {
+       "name": "judge",
+       "assignee": "owner"
+      }
+     ]
+    },
+    "step": "1 (write)"
+   }
+  }
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T09-36-22-01a1d5fb-5afb-7870-bc0f-f1068b416222.jsonl",
+  "/home/n/.codex/sessions/2026/11/13/rollout-2026-11-13T09-37-41-01a1d5fc-9030-76f1-b713-aa9ed469ee69.jsonl"
+ ]
+}

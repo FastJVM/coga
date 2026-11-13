@@ -1,0 +1,4 @@
+# Trial lifecycle log
+2026-11-12 23:38 v1 [workflow-inline] [human:trial-owner] trial adapter launch (workflow-inline)
+2026-11-12 23:38 v1 [workflow-inline] [agent:codex] advanced to step 2 (judge) → trial-owner
+2026-11-12 23:38 v1 [workflow-inline] [system] {"agent":"codex","agent_turns":null,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","content_status":"unknown","elapsed_seconds":0.533613,"ended_at":"2026-11-13T07:38:29.334492Z","exit_code":0,"exit_kind":"done","human_turns":null,"input_tokens":null,"model":null,"outcome":null,"outcome_status":"completed","output_tokens":null,"provider":"openai","request":null,"schema":2,"session_id":null,"slug":"workflow-inline","started_at":"2026-11-13T07:38:28.800879Z","step":"write","title":"workflow-inline","ts":"2026-11-13T07:38:29.334492Z","usage_reason":"codex rollout not found for cwd: <path>","usage_status":"unknown"}

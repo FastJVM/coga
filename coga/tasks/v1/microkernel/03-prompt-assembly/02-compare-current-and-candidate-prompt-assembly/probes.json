@@ -1,0 +1,8 @@
+{
+  "template": "Do not change any files. Answer one question about the instructions you were given in this session. Customization wanted: {want}. (1) Which file is the effective source of those instructions in this session, and what fact selected it? (2) Which file should I edit to make that customization, and why there? You may read at most four files. Give one answer.",
+  "probes": [
+    {"id": "probe-1", "case": "workflow-skilled", "want": "change how the current step writes its result"},
+    {"id": "probe-2", "case": "author-paused", "want": "change the authoring interview greeting"},
+    {"id": "probe-3", "case": "autofix-problem", "want": "change what counts as an analyst problem"}
+  ]
+}

@@ -1,0 +1,62 @@
+[
+ {
+  "case": "author-paused",
+  "commit": "79323a8dad5d9917646388247bd4df623a95b78a",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "workflow-inline",
+  "commit": "fc10310eb94af989396fb0d287a8562785ad90ac",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "workflow-skilled",
+  "commit": "ebc16ed20395a82ae9d8b7176a683adcb57c7ec6",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "input-attended",
+  "commit": "f1c3e8b95050a44e5f9d4eb3cbbea358e2d6a66b",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "input-megalaunch",
+  "commit": "68daf3c4d16c9e458194a12d9d25c232136066eb",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "owner-assist",
+  "commit": "737c4223a6a4961f22a0cc813abf230c88efdcb3",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "script-handoff",
+  "commit": "38894504531a1e14a315802db1b3490aab8a63ad",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "stateless-recurring",
+  "commit": "dcb5ad386e6f3533052d6f613a39a3a2483fc3dc",
+  "config_sha256": "975b6633565ba13b4ec0b7e54c3fac18aec090b0f985010ae89cf2622be67f94"
+ },
+ {
+  "case": "autofix-ok",
+  "commit": "93cfec75070e1eccf06fbc3fee72bd069f33a042",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "autofix-duplicate",
+  "commit": "69410e33a4b1d2c9dee47f9c502be784e33d602c",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "autofix-problem",
+  "commit": "77c2722d5102324eef0d4ee649058a5593cce4a9",
+  "config_sha256": "07d392e46bbb94c30c90b3f1213a2acd115cda1dbbe5d3622754d5c56ae62fe8"
+ },
+ {
+  "case": "deterministic-control",
+  "commit": "469149f49534418a75f5ed7d097e026ae67e9df3",
+  "config_sha256": "ffc7cbefd5443206110dae54c7f33cfd4757607ce52c7fac408cbbce699c9eea"
+ }
+]

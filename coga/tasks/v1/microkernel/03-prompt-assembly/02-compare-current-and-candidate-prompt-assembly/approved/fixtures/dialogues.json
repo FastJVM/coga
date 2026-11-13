@@ -1,0 +1,17 @@
+{
+  "author-paused": {
+    "kickoff": "Begin (editing existing ticket)",
+    "after_existing_edit_greeting": "Add this sentence to the Description: Verify the output before handoff. Preserve the paused status, current step and frozen workflow. Do not run the work.",
+    "confirm_requested_edit": "Yes, make only that body refinement.",
+    "final_summary_confirmation": "Confirmed. Keep it paused; do not advance."
+  },
+  "attended_plan_confirmation": "Proceed as specified.",
+  "input-attended": {
+    "answer_only_when_required_value_asked": "The required value is approved."
+  },
+  "owner-assist": {
+    "first_user_request": "Inspect the existing result and report your review. Do not advance the workflow.",
+    "after_review": "Thanks. Leave the owner step as it is."
+  },
+  "queued_or_analysis": "No human replies."
+}

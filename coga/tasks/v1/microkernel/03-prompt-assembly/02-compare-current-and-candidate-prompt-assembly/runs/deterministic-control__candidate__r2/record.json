@@ -1,0 +1,9 @@
+{
+ "arm_nominal": "candidate",
+ "n": 2,
+ "configured_agents": [],
+ "result": "ScriptPhaseResult(exit_code=0, ticket=Ticket(frontmatter={'title': 'Deterministic control'}, body='## Description\\n\\nThe sibling ticket.py owns completion.\\n'), ran=True, cfg=Config(repo_root=PosixPath('/tmp/coga-prompt-trial-667707cc/coga'), current_user='trial-owner', default_status='draft', agents={}, slack_webhook=None, slack_enabled=False, slack_important_webhook=None, notification_channels=('slack',), slack_gifs={}, slack_users={}, aliases={}, extensions={}, ticket_fields={}, telemetry_enabled=False, git_enabled=True, git_remote='origin', git_control_branch='main', git_worktrees_ticket_owned=False, launch_idle_timeout=None, launch_idle_timeout_present=False, launch_max_session=None, recurring_idle_days=14, log_retention_days=30, authoring_agent='', owner='', contexts_dir=None, upstream_checkouts=(), autofix_agent=None, autofix_contexts=(), default_agent_name=None), ref=BootstrapRef(name='deterministic-control', path=PosixPath('/tmp/coga-prompt-trial-667707cc/coga/bootstrap/deterministic-control')))",
+ "captured_stdout": "deterministic-ok\n",
+ "forbidden_calls": [],
+ "wall_seconds": 0.01
+}

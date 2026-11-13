@@ -1,0 +1,58 @@
+{
+ "case": "workflow-inline",
+ "arm": "baseline",
+ "rep": 1,
+ "invocation": {
+  "operation": "execute",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "workflow-inline",
+  "launch_context": "attended",
+  "include_blocker_preamble": true,
+  "completion": "one workflow transition or terminal block",
+  "owner_assist": false,
+  "checkout": {
+   "summary": "Launch observed clean main at the fixture initial revision; routine trial-state work is authorized here.",
+   "return_owner": "The launcher returns this checkout after the session; do not return it yourself."
+  },
+  "script_result": null,
+  "kickoff": null,
+  "discussion": false,
+  "launch_arguments": [],
+  "fixture_ticket": "fixtures/cases/workflow-inline/coga/tasks/workflow-inline/ticket.md",
+  "transport": "interactive argv, PTY",
+  "invocation_source": "launch current-step invocation"
+ },
+ "start_utc": "2026-11-13T07:34:49.647620+00:00",
+ "pre": {
+  "head": "da8f7122200f94c058df8ac6dc68cc8cf6e1dc6a",
+  "branch": "main",
+  "status": "",
+  "origin_refs": "refs/heads/main da8f7122200f94c058df8ac6dc68cc8cf6e1dc6a\nrefs/heads/trial/assist da8f7122200f94c058df8ac6dc68cc8cf6e1dc6a\n",
+  "local_refs": "refs/heads/main da8f7122200f94c058df8ac6dc68cc8cf6e1dc6a\nrefs/heads/trial/assist da8f7122200f94c058df8ac6dc68cc8cf6e1dc6a\nrefs/remotes/origin/main da8f7122200f94c058df8ac6dc68cc8cf6e1dc6a\nrefs/remotes/origin/trial/assist da8f7122200f94c058df8ac6dc68cc8cf6e1dc6a\n",
+  "files": {
+   "coga/.gitignore": "795d7c4542312f65b6249f42a48b4d6ab1fb7af9c1acbc6a646cd929c33d6642",
+   "coga/coga.local.toml": "43595063585d7177d6a5b93395c08b45e12c077a6377131c6b41f3036b65d7e6",
+   "coga/coga.toml": "49f4d580abc261b80a8f827915bb4e88c054c977ceee7a7ac44f0a21fcdbedb1",
+   "coga/context.md": "ebc72837111bce4ed6b552fab22661a58615d3d888ab0e49abe686797fbf5c48",
+   "coga/contexts/trial/format/SKILL.md": "93320defe60b0ccfce4b193d915cc34016654bda243b09a2992d7eaccd801623",
+   "coga/log.md": "dae8efdb2bcca9ec94af9f85e9464e738bec483caa35d9cea845a5dea67de42b",
+   "coga/skills/trial/report/SKILL.md": "c614cf37ed401f3c74f74c73df545ec8877b5b88d8be9eb87067cece64eb248c",
+   "coga/skills/trial/write/SKILL.md": "fe5991effb8b7f3d40cd214a5eea358a2d81dc817387cff93ae2446625ee644a",
+   "coga/tasks/workflow-inline/ticket.md": "3fd20d34a8609a1d5c8b42a6650185c8a210a6c5cecb941c07c00fe8856bb662",
+   "coga/workflows/trial/inline.md": "2b3bbe2af3bb661794c4a3078e2f4f72e054c90cdcaabf846355e3ff69deabc1",
+   "coga/workflows/trial/skilled.md": "e62ddafab9a9b6d4728ceeaf94088b942a21fe2d993acbfa1127f17e16c0801a"
+  },
+  "tree_sha256": "a594f27717b2ca7250f90607abe839d057bca0c17cc04b52b9e06febc766075a"
+ },
+ "config_sha256": "49f4d580abc261b80a8f827915bb4e88c054c977ceee7a7ac44f0a21fcdbedb1",
+ "spawn_kwargs": {
+  "max_session": 720.0,
+  "launch_context": "attended",
+  "include_blocker_preamble": true,
+  "commit_log": true,
+  "actor": "human:trial-owner",
+  "log_message": "trial adapter launch (workflow-inline)",
+  "name": "workflow-inline"
+ }
+}

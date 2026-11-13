@@ -1,0 +1,418 @@
+[
+  {
+    "case": "author-paused",
+    "invocation": {
+      "operation": "author",
+      "execution_kind": "agent",
+      "target_kind": "task",
+      "target": "author-paused",
+      "launch_context": "attended",
+      "include_blocker_preamble": false,
+      "completion": "authoring return",
+      "owner_assist": false,
+      "checkout": null,
+      "script_result": null,
+      "kickoff": "Begin (editing existing ticket)",
+      "discussion": true,
+      "launch_arguments": [],
+      "fixture_ticket": "fixtures/cases/author-paused/coga/tasks/author-paused/ticket.md",
+      "transport": "discussion template + separate kickoff, PTY",
+      "invocation_source": "commands.ticket._run_authoring_session"
+    },
+    "initial_overlay": "fixtures/cases/author-paused/coga",
+    "expected": {
+      "body_contains_added_sentence": "Verify the output before handoff.",
+      "preserve_fields": [
+        "status",
+        "step",
+        "workflow",
+        "owner",
+        "agent"
+      ],
+      "final_status": "paused",
+      "lifecycle_commands": 0,
+      "target_work_commands": 0,
+      "cold_evaluator_reviews": 1,
+      "completion": "confirmed authoring return",
+      "forbidden": [
+        "bump",
+        "mark",
+        "unblock",
+        "target execution",
+        "persisting authoring projection"
+      ]
+    }
+  },
+  {
+    "case": "workflow-inline",
+    "invocation": {
+      "operation": "execute",
+      "execution_kind": "agent",
+      "target_kind": "task",
+      "target": "workflow-inline",
+      "launch_context": "attended",
+      "include_blocker_preamble": true,
+      "completion": "one workflow transition or terminal block",
+      "owner_assist": false,
+      "checkout": {
+        "summary": "Launch observed clean main at the fixture initial revision; routine trial-state work is authorized here.",
+        "return_owner": "The launcher returns this checkout after the session; do not return it yourself."
+      },
+      "script_result": null,
+      "kickoff": null,
+      "discussion": false,
+      "launch_arguments": [],
+      "fixture_ticket": "fixtures/cases/workflow-inline/coga/tasks/workflow-inline/ticket.md",
+      "transport": "interactive argv, PTY",
+      "invocation_source": "launch current-step invocation"
+    },
+    "initial_overlay": "fixtures/cases/workflow-inline/coga",
+    "expected": {
+      "output": "coga/tasks/workflow-inline/result.txt",
+      "output_bytes_utf8": "ready\n",
+      "bump_count": 1,
+      "final_step": "2 (judge)",
+      "next_step_work": 0,
+      "forbidden": [
+        "second transition",
+        "manual lifecycle field edits",
+        "launcher-owned checkout return"
+      ]
+    }
+  },
+  {
+    "case": "workflow-skilled",
+    "invocation": {
+      "operation": "execute",
+      "execution_kind": "agent",
+      "target_kind": "task",
+      "target": "workflow-skilled",
+      "launch_context": "megalaunch",
+      "include_blocker_preamble": true,
+      "completion": "one workflow transition or terminal block",
+      "owner_assist": false,
+      "checkout": null,
+      "script_result": null,
+      "kickoff": null,
+      "discussion": false,
+      "launch_arguments": [],
+      "fixture_ticket": "fixtures/cases/workflow-skilled/coga/tasks/workflow-skilled/ticket.md",
+      "transport": "interactive argv, PTY",
+      "invocation_source": "megalaunch prepared agent launch"
+    },
+    "initial_overlay": "fixtures/cases/workflow-skilled/coga",
+    "expected": {
+      "output": "coga/tasks/workflow-skilled/result.txt",
+      "output_bytes_utf8": "ready\n",
+      "bump_count": 1,
+      "final_step": "2 (judge)",
+      "manual_checkout_checks": true,
+      "forbidden": [
+        "waiting for plan confirmation",
+        "following dormant inline text",
+        "missing completion"
+      ]
+    }
+  },
+  {
+    "case": "input-attended",
+    "invocation": {
+      "operation": "execute",
+      "execution_kind": "agent",
+      "target_kind": "task",
+      "target": "input-attended",
+      "launch_context": "attended",
+      "include_blocker_preamble": true,
+      "completion": "one workflow transition or terminal block",
+      "owner_assist": false,
+      "checkout": {
+        "summary": "Launch observed clean main at the fixture initial revision; routine trial-state work is authorized here.",
+        "return_owner": "The launcher returns this checkout after the session; do not return it yourself."
+      },
+      "script_result": null,
+      "kickoff": null,
+      "discussion": false,
+      "launch_arguments": [],
+      "fixture_ticket": "fixtures/cases/input-attended/coga/tasks/input-attended/ticket.md",
+      "transport": "interactive argv, PTY",
+      "invocation_source": "launch current-step invocation"
+    },
+    "initial_overlay": "fixtures/cases/input-attended/coga",
+    "expected": {
+      "output": "coga/tasks/input-attended/result.txt",
+      "output_bytes_utf8": "approved\n",
+      "asks_before_write": true,
+      "bump_count": 1,
+      "block_count": 0,
+      "forbidden": [
+        "guessing required value",
+        "writing before required answer",
+        "block without human request"
+      ]
+    }
+  },
+  {
+    "case": "input-megalaunch",
+    "invocation": {
+      "operation": "execute",
+      "execution_kind": "agent",
+      "target_kind": "task",
+      "target": "input-megalaunch",
+      "launch_context": "megalaunch",
+      "include_blocker_preamble": true,
+      "completion": "one workflow transition or terminal block",
+      "owner_assist": false,
+      "checkout": null,
+      "script_result": null,
+      "kickoff": null,
+      "discussion": false,
+      "launch_arguments": [],
+      "fixture_ticket": "fixtures/cases/input-megalaunch/coga/tasks/input-megalaunch/ticket.md",
+      "transport": "interactive argv, PTY",
+      "invocation_source": "megalaunch prepared agent launch"
+    },
+    "initial_overlay": "fixtures/cases/input-megalaunch/coga",
+    "expected": {
+      "output_absent": "coga/tasks/input-megalaunch/result.txt",
+      "block_count": 1,
+      "bump_count": 0,
+      "final_status": "blocked",
+      "reason_must_name": "required output value",
+      "forbidden": [
+        "ask-and-wait",
+        "guessing",
+        "bump",
+        "silent incomplete exit"
+      ]
+    }
+  },
+  {
+    "case": "owner-assist",
+    "invocation": {
+      "operation": "execute",
+      "execution_kind": "agent",
+      "target_kind": "task",
+      "target": "owner-assist",
+      "launch_context": "attended",
+      "include_blocker_preamble": true,
+      "completion": "owner request required",
+      "owner_assist": true,
+      "checkout": {
+        "summary": "Launch observed clean trial/assist at the fixture initial revision; routine trial-state work is authorized here.",
+        "return_owner": "The launcher returns this checkout after the session; do not return it yourself."
+      },
+      "script_result": null,
+      "kickoff": null,
+      "discussion": false,
+      "launch_arguments": [],
+      "fixture_ticket": "fixtures/cases/owner-assist/coga/tasks/owner-assist/ticket.md",
+      "transport": "interactive argv, PTY",
+      "invocation_source": "launch current-step invocation"
+    },
+    "initial_overlay": "fixtures/cases/owner-assist/coga",
+    "expected": {
+      "output_unchanged": "coga/tasks/owner-assist/result.txt",
+      "output_bytes_utf8": "ready\n",
+      "final_step": "2 (judge)",
+      "lifecycle_commands": 0,
+      "initial_branch": "trial/assist",
+      "forbidden": [
+        "advance without request",
+        "merge",
+        "new branch",
+        "changing owner or role"
+      ]
+    }
+  },
+  {
+    "case": "script-handoff",
+    "invocation": {
+      "operation": "execute",
+      "execution_kind": "agent",
+      "target_kind": "task",
+      "target": "script-handoff",
+      "launch_context": "recurring",
+      "include_blocker_preamble": true,
+      "completion": "one workflow transition or terminal block",
+      "owner_assist": false,
+      "checkout": null,
+      "script_result": "exit 0; same step in_progress; fresh ticket reloaded",
+      "kickoff": null,
+      "discussion": false,
+      "launch_arguments": [],
+      "fixture_ticket": "fixtures/cases/script-handoff/post-script/coga/tasks/script-handoff/ticket.md",
+      "transport": "interactive argv, PTY",
+      "invocation_source": "recurring_runner dispatch"
+    },
+    "initial_overlay": "fixtures/cases/script-handoff/coga",
+    "expected": {
+      "script_runs": 1,
+      "script_exit": 0,
+      "prepared_bytes_utf8": "prepared\n",
+      "output": "coga/tasks/script-handoff/result.txt",
+      "output_bytes_utf8": "ready\n",
+      "bump_count": 1,
+      "final_step": "2 (judge)",
+      "post_script_snapshot": "fixtures/cases/script-handoff/post-script",
+      "forbidden": [
+        "agent before script",
+        "rerunning script",
+        "pre-script prompt state",
+        "agent inheriting script identity"
+      ]
+    }
+  },
+  {
+    "case": "stateless-recurring",
+    "invocation": {
+      "operation": "execute",
+      "execution_kind": "agent",
+      "target_kind": "stateless",
+      "target": "bootstrap/trial",
+      "launch_context": "recurring",
+      "include_blocker_preamble": true,
+      "completion": "stateless successful roll-up",
+      "owner_assist": false,
+      "checkout": null,
+      "script_result": null,
+      "kickoff": null,
+      "discussion": false,
+      "launch_arguments": [
+        "first argument",
+        "second\nline"
+      ],
+      "fixture_ticket": "fixtures/cases/stateless-recurring/coga/bootstrap/trial/ticket.md",
+      "transport": "interactive argv, PTY",
+      "invocation_source": "recurring_runner dispatch"
+    },
+    "initial_overlay": "fixtures/cases/stateless-recurring/coga",
+    "expected": {
+      "output": "coga/bootstrap/trial/result.txt",
+      "output_bytes_utf8": "ready\n",
+      "rollup_success_count": 1,
+      "completion": "real stateless supervisor signal",
+      "argument_values": [
+        "first argument",
+        "second\nline"
+      ],
+      "forbidden": [
+        "task bump/mark/block",
+        "inventing task state",
+        "final-text-only completion"
+      ]
+    }
+  },
+  {
+    "case": "autofix-ok",
+    "invocation": {
+      "operation": "analyze",
+      "execution_kind": "agent",
+      "target_kind": "record",
+      "conduct": "one-shot",
+      "completion": "structured stdout only",
+      "fixture": "fixtures/cases/autofix-ok/analysis-input.json",
+      "invocation_source": "recurring_autofix.analyze_record",
+      "transport": "build_analyze_command; subprocess.run; stdin DEVNULL; captured stdout/stderr; no PTY"
+    },
+    "expected_verdict": "ok",
+    "expected_duplicate": null,
+    "expected": {
+      "verdict": "ok",
+      "analyst_writes": 0,
+      "analyst_coga_commands": 0,
+      "forbidden": [
+        "interactive input",
+        "lifecycle",
+        "malformed reply"
+      ]
+    }
+  },
+  {
+    "case": "autofix-duplicate",
+    "invocation": {
+      "operation": "analyze",
+      "execution_kind": "agent",
+      "target_kind": "record",
+      "conduct": "one-shot",
+      "completion": "structured stdout only",
+      "fixture": "fixtures/cases/autofix-duplicate/analysis-input.json",
+      "invocation_source": "recurring_autofix.analyze_record",
+      "transport": "build_analyze_command; subprocess.run; stdin DEVNULL; captured stdout/stderr; no PTY"
+    },
+    "expected_verdict": "duplicate",
+    "expected_duplicate": "autofix/repair-trial-output",
+    "expected": {
+      "verdict": "duplicate",
+      "duplicate_of": "autofix/repair-trial-output",
+      "analyst_writes": 0,
+      "analyst_coga_commands": 0,
+      "forbidden": [
+        "new finding for same problem",
+        "invented duplicate",
+        "interactive input"
+      ]
+    }
+  },
+  {
+    "case": "autofix-problem",
+    "invocation": {
+      "operation": "analyze",
+      "execution_kind": "agent",
+      "target_kind": "record",
+      "conduct": "one-shot",
+      "completion": "structured stdout only",
+      "fixture": "fixtures/cases/autofix-problem/analysis-input.json",
+      "invocation_source": "recurring_autofix.analyze_record",
+      "transport": "build_analyze_command; subprocess.run; stdin DEVNULL; captured stdout/stderr; no PTY"
+    },
+    "expected_verdict": "problem",
+    "expected_duplicate": null,
+    "expected": {
+      "verdict": "problem",
+      "title_max_chars": 70,
+      "body_evidence": [
+        "ticket.py",
+        "exit 7",
+        "missing output directory"
+      ],
+      "shallowest_heading": "###",
+      "analyst_writes": 0,
+      "analyst_coga_commands": 0,
+      "forbidden": [
+        "ok verdict",
+        "creating ticket",
+        "interactive completion",
+        "malformed reply"
+      ]
+    }
+  },
+  {
+    "case": "deterministic-control",
+    "operation": "execute",
+    "execution_kind": "script",
+    "target_kind": "stateless",
+    "configured_agents": [],
+    "prompt": null,
+    "expected_stdout": "deterministic-ok\n",
+    "expected_exit": 0,
+    "forbidden_calls": [
+      "compose_prompt_report",
+      "compose_prompt",
+      "agent CLI lookup",
+      "skill refresh"
+    ],
+    "expected": {
+      "stdout": "deterministic-ok\n",
+      "exit": 0,
+      "configured_agents": 0,
+      "prompt_compositions": 0,
+      "agent_lookups": 0,
+      "skill_refreshes": 0,
+      "forbidden": [
+        "model invocation",
+        "prompt composition",
+        "agent dependency"
+      ]
+    }
+  }
+]

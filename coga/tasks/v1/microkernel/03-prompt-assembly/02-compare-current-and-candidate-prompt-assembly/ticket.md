@@ -144,4 +144,45 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Provenance
+
+- Approved inputs copied to `approved/` from ticket 01 (all files except its ticket.md).
+  Tree hash (ticket 01 method) `3da24c2f…6977` = ticket 01's `artifact_tree_sha256_after_record`;
+  accepted package `f5ee59e2…dbbc`. Approval: owner, 2026-11-12, recorded in commit `01bb00f9`.
+- Production source pin `c3a86e7f`; `git diff c3a86e7f c66f6437 -- src/` is empty. Trial install: non-editable venv at `c66f6437`.
+
+## Execution pins (owner, 2026-11-12, this session)
+
+- Codex `codex-cli 0.167.2`, exe sha256 `a9672d0f…f56b` (rechecked), `-m gpt-6.1-sol -c model_reasoning_effort="medium"`.
+- Sandbox: `-s workspace-write -a never`, `sandbox_workspace_write.writable_roots=["/tmp"]`, `network_access=true` (localhost sink).
+- Env: allowlist PATH (pinned venv first), HOME, USER, TERM, LANG/LC_*, SHELL, TMPDIR + Coga launch vars; all else stripped.
+- Disposable adapter (this ticket dir) approved: real `spawn_agent_session(composed_prompt=…)`, real `analyze_record` with prompt substitution, real script dispatch with spies. Controller = this agent via tmux, fixed `dialogues.json` lines only. Blinded evaluator = owner.
+- Run mode: non-model checks + adapter smoke first, then full 44 + 12 series in protocol order; stop only on gate/stop rules.
+
+## Deviations (both arms identical; fixed before any model session)
+
+- D1: approved `fixtures/configuration.toml` has `user` in shared config, which the real loader rejects; moved to fixture `coga/coga.local.toml` (gitignored). All 8 interactive baselines re-render byte-identical in the materialized fixture (real `load_config` + `compose_prompt`).
+- D2: Codex argv adds `-c projects."/tmp/coga-prompt-trial-667707cc".trust_level="trusted"` (otherwise a trust dialog needs an unscripted keypress).
+- D3: adapter process itself runs under the env allowlist (ambient `SLACK_WEBHOOK_URL` made config load fail).
+- Megalaunch cases use megalaunch's spawn args (actor, `launch_context="megalaunch"`, supervised env, no return witness) but not its launch-claim guards (outside assembly). Authoring uses `_authoring_ticket` + `_run_authoring_session`'s spawn args. Owner-assist: adapter switches to `trial/assist` first, ordinary assist (no recorded-PR proof). Fixture tickets say `agent: claude`; both arms run codex.
+- Smoke accident: a stub-PATH bug started one real Codex process (baseline workflow-inline prompt) during smoke; no rollout written (no model turn; likely trust dialog), killed ~3 min. Not a trial; evidence in `runs/_smoke/accident-real-codex-no-turn`.
+
+- D2b: Codex still showed its folder-trust dialog once (pre-model); controller pressed Enter "Trust and continue", saving `[projects."/tmp/coga-prompt-trial-667707cc"]` in `~/.codex/config.toml`. Later sessions do not show it.
+- **Containment C1 (owner decision):** `/etc/codex/requirements.toml` (root, multiply harness) forced profile `multiply-full` (write `/home/n/Code`, `/home/n/.codex`, `/tmp`; read all) over the `-c` sandbox pins. author-paused baseline r1 (model ran; listed live repo filtered to checkouts/reconciliation/knowledge paths, read live `coga/checkouts` skill copies; no expected-outcome/other-arm reads seen; no live writes) moved to `runs/_replaced/` — replaced infrastructure run, uses 1 of 4 reserve sessions. Owner sets the policy file aside for the trial; restore afterwards. Verified 2026-11-13 after the owner moved it to `requirements.toml.trial-aside`: a no-op `codex exec` with the pins (infrastructure, not a trial session; 4,934 tokens) recorded `sandbox_policy` workspace-write, writable_roots `["/tmp"]`, network on; permission profile writes only the cwd, `/tmp`, tmpdir.
+
+## Controller rules (pre-declared before any trial session)
+
+- Send only `approved/fixtures/dialogues.json` lines, when their trigger occurs; plan-confirmation request in attended conduct → `Proceed as specified.`
+- Queued/recurring/analysis: no replies. Any session idle at an input prompt for 3 min with nothing scripted to send → controller ends it; recorded as `idle-waiting` (a failure for no-reply cases; ambiguous/failed for unanticipated questions).
+- Attended sessions with no lifecycle completion (author-paused, owner-assist): after the final scripted line and the agent's reply, controller exits Codex (`/exit` or Ctrl-C) and records it.
+- Unanticipated substantive question: recorded, not answered.
+- Hard stop at 12 min (`max_session=720`); analyst 300 s; probe 300 s. **Owner change P1 (2026-11-12/13, before any trial):** token ceilings are not enforced because Codex's own turn-one baseline (~22–46k input, cumulative re-billing per tool call) makes 100k/20k/30k unreachable in both arms; wall-clock limits bind; per-run total/cached/uncached/output tokens recorded from the rollout.
+- Probes: `codex exec -s read-only` (pins otherwise identical) with `-c developer_instructions=<frozen prompt>`, cwd = that case's pristine fixture, 300 s timeout, fixed question text in `probes.json`; file reads counted from rollout, >4 reads recorded as a violation.
+
+## Static result already determined
+
+- Payload secondary: C1 total 108,052 vs baseline 111,859 bytes = 3.40% reduction < 15% threshold → no payload gain (analysis cases grow ~+55%).
+
+## Progress
+
+- [ ] adapter + pinned venv  - [ ] non-model checks  - [ ] 44 main sessions  - [ ] 12 probes  - [ ] blinded evaluation pack  - [ ] report

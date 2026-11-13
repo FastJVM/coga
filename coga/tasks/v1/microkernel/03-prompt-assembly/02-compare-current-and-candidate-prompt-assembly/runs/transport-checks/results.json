@@ -1,0 +1,150 @@
+[
+ {
+  "arm": "baseline",
+  "mode": "malformed",
+  "analysis": {
+   "verdict": "problem",
+   "title": "I could not decide what this run means.",
+   "raw": "I could not decide what this run means."
+  },
+  "seconds": 0.02,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true
+ },
+ {
+  "arm": "baseline",
+  "mode": "empty",
+  "unavailable": "stubcodex returned an empty analysis",
+  "seconds": 0.02,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 stubcodex returned an empty analysis",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 stubcodex returned an empty analysis"
+ },
+ {
+  "arm": "baseline",
+  "mode": "nonzero",
+  "unavailable": "stubcodex exited 3:\nstderr: stub failure",
+  "seconds": 0.02,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 stubcodex exited 3:\nstderr: stub failure",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 stubcodex exited 3:\nstderr: stub failure"
+ },
+ {
+  "arm": "baseline",
+  "mode": "timeout",
+  "unavailable": "stubcodex did not answer within 3s",
+  "seconds": 3.0,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 stubcodex did not answer within 3s",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 stubcodex did not answer within 3s"
+ },
+ {
+  "arm": "baseline",
+  "mode": "missing",
+  "unavailable": "Agent CLI 'no-such-analyst-cli' not found. Set `cli` in [agents.stubmissing] in coga.toml to your agent CLI. The run cannot be analyzed.",
+  "seconds": 0.0,
+  "stub_calls": 0,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 Agent CLI 'no-such-analyst-cli' not found. Set `cli` in [agents.stubmissing] in coga.toml to your agent CLI. The run cannot be analyzed.",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 Agent CLI 'no-such-analyst-cli' not found. Set `cli` in [agents.stubmissing] in coga.toml to your agent CLI. The run cannot be analyzed."
+ },
+ {
+  "arm": "baseline",
+  "mode": "unknown",
+  "unavailable": "agent type 'stubunknown' (cli 'stubunknown') has no one-shot analysis argv. Set `[agents.stubunknown].analyze` in coga.toml or coga.local.toml to the CLI's non-interactive form, e.g. analyze = \"-p {prompt}\".",
+  "seconds": 0.0,
+  "stub_calls": 0,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 agent type 'stubunknown' (cli 'stubunknown') has no one-shot analysis argv. Set `[agents.stubunknown].analyze` in coga.toml or coga.local.toml to the CLI's non-interactive form, e.g. analyze = \"-p {prompt}\".",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 agent type 'stubunknown' (cli 'stubunknown') has no one-shot analysis argv. Set `[agents.stubunknown].analyze` in coga.toml or coga.local.toml to the CLI's non-interactive form, e.g. analyze = \"-p {prompt}\"."
+ },
+ {
+  "arm": "candidate",
+  "mode": "malformed",
+  "analysis": {
+   "verdict": "problem",
+   "title": "I could not decide what this run means.",
+   "raw": "I could not decide what this run means."
+  },
+  "seconds": 0.02,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true
+ },
+ {
+  "arm": "candidate",
+  "mode": "empty",
+  "unavailable": "stubcodex returned an empty analysis",
+  "seconds": 0.02,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 stubcodex returned an empty analysis",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 stubcodex returned an empty analysis"
+ },
+ {
+  "arm": "candidate",
+  "mode": "nonzero",
+  "unavailable": "stubcodex exited 3:\nstderr: stub failure",
+  "seconds": 0.02,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 stubcodex exited 3:\nstderr: stub failure",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 stubcodex exited 3:\nstderr: stub failure"
+ },
+ {
+  "arm": "candidate",
+  "mode": "timeout",
+  "unavailable": "stubcodex did not answer within 3s",
+  "seconds": 3.0,
+  "stub_calls": 1,
+  "stub_stdin_empty": true,
+  "stub_prompt_is_arm_bytes": true,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 stubcodex did not answer within 3s",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 stubcodex did not answer within 3s"
+ },
+ {
+  "arm": "candidate",
+  "mode": "missing",
+  "unavailable": "Agent CLI 'no-such-analyst-cli' not found. Set `cli` in [agents.stubmissing] in coga.toml to your agent CLI. The run cannot be analyzed.",
+  "seconds": 0.0,
+  "stub_calls": 0,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 Agent CLI 'no-such-analyst-cli' not found. Set `cli` in [agents.stubmissing] in coga.toml to your agent CLI. The run cannot be analyzed.",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 Agent CLI 'no-such-analyst-cli' not found. Set `cli` in [agents.stubmissing] in coga.toml to your agent CLI. The run cannot be analyzed."
+ },
+ {
+  "arm": "candidate",
+  "mode": "unknown",
+  "unavailable": "agent type 'stubunknown' (cli 'stubunknown') has no one-shot analysis argv. Set `[agents.stubunknown].analyze` in coga.toml or coga.local.toml to the CLI's non-interactive form, e.g. analyze = \"-p {prompt}\".",
+  "seconds": 0.0,
+  "stub_calls": 0,
+  "sweep_exit_0_preserved": true,
+  "sweep_exit_0_diagnostic": "Autofix: analysis skipped \u2014 agent type 'stubunknown' (cli 'stubunknown') has no one-shot analysis argv. Set `[agents.stubunknown].analyze` in coga.toml or coga.local.toml to the CLI's non-interactive form, e.g. analyze = \"-p {prompt}\".",
+  "sweep_exit_2_preserved": true,
+  "sweep_exit_2_diagnostic": "Autofix: analysis skipped \u2014 agent type 'stubunknown' (cli 'stubunknown') has no one-shot analysis argv. Set `[agents.stubunknown].analyze` in coga.toml or coga.local.toml to the CLI's non-interactive form, e.g. analyze = \"-p {prompt}\"."
+ }
+]
