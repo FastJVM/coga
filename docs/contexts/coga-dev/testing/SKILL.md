@@ -236,46 +236,41 @@ and a packaging-twin inconsistency (live blocker-reminders template published
 before its package twin) made every run fail and notify. The owner disabled
 the workflow on 2026-10-26 and deleted it on 2026-11-05
 (`v1/13-repair-ci-and-resume-with-release-focused-triggers`). The tradeoff:
-nothing mechanical blocks a merge or an upload. Tiers 2 and 3 are
-procedures enforced by the implementer, the reviewer and the release
+nothing mechanical blocks a merge or an upload. Verification is a
+procedure enforced by the implementer, the reviewer and the release
 operator. In exchange there are no hosted runs, queues or failure
 notifications, and platform checks run natively on the AWS harnesses.
 
+**Native checks are release-only** (owner decision, 2026-11-12). Windows
+and macOS full-suite receipts are required before release, not for
+implementation, peer review or merge, including platform-sensitive changes.
+Do not allocate native test hosts as a routine PR gate. This concentrates
+native verification on the release candidate; the tradeoff is that a native
+regression may first be found during release preparation and must be fixed
+before tagging.
+
 1. **Every change.** Implement, self-QA and review steps run the full suite
    locally (Linux) and record receipts.
-2. **Platform-sensitive changes.** A change is
-   platform-sensitive when it touches OS-dependent imports,
-   process/terminal handling, locks, filesystem/path/encoding/Git behavior,
-   dependency or Python requirements, packaging/install behavior, executable
-   templates, or native test fixtures and skip rules. Native Windows
-   verification is deferred to release, including for these changes (owner
-   decision, 2026-11-12). It is not required for PR approval or merge. Record
-   the deferral in the PR and the ticket, when present; Linux receipts do not
-   provide native Windows evidence. The tradeoff is that Windows-specific
-   regressions may first be found during release preparation.
-   Once macOS is supported, its full suite remains required before merge
-   through the
-   [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md#full-suite-at-a-commit).
-   Run it at the PR's head commit and record the receipt in the PR and ticket;
-   a source-affecting change after that receipt needs a new run.
-3. **Every release, before tagging.** The full suite at the exact commit to
-   be tagged on Linux, on Windows through the
+   Record native verification as deferred to release in the PR and ticket,
+   when present; Linux receipts do not provide native Windows or macOS
+   evidence.
+2. **Every release, before tagging.** Run the full suite at the exact commit
+   to be tagged on Linux, natively on Windows through the
    [Windows AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs),
-   and on macOS (EC2 Mac host)
-   once macOS is supported, plus the build, `twine check` and clean-install
-   checks. [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md)
-   owns the release procedure. A failure or missing receipt means no tag.
+   and natively on macOS through the
+   [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md#full-suite-at-a-commit),
+   plus the build, `twine check` and clean-install checks. Record the receipts
+   with the release ticket. [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md)
+   owns the release procedure. A failure or missing receipt on any platform
+   means no tag. A changed release commit needs new receipts; earlier PR
+   receipts do not substitute for verification of that commit.
 
-macOS is supported once its full suite passes on the EC2 Mac host (owner's
-threshold). Until then, macOS receipts are not required, and a macOS run is
-informational.
-
-**Python 3.11 floor evidence.** At least one tier-3 suite run uses a real
+**Python 3.11 floor evidence.** At least one release suite run uses a real
 Python 3.11 interpreter, Coga's `requires-python` floor. Examples are the
 Linux clean-install harness's Python 3.11 container, or the Windows
 harness's `checkout`, which syncs the test environment with a uv-managed
 Python 3.11 (`uv sync --python 3.11 --extra test`). A green 3.12 run
-is not evidence for the floor. For tiers 1 and 2, when 3.11 is unavailable,
+is not evidence for the floor. For per-change checks, when 3.11 is unavailable,
 report that gap with the actual interpreter and results. Reusable workflows
 cannot assume Python 3.11 is installed in a user's environment. Raising
 `requires-python` requires an owner decision.
