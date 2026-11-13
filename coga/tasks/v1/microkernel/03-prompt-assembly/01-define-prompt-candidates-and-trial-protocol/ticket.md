@@ -16,7 +16,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -197,8 +197,8 @@ recurring_autofix.build_prompt generated analyst baselines. One-off rendering
 and auditing code stayed in /tmp; no reusable harness was delivered.
 
 The human authorized drafting one candidate, two repetitions and instruction
-correctness as primary. Complete protocol approval is still the owner step's
-job. Proposed limits, counterbalanced order, predeclared outcomes, hard gates,
+correctness as primary. Complete owner approval is recorded below.
+Approved limits, counterbalanced order, predeclared outcomes, hard gates,
 separate dimensions and negative/inconclusive decisions are in protocol.md.
 Candidate retains whole selected contexts/skills and current skill-OR-inline
 selection. Autofix retains a noninteractive, structured, read-only call.
@@ -230,9 +230,35 @@ can change this ticket without changing the reviewed specimen package.
 
 ## Owner handoff
 
-Review the package index and complete specimens. Accept or edit applicability,
-expected outcomes, primary/secondary thresholds and budget, then record exact
-model/CLI/settings pins and accepted package revision/hash before ticket 02.
-Do not treat this drafting authorization or the first workflow bump as protocol
-approval. No branch or PR exists: this step only edits routine ticket state
-and attachments on clean-start main, under launch's return ownership.
+Owner approved the existing complete review package and its 60-session ceiling,
+and explicitly authorized advancing this owner-held step. Acceptance includes
+the complete examples, applicability contract, cases and expected outcomes,
+paired controls/order, session limits and reserve, primary/secondary thresholds,
+hard gates, stop rules and separate-dimension reporting in protocol.md.
+Accepted attachment-tree SHA-256:
+`f5ee59e2cd8ebf2d88f17f5ea9623b4699bee2cad3b1fa5a6cc34cec5e10dbbc`.
+All 79 attachment hashes and that tree hash were reverified on control revision
+`130bb1c2c7c28f819289c89c8f0ce3f917f5d55a`; the specimen package is unchanged.
+
+Owner clarification: keep two repetitions per arm/case; no
+expanded reliability study is needed at this stage. The owner will judge the
+results at the end. Report the observed outcomes and their limits without
+claiming broader reliability. Correctness gates remain in force.
+
+Owner selected Codex, Sol, medium reasoning for both forms. Local model-cache
+resolution: `gpt-6.1-sol`, with `medium` listed as supported. Observed CLI:
+`codex-cli 0.167.2`; resolved executable:
+`/home/n/.codex/packages/standalone/releases/0.167.2-x86_64-unknown-linux-musl/bin/codex`;
+SHA-256: `a9672d0fa0dd8fcf8cad136fa0d056b914bc046f5ac3d78f4a5cf390655af56b`.
+No model session was started. Recheck these pins before trials; the local
+model identifier does not establish an immutable provider model version.
+
+For report-to-coga: carry this explicit approval into the package decision
+record, preserve the accepted specimens, and record any resulting metadata-only
+hash changes separately. Capture remaining execution-environment/transport pins
+before ticket 02 starts, under the approved model, settings and limits. Approval
+does not select C1 or authorize production migration. No trials ran here.
+No branch or PR exists: this step only edits routine ticket state on main,
+under launch's return ownership. Attachment hashes and git diff --check passed;
+the scoped read-only validation command above returned ok_count 1, no issues.
+the full Linux receipt above remains the preparation receipt, not a new run.
