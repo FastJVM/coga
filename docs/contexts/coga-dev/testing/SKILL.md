@@ -186,6 +186,12 @@ is their hand-run counterpart: a first-time user installs on a fresh
 - **Scope standard-library mocks to the operation under test.** For example,
   restore `shutil.get_terminal_size` with `monkeypatch.context()` before
   pytest reports the result; pytest also calls it with `fallback=`.
+- **Symlink-loop rejection has interpreter-dependent diagnostics.** Python
+  3.12 raises while resolving the cyclic contexts root; Python 3.14 leaves
+  it unresolved with `strict=False`, so configuration rejects it at the
+  subsequent symlink traversal check. Tests must require rejection while
+  accepting either diagnostic, as `test_layout_contexts_cyclic_root_rejected`
+  does.
 - `hatchling` is a tracked test extra, not a runtime dependency, because
   `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` builds
   with `--no-build-isolation` and fails (not skips) without it; see

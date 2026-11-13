@@ -476,7 +476,10 @@ what to search for): an open ticket — any status but `done` or `canceled` —
 whose title or body already covers the finding is the owner. Create nothing for
 an owned finding; report it as "already ticketed as `<slug>`" in the run
 summary. Dream does not edit another ticket's body or blackboard to add
-members or evidence.
+members or evidence. Wherever a rule below files a `code/with-review` draft,
+first check `[agents.*]` in `coga/coga.toml` and `coga.local.toml`: in a
+one-agent repo — only one agent configured, or three or more with no `peer =`
+on the main agent — file it with `code/with-self-review` instead.
 
 **Phase 1 blackboard state edits.** `large-blackboard` and
 `unsynthesized-draft-blackboard` are `human-needed` owner-directed state edits,
