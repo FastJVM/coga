@@ -118,11 +118,12 @@ offers, never the same one twice, and a "no" at either ends the chain:
    recipe in `coga.dependencies`, and with `sudo` when root is needed.
 2. The official release archive, pinned in `coga.gh_release` (2.103.3 at
    the time of writing). It is the first offer when no manager is usable,
-   and the second when the manager install fails: a non-zero exit (a distro
-   repository without `gh`, a refused `sudo`) or `gh` still off `PATH`. The
-   prompt shows the URL, the pinned SHA-256 and the destination. On a yes,
-   init verifies the digest before writing, copies only the `gh` binary and
-   never replaces an existing file. It needs no package manager or `sudo`.
+   and the second when the manager install fails: it cannot execute, returns
+   non-zero (a distro repository without `gh`, a refused `sudo`), or leaves
+   `gh` off `PATH`. The prompt shows the URL, the pinned SHA-256 and the
+   destination. On a yes, init verifies the digest before writing, copies
+   only the `gh` binary and never replaces an existing file. It needs no
+   package manager or `sudo`.
    The destination is the first directory on `PATH` inside your home that
    is writable: the one `coga` runs from (not a project virtualenv), then
    `~/.local/bin`, then `~/bin` on macOS and Linux. System directories such

@@ -3076,6 +3076,29 @@ def test_gh_release_offered_after_package_manager_failure(
     assert GH_NEEDED not in out.err
 
 
+def test_gh_release_offered_when_package_manager_cannot_execute(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    _, downloads, home = _release_env(
+        monkeypatch, tmp_path, answers=[True, True], managers=True
+    )
+    manager_calls: list[list[str]] = []
+
+    def cannot_execute(argv: Sequence[str], **kwargs: object) -> None:
+        manager_calls.append(list(argv))
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr("coga.commands.init.subprocess.run", cannot_execute)
+    outcome = init_cmd._offer_gh(init_cmd._dependency("gh"))
+    assert outcome is init_cmd.InstallOutcome.INSTALLED
+    assert manager_calls == [["brew", "install", "gh"]]
+    assert len(downloads) == 1
+    assert (home / ".local" / "bin" / "gh").is_file()
+    out = capsys.readouterr()
+    assert "Package-manager install for `gh` failed: permission denied" in out.err
+    assert "Falling back to the official `gh` release" in out.out
+
+
 def test_gh_release_offered_when_package_manager_leaves_gh_off_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
 ) -> None:

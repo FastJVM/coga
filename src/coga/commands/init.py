@@ -487,12 +487,16 @@ def _offer_gh(dep: Dependency) -> InstallOutcome:
     The package-manager offer is unchanged from `_offer_install`. When it is
     unusable before running anything (no manager, no `gh` recipe for it, or
     root needed without `sudo`), the release download is the first prompt.
-    When it runs and fails (non-zero exit, including a distro repository
-    without `gh` or a refused `sudo`, or `gh` still off PATH), the download
-    is offered once as the second prompt. A "no" at either prompt ends the
-    chain, and no route is ever offered twice.
+    When execution fails (an OS error, a non-zero exit including a distro
+    repository without `gh` or a refused `sudo`, or `gh` still off PATH),
+    the download is offered once as the second prompt. A "no" at either
+    prompt ends the chain, and no route is ever offered twice.
     """
-    outcome = _install_with_manager(dep, _package_manager())
+    try:
+        outcome = _install_with_manager(dep, _package_manager())
+    except OSError as exc:
+        _warn_gh_release(f"Package-manager install for `gh` failed: {exc}")
+        outcome = InstallOutcome.FAILED
     if outcome in (InstallOutcome.INSTALLED, InstallOutcome.DECLINED):
         return outcome
     return _offer_gh_release(dep, after_failure=outcome is InstallOutcome.FAILED)
@@ -2084,4 +2088,3 @@ def _git_commit_coga_os(
         stderr = (exc.stderr or "").strip()
         error = stderr or f"{shlex.join(str(arg) for arg in exc.cmd)} exited {exc.returncode}"
         return None, GitCommitFailure(phase, error, tuple(paths))
-
