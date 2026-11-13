@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (open-pr)
+step: 7 (review)
 agent: claude
 contexts:
 - coga/init
@@ -633,6 +633,7 @@ Previous ref: `marketing/fix-installer/handle-gh-not-being-installed-by-default`
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1228
 branch: coga/v1-18-handle-gh-not-being-installed-by-default-815280
 
 
@@ -941,7 +942,8 @@ Open questions, answered:
    rule 2 (the pin table is the integrity anchor only because it is
    co-versioned with the wheel), not by the `agent_cli_setup` precedent.
 4. **macOS `git` stub detection:** separate follow-up ticket, not this one.
-   Not yet created; open it with `coga ticket` when convenient.
+   Filed 2026-11-12 at open-pr as draft
+   `detect-the-macos-git-stub-before-init-s-git-precon`.
 
 Evaluator must-fix dispositions (all accepted; see *Design decisions*):
 
