@@ -1,23 +1,62 @@
 ---
 title: Classify read and report commands under the small-core rule
-status: draft
+status: active
 owner: nicktoper
 agent: codex
 contexts:
-  - coga-dev/microkernel/objectives
-  - coga-dev/principles
-  - coga/tickets
-  - coga/lifecycle
-  - coga/usage
-  - coga/recurring
-  - coga-dev/codebase
-  - coga-dev/testing
-  - coga-dev/current-direction
-  - coga-dev/microkernel
-  - coga-dev/project-stage
-  - coga/cli
-  - coga/checkouts
-workflow: code/design-then-implement
+- coga-dev/microkernel/objectives
+- coga-dev/principles
+- coga/tickets
+- coga/lifecycle
+- coga/usage
+- coga/recurring
+- coga-dev/codebase
+- coga-dev/testing
+- coga-dev/current-direction
+- coga-dev/microkernel
+- coga-dev/project-stage
+- coga/cli
+- coga/checkouts
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+    checkout: control
+  - name: evaluate-design
+    skills:
+    - code/review-design
+    assignee: other-agent
+    checkout: control
+  - name: review-design
+    skills: []
+    assignee: owner
+    checkout: control
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+    checkout: create-or-reuse
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+    checkout: reuse-required
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+    checkout: control
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+    checkout: reuse-required
+step: 1 (design)
 ---
 
 ## Description
