@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 0376bea8-8e5f-4ef7-b720-a0fbaf29fc98
 ---
 
 ## Description
@@ -129,4 +128,80 @@ ordinary ticket.
 branch: coga/v1-47-cap-requires-python-and-stop-init-leading--7ac3ac
 
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Decisions
+
+- **Python cap: not capped.** `requires-python` stays `>=3.11`. An upper
+  bound does not make `uv tool install coga` pick an older interpreter. A
+  resolver on 3.15 would instead fall back to the newest *uncapped* release
+  (0.4.1 on PyPI), which installs silently stale Coga. The fix is to pin the
+  interpreter at install time: the README macOS/Linux command and init's
+  "put coga on PATH" step now say `uv tool install --python 3.11 coga`. That
+  matches the Windows instructions and the clean-install harness, which
+  already use `--python 3.11`. uv downloads 3.11 if needed, PyYAML has wheels
+  for it, and nothing compiles.
+- **No agent CLI found → keep every `[agents.*]` table live.**
+  `init._configure_agent_tables` returns the declared names unchanged on an
+  empty `found`. This is the same file a non-interactive init leaves. The next
+  steps name only the install (the `uncomment its table` remedy now appears
+  only when coga.toml declares no agent, e.g. a scaffold). `coga validate` is
+  clean on that fresh repo (previously `unknown-agent` and
+  `unresolvable-operator` on coga-build). The summary's "every table commented
+  out" line was removed, because init no longer produces that state.
+- Tradeoff: after installing only Codex, Claude stays the declared default.
+  The build line offers `coga build --agent codex`, and the `coga/init` topic
+  says so.
+
+## Handoff (implement → peer-review)
+
+Commit 6e2732633e0d on the branch, pushed; rebased on origin/main 691c8f9d8
+(no drift). Changed: `src/coga/commands/init.py`, `tests/test_init.py`,
+`README.md`, and the user topics `coga/init` and `coga/configuration`. No
+seeded-fixture change is needed (init-only behavior). Python 3.11 floor was not
+exercised; the suite ran on 3.12.12.
+
+## PR
+
+```yaml
+title: Keep agent tables live when init finds no agent CLI; pin uv install to Python 3.11
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
+head: 6e2732633e0da719002ab66286c9ffa331ad79a4
+base: 691c8f9d82abe7be386c931a16e4e776a52a8cee
+depth: skim
+rationale: >-
+  Small init behavior change plus install docs; the reviewer should check the
+  decision not to cap requires-python and the zero-agent default-agent tradeoff.
+implementation: >-
+  Init leaves the packaged coga.toml untouched when the agent scan finds no
+  CLI, so next steps name an install, not a coga.toml edit. The README and
+  init's PATH step install with uv tool install --python 3.11 coga.
+deviations: >-
+  The ticket title says cap requires-python; it was deliberately left uncapped
+  because a cap makes resolvers on newer Pythons fall back to older uncapped
+  releases. The interpreter is pinned at the install command instead.
+limitations: >-
+  Python 3.11 floor not exercised (3.12.12 only). No real macOS or uv
+  install on Python 3.15 was run; the PyYAML-compile reasoning is from the ticket report.
+files:
+  README.md: "Pin the macOS/Linux uv install to Python 3.11 and say why."
+  src/coga/commands/init.py: "Keep agent tables live with no CLI found; drop the stale all-commented summary; pin the PATH step to --python 3.11."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: "Document that a no-agent init comments nothing out."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: "Document the zero-agent outcome and the pinned install step."
+  tests/test_init.py: "Cover the zero-agent packaged-file outcome, clean validate, and no coga.toml edit in next steps."
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Peer review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest tests/test_init.py -q -x
+    status: passed
+    head: 6e2732633e0da719002ab66286c9ffa331ad79a4
+    base: 691c8f9d82abe7be386c931a16e4e776a52a8cee
+    detail: 170 passed; Linux Pop!_OS, Python 3.12.12.
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 6e2732633e0da719002ab66286c9ffa331ad79a4
+    base: 691c8f9d82abe7be386c931a16e4e776a52a8cee
+    detail: 4900 passed, 33 skipped in 765.20s; Linux Pop!_OS 24.04, Python 3.12.12, committed clean tree.
+```

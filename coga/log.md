@@ -11088,3 +11088,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-14 14:22 v1 [stop-megalaunch-when-an-agent-fails-to-start] [human:nicktoper] created (status=draft)
 2026-11-14 14:22 v1 [v1/47-cap-requires-python-and-stop-init-leading-with-a-c] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-11-14 14:22 v1 [v1/47-cap-requires-python-and-stop-init-leading-with-a-c] [megalaunch] launched via coga megalaunch
+2026-11-14 14:38 v1 [v1/47-cap-requires-python-and-stop-init-leading-with-a-c] [agent:claude] advanced to step 2 (peer-review) → codex
