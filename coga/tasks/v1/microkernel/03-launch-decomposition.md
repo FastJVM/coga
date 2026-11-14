@@ -31,7 +31,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -957,3 +957,198 @@ Verification: base `ceb05f991289e16f8ded2c4273cee6fab55d54ea`, with only this ti
 `TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/03-launch-decomposition --json` passes with no issues. Repo-wide `validate --json` reports 90 valid tasks, no errors and 16 warnings. `git diff --check` passes. Final fetch confirms HEAD and origin/main both at the base above; no reconciliation merge was needed. Only this ticket was edited. No workflow transition.
 
 Owner explicitly requested bump after reviewing the refined draft. Design review is approved for handoff to implement; this supersedes the pending-review note above. No runtime implementation was performed in this session.
+
+
+## Implementation progress — 2026-11-13
+
+Owner confirmed the implementation plan in this attended session ("gtg!").
+Implemented explicit `launch(..., read_only=True)` / `launch --read-only`
+for exact bootstrap scripts, reusing `launch_script.run_script_phase` and
+its existing subprocess/environment isolation. CLI alias expansion selects
+finalization before launch admission; readers bypass checkout/completion/log
+finalization and the exit sweep, including refusals. Ordinary launch remains
+the default, with its user, lifecycle and publication requirements.
+
+`launch.prepare_agent_launch` now owns the readiness sequence for both
+ordinary `_LaunchInvocation._prepare_agent` and
+`megalaunch._preflight_agent_launch`, returning `PreparedAgentLaunch` or
+`AgentPreparationError`. It reuses the retained `compose_prompt`, scoped
+secret environment and existing command planner. Callers retain prospective
+lifecycle, startup/claim publication and admission. Authoring's intentionally
+no-secret path and one-session executor stay unchanged; no cosmetic session
+extraction, callback framework or prompt applicability mechanism was added.
+
+Regression coverage includes direct/alias dispatch, exact stdout/stderr and
+stdin/argv, no user/agent/TTY, real dirty-Git tree/HEAD preservation, secrets
+and outer authority isolation, 0/7/75 exits, absent/vanished script,
+malformed config, missing secret, invalid combinations/stateful targets,
+Python API, ordinary bootstrap user/publication behavior, readiness order
+and typed command refusal. Existing megalaunch test mocks now point to the
+shared readiness seams rather than removed consumer imports.
+
+Focused checks: 544 passed in 73.24s across launch/script/megalaunch/CLI;
+after final coverage additions, 119 passed in 15.30s across script/CLI.
+Full Linux suite is running; final commit-bound receipts and PR preparation
+will follow. Native Windows/macOS are deferred to release; Python 3.11 was
+not used. No PR or workflow transition yet.
+
+
+## Implement handoff — 2026-11-13
+
+Implemented and committed as `0bf44d2a1ff5e5e846f29007f707c6d461cdee9e`; tested base `64dff1e1e918c4f265e1f760b854a6af1b6e05d7`.
+The feature branch remains `coga/v1-microkernel-03-launch-decomposition-6852fc`.
+The retained production assembler is unchanged. No new public launch service,
+compatibility re-export, plugin host, or completion capability was introduced.
+Ordinary bootstrap writers and stateful script-to-agent behavior retain their
+existing lifecycle/publication contracts. Named discussion delivery defaults
+and the chat receipt/guard remain in shared execution; their concrete reasons
+are recorded in the agent-spawn owner. Authoring keeps its distinct no-secret
+preflight. No further implementation obligation is deferred from this scope.
+Source/help/customization migrations remain with siblings 05/06, and lifecycle
+and queue procedure migrations with 09/10; optional cosmetic splitting is not
+claimed as simplification or left as an unowned deliverable.
+
+Verification: 4927 passed, 33 skipped, 0 failed in 883.66 seconds on Pop!_OS 24.04 LTS,
+Linux 7.2.15-76070215-generic, Python 3.12.12. Full command, tested head/base,
+stream/identity regressions and validation receipts are retained in `## PR`.
+No independent code review ran during implement. Python 3.11 was not used;
+native Windows/macOS verification is deferred to release.
+
+### Reduction evidence
+
+Baseline `64dff1e1e918c4f265e1f760b854a6af1b6e05d7` →
+`0bf44d2a1ff5e5e846f29007f707c6d461cdee9e`. Count all physical lines (including blanks/comments)
+in Git-tracked Python production files, partitioned into core, edge, packaged
+Python and repo-owned Python; exclude tests/docs and untracked local artifacts.
+No archive content was read. Production across the whole system is
+65,772 → 65,842 lines (+70), not a total line reduction:
+
+| Area | Files before/after | Lines before → after |
+| --- | --- | --- |
+| `src/coga/` except packaged templates | 100 / 100 | 59,547 → 59,617 |
+| `src/coga_edge/` | 3 / 3 | 697 → 697 |
+| Packaged Python under `src/coga/resources/templates/` | 10 / 10 | 1,269 → 1,269 |
+| Repo-owned Python under `coga/` | 26 / 26 | 4,259 → 4,259 |
+
+Within the changed production scope: `cli.py` 654 → 675,
+`commands/launch.py` 100 → 108, `launch.py` 4,590 → 4,634,
+`launch_script.py` 620 → 631, `megalaunch.py` 2,407 → 2,393;
+combined 8,371 → 8,441. No production file was relocated. Two independently
+maintained readiness sequences (ordinary `_prepare_agent` and megalaunch
+`_preflight_agent_launch`) now call one `prepare_agent_launch` operation;
+megalaunch no longer depends directly on composition, secret-env construction,
+CLI lookup or command planning. The script subprocess remains one body;
+read-only adds a policy branch, not another executor. No command entrypoint
+was removed; the adapter gained 8 lines for the explicit invocation policy.
+
+Report nonproduction separately: tracked `tests/**/*.py` 101,528 → 101,784
+(+256); non-archive `docs/**/*.md` 5,008 → 5,039 (+31);
+packaged Markdown under `src/coga/resources/` 16,538 → 16,587 (+49).
+These are distinct committed owners, not recreated live definition copies.
+
+## PR
+
+```yaml
+title: "Add read-only ticket dispatch and share agent readiness"
+author: "codex"
+author_evidence: "Implemented by Codex in this attended session; no agent override was requested. The\
+  \ exact underlying model version is not exposed in this session."
+head: "0bf44d2a1ff5e5e846f29007f707c6d461cdee9e"
+base: "64dff1e1e918c4f265e1f760b854a6af1b6e05d7"
+depth: "deep"
+rationale: "Changes launch invocation/finalization and two readiness callers. Full Linux verification\
+  \ passed, but independent code review has not run."
+implementation: "Adds explicit read-only bootstrap script dispatch to the existing launch API and script\
+  \ executor. Consolidates ordinary launch and megalaunch readiness while preserving their distinct publication\
+  \ and admission transactions."
+deviations: "No session-module extraction: consolidation removes the concrete duplicate sequence without\
+  \ a cosmetic split. Retained the production assembler and existing discussion/kickoff defaults."
+limitations: "Read-only is a cooperative procedure contract, not a Python sandbox. Reader migrations/customization\
+  \ remain with sibling tickets. Native Windows/macOS verification is deferred to release; Python 3.11\
+  \ was not used."
+files:
+  docs/contexts/coga-dev/codebase/SKILL.md: "Map the shared readiness and read-only script boundary."
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: "Document readiness ownership, unchanged assembly/admission,\
+    \ and retained named defaults."
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: "Explain alias-aware read-only CLI finalization\
+    \ before refusing launch work."
+  src/coga/cli.py: "Bypass finalization/sweep for read-only launch, preserve operand separators, and report\
+    \ malformed eager TOML as a refusal."
+  src/coga/commands/launch.py: "Parse and forward the explicit invocation option while withholding sweep\
+    \ before service refusal."
+  src/coga/launch.py: "Admit read-only bootstrap scripts through the existing executor and share typed\
+    \ agent readiness with megalaunch."
+  src/coga/launch_script.py: "Reuse script subprocess/environment handling with explicit no-effects policy\
+    \ and no fallback or teardown for readers."
+  src/coga/megalaunch.py: "Replace duplicated CLI/composition/secret/command readiness with the shared\
+    \ operation while retaining queue admission."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: "Link read-only dispatch\
+    \ as outside the preparation/return lifecycle."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "Own the read-only CLI/API\
+    \ execution, configuration, stream, effect and cooperative reader contract."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: "Distinguish ordinary\
+    \ reclassification/reloads from explicit reader refusal and link its contract."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: "Link explicit\
+    \ reader dispatch as having no publication boundary."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md: "Classify\
+    \ readers separately from ordinary stateless writers."
+  tests/test_cli.py: "Cover read-only policy versus operands and restoration of CLI finalization context."
+  tests/test_launch_script.py: "Cover direct/alias reader effects, streams, secrets, identity, failures,\
+    \ API, writer defaults and shared readiness."
+  tests/test_megalaunch.py: "Move existing readiness test fakes to the shared operation dependencies without\
+    \ compatibility imports."
+review:
+  reviewer: "none"
+  kind: "none"
+  status: "not-run"
+  detail: "Implement step completed with no independent code review; the later workflow handles publication\
+    \ and owner review. Design approval is not code review."
+checks:
+- command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-pytest-launch-decomposition-full"
+  status: "passed"
+  head: "0bf44d2a1ff5e5e846f29007f707c6d461cdee9e"
+  base: "64dff1e1e918c4f265e1f760b854a6af1b6e05d7"
+  detail: "4927 passed, 33 skipped, 0 failed in 883.66 seconds. Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic,\
+    \ Python 3.12.12. Output: /tmp/coga-launch-decomposition-full.log. The run began on uncommitted implementation\
+    \ bytes; they were committed unchanged during the run, and only the projected ticket differs from\
+    \ HEAD. Python 3.11 was not used; native Windows/macOS verification is deferred to release."
+- command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_launch_script.py tests/test_cli.py\
+    \ -q --basetemp=/home/n/Code/coga-pytest-launch-finalfocused"
+  status: "passed"
+  head: "0bf44d2a1ff5e5e846f29007f707c6d461cdee9e"
+  base: "64dff1e1e918c4f265e1f760b854a6af1b6e05d7"
+  detail: "119 passed in 15.30s on the same Linux/Python environment; implementation/test/docs bytes match\
+    \ the committed tree. Output: /tmp/coga-launch-finalfocused.log."
+- command: "env -u SLACK_WEBHOOK_URL TERM=dumb PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python\
+    \ -m coga.cli validate --json"
+  status: "passed"
+  head: "0bf44d2a1ff5e5e846f29007f707c6d461cdee9e"
+  base: "64dff1e1e918c4f265e1f760b854a6af1b6e05d7"
+  detail: "Run from tests/fixtures/seeded-repo/coga: 5 valid tasks, no issues or fixes, exit 0. Existing\
+    \ seeded fixture remains representative; no task layout, prompt assembly, workflow or config schema\
+    \ changed. Dedicated script fixtures cover the new invocation policy."
+- command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/03-launch-decomposition\
+    \ --json"
+  status: "passed"
+  head: "0bf44d2a1ff5e5e846f29007f707c6d461cdee9e"
+  base: "64dff1e1e918c4f265e1f760b854a6af1b6e05d7"
+  detail: "1 valid task, no issues or fixes, exit 0."
+- command: "git diff --check"
+  status: "passed"
+  head: "0bf44d2a1ff5e5e846f29007f707c6d461cdee9e"
+  base: "64dff1e1e918c4f265e1f760b854a6af1b6e05d7"
+  detail: "No whitespace errors."
+```
+
+
+## Publication — 2026-11-13
+
+Pushed `coga/v1-microkernel-03-launch-decomposition-6852fc` at
+`0bf44d2a1ff5e5e846f29007f707c6d461cdee9e`; the remote-tracking branch confirms the same head.
+Final fetch confirms `origin/main` is still
+`64dff1e1e918c4f265e1f760b854a6af1b6e05d7`, already contained in the
+feature branch; the rebase was up to date and rewrote nothing. Only this
+projected ticket is dirty. Implementation, tests and owner docs equal the
+committed/tested tree. PR preparation parses with all 16 diff paths and five
+check receipts. No PR was opened. Ready to bump once to `open-pr`; launch
+owns checkout return.
