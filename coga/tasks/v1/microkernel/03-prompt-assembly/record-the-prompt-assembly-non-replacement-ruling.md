@@ -1,6 +1,6 @@
 ---
 title: Record the prompt-assembly non-replacement ruling
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -21,6 +21,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -131,5 +132,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-microkernel-03-prompt-assembly-record-the-pro-f6ea54
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
