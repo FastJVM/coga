@@ -30,6 +30,11 @@ def launch(
         "bootstrap ticket.py receives them as its argv, and a stateful "
         "ticket.py target refuses them.",
     ),
+    read_only: bool = typer.Option(
+        False, "--read-only",
+        help="Run a bootstrap ticket.py without Coga audit, checkout or publication effects. "
+        "The script itself must avoid writes; this is not a sandbox.",
+    ),
     agent_override: str | None = typer.Option(
         None,
         "--agent",
@@ -76,6 +81,9 @@ def launch(
     ),
 ) -> None:
     """Compose context, start work on a task."""
+    if read_only:
+        # Withhold before config, resolution, or any refusing launch operation.
+        git.state_sweep_withheld.set(True)
     if idle_timeout is not None and _idle_timeout_unavailable():
         # Refuse before any state change, and keep the CLI's final sweep from
         # publishing pre-existing dirt on the way out (exit stays 2).
@@ -85,7 +93,7 @@ def launch(
     try:
         with launch_service.launch_reporting(typer.secho):
             result = launch_service.launch(
-                task, args=args, agent_override=agent_override,
+                task, args=args, agent_override=agent_override, read_only=read_only,
                 prompt_report=prompt_report, idle_timeout=idle_timeout,
                 max_session=max_session, return_timeout=return_timeout,
                 script_failure_important=script_failure_important,

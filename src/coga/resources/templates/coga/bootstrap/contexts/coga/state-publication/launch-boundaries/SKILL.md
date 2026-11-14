@@ -76,7 +76,8 @@ record for each agent session.
 | Agent bootstrap, including chat/orientation | Start audit plus usage: two for a no-write session. Agent state writes add their settlements/sweeps; no task lifecycle can substitute for the start audit. |
 | Guided authoring (`coga ticket`) | Immediate start audit, usage, guarded authored-set publication: three when the set changes, plus independent agent commands. A refused authored set withholds the sweep. |
 | Stateful `ticket.py` | Activation if needed, start if needed, script launch audit before user code, script lifecycle commands, and exit-line settlement/sweep. A clean active script that bumps once makes four; draft adds one, resumed `in_progress` removes one. A later agent phase has its own audit and usage. |
-| Stateless script | No task startup audit/lifecycle; count actual writes. |
+| Ordinary stateless script | No task startup audit/lifecycle; count actual writes. |
+| Read-only stateless script | No Coga publication; [launch](../../launch/SKILL.md#read-only-command-dispatch) owns its effect policy. |
 | Recurring period and delegated bootstrap | Count creation/adoption, strict start/lease checks, delegated audit, child audit/usage, result, and serviced-period ledger publications in their existing order. Neither ordinary nor queue bounds cover the whole run. |
 | Exempt/unmanaged launch, recorded assist, blocked resume | Existing routes and diagnostics, with no ordinary bound. |
 | Git disabled | No commits and no claim of remote durability. |

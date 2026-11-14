@@ -7,6 +7,7 @@ import os
 import shlex
 import signal
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -386,6 +387,16 @@ def _checkout_is_off_control(cfg: Config) -> bool:
         return False
 
 
+def _read_only_launch_requested(argv: list[str]) -> bool:
+    """Select dispatch effects before any target/config-dependent launch work.
+
+    Alias expansion has already produced the same argv as a direct launch.
+    Operands after the CLI separator cannot change invocation policy.
+    """
+    options = argv[2:argv.index("--") if "--" in argv else len(argv)]
+    return argv[1:2] == ["launch"] and "--read-only" in options
+
+
 def _should_sweep_coga_state(argv: list[str]) -> bool:
     args = argv[1:]
     if not args:
@@ -406,11 +417,11 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
         # return and final sweep own that state.
         return False
     if command == "launch" and any(
-        arg == "--prompt-report" for arg in args[1:]
+        arg in {"--prompt-report", "--read-only"}
+        for arg in args[1:args.index("--") if "--" in args else len(args)]
     ):
-        # A report composes and exits without spawning, so it writes no task
-        # state; a sweep would only publish the operator's unreviewed edits
-        # under the roots, which is exactly when they measure a prompt.
+        # Reports and explicit readers must not publish the effective local
+        # edits they inspect, including when parsing or admission refuses.
         return False
     if command == "bump" and any(
         arg in {"--backward", "--to"} or arg.startswith("--to=")
@@ -528,7 +539,7 @@ def main() -> None:
     try:
         find_repo_root()
         cfg = load_config(require_user=False)
-    except ConfigError as exc:
+    except (ConfigError, tomllib.TOMLDecodeError) as exc:
         msg = str(exc)
         if "No coga.toml found" in msg:
             help_invoked = any(arg in ("--help", "-h") for arg in sys.argv[1:])
@@ -611,6 +622,16 @@ def main() -> None:
         full = expanded + rest
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
+
+    if _read_only_launch_requested(sys.argv):
+        # No checkout scope, log observation, completion finalization or sweep.
+        # This applies to refusals too, before the adapter loads its config.
+        policy_token = git.state_sweep_withheld.set(True)
+        try:
+            app()
+        finally:
+            git.state_sweep_withheld.reset(policy_token)
+        return
 
     from coga.launch import checkout_guard_scope
     from coga.repl_supervisor import deferred_done_marker

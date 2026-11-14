@@ -26,11 +26,13 @@ instructions invoke it explicitly. A user repo may keep script tests beside
 the ticket, but Coga neither discovers nor runs them. A recurring template's
 `ticket.py` is copied into each period task (`coga/recurring/templates`). Classification is a point-in-time stat:
 launch repeats it after every moving sync, and a vanished file becomes an
-agent-only handoff instead of a failed run of a stale path.
+agent-only handoff instead of a failed run of a stale path. Explicit
+[read-only command dispatch](../launch/SKILL.md#read-only-command-dispatch)
+instead refuses a vanished entry and never hands off to an agent.
 
 ## One deterministic phase
 
-The script phase runs before any agent setup: no prompt composition, CLI
+The ordinary script phase runs before any agent setup: no prompt composition, CLI
 lookup, skill refresh, or push probe.
 
 1. Declared secrets resolve before any lifecycle write.
@@ -68,6 +70,11 @@ lookup, skill refresh, or push probe.
    [audit mutation contract](../state-publication/SKILL.md) and
    [trim-log runbook](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
    specify recovery before retrying a later command.
+
+Read-only command dispatch reuses this subprocess and environment builder but
+skips lifecycle and reload/teardown handling; its complete effects contract is
+owned by [launch](../launch/SKILL.md#read-only-command-dispatch). Ordinary
+bootstrap scripts keep their existing config requirements and exit sweep.
 
 ## Chaining
 

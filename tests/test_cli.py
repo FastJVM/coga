@@ -547,3 +547,33 @@ def test_launch_adapter_keeps_windows_dword_exit_codes(
     result = CliRunner().invoke(app, ["launch", "x"])
     assert result.exit_code == expected
     assert expected & 0xFFFFFFFF == code
+
+
+@pytest.mark.parametrize(
+    ("argv", "read_only"),
+    [
+        (["coga", "launch", "--read-only", "bootstrap/inspect"], True),
+        (["coga", "launch", "bootstrap/inspect", "--", "--read-only"], False),
+    ],
+)
+def test_read_only_launch_policy_respects_operand_separator(argv, read_only):
+    from coga.cli import _read_only_launch_requested, _should_sweep_coga_state
+
+    assert _read_only_launch_requested(argv) is read_only
+    assert _should_sweep_coga_state(argv) is not read_only
+
+
+def test_read_only_launch_finalization_restores_context(clone, monkeypatch):
+    from coga import git
+
+    monkeypatch.setattr("sys.argv", ["coga", "launch", "--read-only", "bootstrap/inspect"])
+    def refuse():
+        git.state_sweep_withheld.set(True)
+        raise SystemExit(2)
+    monkeypatch.setattr("coga.cli.app", refuse)
+    monkeypatch.setattr("coga.cli._sweep_coga_state", lambda *_: pytest.fail("sweep"))
+    before = git.state_sweep_withheld.get()
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    assert git.state_sweep_withheld.get() == before
