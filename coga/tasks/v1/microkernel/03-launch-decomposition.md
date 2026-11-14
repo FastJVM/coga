@@ -31,7 +31,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
@@ -56,10 +56,12 @@ a module split alone does not complete this ticket.
 
 The numbered `03-prompt-assembly/README.md` group owns candidate prompts,
 the comparison protocol, bounded trials and any production assembly migration.
-Its first result may be that no replacement is justified. This ticket owns
-stateless invocation/configuration/publication, session/admission seams and
-removal of duplicated execution setup. Consume the selected shared assembler
-without designing a second applicability mechanism here.
+Its owner-reviewed comparison now retains the production assembler: candidate
+C1 was disqualified (2026-11-13; see the group's
+`02-compare-current-and-candidate-prompt-assembly/report.md`, sections 3–4).
+This ticket owns stateless invocation/configuration/publication,
+session/admission seams and removal of duplicated execution setup. Consume
+the retained assembler without designing a second applicability mechanism here.
 
 Prompt experiments use the current executor and do not wait for this refactor.
 Design the stateless contract independently with read/report, customization,
@@ -137,12 +139,119 @@ through the existing shared operations, not forwarding imports in command files.
    assist receipts, recurring leases and released launch claims. The old
    "no locks exist" inventory is obsolete: direct chat has a checkout guard.
 
+### Draft stateless invocation contract — owner review
+
+Proposed spelling: `coga launch --read-only bootstrap/<name> [args...]`;
+an editable alias selects it, for example
+`inspect = "launch --read-only bootstrap/inspect"`. The Python launch API
+accepts the same explicit invocation policy, defaulting to ordinary launch.
+This is a launch option, not a new ticket field or command-name allowlist.
+Only a bootstrap target with the existing exact `ticket.py` entry qualifies.
+A stateful target, an agent-only bootstrap, or an agent override/report/REPL
+option combined with this mode refuses with exit 2 before execution or writes.
+An entry that disappears before spawn refuses; it never falls through to an
+agent. This restriction is specific to explicit read-only dispatch; ordinary
+script-to-agent behavior stays unchanged.
+
+| Concern | Read-only stateless script | Ordinary launch / write dispatch |
+| --- | --- | --- |
+| Configuration | Discover the repo and load with `require_user=False`, including every reload. Preserve malformed-config errors; no implicit repo initialization. No configured user or agent is needed. | Preserve current user requirements, preflights and reload semantics. |
+| Inputs and streams | Preserve trailing argv elements verbatim, host-repo cwd and inherited stdin/stdout/stderr. Coga framing and errors use stderr; stdout belongs to the script. No TTY or agent lookup. | Preserve bootstrap argv and stderr framing; stateful scripts still reject operands. |
+| Coga effects | No launch/exit audit, notification, usage capture, skill-view materialization, startup publication, or end-of-command sweep, on success or refusal. | Preserve each caller's audit and publication transaction, including retained-state failures and withheld sweeps. |
+| Checkout | Read the invoking checkout, including dirty effective local definitions. No fetch, refresh, checkout preparation/return, branch change, Git write, or push-auth probe. | Preserve existing managed, exempt, assist and recurring boundaries. |
+| Completion | One subprocess; zero completes only this stateless invocation. Nonzero propagates using the existing process-status convention; exit 75 withholds sweep and refresh. No task lifecycle, agent fallback or chaining. | Stateful zero still requires rereading lifecycle state; unchanged open steps can fall through to an agent. |
+| Environment | Reuse task-environment isolation and secret resolution/redaction; resolve declared secrets before spawn, never inherit outer completion or assist authority. A missing secret refuses without effects. | Preserve current fresh task identity, scoped secrets and verified assist capabilities. |
+
+`--read-only` describes Coga's dispatch effects and the selected procedure's
+contract. It is not a sandbox for arbitrary repository Python. A migrated
+reader must itself avoid writes, including subprocess lifecycle commands;
+review and regression tests cover that implementation. A writer cannot use
+this mode merely to avoid publication. No new inherited capability marker is
+introduced to authorize nested lifecycle completion.
+
+Determine this policy once from parsed launch input and carry it through
+resolution, configuration reloads, script execution and CLI finalization.
+The CLI must withhold its sweep before any potentially refusing config or
+target operation; inspecting a successfully returned result is too late.
+Alias expansion must retain the same policy as the direct spelling. Ordinary
+launch remains the default so existing writers keep their publication boundary.
+Implementation should reuse the existing script subprocess body and environment
+builder with explicit effect policy, rather than create another script executor.
+
+Read-only regression cases use both the direct spelling and an alias: no
+configured user/agent, non-TTY pipes, dirty ticket/context/log files, ordered
+arguments containing whitespace, nonzero/75 exits, missing script, missing
+secret and malformed config. Assert stream bytes and unchanged repo state;
+spy on publication, refresh and spawn seams to prove no hidden Git/agent work.
+Pair these with ordinary bootstrap-write and stateful-script regressions so
+suppressing effects cannot become the default for all bootstrap targets.
+Source/help migration remains with its consumer ticket; this ticket supplies
+the execution contract, not a rewrite of every read/report head.
+
+Mixed read/write procedures must select policy before their script runs.
+For example, an inspect operation uses read-only dispatch while an explicit
+copy operation uses ordinary dispatch; `validate --fix` cannot inherit a
+read-only alias's policy and then repair files. The consumer ticket chooses
+separate explicit invocations or a thin argv-parsing adapter that passes the
+appropriate policy to the same launch API. A read-only entry rejects write
+operands. Do not infer this from command names in the kernel, and do not
+allow a child to upgrade its policy after dispatch. Preserving a mixed head's
+spelling may therefore require a small adapter rather than a blind alias.
+
+Tradeoff: one generic launch option adds an invocation distinction, but keeps
+policy visible and editable in aliases without changing ticket classification.
+It deliberately covers deterministic readers only. An interactive stateless
+agent procedure continues through ordinary launch and its existing audit and
+readiness guarantees.
+
+### Concrete preparation reduction — owner review
+
+At base `ceb05f991289e16f8ded2c4273cee6fab55d54ea`, ordinary
+`_LaunchInvocation._prepare_agent` and `megalaunch._preflight_agent_launch`
+both perform CLI availability, full prompt validation, declared-secret
+environment construction and Windows command representability checks before
+startup writes. Replace that repeated readiness sequence with one shared,
+side-effect-free-with-respect-to-repo-state preparation operation used by both.
+It returns the selected agent, validated prompt and scoped environment, or a
+typed refusal. Secret resolution may invoke an external provider; it is not
+claimed to be pure. Reuse the existing assembler and command planner rather
+than copying either into the operation. Do not cache secret values or prepared
+results across a moving publication/reload boundary.
+
+Callers still supply the prospective ticket and invocation facts and retain
+their own error presentation. Ordinary launch keeps routing, TTY, checkout
+planning, final prospective-ticket composition and grouped startup publication.
+Megalaunch keeps candidate status checks, generation construction, source-byte
+capture, push-auth policy, claim publication and held-child release proofs.
+The helper does not own admission or callbacks. Its two real consumers replace
+the existing checks in the same PR; wrapping unchanged duplicated sequences
+or only relocating `spawn_agent_session` does not meet this reduction.
+Authoring retains its intentionally different no-secret environment and draft
+preflight; migrate it only if the same operation can express that existing
+contract without new policy machinery. Session-module extraction is optional.
+
+The first preparation change can use current composition. If prompt assembly
+selects a new seam, coordinate the input boundary before adopting it; no
+positive experiment result is required merely to retain the current assembler.
+A decision to keep the current prompt form must not indefinitely block this
+execution deliverable. Record final symbol names and before/after production
+counts across core, edge and scripts at named revisions, with relocation and
+removed duplicate checks distinguished. No line reduction is claimed here.
+
+### Out of scope
+
+Prompt selection and production assembly migration, checkout-policy design,
+read/report head migrations, customization tooling, lifecycle-verb migration,
+and scheduler/queue policy remain with their owning tickets. This change does
+not add a general effect sandbox, a plugin host, another public launch service,
+or a module split without a removed dependency or duplicated mechanism.
+
 ### Acceptance and reduction evidence
 
-- [ ] Session changes consume the approved shared composition seam without
-      adding a competing prompt assembler or moving the experimental gate
-      into hidden kernel rules. Any required interface is agreed with the
-      assembly ticket before dependent implementation.
+- [ ] Session changes use the retained production composition seam without
+      a competing prompt assembler or hidden applicability rules. Any later
+      replacement requires the prompt group's new approval and evidence;
+      this execution change does not depend on a replacement being selected.
 - [ ] Thin command adapter remains thin; no duplicate public launch API or
       compatibility re-export is added.
 - [ ] Caller policy is editable beside its ticket where selected by design;
@@ -153,7 +262,8 @@ through the existing shared operations, not forwarding imports in command files.
       whole-system evidence required by `coga-dev/microkernel/objectives`.
 - [ ] Existing launch, restart, script, authoring, megalaunch, recurring,
       environment and supervisor tests exercise the moved boundaries. Use the
-      full-suite and native Windows receipts required by `coga-dev/testing`.
+      full Linux suite receipts required by `coga-dev/testing`; native Windows
+      and macOS verification is deferred to release.
 - [ ] Update `coga/launch`, `coga/script-tickets`, the checkouts/publication
       owners and local source map where their execution contracts actually
       change; prompt/instruction owner changes belong to the assembly ticket.
@@ -165,8 +275,9 @@ to `declare-each-workflow-step-s-checkout-policy-in-th`. Its implementation can
 precede the session extraction. Read/report and customization depend only on
 the stateless contract they need; recipe job moves need no new session API.
 
-Keep the existing paused status, owner `review-design` step and frozen
-workflow. The owner reviews this narrowed execution scope separately; neither
+Keep the owner `review-design` step and frozen workflow; launch has resumed
+the ticket as `in_progress`. The owner reviews this narrowed execution scope
+separately; neither
 authoring the new drafts nor completing their experiment approves this ticket's
 runtime implementation. This remains a real execution deliverable, not an
 umbrella ticket for the new directory.
@@ -826,3 +937,19 @@ Recorded: 2026-11-13T05:32:23+00:00
     publish-state: /home/n/Code/coga/coga/tasks/v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol.md is not a regular file
 
 Resolved: the strict recipe accepts existing regular files as required paths, not deleted files. Retried with the six current files; publication succeeded at `ea76d6734fc9508a89e1ea7bba95ee1645abb6d7`. Verified that both former file-form copies are absent from `origin/main` and only the intended three grouped tickets plus README remain. The checkout is clean on main; no launch or workflow transition occurred.
+
+---
+
+## Design refinement — 2026-11-13
+
+Owner authorized drafting the missing stateless contract and a concrete duplicate-preparation removal. Added proposed `launch --read-only` for deterministic bootstrap scripts, including config/streams/exits/checkout/environment/publication behavior and mixed read/write dispatch. This is a cooperative procedure contract, not an arbitrary-Python sandbox. Selected ordinary launch and megalaunch's repeated agent-readiness checks for consolidation while preserving their distinct admission/publication transactions. No runtime implementation or reduction claim.
+
+Refreshed the prompt dependency from the completed owner-reviewed comparison: C1 is disqualified and production composition is retained. Updated stale paused prose to match launch's `in_progress`; lifecycle fields, owner review gate and frozen workflow are unchanged. Native verification is deferred to release under current testing policy.
+
+Review remains pending: the proposed mode and consolidation boundary have not been approved for implementation. Do not bump without the owner's explicit request to advance.
+
+Verification: base `ceb05f991289e16f8ded2c4273cee6fab55d54ea`, with only this ticket's uncommitted prose edits (not a clean-commit receipt); Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. Command: `TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-pytest-launch-design-20261113` (output redirected to `/tmp/coga-launch-design-20261113.log`): **4900 passed, 33 skipped**, 877.01 seconds. Python 3.11 was not used; native Windows/macOS verification is deferred to release. These are existing-suite checks on ticket-only changes, not evidence that the unimplemented dispatch proposal works.
+
+`TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/03-launch-decomposition --json` passes with no issues. Repo-wide `validate --json` reports 90 valid tasks, no errors and 16 warnings. `git diff --check` passes. Final fetch confirms HEAD and origin/main both at the base above; no reconciliation merge was needed. Only this ticket was edited. No workflow transition.
+
+Owner explicitly requested bump after reviewing the refined draft. Design review is approved for handoff to implement; this supersedes the pending-review note above. No runtime implementation was performed in this session.
