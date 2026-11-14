@@ -11044,3 +11044,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-13 17:32 v1 [v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-13 17:32 v1 [v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-13 17:32 v1 [v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-13 17:33 v1 [v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling] [agent:claude] advanced to step 2 (peer-review) → codex

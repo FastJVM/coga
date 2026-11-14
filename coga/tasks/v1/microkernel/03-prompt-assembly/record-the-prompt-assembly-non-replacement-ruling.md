@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -138,4 +138,16 @@ ordinary ticket.
 branch: coga/v1-microkernel-03-prompt-assembly-record-the-pro-f6ea54
 
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Handoff (implement)
+
+- Commit e8d81f94a on the branch (rebased onto origin/main 20be7955a, pushed).
+- Added `## Assembler ruling` to the packaged `coga/prompt-composition`
+  SKILL.md (before the implementation-detail pointer) and extended its
+  frontmatter description. Summarises the ruling and reopening conditions;
+  links report.md (§3, §4, §8) and blind/verdicts.csv via GitHub main URLs
+  (both tracked on origin/main) so the link works from adopting repos.
+- `docs/README.md` unchanged: its index entry names no headings.
+- Verification: `.venv/bin/python -m pytest -q tests/test_packaging.py
+  tests/test_compose.py` → 137 passed. Relative reconciliation link exists.
+  (System python lacks tomlkit; use the repo venv.)
+- Review focus: wording of the ruling vs report §8; no production code touched.
