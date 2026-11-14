@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -66,6 +67,7 @@ from coga.oscompat import lock_fd
 from coga.config import (
     build_launch_env,
     Config,
+    AgentType,
     ConfigError,
     parse_inline_secrets,
     SecretError,
@@ -77,7 +79,7 @@ from coga import checkouts
 from coga import git
 from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.launch_script import run_script_chain, script_entry_point
+from coga.launch_script import run_script_chain, run_script_phase, script_entry_point
 from coga.logfile import append_log, log_path
 from coga.paths import RESOURCE_NAMES, RepoResourceUnreadable
 from coga.mark import (
@@ -301,12 +303,30 @@ def launch(
     max_session: float | None = None,
     return_timeout: bool = False,
     script_failure_important: bool = False,
+    read_only: bool = False,
 ) -> LaunchResult:
     """Launch with ordinary Python defaults, returning a result or LaunchBail.
 
     Queue callers use the specialized recurring/delegation entry points below.
     No command-line parser objects or process exits cross this boundary.
     """
+    if read_only:
+        git.state_sweep_withheld.set(True)
+        if (agent_override is not None or prompt_report or idle_timeout is not None
+                or max_session is not None or return_timeout or script_failure_important):
+            _bail("--read-only cannot be combined with agent, report or REPL options.")
+        try:
+            cfg = load_config(require_user=False)
+            ref = resolve_target(cfg, task)
+            if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
+                _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
+            ticket = read_ticket(ref)
+            result = run_script_phase(
+                cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
+            )
+        except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
+            _bail(str(exc))
+        return LaunchResult(kind="script", exit_code=result.exit_code)
     with ExitStack() as local_scope:
         if task == "bootstrap/orient" and not prompt_report:
             try:
@@ -1763,47 +1783,19 @@ class _LaunchInvocation:
                 f"(cli={self.agent.cli})"
             )
 
-            # Verify the configured CLI binary exists. Coga never installs agent
-            # CLIs; every agent-backed command uses the same point-of-need error.
-            agent_path = shutil.which(self.agent.cli)
-            if agent_path is None:
-                _bail(agent_cli_missing_message(self.agent.name, self.agent.cli))
-            _report(f"Launch: found agent CLI at {agent_path}")
-
-            # Fail loud BEFORE any status is written: if a referenced context or
-            # skill is missing, the composed prompt would drop a layer the human
-            # expected the agent to have. Refuse to start — and don't write the
-            # activation, flip the ticket to in_progress, or post a "started"
-            # broadcast for a task that never runs.
-            # The per-step loop below re-composes; this is a cheap pre-flight (file
-            # reads only) so the flip and notification post are never reached on a bad ref.
             try:
-                compose_prompt(self.cfg, self.ref, self.ticket, launch_context=self.launch_context)
-            except ComposeError as exc:
+                prepared = prepare_agent_launch(
+                    self.cfg, self.ref, self.ticket, self.launch_agent,
+                    launch_context=self.launch_context,
+                    discussion=_is_discussion_bootstrap(self.ref),
+                    kickoff=_bootstrap_kickoff(self.ref),
+                )
+            except AgentPreparationError as exc:
+                if exc.command_refused:
+                    git.state_sweep_withheld.set(True)
                 _bail(str(exc))
-            except FileNotFoundError as exc:
-                # A layer file that exists at resolve time but not at read time
-                # (a concurrent checkout, a mid-sync working tree). Loud either
-                # way, but name the path instead of dumping a traceback.
-                _bail(missing_launch_file_message(exc))
-
-            # Preflight and build the child env before mutating ticket state. A missing
-            # declared secret is a launch refusal, not a started task.
-            try:
-                self.env = build_launch_env(self.cfg, self.ticket.secrets)
-            except SecretError as exc:
-                _bail(str(exc))
-
-            # Native Windows: refuse a command line no transport can carry
-            # before any lifecycle write, with the exit sweep withheld.
-            require_representable_agent_command(
-                self.agent,
-                env=self.env,
-                ref=self.ref,
-                name=self.ticket.title or "",
-                discussion=_is_discussion_bootstrap(self.ref),
-                kickoff=_bootstrap_kickoff(self.ref),
-            )
+            self.agent, self.env = prepared.agent, prepared.env
+            _report(f"Launch: found agent CLI at {prepared.cli_path}")
 
             # Refuse to start an agent session when git push access is broken. Coga
             # drives the whole session through git/gh (branch push, `gh pr create`,
@@ -3651,6 +3643,58 @@ def require_representable_agent_command(agent, **kwargs) -> None:
     if refusal is not None:
         git.state_sweep_withheld.set(True)
         _bail(refusal)
+
+
+class AgentPreparationError(Exception):
+    """Readiness refusal before a caller publishes startup state."""
+
+    def __init__(self, reason: str, *, command_refused: bool = False) -> None:
+        super().__init__(reason)
+        self.command_refused = command_refused
+
+
+class PreparedAgentLaunch(NamedTuple):
+    """One fresh readiness pass; never retained across publication/reload."""
+
+    agent: AgentType
+    prompt: str
+    env: dict[str, str]
+    cli_path: str
+
+
+def prepare_agent_launch(
+    cfg: Config,
+    ref: TargetRef,
+    ticket: Ticket,
+    launch_agent: str,
+    *,
+    launch_context: LaunchContext = "attended",
+    discussion: bool = False,
+    kickoff: str | None = None,
+) -> PreparedAgentLaunch:
+    """Validate CLI, full prompt, secrets and command without repo writes.
+
+    Callers own prospective lifecycle, admission and publication. Secret
+    resolution may call an external provider; the result is not cached.
+    """
+    try:
+        agent = cfg.agent_type(launch_agent)
+        cli_path = shutil.which(agent.cli)
+        if cli_path is None:
+            raise AgentPreparationError(agent_cli_missing_message(agent.name, agent.cli))
+        prompt = compose_prompt(cfg, ref, ticket, launch_context=launch_context)
+        env = build_launch_env(cfg, ticket.secrets)
+    except FileNotFoundError as exc:
+        raise AgentPreparationError(missing_launch_file_message(exc)) from exc
+    except (ConfigError, ComposeError, SecretError) as exc:
+        raise AgentPreparationError(str(exc)) from exc
+    refusal = agent_command_refusal(
+        agent, env=env, ref=ref, name=ticket.title or "",
+        discussion=discussion, kickoff=kickoff,
+    )
+    if refusal is not None:
+        raise AgentPreparationError(refusal, command_refused=True)
+    return PreparedAgentLaunch(agent, prompt, env, cli_path)
 
 
 def build_agent_command(

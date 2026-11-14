@@ -54,7 +54,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -74,21 +73,20 @@ from coga.blackboard import (
 )
 from coga.launch import (
     _interactive_stdio_has_tty,
-    agent_command_refusal,
-    missing_launch_file_message,
+    AgentPreparationError,
+    prepare_agent_launch,
     spawn_agent_session,
 )
 from coga.recurring_runner import (
     _recurring_idle_timeout,
     _recurring_max_session,
 )
-from coga.compose import ComposeError, compose_prompt
+from coga.compose import ComposeError
 from coga.config import (
     AgentType,
     Config,
     ConfigError,
     SecretError,
-    build_launch_env,
     load_config,
 )
 from coga.dependencies import agent_cli_missing_message
@@ -2239,8 +2237,6 @@ def _preflight_agent_launch(
                 "ticket carries a released megalaunch admission awaiting "
                 f"reconciliation — run `coga launch {ref.id_slug}` to recover"
             )
-    if shutil.which(agent.cli) is None:
-        return agent_cli_missing_message(agent.name, agent.cli)
     expected_source_bytes = (
         ticket.render().encode("utf-8")
         if source_ticket_bytes is None
@@ -2256,24 +2252,14 @@ def _preflight_agent_launch(
         else generation
     )
     try:
-        prompt = compose_prompt(
-            cfg, ref, launch_ticket, launch_context="megalaunch"
+        prepared = prepare_agent_launch(
+            cfg, ref, launch_ticket, launch_agent or "", launch_context="megalaunch",
         )
-        env = build_supervised_step_env(
-            build_launch_env(cfg, launch_ticket.secrets),
-            task_path=ref.path,
-            step=launch_ticket.step,
-            agent=launch_agent,
-        )
-    except FileNotFoundError as exc:
-        return missing_launch_file_message(exc)
-    except (ConfigError, ComposeError, SecretError) as exc:
+    except AgentPreparationError as exc:
         return str(exc)
-    command_refusal = agent_command_refusal(
-        agent, env=env, ref=ref, name=launch_ticket.title or ""
+    env = build_supervised_step_env(
+        prepared.env, task_path=ref.path, step=launch_ticket.step, agent=launch_agent,
     )
-    if command_refusal is not None:
-        return command_refusal
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:
@@ -2281,9 +2267,9 @@ def _preflight_agent_launch(
     return _PreparedAgentLaunch(
         ticket=launch_ticket,
         source_ticket_bytes=expected_source_bytes,
-        agent=agent,
+        agent=prepared.agent,
         env=env,
-        prompt=prompt,
+        prompt=prepared.prompt,
     )
 
 
