@@ -1,6 +1,6 @@
 ---
 title: Classify read and report commands under the small-core rule
-status: active
+status: in_progress
 owner: nicktoper
 agent: codex
 contexts:
@@ -57,6 +57,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (design)
+launch_generation: pending:fdcef00a-6b18-4654-b56c-9e80a11adf7a
 ---
 
 ## Description
