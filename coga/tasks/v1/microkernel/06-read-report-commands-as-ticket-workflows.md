@@ -57,7 +57,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (design)
-launch_generation: pending:5b05c749-2ae5-43c5-b77e-a693541b78bc
+launch_generation: 5b05c749-2ae5-43c5-b77e-a693541b78bc
 ---
 
 ## Description
