@@ -1,6 +1,6 @@
 ---
 title: Classify support commands under the small-core rule
-status: paused
+status: active
 owner: nicktoper
 agent: codex
 contexts:
