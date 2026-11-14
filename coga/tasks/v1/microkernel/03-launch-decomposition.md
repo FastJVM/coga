@@ -31,7 +31,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
