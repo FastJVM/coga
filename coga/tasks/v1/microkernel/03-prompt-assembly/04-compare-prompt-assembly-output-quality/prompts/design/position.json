@@ -1,0 +1,9 @@
+{
+  "position": "1 (design)",
+  "name": "design",
+  "assignee": "agent",
+  "requires": null,
+  "skills": [
+    "code/design"
+  ]
+}

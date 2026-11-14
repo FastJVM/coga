@@ -1,0 +1,130 @@
+{
+ "case": "docs",
+ "arm": "baseline",
+ "rep": 1,
+ "pin": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+ "fixture_head": "8b99ac148d288ca425e400a9a7db07dfa6953f03",
+ "start_utc": "2026-11-14T19:17:00.747784+00:00",
+ "frozen_sha256": "c65c95044e055804958b8e104f0a71f86180e5db3d3a8fc8aa49d6e550f665e1",
+ "live_guard_pre": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "venv_pre": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "pre": {
+  "head": "8b99ac148d288ca425e400a9a7db07dfa6953f03",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\nrefs/remotes/origin/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\nrefs/worktree/coga/published 4219b5e683cd99eb31f752ba9f470d874ba0af91\n",
+  "origin_refs": "refs/heads/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\n",
+  "log_all": ""
+ },
+ "production_equals_frozen_baseline": true,
+ "target": "document-untrusted-tool-output-verify-through-grou",
+ "spawn_kwargs": {
+  "actor": "human:trial-owner",
+  "log_message": "launched (operator=codex, agent=codex)",
+  "name": "Document untrusted-tool-output verify-through-ground-truth agent discipline",
+  "discussion": false,
+  "kickoff": null,
+  "prompt_suffix": "",
+  "launch_context": "megalaunch",
+  "idle_timeout": null,
+  "max_session": 1800.0,
+  "label": "Launch",
+  "warn_blackboard": true,
+  "commit_log": true,
+  "assist_branch": null,
+  "assist_agent": null,
+  "before_recompose": null,
+  "before_spawn": "<function _LaunchInvocation._supervise_steps.<locals>.freeze_state_before_session at 0x7433447c4d60>",
+  "record_launch": true,
+  "checkout_notice": null
+ },
+ "result": "returned",
+ "wall_seconds": 175.7,
+ "end_utc": "2026-11-14T19:19:56.773303+00:00",
+ "delivered": {
+  "bytes": 14784,
+  "sha256": "30107f469f56f0ef4297e077cb934dc62a4457e3adacdf832ce1450e6029fc08",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "6822aa1116b170019cdab1bf07ab7db6707834e4",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/docs/untrusted-tool-output 3c75780b33c4a3a3959a37a8c0c154d2645bd3be\nrefs/heads/main 6822aa1116b170019cdab1bf07ab7db6707834e4\nrefs/remotes/origin/docs/untrusted-tool-output 3c75780b33c4a3a3959a37a8c0c154d2645bd3be\nrefs/remotes/origin/main 6822aa1116b170019cdab1bf07ab7db6707834e4\nrefs/worktree/coga/published 8fb97666aba9d9bd49f224a52ab867fd0488cf68\n",
+  "origin_refs": "refs/heads/docs/untrusted-tool-output 3c75780b33c4a3a3959a37a8c0c154d2645bd3be\nrefs/heads/main 6822aa1116b170019cdab1bf07ab7db6707834e4\n",
+  "log_all": "6822aa1116b170019cdab1bf07ab7db6707834e4 HEAD -> main, origin/main Log: document-untrusted-tool-output-verify-through-grou\n8008706885012799a1ee2826569757d9a9635fca  Ticket: document-untrusted-tool-output-verify-through-grou \u2014 step 2 (peer-review)\n3c75780b33c4a3a3959a37a8c0c154d2645bd3be origin/docs/untrusted-tool-output, docs/untrusted-tool-output Teach agents to verify outcomes through ground truth\n3cd6a2a6b12f00977252e3354feb039d4621736a  Publish coga state\n0445099bcbd9b73f4510104537aa1d13d333b83b  Log: document-untrusted-tool-output-verify-through-grou\ne022620f11d00ec3efb5c634281a53f402c66bbc  Ticket: document-untrusted-tool-output-verify-through-grou \u2014 in_progress\n"
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/14/rollout-2026-11-14T11-17-04-01a1db7d-e808-7103-87b2-4f762ac8cd91.jsonl"
+ ],
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-quality-trial/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ],
+ "tokens": [
+  {
+   "input_tokens": 1163640,
+   "cached_input_tokens": 1111296,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 5234,
+   "reasoning_output_tokens": 501,
+   "total_tokens": 1168874
+  }
+ ],
+ "live_guard_post": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "venv_post": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "venv_changed": false
+}

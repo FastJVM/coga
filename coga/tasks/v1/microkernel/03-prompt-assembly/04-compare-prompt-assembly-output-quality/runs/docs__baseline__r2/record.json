@@ -1,0 +1,130 @@
+{
+ "case": "docs",
+ "arm": "baseline",
+ "rep": 2,
+ "pin": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+ "fixture_head": "8b99ac148d288ca425e400a9a7db07dfa6953f03",
+ "start_utc": "2026-11-14T19:59:16.197835+00:00",
+ "frozen_sha256": "c65c95044e055804958b8e104f0a71f86180e5db3d3a8fc8aa49d6e550f665e1",
+ "live_guard_pre": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "venv_pre": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "pre": {
+  "head": "8b99ac148d288ca425e400a9a7db07dfa6953f03",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\nrefs/remotes/origin/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\nrefs/worktree/coga/published 4219b5e683cd99eb31f752ba9f470d874ba0af91\n",
+  "origin_refs": "refs/heads/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\n",
+  "log_all": ""
+ },
+ "production_equals_frozen_baseline": true,
+ "target": "document-untrusted-tool-output-verify-through-grou",
+ "spawn_kwargs": {
+  "actor": "human:trial-owner",
+  "log_message": "launched (operator=codex, agent=codex)",
+  "name": "Document untrusted-tool-output verify-through-ground-truth agent discipline",
+  "discussion": false,
+  "kickoff": null,
+  "prompt_suffix": "",
+  "launch_context": "megalaunch",
+  "idle_timeout": null,
+  "max_session": 1800.0,
+  "label": "Launch",
+  "warn_blackboard": true,
+  "commit_log": true,
+  "assist_branch": null,
+  "assist_agent": null,
+  "before_recompose": null,
+  "before_spawn": "<function _LaunchInvocation._supervise_steps.<locals>.freeze_state_before_session at 0x7e8f2bec91c0>",
+  "record_launch": true,
+  "checkout_notice": null
+ },
+ "result": "returned",
+ "wall_seconds": 153.9,
+ "end_utc": "2026-11-14T20:01:50.429174+00:00",
+ "delivered": {
+  "bytes": 14784,
+  "sha256": "24b5921d9b9aaaa1eba009e174664a2bbc651bfc4ca2faf1a791efe54b0254f6",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "4bd41cce143f40d5a35bd9f773e1af87cf39e124",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/coga/document-untrusted-tool-output 1fdfbbc8ab4ee050b80209a0c4f7c33c970b819c\nrefs/heads/main 4bd41cce143f40d5a35bd9f773e1af87cf39e124\nrefs/remotes/origin/coga/document-untrusted-tool-output 1fdfbbc8ab4ee050b80209a0c4f7c33c970b819c\nrefs/remotes/origin/main 4bd41cce143f40d5a35bd9f773e1af87cf39e124\nrefs/worktree/coga/published 1589d11bf79d1591dcd17f804111552eb26db1c4\n",
+  "origin_refs": "refs/heads/coga/document-untrusted-tool-output 1fdfbbc8ab4ee050b80209a0c4f7c33c970b819c\nrefs/heads/main 4bd41cce143f40d5a35bd9f773e1af87cf39e124\n",
+  "log_all": "4bd41cce143f40d5a35bd9f773e1af87cf39e124 HEAD -> main, origin/main Log: document-untrusted-tool-output-verify-through-grou\n4c8008b10cb5334031709c19bc7ca0a1fc3c0d40  Ticket: document-untrusted-tool-output-verify-through-grou \u2014 step 2 (peer-review)\n93fa44c5b270faf36691abde058f048a6e87ae46  Sync coga state\n1fdfbbc8ab4ee050b80209a0c4f7c33c970b819c origin/coga/document-untrusted-tool-output, coga/document-untrusted-tool-output Teach agents to verify tool outcomes through state\ndc05954225c0ea289ece54f48db0784f0fc0e33e  Publish coga state\n3caa07f37cd7c510c837a9cef11ed36ad9911a46  Log: document-untrusted-tool-output-verify-through-grou\n02565ab667b27b8561075bcc7dbcf170e3a0a01b  Ticket: document-untrusted-tool-output-verify-through-grou \u2014 in_progress\n"
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/14/rollout-2026-11-14T11-59-21-01a1dba4-a0ff-7a91-ab25-35eb40496cdf.jsonl"
+ ],
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-quality-trial/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ],
+ "tokens": [
+  {
+   "input_tokens": 870349,
+   "cached_input_tokens": 823936,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 4177,
+   "reasoning_output_tokens": 412,
+   "total_tokens": 874526
+  }
+ ],
+ "live_guard_post": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "venv_post": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "venv_changed": false
+}

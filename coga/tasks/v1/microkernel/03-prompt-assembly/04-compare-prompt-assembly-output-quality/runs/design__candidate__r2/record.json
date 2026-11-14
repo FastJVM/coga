@@ -1,0 +1,130 @@
+{
+ "case": "design",
+ "arm": "candidate",
+ "rep": 2,
+ "pin": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+ "fixture_head": "19a9b322c6090de7f5f182d785b45715c27b8729",
+ "start_utc": "2026-11-14T19:54:11.987099+00:00",
+ "frozen_sha256": "223319f87356245aa44ac65a50e98f868166f5c2016edf794cfc82d73587710d",
+ "live_guard_pre": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "venv_pre": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "pre": {
+  "head": "19a9b322c6090de7f5f182d785b45715c27b8729",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main 19a9b322c6090de7f5f182d785b45715c27b8729\nrefs/remotes/origin/main 19a9b322c6090de7f5f182d785b45715c27b8729\nrefs/worktree/coga/published 5c4e6b5e77876a5b04b4d51ee15baaebd55a5ab5\n",
+  "origin_refs": "refs/heads/main 19a9b322c6090de7f5f182d785b45715c27b8729\n",
+  "log_all": ""
+ },
+ "production_equals_frozen_baseline": true,
+ "target": "warn-when-coga-delete-or-coga-retire-leaves-a-live",
+ "spawn_kwargs": {
+  "actor": "human:trial-owner",
+  "log_message": "launched (operator=codex, agent=codex)",
+  "name": "Warn when coga delete or coga retire leaves a live link to the deleted ticket",
+  "discussion": false,
+  "kickoff": null,
+  "prompt_suffix": "",
+  "launch_context": "megalaunch",
+  "idle_timeout": null,
+  "max_session": 1800.0,
+  "label": "Launch",
+  "warn_blackboard": true,
+  "commit_log": true,
+  "assist_branch": null,
+  "assist_agent": null,
+  "before_recompose": null,
+  "before_spawn": "<function _LaunchInvocation._supervise_steps.<locals>.freeze_state_before_session at 0x70dcc73c5080>",
+  "record_launch": true,
+  "checkout_notice": null
+ },
+ "result": "returned",
+ "wall_seconds": 150.0,
+ "end_utc": "2026-11-14T19:56:42.346569+00:00",
+ "delivered": {
+  "bytes": 21635,
+  "sha256": "fbd5f63410f0bdbac8ca0bd13e81dd1c199358accb8fd7b95790f00d806ffea0",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "e2e1652531914ca4d147dc0808b8cd025d8038d0",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main e2e1652531914ca4d147dc0808b8cd025d8038d0\nrefs/remotes/origin/main e2e1652531914ca4d147dc0808b8cd025d8038d0\nrefs/worktree/coga/published 2404bbf7f4de7a83c82be55c0b5f56b4f9cbd07a\n",
+  "origin_refs": "refs/heads/main e2e1652531914ca4d147dc0808b8cd025d8038d0\n",
+  "log_all": "e2e1652531914ca4d147dc0808b8cd025d8038d0 HEAD -> main, origin/main Log: warn-when-coga-delete-or-coga-retire-leaves-a-live\n6458397d53fa24c665fc0305e6fb522965536cb0  Ticket: warn-when-coga-delete-or-coga-retire-leaves-a-live \u2014 step 2 (evaluate-design)\nebdf2d2461762ccbde7c3dcec14ed26cb509b1a5  Log: warn-when-coga-delete-or-coga-retire-leaves-a-live\nea4e2d14077518d5f004a4fea00dfe5da6824e71  Ticket: warn-when-coga-delete-or-coga-retire-leaves-a-live \u2014 in_progress\n"
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/14/rollout-2026-11-14T11-54-15-01a1db9f-f29e-7270-9ba5-8b1ab1d55d14.jsonl"
+ ],
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-quality-trial/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ],
+ "tokens": [
+  {
+   "input_tokens": 458007,
+   "cached_input_tokens": 405120,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 4748,
+   "reasoning_output_tokens": 425,
+   "total_tokens": 462755
+  }
+ ],
+ "live_guard_post": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "venv_post": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "venv_changed": false
+}

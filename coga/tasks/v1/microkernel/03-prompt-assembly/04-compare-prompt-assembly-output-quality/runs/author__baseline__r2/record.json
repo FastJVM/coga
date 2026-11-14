@@ -1,0 +1,181 @@
+{
+ "case": "author",
+ "arm": "baseline",
+ "rep": 2,
+ "pin": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+ "fixture_head": "70854d9584f17b1bbb7cd803f7cac7d353e1d10b",
+ "start_utc": "2026-11-14T20:12:12.803381+00:00",
+ "frozen_sha256": "30654c68f25db1663230b4ceb2905d4c50e43bda306ffba1d2d5d495c24b36a1",
+ "live_guard_pre": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "venv_pre": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "pre": {
+  "head": "70854d9584f17b1bbb7cd803f7cac7d353e1d10b",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main 70854d9584f17b1bbb7cd803f7cac7d353e1d10b\nrefs/remotes/origin/main 70854d9584f17b1bbb7cd803f7cac7d353e1d10b\n",
+  "origin_refs": "refs/heads/main 70854d9584f17b1bbb7cd803f7cac7d353e1d10b\n",
+  "log_all": ""
+ },
+ "production_equals_frozen_baseline": true,
+ "target": "flag-stalled-in-progress-tickets-in-coga-status",
+ "spawn_kwargs": {
+  "actor": "human:trial-owner",
+  "log_message": "ticket authoring launched (interviewer=codex, agent=codex)",
+  "discussion": true,
+  "kickoff": "Begin (new ticket)",
+  "label": "Ticket",
+  "commit_log": true,
+  "secrets_are_scoped": false,
+  "stateless_identity": [
+   "bootstrap/ticket",
+   "Create a new ticket"
+  ],
+  "include_blocker_preamble": false
+ },
+ "result": "returned",
+ "wall_seconds": 233.5,
+ "end_utc": "2026-11-14T20:16:06.642414+00:00",
+ "delivered": {
+  "bytes": 42287,
+  "sha256": "306058cb37204dfefe88cfad0dfef41c944e44a19096bb8774c37ca91d423c54",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "2f979f7bd9c72ce0bb4f7fbd42669e4a01a15be7",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main 2f979f7bd9c72ce0bb4f7fbd42669e4a01a15be7\nrefs/remotes/origin/main 2f979f7bd9c72ce0bb4f7fbd42669e4a01a15be7\nrefs/worktree/coga/published 1818f617010633840ec8a2806ebb18a3a6de7d26\n",
+  "origin_refs": "refs/heads/main 2f979f7bd9c72ce0bb4f7fbd42669e4a01a15be7\n",
+  "log_all": "2f979f7bd9c72ce0bb4f7fbd42669e4a01a15be7 HEAD -> main, origin/main Log: bootstrap/ticket\n441b1b67754482905d89d54039fa8950d03812ba  Publish coga state\n73935f478c3ea772237e08cfaef669d14f6af527  Log: flag-stalled-in-progress-tickets-in-coga-status\ndfffa54e95eb19ed8781a9a1f723d36794513774  Ticket: flag-stalled-in-progress-tickets-in-coga-status \u2014 created\n"
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/14/rollout-2026-11-14T12-12-15-01a1dbb0-7068-7502-a8fe-c65ed32e7709.jsonl",
+  "/home/n/.codex/sessions/2026/11/14/rollout-2026-11-14T12-13-53-01a1dbb1-edb1-70d3-9649-ee1364eac362.jsonl"
+ ],
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-quality-trial/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ],
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-quality-trial/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ],
+ "tokens": [
+  {
+   "input_tokens": 1683439,
+   "cached_input_tokens": 1620736,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 5603,
+   "reasoning_output_tokens": 484,
+   "total_tokens": 1689042
+  },
+  {
+   "input_tokens": 220530,
+   "cached_input_tokens": 185856,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 1245,
+   "reasoning_output_tokens": 47,
+   "total_tokens": 221775
+  }
+ ],
+ "live_guard_post": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "venv_post": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "venv_changed": false
+}

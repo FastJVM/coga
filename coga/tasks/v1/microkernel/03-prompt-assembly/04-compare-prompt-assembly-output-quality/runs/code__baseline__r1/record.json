@@ -1,0 +1,130 @@
+{
+ "case": "code",
+ "arm": "baseline",
+ "rep": 1,
+ "pin": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+ "fixture_head": "23a90cc74ef95a008ee0c7b28aca7eaf82bc9dd9",
+ "start_utc": "2026-11-14T18:42:51.646547+00:00",
+ "frozen_sha256": "8c054a139b6ef8c66d5cfdbe16d61114c68ae0b1a2611020275c63b4cdbf5bf8",
+ "live_guard_pre": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "venv_pre": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "pre": {
+  "head": "23a90cc74ef95a008ee0c7b28aca7eaf82bc9dd9",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main 23a90cc74ef95a008ee0c7b28aca7eaf82bc9dd9\nrefs/remotes/origin/main 23a90cc74ef95a008ee0c7b28aca7eaf82bc9dd9\nrefs/worktree/coga/published f5e12ec8ae37de6a2e098f4b96fb3486e65cd420\n",
+  "origin_refs": "refs/heads/main 23a90cc74ef95a008ee0c7b28aca7eaf82bc9dd9\n",
+  "log_all": ""
+ },
+ "production_equals_frozen_baseline": true,
+ "target": "fail-validation-when-local-user-is-required-for-ex",
+ "spawn_kwargs": {
+  "actor": "human:trial-owner",
+  "log_message": "launched (operator=codex, agent=codex)",
+  "name": "Fail validation when local user is required for execution",
+  "discussion": false,
+  "kickoff": null,
+  "prompt_suffix": "",
+  "launch_context": "megalaunch",
+  "idle_timeout": null,
+  "max_session": 1800.0,
+  "label": "Launch",
+  "warn_blackboard": true,
+  "commit_log": true,
+  "assist_branch": null,
+  "assist_agent": null,
+  "before_recompose": null,
+  "before_spawn": "<function _LaunchInvocation._supervise_steps.<locals>.freeze_state_before_session at 0x7626b14c4ae0>",
+  "record_launch": true,
+  "checkout_notice": null
+ },
+ "result": "returned",
+ "wall_seconds": 844.5,
+ "end_utc": "2026-11-14T18:56:56.499621+00:00",
+ "delivered": {
+  "bytes": 24069,
+  "sha256": "e3844ba75249327db7acfd2c6653a09f66e1733d1320b1d32ef562bc447f4884",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "fe3f2d11823aced932eddebe5c4b88cbb07d9773",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/coga/execution-ready-validation 635da1703d65399065baca338a27328d0cf8b557\nrefs/heads/main fe3f2d11823aced932eddebe5c4b88cbb07d9773\nrefs/remotes/origin/coga/execution-ready-validation 635da1703d65399065baca338a27328d0cf8b557\nrefs/remotes/origin/main fe3f2d11823aced932eddebe5c4b88cbb07d9773\nrefs/worktree/coga/published 6c3816bdd33b89067f5f16921e3e733322e9c54b\n",
+  "origin_refs": "refs/heads/coga/execution-ready-validation 635da1703d65399065baca338a27328d0cf8b557\nrefs/heads/main fe3f2d11823aced932eddebe5c4b88cbb07d9773\n",
+  "log_all": "fe3f2d11823aced932eddebe5c4b88cbb07d9773 HEAD -> main, origin/main Log: fail-validation-when-local-user-is-required-for-ex\nfc6d913b06ca2d9f25ea2ddff866192c0b831367  Ticket: fail-validation-when-local-user-is-required-for-ex \u2014 step 2 (peer-review)\n635da1703d65399065baca338a27328d0cf8b557 origin/coga/execution-ready-validation, coga/execution-ready-validation Add execution-ready validation for missing local actors\nd91c13a52aafb9223a2e5ba77d4c9e08b2630cd9  Publish coga state\n2bc466e1419765e14e99ef3c563f2c89716f5e48  Log: fail-validation-when-local-user-is-required-for-ex\n568fd00520f0fc7c5921f647921399bf4dea51e4  Ticket: fail-validation-when-local-user-is-required-for-ex \u2014 in_progress\n"
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/14/rollout-2026-11-14T10-42-55-01a1db5e-a4d5-7020-8e11-5674415ddf33.jsonl"
+ ],
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-quality-trial/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ],
+ "tokens": [
+  {
+   "input_tokens": 3783171,
+   "cached_input_tokens": 3715200,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 10209,
+   "reasoning_output_tokens": 2122,
+   "total_tokens": 3793380
+  }
+ ],
+ "live_guard_post": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "venv_post": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "venv_changed": false
+}

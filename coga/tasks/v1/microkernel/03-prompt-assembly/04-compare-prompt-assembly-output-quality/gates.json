@@ -1,0 +1,1310 @@
+{
+ "author__baseline__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ],
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": null,
+  "step_before": null,
+  "status_after": "draft",
+  "step_after": null,
+  "frontmatter_keys_changed": [
+   "owner",
+   "title",
+   "workflow"
+  ],
+  "log_lines_added": [
+   "2026-11-14 12:07 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] created (status=draft)",
+   "2026-11-14 12:07 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] ticket authoring launched (interviewer=codex, agent=codex)",
+   "2026-11-14 12:11 v1 [bootstrap/ticket] [system] {\"agent\":\"codex\",\"agent_turns\":9,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":1683200,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":294.942603,\"ended_at\":\"2026-11-14T20:11:56.859172Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":3,\"input_tokens\":57092,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Filled `flag-stalled-in-progress-tickets-in-coga-status` and published the draft. Run `coga launch flag-stalled-in-progress-tickets-in-coga-status` when ready. Use `coga mark active flag-stalled-in-progress-tickets-in-coga-status` only to approve it without launching.\",\"outcome_status\":\"completed\",\"output_tokens\":5864,\"provider\":\"openai\",\"request\":\"> What should this flag detect, why is it needed now, and what would count as done? For example, does \u201cstalled\u201d mean an in-progress ticket has no running agent, has been inactive for some time, or something else? I want `coga status` to make stalled work visible. Tickets regularly sit in_progress for days after an agent session dies or I forget an owner gate, and I only notice by accident. A ticket counts as stalled when its most recent coga/log.md entry is older than a threshold; the threshold\u2026\",\"schema\":2,\"session_id\":\"01a1dbab-adb5-7930-82cd-1a90e5677909\",\"slug\":\"bootstrap/ticket\",\"started_at\":\"2026-11-14T20:07:01.916569Z\",\"step\":null,\"title\":\"Create a new ticket\",\"ts\":\"2026-11-14T20:11:56.859172Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 2,
+  "wall_seconds": 296.9,
+  "tokens": [
+   {
+    "input_tokens": 1740292,
+    "cached_input_tokens": 1683200,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 5864,
+    "reasoning_output_tokens": 352,
+    "total_tokens": 1746156
+   },
+   {
+    "input_tokens": 132712,
+    "cached_input_tokens": 105344,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 687,
+    "reasoning_output_tokens": 32,
+    "total_tokens": 133399
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "author__baseline__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ],
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": null,
+  "step_before": null,
+  "status_after": "draft",
+  "step_after": null,
+  "frontmatter_keys_changed": [
+   "owner",
+   "title",
+   "workflow"
+  ],
+  "log_lines_added": [
+   "2026-11-14 12:12 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] created (status=draft)",
+   "2026-11-14 12:12 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] ticket authoring launched (interviewer=codex, agent=codex)",
+   "2026-11-14 12:16 v1 [bootstrap/ticket] [system] {\"agent\":\"codex\",\"agent_turns\":7,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":1620736,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":231.60737,\"ended_at\":\"2026-11-14T20:16:05.752469Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":4,\"input_tokens\":62703,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Finalized and published the draft. Validation passed with warnings only. Run `coga launch flag-stalled-in-progress-tickets-in-coga-status` when ready. Use `coga mark active flag-stalled-in-progress-tickets-in-coga-status` only to approve it without launching.\",\"outcome_status\":\"completed\",\"output_tokens\":5603,\"provider\":\"openai\",\"request\":\"<send_user_message_question_reply> [{\\\\\"answer\\\\\":\\\\\"I want `coga status` to make stalled work visible. Tickets regularly sit in_progress for days after an agent session dies or I forget an owner gate, and I only notice by accident. A ticket counts as stalled when its most recent coga/log.md entry is older than a threshold; the threshold should be configurable in coga.toml with a sensible default. `coga status` should mark stalled tickets and offer a way to list only them. No notifications or automat\u2026\",\"schema\":2,\"session_id\":\"01a1dbb0-7068-7502-a8fe-c65ed32e7709\",\"slug\":\"bootstrap/ticket\",\"started_at\":\"2026-11-14T20:12:14.145099Z\",\"step\":null,\"title\":\"Create a new ticket\",\"ts\":\"2026-11-14T20:16:05.752469Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 2,
+  "wall_seconds": 233.5,
+  "tokens": [
+   {
+    "input_tokens": 1683439,
+    "cached_input_tokens": 1620736,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 5603,
+    "reasoning_output_tokens": 484,
+    "total_tokens": 1689042
+   },
+   {
+    "input_tokens": 220530,
+    "cached_input_tokens": 185856,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 1245,
+    "reasoning_output_tokens": 47,
+    "total_tokens": 221775
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "author__candidate__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ],
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": null,
+  "step_before": null,
+  "status_after": "draft",
+  "step_after": null,
+  "frontmatter_keys_changed": [
+   "owner",
+   "title",
+   "workflow"
+  ],
+  "log_lines_added": [
+   "2026-11-14 12:02 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] created (status=draft)",
+   "2026-11-14 12:02 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] ticket authoring launched (interviewer=codex, agent=codex)",
+   "2026-11-14 12:06 v1 [bootstrap/ticket] [system] {\"agent\":\"codex\",\"agent_turns\":7,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":1386240,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":275.427709,\"ended_at\":\"2026-11-14T20:06:42.591643Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":5,\"input_tokens\":62091,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Filled `flag-stalled-in-progress-tickets-in-coga-status`. Independent review and cleanup are complete; validation has no errors. Run `coga launch flag-stalled-in-progress-tickets-in-coga-status` when ready. Use `coga mark active flag-stalled-in-progress-tickets-in-coga-status` only to approve it without launching.\",\"outcome_status\":\"completed\",\"output_tokens\":5110,\"provider\":\"openai\",\"request\":\"<send_user_message_question_reply> [{\\\\\"answer\\\\\":\\\\\"I want `coga status` to make stalled work visible. Tickets regularly sit in_progress for days after an agent session dies or I forget an owner gate, and I only notice by accident. A ticket counts as stalled when its most recent coga/log.md entry is older than a threshold; the threshold should be configurable in coga.toml with a sensible default. `coga status` should mark stalled tickets and offer a way to list only them. No notifications or automat\u2026\",\"schema\":2,\"session_id\":\"01a1dba7-2dc0-7e41-8594-8eeaaf7ec3a7\",\"slug\":\"bootstrap/ticket\",\"started_at\":\"2026-11-14T20:02:07.163934Z\",\"step\":null,\"title\":\"Create a new ticket\",\"ts\":\"2026-11-14T20:06:42.591643Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 2,
+  "wall_seconds": 277.5,
+  "tokens": [
+   {
+    "input_tokens": 1448331,
+    "cached_input_tokens": 1386240,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 5110,
+    "reasoning_output_tokens": 286,
+    "total_tokens": 1453441
+   },
+   {
+    "input_tokens": 127384,
+    "cached_input_tokens": 80000,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 655,
+    "reasoning_output_tokens": 49,
+    "total_tokens": 128039
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "author__candidate__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ],
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": null,
+  "step_before": null,
+  "status_after": "draft",
+  "step_after": null,
+  "frontmatter_keys_changed": [
+   "owner",
+   "title",
+   "workflow"
+  ],
+  "log_lines_added": [
+   "2026-11-14 12:16 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] created (status=draft)",
+   "2026-11-14 12:16 v1 [flag-stalled-in-progress-tickets-in-coga-status] [human:trial-owner] ticket authoring launched (interviewer=codex, agent=codex)",
+   "2026-11-14 12:20 v1 [bootstrap/ticket] [system] {\"agent\":\"codex\",\"agent_turns\":8,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":1300352,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":263.079804,\"ended_at\":\"2026-11-14T20:20:38.489788Z\",\"exit_code\":0,\"exit_kind\":\"natural\",\"human_turns\":5,\"input_tokens\":102075,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Filled `flag-stalled-in-progress-tickets-in-coga-status` and published to main. It remains a draft; validation found no errors. Run `coga launch flag-stalled-in-progress-tickets-in-coga-status` when ready. Use `coga mark active flag-stalled-in-progress-tickets-in-coga-status` only to approve it without launching.\",\"outcome_status\":\"completed\",\"output_tokens\":4797,\"provider\":\"openai\",\"request\":\"I want `coga status` to make stalled work visible. Tickets regularly sit in_progress for days after an agent session dies or I forget an owner gate, and I only notice by accident. A ticket counts as stalled when its most recent coga/log.md entry is older than a threshold; the threshold should be configurable in coga.toml with a sensible default. `coga status` should mark stalled tickets and offer a way to list only them. No notifications or automatic actions; that is a separate idea. It is a co\u2026\",\"schema\":2,\"session_id\":\"01a1dbb4-206e-7b11-9070-4d70decdf147\",\"slug\":\"bootstrap/ticket\",\"started_at\":\"2026-11-14T20:16:15.409984Z\",\"step\":null,\"title\":\"Create a new ticket\",\"ts\":\"2026-11-14T20:20:38.489788Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 2,
+  "wall_seconds": 264.9,
+  "tokens": [
+   {
+    "input_tokens": 1402427,
+    "cached_input_tokens": 1300352,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 4797,
+    "reasoning_output_tokens": 347,
+    "total_tokens": 1407224
+   },
+   {
+    "input_tokens": 136264,
+    "cached_input_tokens": 83584,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 723,
+    "reasoning_output_tokens": 137,
+    "total_tokens": 136987
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "code__baseline__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 10:42 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 10:42 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 10:56 v1 [fail-validation-when-local-user-is-required-for-ex] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 10:56 v1 [fail-validation-when-local-user-is-required-for-ex] [system] {\"agent\":\"codex\",\"agent_turns\":12,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":3715200,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":842.250301,\"ended_at\":\"2026-11-14T18:56:55.407473Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":67971,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The full Linux suite passed: 4,947 tests passed and 34 skipped in 11m03s. The tested branch is current with `origin/main` and pushed. I\u2019m returning the checkout to main, recording the handoff, and advancing the ticket to peer review.\",\"outcome_status\":\"completed\",\"output_tokens\":10209,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db5e-a4d5-7020-8e11-5674415ddf33\",\"slug\":\"fail-validation-when-local-user-is-required-for-ex\",\"started_at\":\"2026-11-14T18:42:53.157172Z\",\"step\":\"implement\",\"title\":\"Fail validation when local user is required for execution\",\"ts\":\"2026-11-14T18:56:55.407473Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 844.5,
+  "tokens": [
+   {
+    "input_tokens": 3783171,
+    "cached_input_tokens": 3715200,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 10209,
+    "reasoning_output_tokens": 2122,
+    "total_tokens": 3793380
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "coga/execution-ready-validation",
+  "branch_pushed": true,
+  "flags": []
+ },
+ "code__baseline__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:37 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:37 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:51 v1 [fail-validation-when-local-user-is-required-for-ex] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 11:51 v1 [fail-validation-when-local-user-is-required-for-ex] [system] {\"agent\":\"codex\",\"agent_turns\":16,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":3099648,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":860.051782,\"ended_at\":\"2026-11-14T19:51:28.998477Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":61800,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The full Linux suite passed: **4,943 passed, 34 skipped**. I\u2019ll record the verification evidence, return the checkout to current `main`, and bump the ticket to peer review. No PR has been opened.\",\"outcome_status\":\"completed\",\"output_tokens\":10835,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db90-528f-7682-8f72-679842f5e593\",\"slug\":\"fail-validation-when-local-user-is-required-for-ex\",\"started_at\":\"2026-11-14T19:37:08.946695Z\",\"step\":\"implement\",\"title\":\"Fail validation when local user is required for execution\",\"ts\":\"2026-11-14T19:51:28.998477Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 862.4,
+  "tokens": [
+   {
+    "input_tokens": 3161448,
+    "cached_input_tokens": 3099648,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 10835,
+    "reasoning_output_tokens": 2415,
+    "total_tokens": 3172283
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "coga/execution-ready-validation",
+  "branch_pushed": true,
+  "flags": []
+ },
+ "code__candidate__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 10:57 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 10:57 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:11 v1 [fail-validation-when-local-user-is-required-for-ex] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 11:11 v1 [fail-validation-when-local-user-is-required-for-ex] [system] {\"agent\":\"codex\",\"agent_turns\":15,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":2877696,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":868.707122,\"ended_at\":\"2026-11-14T19:11:44.321618Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":80696,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The full Linux suite passed: **4,947 passed, 34 skipped** in 650.29 seconds on Python 3.12.12. Main has not advanced since reconciliation. I\u2019ll push the tested commit, return to main, record the handoff, and advance once to peer review.\",\"outcome_status\":\"completed\",\"output_tokens\":9786,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db6b-cc11-74d1-b631-df981da9d091\",\"slug\":\"fail-validation-when-local-user-is-required-for-ex\",\"started_at\":\"2026-11-14T18:57:15.614496Z\",\"step\":\"implement\",\"title\":\"Fail validation when local user is required for execution\",\"ts\":\"2026-11-14T19:11:44.321618Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 870.9,
+  "tokens": [
+   {
+    "input_tokens": 2958392,
+    "cached_input_tokens": 2877696,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 9786,
+    "reasoning_output_tokens": 1176,
+    "total_tokens": 2968178
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "coga/fail-validation-execution-ready",
+  "branch_pushed": true,
+  "flags": []
+ },
+ "code__candidate__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:23 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:23 v1 [fail-validation-when-local-user-is-required-for-ex] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:36 v1 [fail-validation-when-local-user-is-required-for-ex] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 11:36 v1 [fail-validation-when-local-user-is-required-for-ex] [system] {\"agent\":\"codex\",\"agent_turns\":13,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":3085568,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":832.763934,\"ended_at\":\"2026-11-14T19:36:59.221209Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":61514,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The full Linux suite passed: **4,951 passed, 34 skipped** in 647.52 seconds. The final fetch/rebase found no drift, and the checkout is back on clean `main`. I\u2019ll now write the verification and PR preparation record, then run `coga bump` to hand off to peer review.\",\"outcome_status\":\"completed\",\"output_tokens\":9735,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db83-75dd-7e50-abb7-a7eb716e6822\",\"slug\":\"fail-validation-when-local-user-is-required-for-ex\",\"started_at\":\"2026-11-14T19:23:06.457275Z\",\"step\":\"implement\",\"title\":\"Fail validation when local user is required for execution\",\"ts\":\"2026-11-14T19:36:59.221209Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 834.9,
+  "tokens": [
+   {
+    "input_tokens": 3147082,
+    "cached_input_tokens": 3085568,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 9735,
+    "reasoning_output_tokens": 1772,
+    "total_tokens": 3156817
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "coga/fail-validation-execution-ready",
+  "branch_pushed": true,
+  "flags": []
+ },
+ "design__baseline__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (design)",
+  "status_after": "in_progress",
+  "step_after": "2 (evaluate-design)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:14 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:14 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:16 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [agent:codex] advanced to step 2 (evaluate-design) \u2192 claude",
+   "2026-11-14 11:16 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [system] {\"agent\":\"codex\",\"agent_turns\":4,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":400896,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":129.17677,\"ended_at\":\"2026-11-14T19:16:49.291577Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":53037,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The ticket now contains the acceptance criteria, implementation shape, test coverage, and documentation ownership. Task validation passed with no issues. Main has not moved since the initial fetch; I\u2019ll record the checks and bump to `evaluate-design`.\",\"outcome_status\":\"completed\",\"output_tokens\":3980,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db7b-bf68-7013-bfa9-324547c4afb7\",\"slug\":\"warn-when-coga-delete-or-coga-retire-leaves-a-live\",\"started_at\":\"2026-11-14T19:14:40.114807Z\",\"step\":\"design\",\"title\":\"Warn when coga delete or coga retire leaves a live link to the deleted ticket\",\"ts\":\"2026-11-14T19:16:49.291577Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 131.3,
+  "tokens": [
+   {
+    "input_tokens": 453933,
+    "cached_input_tokens": 400896,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 3980,
+    "reasoning_output_tokens": 260,
+    "total_tokens": 457913
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "design__baseline__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (design)",
+  "status_after": "in_progress",
+  "step_after": "2 (evaluate-design)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:51 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:51 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:53 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [agent:codex] advanced to step 2 (evaluate-design) \u2192 claude",
+   "2026-11-14 11:53 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [system] {\"agent\":\"codex\",\"agent_turns\":3,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":353920,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":120.958431,\"ended_at\":\"2026-11-14T19:53:52.343611Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":52564,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The spec is on the ticket, and scoped validation passes. It covers advisory warnings, scan failures, false positives, the recurring replacement exception, and documentation ownership. I\u2019ll check for main-branch drift, then bump it to independent design evaluation.\",\"outcome_status\":\"completed\",\"output_tokens\":4199,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db9d-c7a4-7fb3-a058-f12816427aa7\",\"slug\":\"warn-when-coga-delete-or-coga-retire-leaves-a-live\",\"started_at\":\"2026-11-14T19:51:51.385180Z\",\"step\":\"design\",\"title\":\"Warn when coga delete or coga retire leaves a live link to the deleted ticket\",\"ts\":\"2026-11-14T19:53:52.343611Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 123.1,
+  "tokens": [
+   {
+    "input_tokens": 406484,
+    "cached_input_tokens": 353920,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 4199,
+    "reasoning_output_tokens": 377,
+    "total_tokens": 410683
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "design__candidate__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (design)",
+  "status_after": "in_progress",
+  "step_after": "2 (evaluate-design)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:11 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:11 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:14 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [agent:codex] advanced to step 2 (evaluate-design) \u2192 claude",
+   "2026-11-14 11:14 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [system] {\"agent\":\"codex\",\"agent_turns\":3,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":363264,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":136.652065,\"ended_at\":\"2026-11-14T19:14:14.683641Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":55059,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The ticket now specifies warning timing, search scope, failure behavior, tests, and documentation ownership. Scoped validation passed with no issues. I\u2019ll check for main drift, then advance the ticket to design evaluation.\",\"outcome_status\":\"completed\",\"output_tokens\":4006,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db79-4303-70e3-82ca-0b564bb6974b\",\"slug\":\"warn-when-coga-delete-or-coga-retire-leaves-a-live\",\"started_at\":\"2026-11-14T19:11:58.031576Z\",\"step\":\"design\",\"title\":\"Warn when coga delete or coga retire leaves a live link to the deleted ticket\",\"ts\":\"2026-11-14T19:14:14.683641Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 138.8,
+  "tokens": [
+   {
+    "input_tokens": 418323,
+    "cached_input_tokens": 363264,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 4006,
+    "reasoning_output_tokens": 406,
+    "total_tokens": 422329
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "design__candidate__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (design)",
+  "status_after": "in_progress",
+  "step_after": "2 (evaluate-design)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:54 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:54 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:56 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [agent:codex] advanced to step 2 (evaluate-design) \u2192 claude",
+   "2026-11-14 11:56 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [system] {\"agent\":\"codex\",\"agent_turns\":4,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":405120,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":147.844602,\"ended_at\":\"2026-11-14T19:56:41.301609Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":52887,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The ticket now contains acceptance criteria, an implementation outline, and the recurring-replacement exception. Ticket-scoped validation passed with no issues. I\u2019m checking the final diff and main\u2019s freshness before advancing it to design evaluation.\",\"outcome_status\":\"completed\",\"output_tokens\":4748,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db9f-f29e-7270-9ba5-8b1ab1d55d14\",\"slug\":\"warn-when-coga-delete-or-coga-retire-leaves-a-live\",\"started_at\":\"2026-11-14T19:54:13.457007Z\",\"step\":\"design\",\"title\":\"Warn when coga delete or coga retire leaves a live link to the deleted ticket\",\"ts\":\"2026-11-14T19:56:41.301609Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 150.0,
+  "tokens": [
+   {
+    "input_tokens": 458007,
+    "cached_input_tokens": 405120,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 4748,
+    "reasoning_output_tokens": 425,
+    "total_tokens": 462755
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "flags": []
+ },
+ "docs__baseline__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:17 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:17 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:19 v1 [document-untrusted-tool-output-verify-through-grou] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 11:19 v1 [document-untrusted-tool-output-verify-through-grou] [system] {\"agent\":\"codex\",\"agent_turns\":4,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":1111296,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":173.508053,\"ended_at\":\"2026-11-14T19:19:55.735135Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":52344,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The change is committed and pushed. All 40 packaging tests and 97 composition tests passed, and a direct composition check confirmed the guidance appears once in each launch mode. The remote branch ref matches commit `3c75780`. I\u2019ll now return to `main`, record the verification receipts, and advance the ticket to peer review without opening a PR.\",\"outcome_status\":\"completed\",\"output_tokens\":5234,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db7d-e808-7103-87b2-4f762ac8cd91\",\"slug\":\"document-untrusted-tool-output-verify-through-grou\",\"started_at\":\"2026-11-14T19:17:02.227082Z\",\"step\":\"implement\",\"title\":\"Document untrusted-tool-output verify-through-ground-truth agent discipline\",\"ts\":\"2026-11-14T19:19:55.735135Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 175.7,
+  "tokens": [
+   {
+    "input_tokens": 1163640,
+    "cached_input_tokens": 1111296,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 5234,
+    "reasoning_output_tokens": 501,
+    "total_tokens": 1168874
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "docs/untrusted-tool-output",
+  "branch_pushed": true,
+  "flags": []
+ },
+ "docs__baseline__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:59 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:59 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 12:01 v1 [document-untrusted-tool-output-verify-through-grou] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 12:01 v1 [document-untrusted-tool-output-verify-through-grou] [system] {\"agent\":\"codex\",\"agent_turns\":4,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":823936,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":151.718113,\"ended_at\":\"2026-11-14T20:01:49.387083Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":46413,\"model\":\"gpt-6.1-sol\",\"outcome\":\"All 137 packaging and prompt-composition checks passed, and the diff has no whitespace errors. I committed the change and verified that the remote branch points to the same commit. I\u2019ll now record the handoff on `main` and advance to peer review; this step stops before opening a PR.\",\"outcome_status\":\"completed\",\"output_tokens\":4177,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1dba4-a0ff-7a91-ab25-35eb40496cdf\",\"slug\":\"document-untrusted-tool-output-verify-through-grou\",\"started_at\":\"2026-11-14T19:59:17.668970Z\",\"step\":\"implement\",\"title\":\"Document untrusted-tool-output verify-through-ground-truth agent discipline\",\"ts\":\"2026-11-14T20:01:49.387083Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 153.9,
+  "tokens": [
+   {
+    "input_tokens": 870349,
+    "cached_input_tokens": 823936,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 4177,
+    "reasoning_output_tokens": 412,
+    "total_tokens": 874526
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "coga/document-untrusted-tool-output",
+  "branch_pushed": true,
+  "flags": []
+ },
+ "docs__candidate__r1": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:20 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:20 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:22 v1 [document-untrusted-tool-output-verify-through-grou] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 11:22 v1 [document-untrusted-tool-output-verify-through-grou] [system] {\"agent\":\"codex\",\"agent_turns\":5,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":886784,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":173.108538,\"ended_at\":\"2026-11-14T19:22:57.473483Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":86989,\"model\":\"gpt-6.1-sol\",\"outcome\":\"Committed and pushed as `fa0dfe2`; an independent remote query matched the full commit ID. The checkout is back on `main`, and the ticket records the checks, placement decision, and remaining review. I\u2019ll now advance it once to peer review.\",\"outcome_status\":\"completed\",\"output_tokens\":4094,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1db80-b14f-7d40-bae3-e1dee1ae03f8\",\"slug\":\"document-untrusted-tool-output-verify-through-grou\",\"started_at\":\"2026-11-14T19:20:04.364945Z\",\"step\":\"implement\",\"title\":\"Document untrusted-tool-output verify-through-ground-truth agent discipline\",\"ts\":\"2026-11-14T19:22:57.473483Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 175.3,
+  "tokens": [
+   {
+    "input_tokens": 973773,
+    "cached_input_tokens": 886784,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 4094,
+    "reasoning_output_tokens": 437,
+    "total_tokens": 977867
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "coga/document-untrusted-tool-output",
+  "branch_pushed": true,
+  "flags": []
+ },
+ "docs__candidate__r2": {
+  "integrity": {
+   "production_equals_frozen_baseline": true,
+   "delivered_equals_frozen": true,
+   "live_repo_changed": false,
+   "venv_changed": false,
+   "sandbox": [
+    [
+     {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     }
+    ]
+   ]
+  },
+  "status_before": "active",
+  "step_before": "1 (implement)",
+  "status_after": "in_progress",
+  "step_after": "2 (peer-review)",
+  "frontmatter_keys_changed": [],
+  "log_lines_added": [
+   "2026-11-14 11:56 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] started (active \u2192 in_progress) via coga launch",
+   "2026-11-14 11:56 v1 [document-untrusted-tool-output-verify-through-grou] [human:trial-owner] launched (operator=codex, agent=codex)",
+   "2026-11-14 11:59 v1 [document-untrusted-tool-output-verify-through-grou] [agent:codex] advanced to step 2 (peer-review) \u2192 claude",
+   "2026-11-14 11:59 v1 [document-untrusted-tool-output-verify-through-grou] [system] {\"agent\":\"codex\",\"agent_turns\":4,\"cache_creation_input_tokens\":null,\"cache_read_input_tokens\":443776,\"cli\":\"codex\",\"content_status\":\"ok\",\"elapsed_seconds\":126.462876,\"ended_at\":\"2026-11-14T19:59:02.031385Z\",\"exit_code\":0,\"exit_kind\":\"done\",\"human_turns\":0,\"input_tokens\":43553,\"model\":\"gpt-6.1-sol\",\"outcome\":\"The five focused packaging, ownership, and navigation checks passed. The docs change is committed and pushed, and a separate `git ls-remote` query confirms the remote branch matches the commit. I\u2019ll return to `main`, record the verification receipts, and advance to peer review without opening a PR.\",\"outcome_status\":\"completed\",\"output_tokens\":2758,\"provider\":\"openai\",\"request\":null,\"schema\":2,\"session_id\":\"01a1dba2-6e37-7f12-ba76-d1bed9cb1d0d\",\"slug\":\"document-untrusted-tool-output-verify-through-grou\",\"started_at\":\"2026-11-14T19:56:55.568509Z\",\"step\":\"implement\",\"title\":\"Document untrusted-tool-output verify-through-ground-truth agent discipline\",\"ts\":\"2026-11-14T19:59:02.031385Z\",\"usage_reason\":null,\"usage_status\":\"ok\"}"
+  ],
+  "merge_commits": [],
+  "non_coga_changes_on_main": [],
+  "rollouts": 1,
+  "wall_seconds": 128.8,
+  "tokens": [
+   {
+    "input_tokens": 487329,
+    "cached_input_tokens": 443776,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 2758,
+    "reasoning_output_tokens": 427,
+    "total_tokens": 490087
+   }
+  ],
+  "result": "returned",
+  "ticket_on_origin_main": true,
+  "branch": "coga/document-untrusted-tool-output",
+  "branch_pushed": true,
+  "flags": []
+ }
+}

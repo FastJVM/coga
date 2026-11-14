@@ -1,0 +1,18 @@
+{
+  "operation": "execute",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "warn-when-coga-delete-or-coga-retire-leaves-a-live",
+  "launch_context": "megalaunch",
+  "include_blocker_preamble": true,
+  "completion": "one workflow transition or terminal block",
+  "owner_assist": false,
+  "checkout": null,
+  "script_result": null,
+  "kickoff": null,
+  "discussion": false,
+  "launch_arguments": [],
+  "fixture_ticket": "coga/tasks/warn-when-coga-delete-or-coga-retire-leaves-a-live.md",
+  "transport": "interactive argv, PTY",
+  "invocation_source": "launch._launch (megalaunch conduct)"
+}

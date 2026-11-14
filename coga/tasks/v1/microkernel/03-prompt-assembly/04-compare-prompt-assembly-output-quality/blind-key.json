@@ -1,0 +1,53 @@
+{
+ "seed": 182484992,
+ "pairs": {
+  "732331": {
+   "case": "author",
+   "rep": 1,
+   "X": "baseline",
+   "Y": "candidate"
+  },
+  "283a63": {
+   "case": "author",
+   "rep": 2,
+   "Y": "baseline",
+   "X": "candidate"
+  },
+  "1846ec": {
+   "case": "code",
+   "rep": 1,
+   "X": "baseline",
+   "Y": "candidate"
+  },
+  "b030d4": {
+   "case": "code",
+   "rep": 2,
+   "X": "baseline",
+   "Y": "candidate"
+  },
+  "367ff1": {
+   "case": "design",
+   "rep": 1,
+   "Y": "baseline",
+   "X": "candidate"
+  },
+  "6601ad": {
+   "case": "design",
+   "rep": 2,
+   "Y": "baseline",
+   "X": "candidate"
+  },
+  "e2f466": {
+   "case": "docs",
+   "rep": 1,
+   "Y": "baseline",
+   "X": "candidate"
+  },
+  "7d6512": {
+   "case": "docs",
+   "rep": 2,
+   "X": "baseline",
+   "Y": "candidate"
+  }
+ }
+}

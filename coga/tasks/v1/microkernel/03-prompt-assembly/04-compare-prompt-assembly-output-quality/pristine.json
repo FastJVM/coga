@@ -1,0 +1,30 @@
+[
+ {
+  "case": "code",
+  "snapshot_commit": "70854d9584f17b1bbb7cd803f7cac7d353e1d10b",
+  "head": "23a90cc74ef95a008ee0c7b28aca7eaf82bc9dd9",
+  "status_after_activation": "",
+  "config_sha256": "3db9eb4823c90aec5f30d770535e80d6b72d31989cc2dbf8020faa824c54092f"
+ },
+ {
+  "case": "design",
+  "snapshot_commit": "70854d9584f17b1bbb7cd803f7cac7d353e1d10b",
+  "head": "19a9b322c6090de7f5f182d785b45715c27b8729",
+  "status_after_activation": "",
+  "config_sha256": "3db9eb4823c90aec5f30d770535e80d6b72d31989cc2dbf8020faa824c54092f"
+ },
+ {
+  "case": "docs",
+  "snapshot_commit": "70854d9584f17b1bbb7cd803f7cac7d353e1d10b",
+  "head": "8b99ac148d288ca425e400a9a7db07dfa6953f03",
+  "status_after_activation": "",
+  "config_sha256": "3db9eb4823c90aec5f30d770535e80d6b72d31989cc2dbf8020faa824c54092f"
+ },
+ {
+  "case": "author",
+  "snapshot_commit": "70854d9584f17b1bbb7cd803f7cac7d353e1d10b",
+  "head": "70854d9584f17b1bbb7cd803f7cac7d353e1d10b",
+  "status_after_activation": "",
+  "config_sha256": "3db9eb4823c90aec5f30d770535e80d6b72d31989cc2dbf8020faa824c54092f"
+ }
+]

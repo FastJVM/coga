@@ -1,0 +1,18 @@
+{
+  "operation": "author",
+  "execution_kind": "agent",
+  "target_kind": "task",
+  "target": "flag-stalled-in-progress-tickets-in-coga-status",
+  "launch_context": "attended",
+  "include_blocker_preamble": false,
+  "completion": "authoring return",
+  "owner_assist": false,
+  "checkout": null,
+  "script_result": null,
+  "kickoff": "Begin (new ticket)",
+  "discussion": true,
+  "launch_arguments": [],
+  "fixture_ticket": "coga/tasks/flag-stalled-in-progress-tickets-in-coga-status.md",
+  "transport": "discussion template + separate kickoff, PTY",
+  "invocation_source": "commands.ticket._run_authoring_session"
+}

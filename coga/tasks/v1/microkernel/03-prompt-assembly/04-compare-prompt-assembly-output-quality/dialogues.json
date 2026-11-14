@@ -1,0 +1,6 @@
+{
+  "_rules": "Unattended cases (code, design, docs): no replies at all. Author case: send `brief` once, after the agent's opening greeting/question; answer every later question with `any_question`; answer a request to validate/approve the drafted ticket, or a plan confirmation, with `validate`; after the agent reports it is finished, exit Codex. A session idle at an input prompt for 5 min with nothing scripted to send is ended and recorded as idle-waiting.",
+  "brief": "I want `coga status` to make stalled work visible. Tickets regularly sit in_progress for days after an agent session dies or I forget an owner gate, and I only notice by accident. A ticket counts as stalled when its most recent coga/log.md entry is older than a threshold; the threshold should be configurable in coga.toml with a sensible default. `coga status` should mark stalled tickets and offer a way to list only them. No notifications or automatic actions; that is a separate idea. It is a code change; use code/with-review.",
+  "any_question": "No preference; use your judgment and note the assumption in the ticket.",
+  "validate": "Looks good. Finalize it."
+}

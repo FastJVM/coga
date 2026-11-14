@@ -1,0 +1,130 @@
+{
+ "case": "docs",
+ "arm": "candidate",
+ "rep": 1,
+ "pin": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+ "fixture_head": "8b99ac148d288ca425e400a9a7db07dfa6953f03",
+ "start_utc": "2026-11-14T19:20:02.861428+00:00",
+ "frozen_sha256": "95aeca8b255323a23d4bf27ae2247af86b13be88f806f764e8d8cafb3212a605",
+ "live_guard_pre": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "venv_pre": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "pre": {
+  "head": "8b99ac148d288ca425e400a9a7db07dfa6953f03",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\nrefs/remotes/origin/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\nrefs/worktree/coga/published 4219b5e683cd99eb31f752ba9f470d874ba0af91\n",
+  "origin_refs": "refs/heads/main 8b99ac148d288ca425e400a9a7db07dfa6953f03\n",
+  "log_all": ""
+ },
+ "production_equals_frozen_baseline": true,
+ "target": "document-untrusted-tool-output-verify-through-grou",
+ "spawn_kwargs": {
+  "actor": "human:trial-owner",
+  "log_message": "launched (operator=codex, agent=codex)",
+  "name": "Document untrusted-tool-output verify-through-ground-truth agent discipline",
+  "discussion": false,
+  "kickoff": null,
+  "prompt_suffix": "",
+  "launch_context": "megalaunch",
+  "idle_timeout": null,
+  "max_session": 1800.0,
+  "label": "Launch",
+  "warn_blackboard": true,
+  "commit_log": true,
+  "assist_branch": null,
+  "assist_agent": null,
+  "before_recompose": null,
+  "before_spawn": "<function _LaunchInvocation._supervise_steps.<locals>.freeze_state_before_session at 0x7752eadc4e00>",
+  "record_launch": true,
+  "checkout_notice": null
+ },
+ "result": "returned",
+ "wall_seconds": 175.3,
+ "end_utc": "2026-11-14T19:22:58.531111+00:00",
+ "delivered": {
+  "bytes": 14959,
+  "sha256": "451616d1f0aab8092cc68cebb5f4ef72baa8802333eb0aa838c338cca424b751",
+  "equals_frozen_modulo_marker": true
+ },
+ "post": {
+  "head": "fc2717edb14679f77b6d60e8263957bdb4c40630",
+  "branch": "main",
+  "status": "",
+  "local_refs": "refs/heads/coga/document-untrusted-tool-output fa0dfe29b1678cd958a84c9815b20706f3f7b514\nrefs/heads/main fc2717edb14679f77b6d60e8263957bdb4c40630\nrefs/remotes/origin/coga/document-untrusted-tool-output fa0dfe29b1678cd958a84c9815b20706f3f7b514\nrefs/remotes/origin/main fc2717edb14679f77b6d60e8263957bdb4c40630\nrefs/worktree/coga/published 6b5c4e597c09ad1519c81593efa16689f1293ca7\n",
+  "origin_refs": "refs/heads/coga/document-untrusted-tool-output fa0dfe29b1678cd958a84c9815b20706f3f7b514\nrefs/heads/main fc2717edb14679f77b6d60e8263957bdb4c40630\n",
+  "log_all": "fc2717edb14679f77b6d60e8263957bdb4c40630 HEAD -> main, origin/main Log: document-untrusted-tool-output-verify-through-grou\n8b751fc323f6324af42454e489bbb09d9ed48e50  Ticket: document-untrusted-tool-output-verify-through-grou \u2014 step 2 (peer-review)\nfa0dfe29b1678cd958a84c9815b20706f3f7b514 origin/coga/document-untrusted-tool-output, coga/document-untrusted-tool-output Document independent verification of tool outcomes\n99e50c4901ae0964cf0dcd1057a6414f567eaf81  Publish coga state\nf19c4d5f099baf53404ae49d99e25c7d2509283c  Log: document-untrusted-tool-output-verify-through-grou\n17292bbaa0cae519cd1d417a47e78d0337f9927f  Ticket: document-untrusted-tool-output-verify-through-grou \u2014 in_progress\n"
+ },
+ "codex_sessions": [
+  "/home/n/.codex/sessions/2026/11/14/rollout-2026-11-14T11-20-06-01a1db80-b14f-7d40-bae3-e1dee1ae03f8.jsonl"
+ ],
+ "effective_sandbox": [
+  [
+   {
+    "sandbox_policy": {
+     "type": "workspace-write",
+     "writable_roots": [
+      "/tmp/coga-quality-trial/.git",
+      "/tmp"
+     ],
+     "network_access": true,
+     "exclude_tmpdir_env_var": true,
+     "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+     "type": "managed",
+     "file_system": {
+      "type": "restricted",
+      "entries": [
+       {
+        "path": {
+         "type": "path",
+         "path": "/tmp/coga-quality-trial/.git"
+        },
+        "access": "write"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "root"
+         }
+        },
+        "access": "read"
+       },
+       {
+        "path": {
+         "type": "special",
+         "value": {
+          "kind": "slash_tmp"
+         }
+        },
+        "access": "write"
+       }
+      ]
+     },
+     "network": "enabled"
+    }
+   }
+  ]
+ ],
+ "tokens": [
+  {
+   "input_tokens": 973773,
+   "cached_input_tokens": 886784,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 4094,
+   "reasoning_output_tokens": 437,
+   "total_tokens": 977867
+  }
+ ],
+ "live_guard_post": {
+  "head": "abbe9ece3cf24acdc24fd89376f9636faf83f40f",
+  "status": []
+ },
+ "live_repo_changed": false,
+ "venv_post": "d59028fff9f4153a3fc3ee66d68fdc81d67b083c1d637fbae0b6180510d02b53",
+ "venv_changed": false
+}

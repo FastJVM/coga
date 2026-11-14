@@ -1,0 +1,14 @@
+{
+ "actor": "human:trial-owner",
+ "log_message": "ticket authoring launched (interviewer=codex, agent=codex)",
+ "discussion": true,
+ "kickoff": "Begin (new ticket)",
+ "label": "Ticket",
+ "commit_log": true,
+ "secrets_are_scoped": false,
+ "stateless_identity": [
+  "bootstrap/ticket",
+  "Create a new ticket"
+ ],
+ "include_blocker_preamble": false
+}

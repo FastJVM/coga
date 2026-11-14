@@ -1,0 +1,20 @@
+{
+ "actor": "human:trial-owner",
+ "log_message": "launched (operator=codex, agent=codex)",
+ "name": "Warn when coga delete or coga retire leaves a live link to the deleted ticket",
+ "discussion": false,
+ "kickoff": null,
+ "prompt_suffix": "",
+ "launch_context": "megalaunch",
+ "idle_timeout": null,
+ "max_session": 1800.0,
+ "label": "Launch",
+ "warn_blackboard": true,
+ "commit_log": true,
+ "assist_branch": null,
+ "assist_agent": null,
+ "before_recompose": null,
+ "before_spawn": "<function _LaunchInvocation._supervise_steps.<locals>.freeze_state_before_session at 0x7798379c7f60>",
+ "record_launch": true,
+ "checkout_notice": null
+}
