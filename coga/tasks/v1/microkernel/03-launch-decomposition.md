@@ -338,6 +338,10 @@ definitions and archive-audit editing from this implementation scope. Defer
 cosmetic file splits and broad renames that advance none of the objectives.
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/v1-microkernel-03-launch-decomposition-6852fc
+
 
 ## Verification — 2026-11-12 authoring session
 
