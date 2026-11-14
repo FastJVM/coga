@@ -52,6 +52,10 @@ removed gitlink. Source outside the roots, including the packaged copies
 under `src/`, is ordinary code: it reaches control only through a branch and
 reviewed PR.
 
+Explicit [read-only command dispatch](../launch/SKILL.md#read-only-command-dispatch)
+has no publication boundary or exit sweep. Ordinary script/write dispatch
+continues to use the publication rules below.
+
 ## When Coga publishes
 
 - **Lifecycle commands** first reconcile the ticket with freshly fetched

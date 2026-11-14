@@ -49,7 +49,9 @@ The repo separates implementation from the OS it operates:
   byte-range locks and Job Objects. Its interactive mode runs
   `_nt_session_wrapper.py`, a stdlib-only script run by path under the base
   interpreter.
-- `launch.py` (launch API, preparation and supervision),
+- `launch.py` (launch API, preparation and supervision; `prepare_agent_launch`
+  shares CLI/prompt/secret/command readiness with megalaunch, and explicit
+  read-only invocation reuses `launch_script.run_script_phase`),
   `checkout_policy.py` (pure entry-checkout selection: the frozen step's
   `checkout:`, else the legacy table for older snapshots) and
   `checkouts.py` (shared branch preparation for launch and the

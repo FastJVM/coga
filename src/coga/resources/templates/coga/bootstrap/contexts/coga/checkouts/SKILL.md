@@ -29,6 +29,10 @@ for the configured workspace's task, recurring, and log paths. **The Coga
 roots** are the Coga root plus the configured contexts root; every eligible (unignored) file there is Coga state
 that publication carries ([coga/state-publication](../state-publication/SKILL.md)).
 
+[Read-only command dispatch](../launch/SKILL.md#read-only-command-dispatch)
+inspects the invoking checkout without entering this preparation/return
+lifecycle. Its execution policy is owned by launch.
+
 ## Leaves
 
 - [reconciliation](reconciliation/SKILL.md) — keeping edits current with main.
