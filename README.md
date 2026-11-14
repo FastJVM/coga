@@ -117,9 +117,13 @@ See [other uv installation methods](https://docs.astral.sh/uv/getting-started/in
 Open a new terminal if `uv` isn't on your `PATH`, then run:
 
 ```sh
-uv tool install coga
+uv tool install --python 3.11 coga
 coga --version
 ```
+
+`--python 3.11` installs Coga on its tested Python; `uv` downloads it if
+needed. Without it, `uv` may choose a Python too new for PyYAML's prebuilt
+wheels, so the install compiles PyYAML and macOS may prompt for developer tools.
 
 ### Install on native Windows
 
