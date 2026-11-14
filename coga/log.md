@@ -11056,3 +11056,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-13 23:03 v1 [v1/microkernel/03-prompt-assembly/03-implement-the-proven-prompt-assembly] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-13 23:03 v1 [v1/microkernel/03-prompt-assembly/03-implement-the-proven-prompt-assembly] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-13 23:26 v1 [v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality] [human:nicktoper] created (status=draft)
+2026-11-13 23:26 v1 [v1/microkernel/03-prompt-assembly/03-implement-the-proven-prompt-assembly] [agent:claude] blocked: Parked at owner request: no positive selection. Waiting on v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality to record a positive output-quality selection before design can start.

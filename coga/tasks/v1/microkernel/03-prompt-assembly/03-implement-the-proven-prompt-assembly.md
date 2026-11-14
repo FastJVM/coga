@@ -1,6 +1,6 @@
 ---
 title: 03 Implement the proven prompt assembly
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -179,3 +179,17 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Gate status (2026-11-13, design session)
+
+- Launched without a positive selection: ticket 02 ended with C1 disqualified (owner, 2026-11-13). No spec written.
+- Owner clarified that "better" means better output (PRs, documents); 02 measured rule compliance only, never output quality.
+- New prerequisite drafted: `v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality` (`draft-for-human`, owner's blinded judgment as primary measure, 02's gates kept hard).
+- PR #1234's ruling should state that 02 did not measure output quality; owner to comment there and run an assist on that ticket.
+- Parked by owner request until 04 records a positive selection.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-13 23:26] [agent:claude] id=20261113T232634 Parked at owner request: no positive selection. Waiting on v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality to record a positive output-quality selection before design can start.
