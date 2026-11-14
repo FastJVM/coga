@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -151,3 +151,68 @@ branch: coga/v1-microkernel-03-prompt-assembly-record-the-pro-f6ea54
   tests/test_compose.py` → 137 passed. Relative reconciliation link exists.
   (System python lacks tomlkit; use the repo venv.)
 - Review focus: wording of the ruling vs report §8; no production code touched.
+
+
+## Peer review
+
+- Codex independently reviewed Claude's commit e8d81f94a against merge base
+  20be7955a. No must-fix findings; no branch edits required.
+- Checked the ruling against report §§3–8 and blind/verdicts.csv; spot-checked
+  compose.compose_prompt_report, commands.ticket._authoring_ticket and
+  recurring_autofix.build_prompt. Claims, scope and single packaged owner match.
+- All three added links resolve: both evidence paths are tracked on origin/main
+  and the relative reconciliation topic exists. The docs index has no heading
+  reference requiring an update.
+- Final fetch found only ticket/log drift on origin/main; relevant content is
+  unchanged. Read-only review needs no merge. Branch push is up to date.
+- No pytest run in peer review: pure prose change, no code or fixtures touched.
+  Implement's 137-pass focused test result remains recorded above.
+
+## PR
+
+```yaml
+title: Record prompt-assembly non-replacement ruling
+author: claude
+author_evidence: >-
+  Commit e8d81f94a credits Claude Opus 5.5; implement handoff records that commit.
+head: e8d81f94a357b6caf0350f1416152a1ff51b641d
+base: 20be7955af6816a9f0add12cdbb8c342a54d6c85
+depth: merge
+rationale: >-
+  Bounded prose change with independent Codex review, verified evidence and
+  links, no unresolved findings, and no production behavior change.
+implementation: >-
+  Adds the owner's non-replacement ruling and reopening conditions to the
+  packaged prompt-composition topic, linking the comparison evidence.
+deviations: "None."
+limitations: >-
+  No runtime tests rerun during peer review because only prose changed.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: >-
+    Canonical packaged owner of prompt composition and the assembler ruling.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: e8d81f94a357b6caf0350f1416152a1ff51b641d
+  base: 20be7955af6816a9f0add12cdbb8c342a54d6c85
+  detail: >-
+    Compared the full diff with report sections 3–8, blind verdicts and the
+    three production assembly paths; no must-fix findings.
+checks:
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: e8d81f94a357b6caf0350f1416152a1ff51b641d
+    base: 20be7955af6816a9f0add12cdbb8c342a54d6c85
+    detail: "No whitespace errors."
+  - command: "Python link-target check using git cat-file -e and Path.is_file"
+    status: passed
+    head: e8d81f94a357b6caf0350f1416152a1ff51b641d
+    base: 20be7955af6816a9f0add12cdbb8c342a54d6c85
+    detail: >-
+      Both added GitHub evidence paths exist on origin/main; relative
+      reconciliation link resolves. All three added links checked.
+  - command: python -m pytest
+    status: not-run
+    detail: "Pure prose change; no code or fixtures touched."
+```
