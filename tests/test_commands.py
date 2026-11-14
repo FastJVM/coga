@@ -418,6 +418,55 @@ def test_bump_rewind_refuses_non_in_progress_human_target(
     assert "rewound" not in _log_text(repo, slug)
 
 
+def _make_active_owner_step_task(repo: Path) -> tuple[str, Path]:
+    """An `active` ticket parked on an owner step, as a reactivated pause leaves it."""
+    slug, task_path = _make_human_rewind_task(repo, "owner")
+    rewound = CliRunner().invoke(app, ["bump", slug, "--backward"])
+    assert rewound.exit_code == 0, rewound.output
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["status"] = "active"
+    ticket.write(task_path)
+    return slug, task_path
+
+
+def test_bump_human_advances_active_owner_step(repo: Path) -> None:
+    slug, task_path = _make_active_owner_step_task(repo)
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "active"
+    assert ticket.step == "2 (implement)"
+    assert derived_operator(repo, slug) == "claude"
+    assert "[human:marc] advanced to step 2 (implement)" in _log_text(repo, slug)
+
+
+def test_bump_supervised_refuses_active_owner_step(repo: Path) -> None:
+    slug, task_path = _make_active_owner_step_task(repo)
+
+    result = CliRunner().invoke(
+        app, ["bump", slug], env={"COGA_SUPERVISED": "1"}
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "is 'active'. Cannot advance." in result.output
+    assert Ticket.read(task_path).step == "1 (review)"
+
+
+def test_bump_refuses_active_agent_step(repo: Path) -> None:
+    slug, task_path = _make_human_rewind_task(repo, "owner")
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["status"] = "active"
+    ticket.write(task_path)
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 2, result.output
+    assert "is 'active'. Cannot advance." in result.output
+    assert Ticket.read(task_path).step == "2 (implement)"
+
+
 def test_bump_rewind_allows_in_progress_human_target(repo: Path) -> None:
     slug, task_path = _make_human_rewind_task(repo, "owner")
 

@@ -113,7 +113,9 @@ refuse a blocked ticket until `coga unblock` records an answer.
 
 `step:` is `N (step-name)`, owned entirely by `coga bump`.
 
-- Bare `coga bump <ref>` requires `in_progress`, checks the leaving step's
+- Bare `coga bump <ref>` requires `in_progress`, or `active` when a human
+  runs it outside a supervised launch on an owner-held step (launch refuses
+  that step, so it could not otherwise reach `in_progress`), checks the leaving step's
   `requires:` gate, and advances one step, or on the final step delegates to
   `mark_done`. A supervised bump whose session was composed for a step
   other than the one reconciled with control refuses as stale context. A
