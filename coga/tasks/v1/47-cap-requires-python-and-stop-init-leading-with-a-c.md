@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 6de4aa1e-b26b-4b26-b384-3bc7066684a3
 ---
 
 ## Description
@@ -160,18 +159,45 @@ Commit 6e2732633e0d on the branch, pushed; rebased on origin/main 691c8f9d8
 seeded-fixture change is needed (init-only behavior). Python 3.11 floor was not
 exercised; the suite ran on 3.12.12.
 
+## Peer review
+
+Independent direct Codex review **completed** on head `ff0254f3a39f40f010824adf11ca059a0939f6f5`
+against base `d11e9a82352bb407943a5550492e99eac7f82980` after rebasing onto fetched origin/main.
+Implementation identity is Claude, as recorded in the implement handoff;
+this fresh Codex session reviewed the five-path diff and surrounding init,
+configuration, and install contracts. No must-fix findings; no code changes.
+The no-cap decision is accepted as a bounded install-command choice; no
+Python 3.15 resolver or macOS clean-install experiment was performed.
+
+Real PTY checks at 80×24 and 120×30 ran fresh init with agent/Coga PATH
+lookups forced absent; optional software installation/login was disabled.
+Both showed the no-agent scan, the Python-pinned install command, and the
+Claude/Codex build alternatives without an agent-table edit instruction.
+Plain next-step lines wrap naturally in the terminal; no cursor/pager UI is
+involved. Scratch harness: `/tmp/coga-v147-terminal.py`.
+
+Full suite on the final head: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider`
+→ 4900 passed, 33 skipped in 789.74s; Pop!_OS 24.04, Python 3.12.12.
+`git diff --check` passed. Python 3.11 floor untested here; native Windows
+and macOS verification deferred to release. Final fetch confirmed unchanged
+main; branch force-pushed with lease and manual checkout returned to main.
+Next step only opens the PR from the prepared record.
+
 ## PR
 
 ```yaml
 title: Keep agent tables live when init finds no agent CLI; pin uv install to Python 3.11
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
-head: 6e2732633e0da719002ab66286c9ffa331ad79a4
-base: 691c8f9d82abe7be386c931a16e4e776a52a8cee
+author_evidence: >-
+  Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue;
+  the implement handoff records this identity.
+head: ff0254f3a39f40f010824adf11ca059a0939f6f5
+base: d11e9a82352bb407943a5550492e99eac7f82980
 depth: skim
 rationale: >-
   Small init behavior change plus install docs; the reviewer should check the
   decision not to cap requires-python and the zero-agent default-agent tradeoff.
+  Independent direct review and the full Linux suite passed on the final head.
 implementation: >-
   Init leaves the packaged coga.toml untouched when the agent scan finds no
   CLI, so next steps name an install, not a coga.toml edit. The README and
@@ -183,6 +209,7 @@ deviations: >-
 limitations: >-
   Python 3.11 floor not exercised (3.12.12 only). No real macOS or uv
   install on Python 3.15 was run; the PyYAML-compile reasoning is from the ticket report.
+  Native Windows and macOS verification is deferred to release.
 files:
   README.md: "Pin the macOS/Linux uv install to Python 3.11 and say why."
   src/coga/commands/init.py: "Keep agent tables live with no CLI found; drop the stale all-commented summary; pin the PATH step to --python 3.11."
@@ -190,19 +217,37 @@ files:
   src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: "Document the zero-agent outcome and the pinned install step."
   tests/test_init.py: "Cover the zero-agent packaged-file outcome, clean validate, and no coga.toml edit in next steps."
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Peer review is the next workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: ff0254f3a39f40f010824adf11ca059a0939f6f5
+  base: d11e9a82352bb407943a5550492e99eac7f82980
+  detail: >-
+    Independent direct Codex review completed after rebase; no must-fix findings.
+    Real PTY no-agent init checked at 80x24 and 120x30 with optional installs/login
+    disabled; next steps showed Python pin and both build choices without an
+    agent-table edit instruction.
 checks:
   - command: .venv/bin/python -m pytest tests/test_init.py -q -x
     status: passed
     head: 6e2732633e0da719002ab66286c9ffa331ad79a4
     base: 691c8f9d82abe7be386c931a16e4e776a52a8cee
-    detail: 170 passed; Linux Pop!_OS, Python 3.12.12.
+    detail: "170 passed; Linux Pop!_OS, Python 3.12.12. Historical pre-rebase receipt."
   - command: .venv/bin/python -m pytest -q -p no:cacheprovider
     status: passed
     head: 6e2732633e0da719002ab66286c9ffa331ad79a4
     base: 691c8f9d82abe7be386c931a16e4e776a52a8cee
-    detail: 4900 passed, 33 skipped in 765.20s; Linux Pop!_OS 24.04, Python 3.12.12, committed clean tree.
+    detail: "4900 passed, 33 skipped in 765.20s; Linux Pop!_OS 24.04, Python 3.12.12, committed clean tree. Historical pre-rebase receipt."
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: ff0254f3a39f40f010824adf11ca059a0939f6f5
+    base: d11e9a82352bb407943a5550492e99eac7f82980
+    detail: >-
+      4900 passed, 33 skipped in 789.74s; Linux Pop!_OS 24.04, Python 3.12.12.
+      Final rebased committed tree; Python 3.11 and native checks not run here.
+  - command: git diff --check
+    status: passed
+    head: ff0254f3a39f40f010824adf11ca059a0939f6f5
+    base: d11e9a82352bb407943a5550492e99eac7f82980
+    detail: "No whitespace errors."
 ```
