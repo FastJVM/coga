@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
@@ -76,60 +76,221 @@ Snapshot: `49b34b229` (2026-11-12).
    `coga_edge`. Keep that distribution support; add access to the effective
    definition and its real implementation.
 
-### Proposed user path
+### Proposed user path (owner-confirmed shape, 2026-11-14)
 
-Prefer a stateless script command ticket exposed by an alias, with an inspect
-operation and an explicit copy operation. The design step chooses the spelling;
-it does not require a new permanent Typer head or plugin registry.
+One stateless script command ticket, `bootstrap/fork`, exposed by two
+default aliases whose dispatch policy is fixed by the alias, not inferred by
+the kernel:
 
-Inspection accepts a command/alias or a typed definition reference, resolves
-through the same helpers execution uses, and reports the selected local or
-package source, relevant workflow/skill/script references and the local
-override destination. Show which parts of a live ticket are frozen versus
-resolved from current definitions. Inspect without running jobs, importing
-arbitrary user implementations, invoking an agent, requiring a TTY or publishing
-dirty state. A non-ticket kernel primitive should be identified honestly rather
-than reported as an editable ticket.
+```toml
+fork      = "launch --read-only bootstrap/fork -- inspect"
+fork-copy = "launch bootstrap/fork -- copy"
+```
 
-Copying is explicit and bounded to the selected definition plus the necessary
-siblings/references identified for that customization. Preserve an existing
-local override; report conflicts instead of merging or overwriting it. Reuse
-configured roots and the existing whole-directory rules for bootstrap tickets,
-skills and recurring definitions. Preserve recurring parent state carriers and
-their blackboards when making a complete definition fork; never leave only a
-script beside a state-only carrier.
+`coga fork <target>` reports where a behavior's definition and
+implementation live and where a local override would go. `coga fork-copy <ref>`
+copies one packaged definition into its local override location. No new Typer
+head, plugin registry or ticket field. One alias cannot carry both a
+read-only and a write dispatch policy, so the owner chose two plain aliases
+over a `--copy` argv adapter (2026-11-14). The owner also chose: fork-copy
+copies **one artifact** and prints ready-to-run `coga fork-copy` commands for what
+it references; returning to stock is a **documented procedure** that
+`coga fork` prints and fixtures verify, not a restore operation.
 
-When a selected script is only an import shim, make the owning implementation
-available as a full local fork, with the shared-core compatibility it requires.
-Start with the shipped, inspectable edge shapes; if a dependency cannot be
-copied completely, name it and refuse to claim a complete fork. Do not execute
-a job or recursively load plugins to discover its source.
+### Acceptance criteria
 
-Package defaults continue to have one committed owner. A local fork is an
-intentional user-owned override and stops following that default's updates.
-Explain how to identify that state and return to the stock definition. This
-ticket does not introduce automatic merging of customized code, rewrite running
-periods, or copy the entire package into every repository at init.
+Discovery (`coga fork`)
 
-### Acceptance and reduction evidence
+- [ ] `coga fork <target>` accepts a typed ref — `workflow:<ref>`,
+      `skill:<ref>`, `context:<ref>`, `bootstrap/<name>` (or
+      `bootstrap:<name>`), `recurring:<name>`, `resource:<name>`,
+      `task:<slug>` — or an untyped word. An untyped word resolves in this
+      order: effective alias (`{**DEFAULT_ALIASES, **cfg.aliases}`), built-in
+      command (`aliases.BUILTIN_COMMANDS`), then task ref
+      (`tasks.resolve_task`). Unknown or ambiguous targets exit 1 with the
+      candidates checked on stderr.
+- [ ] An alias reports its expansion and follows it: `launch bootstrap/<n>` →
+      the bootstrap ticket; `recurring launch <n>` → the recurring job;
+      `launch <slug>` → the task; `run <recipe>` → kernel recipe; any other
+      head → kernel primitive. A built-in command or `runner.RECIPES` entry is
+      reported as **kernel primitive (not an editable ticket)** with its
+      package module, never as forkable.
+- [ ] For each definition the report gives: kind, ref, selected origin
+      (`local`/`package`), selected path, packaged path (or none), local
+      override destination, and fork state — `stock` (no local entry),
+      `fork (identical to installed package)`, `fork (modified)`,
+      `local only` (no packaged counterpart) or `broken: <reason>` (the
+      resolver's `LocalOverrideError`/`BootstrapOverrideError`/recurring
+      `error` text, never a silent fallback to package text).
+- [ ] References are listed with their own resolution: a workflow's step
+      skills (and each step's `checkout:`); a bootstrap/recurring ticket's
+      frontmatter `workflow`, `skills`, `contexts`; a recurring job's
+      selection state (`enabled`/`disabled`/`unselected`/`parked`/error) and
+      state carrier path.
+- [ ] A `ticket.py` is classified by parsing its source with `ast` — never
+      importing or running it: `edge shim` (only imports `main` from
+      `coga_edge.<module>` plus a `__main__` guard) → implementation is the
+      installed module file; `recipe adapter` (calls `coga.runner.run_recipe`
+      with a literal name) → implementation is kernel recipe `<name>`, not
+      forkable here; anything else → `full script` (it is the
+      implementation).
+- [ ] An edge module is checked by `ast` too: `coga.*` imports are listed as
+      shared-core dependencies the fork must stay compatible with; a
+      `coga_edge.*` or relative import, or a missing `__main__` guard, marks
+      the implementation **not completely forkable** and names the cause.
+- [ ] `task:<slug>` shows what is frozen in the ticket (workflow name and
+      steps, each step's `checkout:`/`assignee:`/`requires:`) separately from
+      what resolves live at launch (step skills, ticket skills and contexts,
+      sibling `ticket.py`); the live workflow file is shown as "not used by
+      this ticket's frozen snapshot".
+- [ ] For a fork, the report prints the exact return-to-stock steps (below).
+- [ ] `--json` emits the same records with stable keys; text goes to stdout,
+      diagnostics to stderr; `--help` prints usage to stdout and exits 0.
+- [ ] Read-only: runs through `launch --read-only` with no configured user,
+      no TTY and dirty files; writes nothing, publishes nothing, runs no job,
+      imports no implementation and invokes no agent. Exit 0 when the report
+      has no broken definitions, 1 when the target is unknown or any reported
+      definition is broken (the report is still printed), 2 for usage errors.
 
-- [ ] From a pristine installed wheel outside the source checkout, a user can
-      find and copy the peer-review workflow/instructions, customize it for one
-      agent and run it with the checkout-policy ticket's explicit declaration.
-- [ ] With the installation directory read-only, fork a shipped script-backed
-      behavior and change its actual implementation in repo-local files; prove
-      resolution uses it and the installed bytes remain unchanged.
-- [ ] Cover local precedence, broken overrides, custom contexts roots, aliases,
-      referenced skills, complete bootstrap/recurring siblings and state carriers.
-- [ ] Inspection/help are read-only and preserve streams/exits. Copy refuses
-      conflicting local files and never overwrites running/frozen task state.
-- [ ] Updates affect package defaults while retaining intentional forks;
-      verify the documented return-to-default procedure in fixtures.
-- [ ] Reuse existing resolution code and replace redundant lookup/copy
-      instructions; report the code added versus the paths actually removed.
-- [ ] Update package-owned user customization guidance and packaging tests,
-      including read-only wheel and native Windows receipts. Never recreate
-      unapproved live definition mirrors in Coga's own source repo.
+Copying (`coga fork-copy`)
+
+- [ ] `coga fork-copy <ref>` accepts a typed ref or an alias that resolves to one
+      bootstrap ticket or recurring job. It refuses (exit 1, no writes) task
+      refs, kernel primitives, a ref with no packaged definition, and a ref
+      already selected locally ("already a local override at <path>").
+- [ ] It copies the whole packaged artifact to the resolver's local path:
+      workflow → `paths.workflow_path`; skill → `paths.skill_dir`; context →
+      `<contexts root>/<ref>/` (honours `[layout] contexts`); bootstrap →
+      `paths.local_bootstrap_path`; recurring → the active parent dir;
+      resource → `paths.resource_override_path`. Runtime caches
+      (`paths.IGNORABLE_OVERRIDE_ENTRIES`) are not copied.
+- [ ] Conflicts refuse before any write: any existing destination entry
+      (file, dir, link), listing each conflicting path. The only exception is
+      a recurring parent classified as a valid state-only carrier by
+      `recurring_state.inspect_parent_dir`: fork converts it to a full
+      definition by writing the packaged ticket's frontmatter and body above
+      the blackboard fence followed by the carrier's existing blackboard
+      region byte-for-byte, and keeps recognized runtime state (`retires.md`).
+      An incomplete parent, a parked `_<name>/`, or both active and parked
+      state refuses.
+- [ ] Fork never edits `jobs.toml`, config or selection. Because a local
+      definition with no `jobs.toml` entry is selected (`recurring._source_for`),
+      the output states the job's resulting selection and, when it becomes
+      enabled, that `<name> = false` under `[jobs]` keeps it off (owner,
+      2026-11-14: no refusal needed).
+- [ ] When the copied `ticket.py` is an edge shim whose module is completely
+      forkable, the fork's `ticket.py` is the module's source (the real
+      implementation), and the output says so. Otherwise the shim or recipe
+      adapter is copied unchanged and the output states "implementation not
+      forked: <reason>" — never claims a complete implementation fork.
+- [ ] Ordering makes an interrupted copy visible: write every sibling first
+      and the definition file (`ticket.md`, `SKILL.md`, workflow file)
+      last, each with `atomicio.atomic_write_bytes`, so a partial copy is a
+      definition-less directory that the existing resolvers already reject as
+      a broken override.
+- [ ] Never writes under the tasks root: existing (including running and
+      parked) period tasks keep their frozen script and snapshot.
+- [ ] After copying it prints the files written, what to edit, the
+      `coga fork-copy <kind>:<ref>` command for each referenced definition that
+      is still `stock`, and the return-to-stock steps.
+
+Return to stock (documented, printed by `coga fork`, tested)
+
+- [ ] Workflow/resource: delete the local file. Skill/context/bootstrap:
+      delete the local directory. Recurring: replace everything above the
+      blackboard fence in `ticket.md` with the exact carrier header from
+      `coga/recurring/templates`, keep the blackboard and runtime state, and
+      delete the other siblings. Frozen periods keep their own script until
+      they finish. A fixture runs these steps and shows resolution back on the
+      package with blackboard bytes unchanged.
+
+End-to-end and distribution
+
+- [ ] Peer review, from a wheel installed outside the source checkout into a
+      fresh `coga init` repo: `coga fork code/with-review` (or
+      `workflow:code/with-review`) leads to the workflow and its
+      `code/peer-review` skill; `coga fork-copy workflow:code/with-review` and the
+      printed `coga fork-copy skill:code/peer-review`; edit `peer-review` to
+      `assignee: agent` and the skill text; a ticket created with that workflow
+      freezes `checkout: reuse-required` for the step and launch (fake agent)
+      reuses the recorded branch.
+- [ ] Read-only installation: with the installed wheel tree made read-only,
+      `coga fork-copy recurring:trim-log` produces a local `ticket.py` equal to the
+      `coga_edge/trim_log.py` source; a marked edit to it is what a launched
+      period runs; the installed tree's file hashes are unchanged.
+- [ ] Upgrade: installing a newer wheel changes the stock definitions a repo
+      resolves but not its forks; `coga fork` then reports the fork as
+      `fork (modified)` relative to the new package.
+- [ ] Coverage for local precedence, each broken-override shape, a custom
+      contexts root, user alias overriding a default alias, alias to a kernel
+      recipe, bootstrap and recurring siblings, carrier conversion, and the
+      implicit enabling of a forked unselected recurring job.
+- [ ] Native Windows receipt for the fork/read-only-install case per
+      `coga-dev/testing`; no live definition mirror is created in this repo
+      (`tests/test_packaging.py` stays green).
+- [ ] Evidence reported per `coga-dev/microkernel/objectives`: lines added
+      (script, aliases, tests, docs separately) versus instructions removed;
+      the gain is one path replacing per-capability manual locate/copy
+      procedures, not a core reduction.
+
+### Proposed shape
+
+1. **Dependency.** `launch --read-only` from
+   `v1/microkernel/03-launch-decomposition` (PR #1233) must be on main
+   first. If it is not, stop and report; do not reimplement it here.
+2. **Command ticket** (package-owned, edge per the microkernel rule):
+   `src/coga/resources/templates/coga/bootstrap/fork/ticket.md` owns the
+   command contract (as `bootstrap/retire/ticket.md` does);
+   `.../bootstrap/fork/ticket.py` implements it with `argparse`
+   (`inspect`/`copy` subcommands, `--json`). It imports only shared core:
+   `config.load_config(require_user=False)`; `paths` resolvers
+   (`resolve_workflow_path`, `resolve_skill_path`, `resolve_context_path`,
+   `resolve_resource_path`, the `*_path`/`bootstrap_*` helpers,
+   `local_definition_entry`, `IGNORABLE_OVERRIDE_ENTRIES`);
+   `tasks.resolve_bootstrap`/`resolve_task`/`read_ticket`;
+   `recurring.resolve_template_source`; `recurring_state.inspect_parent_dir`;
+   `workflow.Workflow`; `aliases.DEFAULT_ALIASES`/`BUILTIN_COMMANDS`;
+   `runner.RECIPES` (names only); `atomicio`. No resolver logic is
+   duplicated: the script asks the resolver what is selected and only
+   computes the override destination from the same `*_path` helpers.
+   Internal shape: `resolve_target(cfg, text) -> list[DefinitionRecord]`,
+   `classify_script(path) -> ScriptKind` (AST only),
+   `inspect_edge_module(path)`, `render_text`/`render_json`,
+   `copy_definition(cfg, record) -> CopyResult`.
+3. **Aliases.** Add `fork` and `fork-copy` to `aliases.DEFAULT_ALIASES` with
+   the comment explaining the fixed read/write policy;
+   `tests/test_aliases.py` covers them.
+4. **Packaging.** Add the two files to `tests/required_package_resources.txt`.
+5. **Docs (package-owned user topics)** — same PR:
+   `coga/context-layout` (resolution section: discover with `coga fork`,
+   override with `coga fork-copy`, return to stock); `coga/edge-code` ("Explicit
+   local forks" uses `coga fork-copy recurring:<name>`); replace the manual
+   *locate* and *create a fresh full fork* snippets in
+   `edge-code/edge-code-upgrades.md` and the source-inspection pointer in
+   `recurring/phone-home/operations.md` with the commands (the legacy
+   adoption/migration procedure itself stays); `coga/workflows`,
+   `coga/recurring/templates`, `coga/script-tickets` (point to the commands);
+   `coga/extension-model` and `coga/cli` alias lists. Local
+   `coga-dev/codebase` gets the new ticket in its source map.
+6. **Tests.** `tests/test_source_command.py` for resolution/report/copy
+   (in tmp repos built from the seeded fixture); extend
+   `tests/test_edge_distribution.py` for the installed read-only wheel,
+   upgrade and peer-review end-to-end cases.
+
+### Out of scope
+
+- Redesigning automatic publication. On a control checkout today the
+  end-of-command sweep publishes a fresh fork with the ordinary launch; fork
+  follows whatever the current rule is. The redesign is
+  `redesign-coga-s-git-sync-around-explicit-session-e`.
+- Forking under a new name (`--as`), copying referenced definitions in one
+  operation (`--with-refs`), and a `--restore` operation (owner, 2026-11-14).
+- Moving kernel recipes behind recipe-adapter shims to the edge — owned by
+  `v1/microkernel/04-…`; this ticket only reports them honestly.
+- Automatic merging of customized code with package updates; rewriting
+  frozen or running periods; materializing the package at `coga init`.
+- Changing `coga skill status`, `coga show`, or prompt composition.
+- Forking or reclassifying built-in Typer commands.
 
 ## Context
 
@@ -143,6 +304,52 @@ The launch sibling owns the generic stateless read/write dispatch distinction.
 The checkout-policy sibling owns workflow declaration; the end-to-end peer-review
 case joins these two capabilities. Recipe moves consume this forkability
 requirement but own their job implementations and upgrade caller reconciliation.
+
+### Premise refresh (2026-11-14, main `3b117b99c`)
+
+- Checkout declaration shipped (`9aededac6`): `WorkflowStep.checkout` is
+  parsed/frozen in `src/coga/workflow.py`, and packaged
+  `code/with-review` declares `checkout: reuse-required` on `peer-review`.
+- `launch --read-only` is implemented on branch
+  `coga/v1-microkernel-03-launch-decomposition-6852fc` (PR #1233), not yet
+  on main. Its draft contract already names this consumer
+  (`inspect = "launch --read-only bootstrap/inspect"`) and requires mixed
+  read/write commands to fix policy per alias — hence two aliases.
+  It sets no marker the script can read, so `inspect` must itself write
+  nothing; `copy` is reachable only through ordinary dispatch by alias.
+
+### Code facts the implementer relies on
+
+- `src/coga/paths.py`: `resolve_workflow_path` returns the local path if any
+  entry exists there (the loader diagnoses it), else the bundled one;
+  `resolve_skill_path` and `tasks.resolve_bootstrap` use
+  `local_definition_entry(definition, owner=dir)`, which raises
+  `LocalOverrideError` for a non-regular/dangling definition or supporting
+  files without it — the basis for "broken" reports and for the
+  definition-last copy order. `resolve_context_path` additionally applies
+  `require_context_artifact` (symlink/tracking rules) at `cfg.contexts_root`.
+  `resolve_resource_path` covers only the names in the top-level resource
+  allowlist in the same module.
+- `src/coga/recurring.py`: `resolve_template_source(cfg, name)` returns a
+  `TemplateSource` (`definition_dir`, `origin` local/package, `state_dir`,
+  `selection`, `reason`, `error`); `_source_for` selects a local definition
+  with no `jobs.toml` entry as enabled, which is why fork reports the
+  resulting selection. `recurring_state.inspect_parent_dir` classifies a parent as
+  DEFINITION/CARRIER/STATE_ONLY/INCOMPLETE/ABSENT; `CARRIER_PREFIX` is the
+  exact carrier header and `RUNTIME_STATE_FILES` the state kept beside it;
+  `active_parent_dir(cfg, name)` is the destination. The carrier contract is
+  owned by `coga/recurring/templates`.
+- Shipped `ticket.py` shapes today: edge shims — `recurring/phone-home`,
+  `recurring/trim-log` (import `main` from `coga_edge.phone_home` /
+  `coga_edge.trim_log`; both modules import only `coga.*` plus stdlib and end
+  with a `__main__` guard); recipe adapters — `recurring/skill-update`,
+  `autoclose-merged`, `blocker-reminders`, `branch-sweep` (call
+  `coga.runner.run_recipe`); full script — `bootstrap/retire/ticket.py`.
+- Alias table: `coga.cli` merges `{**DEFAULT_ALIASES, **user_aliases}`;
+  `recurring_runner` validates `{**DEFAULT_ALIASES, **cfg.aliases}`.
+- Publication: the end-of-command sweep (`git.sync_coga_state`) publishes
+  dirty eligible files under the Coga and contexts roots after state-changing
+  commands; read-only launch never sweeps (`coga/state-publication`).
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -230,4 +437,26 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design session 2026-11-14 (attended, owner present)
+
+Spec written above the fence. Owner decisions this session:
+- Fork scope: one artifact per `coga fork-copy`, plus printed `coga fork-copy` hints for
+  referenced definitions (no `--with-refs`, no `--as`).
+- Return to stock: documented procedure printed by `coga fork`, verified by
+  fixtures (no `--restore`).
+- Publication: the problem is the sweep itself, not fork. Owner intuition is to
+  return to "normal Git" with an explicit `coga sync` at session end; captured
+  as draft `redesign-coga-s-git-sync-around-explicit-session-e` (to design, not
+  decided). This ticket does not special-case fork's publication.
+
+Hard dependency: `launch --read-only` (PR #1233, branch
+`coga/v1-microkernel-03-launch-decomposition-6852fc`) is not on main.
+
+## Open Questions
+
+None open. Resolved 2026-11-14 (owner): aliases are `fork` (read-only
+inspection) and `fork-copy` (write); one alias cannot carry both dispatch
+policies, and the owner preferred two plain aliases over a `--copy` argv
+adapter. Unselected recurring jobs — no refusal, fork-copy reports the
+resulting selection; `coga fork` exits 1 on broken definitions; edge-shim
+expansion is the default for recurring forks.

@@ -11067,3 +11067,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-14 13:07 v1 [v1/microkernel/05-make-packaged-behavior-discoverable-and-editable] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-14 13:07 v1 [v1/microkernel/05-make-packaged-behavior-discoverable-and-editable] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-14 13:34 v1 [redesign-coga-s-git-sync-around-explicit-session-e] [human:nicktoper] created (status=draft)
+2026-11-14 14:11 v1 [v1/microkernel/05-make-packaged-behavior-discoverable-and-editable] [agent:claude] advanced to step 2 (evaluate-design) → codex — Design written; owner settled fork/fork-copy aliases, one-artifact copy, documented restore. Depends on launch --read-only (PR #1233).
