@@ -14,7 +14,7 @@ the attended path: a human typed it. Queue draining is `coga megalaunch`
 - A task by any unique prefix of its ref. A nested task is its path under
   `tasks/` (`marketing/coga-crm`), exactly as `coga status` prints it.
 - `bootstrap/<name>` — a stateless target: no lifecycle or chaining.
-  Its launch log line publishes immediately; sessions in one checkout still
+  An agent launch log line publishes immediately; sessions in one checkout still
   share its branch and files.
   `coga chat` is the default alias for `launch bootstrap/orient`.
 - A `recurring/<name>` period is gated first (control branch, owner,
@@ -27,6 +27,39 @@ Trailing positional arguments reach an agent prompt as an ordered JSON
 `## Launch arguments` block, and a bootstrap `ticket.py` as its argv. A
 stateful `ticket.py` target refuses them
 ([script tickets](../script-tickets/SKILL.md)).
+
+## Read-only command dispatch
+
+`coga launch --read-only bootstrap/<name> [args...]` runs one deterministic
+bootstrap script against the invoking checkout, including dirty effective local
+definitions. An alias can select it (`inspect = "launch --read-only
+bootstrap/inspect"`, written on one TOML line). This mode needs neither a
+configured user nor an agent or TTY. It still requires valid existing repo
+configuration; it never initializes a repository.
+
+Only a bootstrap target with the exact `ticket.py` entry qualifies. Stateful
+and agent-only targets refuse with exit 2, as do combinations with `--agent`,
+`--prompt-report`, or REPL/internal launch options. A vanished entry refuses;
+there is no agent fallback. Arguments remain separate ordered argv elements;
+the child inherits stdin/stdout/stderr and runs from the host repository root.
+Stdout belongs to the script; Coga errors and alias framing use stderr.
+
+Coga performs no audit, notification, usage capture, skill-view refresh,
+checkout preparation/return, fetch, refresh, push probe, publication or CLI
+exit sweep, on success or refusal. Declared secrets still resolve before
+spawn, with the ordinary scoping/redaction and fresh script environment
+([script tickets](../script-tickets/SKILL.md#coga_task_-contract)); outer
+completion and assist authority are cleared. One subprocess's exit is the
+invocation's result, using the usual process-status convention; zero completes
+only this stateless invocation, and 75 also has no refresh or sweep.
+
+This is a cooperative procedure contract, not a Python sandbox: the selected
+reader must itself avoid writes, including nested lifecycle commands. A writer
+must use ordinary launch. A mixed read/write procedure chooses its invocation
+policy before execution, through separate explicit invocations or a thin
+argv-parsing adapter calling the same launch API. A read-only entry rejects
+write operands; a child cannot upgrade its dispatch policy. Ordinary launch
+remains the default and retains its publication and completion boundaries.
 
 ## Checkout boundary
 

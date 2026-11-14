@@ -1978,3 +1978,228 @@ def test_stateful_pending_audit_exit_75_skips_between_phase_settlement(script_re
     outcome = run_script_chain(cfg, ref, Ticket.read(ref.ticket_path), set(),
                                between_phases=lambda *args: pytest.fail("settled pending deletion"))
     assert outcome.exit_code == 75
+
+
+@pytest.fixture
+def read_only_repo(script_repo: Path) -> Path:
+    _write(
+        script_repo / "coga.toml",
+        '''
+        version = 1
+        [git]
+        enabled = true
+        [notification]
+        channels = []
+        [aliases]
+        inspect = "launch --read-only bootstrap/inspect"
+        ''',
+    )
+    (script_repo / "coga.local.toml").unlink()
+    _write(script_repo / "bootstrap" / "inspect" / "ticket.md", "---\ntitle: Inspect\n---\n")
+    return script_repo
+
+
+@pytest.mark.parametrize("alias", [False, True])
+@pytest.mark.parametrize("exit_code", [0, 7, 75])
+def test_read_only_script_preserves_streams_argv_authority_and_dirty_checkout(
+    read_only_repo: Path, alias: bool, exit_code: int,
+) -> None:
+    script = read_only_repo / "bootstrap" / "inspect" / "ticket.py"
+    _write(
+        script,
+        f'''
+        import json
+        import os
+        import sys
+        assert os.getcwd() == {str(read_only_repo.parent)!r}
+        assert os.environ["COGA_TASK_SLUG"] == "bootstrap/inspect"
+        assert os.environ["COGA_SCRIPT_TASK"] == {str(script.parent.resolve())!r}
+        for key in ("COGA_EXPECTED_TASK", "COGA_EXPECTED_STEP", "COGA_EXPECTED_AGENT",
+                    "COGA_ASSIST_AGENT", "COGA_ASSIST_BRANCH", "COGA_ASSIST_PR",
+                    "COGA_SUPERVISED", "COGA_TASK_BLACKBOARD", "COGA_TASK_STEP"):
+            assert key not in os.environ, key
+        assert not os.environ.get("COGA_DONE_SENTINEL")
+        assert os.environ["SCOPED_TOKEN"] == "secret-value"
+        assert "TOKEN_SOURCE" not in os.environ
+        sys.stdout.buffer.write(sys.stdin.buffer.read())
+        print(json.dumps(sys.argv[1:]), flush=True)
+        sys.stderr.buffer.write(b"reader stderr\\n")
+        raise SystemExit({exit_code})
+        ''',
+    )
+    _write(
+        script.parent / "ticket.md",
+        "---\ntitle: Inspect\nsecrets:\n  - SCOPED_TOKEN: env:TOKEN_SOURCE\n---\n",
+    )
+    root = read_only_repo.parent
+    def git_command(*args: str) -> bytes:
+        return subprocess.check_output(["git", "-C", str(root), *args])
+    git_command("init", "-b", "main")
+    git_command("config", "core.autocrlf", "false")
+    git_command("add", ".")
+    git_command("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "seed")
+    # Effective local definitions and unrelated state must stay dirty and readable.
+    _write(script.parent / "ticket.md", (script.parent / "ticket.md").read_text() + "Local intent.\n")
+    _write(read_only_repo / "contexts" / "dirty.md", "unpublished context\n")
+    _write(read_only_repo / "log.md", "unpublished audit\n")
+    before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    status = git_command("status", "--porcelain=v1")
+    head = git_command("rev-parse", "HEAD")
+    env = os.environ.copy()
+    env.update({
+        "PYTHONPATH": str(_SOURCE_ROOT / "src"), "PATH": "/agents-absent",
+        "PYTHONIOENCODING": "utf-8", "TOKEN_SOURCE": "secret-value",
+        "COGA_DONE_SENTINEL": str(root / "outer-done"),
+        "COGA_EXPECTED_TASK": str(root / "outer-task"), "COGA_EXPECTED_STEP": "1 (outer)",
+        "COGA_EXPECTED_AGENT": "codex", "COGA_SUPERVISED": "1",
+        "COGA_ASSIST_AGENT": "codex", "COGA_ASSIST_BRANCH": "outer-branch",
+        "COGA_ASSIST_PR": "outer-pr",
+    })
+    argv = ["inspect"] if alias else ["launch", "--read-only", "bootstrap/inspect"]
+    operands = ["two words", "", "--write-looking-operand", "Café → 東京"]
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", *argv, "--", *operands],
+        cwd=read_only_repo, env=env, input=b"stdin bytes\n", capture_output=True, check=False,
+    )
+    assert result.returncode == exit_code, result.stderr
+    assert result.stdout == b"stdin bytes\n" + (json.dumps(operands) + "\n").encode()
+    assert result.stderr.endswith(b"reader stderr\n")
+    if not alias:
+        assert result.stderr == b"reader stderr\n"
+    assert {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
+    assert git_command("status", "--porcelain=v1") == status
+    assert git_command("rev-parse", "HEAD") == head
+    assert git_command("branch", "--show-current").strip() == b"main"
+
+
+@pytest.mark.parametrize("alias", [False, True])
+@pytest.mark.parametrize("failure", ["missing-script", "missing-secret", "malformed-config"])
+def test_read_only_refusals_never_publish_or_prepare_agents(
+    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch, alias: bool, failure: str,
+) -> None:
+    from coga.cli import main
+
+    bootstrap = read_only_repo / "bootstrap" / "inspect"
+    if failure != "missing-script":
+        _write(bootstrap / "ticket.py", "raise AssertionError('must not spawn')\n")
+    if failure == "missing-secret":
+        _write(bootstrap / "ticket.md", "---\ntitle: Inspect\nsecrets:\n  - TOKEN: env:READ_ONLY_MISSING\n---\n")
+        monkeypatch.delenv("READ_ONLY_MISSING", raising=False)
+    if failure == "malformed-config":
+        _write(read_only_repo / "coga.toml", "malformed = [\n")
+    before = {p: p.read_bytes() for p in read_only_repo.rglob("*") if p.is_file()}
+    for name in ("sync_coga_state", "refresh", "prepare_control_checkout", "sync_log", "sync_task_state", "publish"):
+        monkeypatch.setattr(git, name, _fail(name))
+    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch", "_preflight_push_auth"):
+        monkeypatch.setattr(launch_module, name, _fail(name))
+    monkeypatch.setattr("coga.launch_script.subprocess.run", _fail("script spawn"))
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    argv = ["inspect"] if alias else ["launch", "--read-only", "bootstrap/inspect"]
+    monkeypatch.setattr(sys, "argv", ["coga", *argv])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    assert {p: p.read_bytes() for p in read_only_repo.rglob("*") if p.is_file()} == before
+
+
+@pytest.mark.parametrize("option", ["--agent", "--prompt-report", "--idle-timeout", "--max-session", "--return-timeout", "--script-failure-important"])
+def test_read_only_rejects_agent_options_before_config(option: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(launch_module, "load_config", _fail("config loaded"))
+    values = ["codex"] if option == "--agent" else ["1"] if option in {"--idle-timeout", "--max-session"} else []
+    result = CliRunner().invoke(app, ["launch", "--read-only", option, *values, "bootstrap/inspect"])
+    assert result.exit_code == 2, result.output
+
+
+def test_read_only_rejects_stateful_target_before_secrets(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ref = _create_script_task(script_repo, "raise AssertionError('must not run')")
+    monkeypatch.setattr("coga.launch_script.build_launch_env", _fail("secrets resolved"))
+    result = CliRunner().invoke(app, ["launch", "--read-only", ref.id_slug])
+    assert result.exit_code == 2
+    assert "requires a bootstrap target" in result.output
+
+
+def test_read_only_vanished_script_refuses_without_agent_fallback(read_only_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    script = read_only_repo / "bootstrap" / "inspect" / "ticket.py"
+    _write(script, "pass\n")
+    original = launch_module.run_script_phase
+    def remove_before_phase(*args, **kwargs):
+        script.unlink()
+        return original(*args, **kwargs)
+    monkeypatch.setattr(launch_module, "run_script_phase", remove_before_phase)
+    monkeypatch.setattr(launch_module, "spawn_agent_session", _fail("agent fallback"))
+    result = CliRunner().invoke(app, ["launch", "--read-only", "bootstrap/inspect"])
+    assert result.exit_code == 2
+    assert "entry disappeared" in result.output
+
+
+def test_read_only_python_api_reuses_script_executor_without_launch_effects(
+    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+    _write(read_only_repo / "bootstrap" / "inspect" / "ticket.py", "pass\n")
+    calls = []
+    def script_spawn(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=9)
+    for name in ("sync_coga_state", "refresh", "prepare_control_checkout", "publish", "sync_log"):
+        monkeypatch.setattr(git, name, _fail(name))
+    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch", "_preflight_push_auth"):
+        monkeypatch.setattr(launch_module, name, _fail(name))
+    monkeypatch.setattr("coga.launch_script.subprocess.run", script_spawn)
+    result = launch_module.launch("bootstrap/inspect", args=["two words", ""], read_only=True)
+    assert result.exit_code == 9
+    assert len(calls) == 1
+    argv, kwargs = calls[0]
+    assert argv[0] == sys.executable
+    assert argv[2:] == ["two words", ""]
+    assert kwargs["cwd"] == read_only_repo.parent
+    assert not {"capture_output", "stdin", "stdout", "stderr"} & kwargs.keys()
+
+
+def test_agent_preparation_checks_order_without_repo_writes(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ref = _create_script_task(script_repo, "pass\n")
+    cfg = load_config(script_repo)
+    ticket = Ticket.read(ref.ticket_path)
+    calls = []
+    monkeypatch.setattr(launch_module.shutil, "which", lambda cli: calls.append("cli") or "/agent")
+    monkeypatch.setattr(launch_module, "compose_prompt", lambda *a, **kw: calls.append("prompt") or "validated prompt")
+    monkeypatch.setattr(launch_module, "build_launch_env", lambda *a: calls.append("secrets") or {"TOKEN": "scoped"})
+    monkeypatch.setattr(launch_module, "agent_command_refusal", lambda *a, **kw: calls.append("command") or None)
+    before = {p: p.read_bytes() for p in script_repo.rglob("*") if p.is_file()}
+    prepared = launch_module.prepare_agent_launch(cfg, ref, ticket, "claude")
+    assert calls == ["cli", "prompt", "secrets", "command"]
+    assert prepared.prompt == "validated prompt"
+    assert prepared.env == {"TOKEN": "scoped"}
+    assert prepared.agent == cfg.agent_type("claude")
+    assert {p: p.read_bytes() for p in script_repo.rglob("*") if p.is_file()} == before
+
+
+def test_agent_preparation_command_refusal_is_typed_without_publication(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ref = _create_script_task(script_repo, "pass\n")
+    cfg = load_config(script_repo)
+    monkeypatch.setattr(launch_module.shutil, "which", lambda cli: "/agent")
+    monkeypatch.setattr(launch_module, "agent_command_refusal", lambda *a, **kw: "command cannot be represented")
+    with pytest.raises(launch_module.AgentPreparationError, match="cannot be represented") as exc:
+        launch_module.prepare_agent_launch(cfg, ref, Ticket.read(ref.ticket_path), "claude")
+    assert exc.value.command_refused
+
+
+def test_ordinary_bootstrap_keeps_user_requirement_and_exit_publication(
+    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from coga.cli import main
+
+    bootstrap = read_only_repo / "bootstrap" / "inspect"
+    _write(bootstrap / "ticket.py", "print('writer ran')\n")
+    result = CliRunner().invoke(app, ["launch", "bootstrap/inspect"])
+    assert result.exit_code == 2
+    assert "No `user` set" in result.output
+    _write(read_only_repo / "coga.local.toml", 'user = "marc"\n')
+    calls = []
+    monkeypatch.setattr(git, "sync_coga_state", calls.append)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    monkeypatch.setattr(sys, "argv", ["coga", "launch", "bootstrap/inspect"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    assert len(calls) >= 1
