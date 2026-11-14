@@ -1,6 +1,6 @@
 ---
 title: 04 Compare prompt assembly output quality
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -18,6 +18,7 @@ workflow:
     assignee: agent
     checkout: manual
 step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
