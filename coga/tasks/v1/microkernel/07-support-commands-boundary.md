@@ -1,6 +1,6 @@
 ---
 title: Classify support commands under the small-core rule
-status: in_progress
+status: paused
 owner: nicktoper
 agent: codex
 contexts:
@@ -56,7 +56,6 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (design)
-launch_generation: fbbdf127-40a7-453a-ab7f-122e0ae5ce80
 ---
 
 ## Description
