@@ -11085,3 +11085,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-14 14:20 v1 [v1/microkernel/06-read-report-commands-as-ticket-workflows] [human:nicktoper] activated (paused → active)
 2026-11-14 14:21 v1 [v1/microkernel/07-support-commands-boundary] [human:nicktoper] paused (in_progress → paused)
 2026-11-14 14:21 v1 [v1/microkernel/07-support-commands-boundary] [human:nicktoper] activated (paused → active)
+2026-11-14 14:22 v1 [stop-megalaunch-when-an-agent-fails-to-start] [human:nicktoper] created (status=draft)
