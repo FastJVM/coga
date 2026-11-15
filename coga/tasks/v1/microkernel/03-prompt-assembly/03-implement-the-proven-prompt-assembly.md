@@ -1,6 +1,6 @@
 ---
 title: 03 Implement the proven prompt assembly
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -50,7 +50,6 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
-launch_generation: 8a08214a-7732-467d-a90d-5f38d1445060
 ---
 
 ## Description
@@ -194,3 +193,5 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blockers
 
 - [ ] [2026-11-13 23:26] [agent:claude] id=20261113T232634 Parked at owner request: no positive selection. Waiting on v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality to record a positive output-quality selection before design can start.
+
+- [ ] [2026-11-14 18:48] [agent:claude] id=20261114T184855 Still no positive selection (checked 2026-11-14). v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality has 16 runs complete, every gate passed, and its blind pack built; it is at step human-owns-and-finishes. Owner: fill blind/verdicts.csv for the 8 pairs, then unblind and record positive, negative or inconclusive. Design starts only on a positive selection.
