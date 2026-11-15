@@ -55,8 +55,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
-launch_generation: c073499a-d826-4aa6-be22-d3014ff2ad89
+step: 3 (review-design)
 ---
 
 ## Description
@@ -240,6 +239,109 @@ Owner scope review: accept the proposed retained uninstall recovery contract
 and secret migration dependent on launch-decomposition? These are review
 choices for the scheduled owner gate, not implementation authorization.
 
+## Evaluator review
+
+Cold review, 2026-11-14, at main `6e5067ecd` (equal to origin/main). The 03
+read-only seam was checked on its open PR #1233 head `0bf44d2a1`
+(`coga/v1-microkernel-03-launch-decomposition-6852fc`, unmerged, ticket on
+`review`). No archive was read. Verdict: **the uninstall half is ready; the
+secret half needs one owner decision before implementation.**
+
+### Must resolve before implementation
+
+1. **The read-only runner removes the credential that `op://` resolution needs.**
+   Proposed shape 1–2 runs `select_launch_secrets` inside the `ticket.py`
+   child. That child's environment comes from `config.build_launch_env`, which
+   always calls `scrub_op_auth_env`. It removes `OP_SERVICE_ACCOUNT_TOKEN`,
+   `OP_CONNECT_*` and `OP_SESSION_*`. On #1233,
+   `launch_script.run_script_phase(read_only=True)` uses that same builder
+   (03's contract: "Reuse task-environment isolation"). Today
+   `commands/secret.py` resolves in the parent process, which still holds
+   that auth. After the move:
+   - The verification procedure `coga/secrets` prescribes ("verify with
+     `coga secret get <ref>` in a clean environment where
+     `OP_SERVICE_ACCOUNT_TOKEN` is the only credential") would fail even for a
+     correct ref.
+   - On a machine with a signed-in desktop app, it would silently fall back to
+     the personal login. That is exactly the false pass the topic warns about.
+
+   `env:VAR` refs still work, because a ticket with no declarations scrubs no
+   `env:` source. None of the design's escapes is allowed by its own rules:
+   - Declaring `OP_SERVICE_ACCOUNT_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` on the
+     ticket contradicts "no secret declarations". It would also make every
+     query fail loudly when the variable is unset, including `env:` queries
+     and personal-login use.
+   - A secret-only unscrubbed mode is forbidden ("add no secret-only mode").
+   - Resolving in the parent needs argv-aware secret logic in the kernel.
+
+   The proposed AC tests (fake resolver, distinctive sentinel) would not catch
+   this unless they assert the child's environment. The owner should choose
+   one of:
+   - (a) keep `secret get` in core and record the proof: it must resolve with
+     the operator's unscrubbed auth, which no task child receives by design;
+   - (b) add a reviewed read-only policy that keeps OP auth for this target,
+     with the trust consequences recorded in `coga/secrets`;
+   - (c) accept the regression and rewrite the `coga/secrets` verification
+     procedure.
+
+   Whichever is chosen, add an AC asserting the child's environment with
+   `OP_SERVICE_ACCOUNT_TOKEN` set. Merely faking `op` is not enough.
+2. **`secret` must leave `aliases.BUILTIN_COMMANDS`.** Proposed shape 3 adds a
+   default `secret` alias. However, `validate_aliases` rejects any alias whose
+   name is in `BUILTIN_COMMANDS` (`aliases.py`), and `secret` is listed there.
+   `tests/test_aliases.py` pins that set to Typer's registry. Name the removal
+   from the set (and from `cli._GROUP_COMMANDS` and `_LAZY` registration) in the
+   shape so the implementer does not discover it as a failing
+   default-alias validation.
+
+### Verified as stated
+
+- `commands/secret.py` (75 lines), `uninstall.py` (413), `update.py` (408)
+  match the baseline counts. The `secret` branch in
+  `cli._should_sweep_coga_state` is dead code: both its branches return False.
+- In `cli.main`, `uninstall` tolerates `ConfigError` and dispatches before
+  `_validate_aliases`, with no sweep. The retention proof holds, and it can be
+  stated more sharply. An edge implementation cannot keep the
+  `coga uninstall` spelling: an alias runs only after config load and alias
+  validation, and an early dispatch would make core import `coga_edge`, which
+  the microkernel rule forbids. Recommend writing that sentence into the
+  microkernel record.
+- Outside tests, `remove_host_gitignore`, `running_cli_location` and
+  `COGA_PIPX_PACKAGE` are used only by `uninstall.py`.
+  `tests/test_uninstall.py` already monkeypatches `uninstall_cmd.running_cli_location`.
+  The four `tests/test_init.py` `running_cli_location` tests call
+  `update_cmd.running_cli_location` and must move with the function.
+  `AGENT_GUIDE_TEMPLATE`/`_AGENT_GUIDE_FILES` are shared with init's
+  `_write_agent_guides`, so they correctly stay.
+- No installed-versus-source skew implementation exists in `src/coga/`. The
+  only reference is stale prose in `docs/contexts/coga-dev/testing` ("owned
+  by coga/launch"), and `coga/launch` has no such section. Correcting that
+  line is in scope under shape 6.
+- On #1233, alias expansion gives `launch --read-only bootstrap/secret -- get
+  <ref>`. The `--` keeps the operands out of policy detection. Malformed
+  config still exits 2 through `cli.main`'s generic `ConfigError` path, and a
+  missing repo still gets the init hint, because `_DEFAULT_ALIASES` count as
+  known commands.
+- The packaged `bootstrap/retire/ticket.{md,py}` is the precedent for a
+  directory-form bootstrap with an exact `ticket.py`.
+
+### Optional recommendations
+
+- Shape 3 removes the secret-specific sweep branch. That branch is dead today,
+  so delete it regardless of the generic policy; it is not contingent.
+- The help AC is ambiguous. Today `coga secret get --help` prints to stdout
+  and exits 0. Say whether successful help stays on stdout or moves to stderr,
+  and which exit code bare `coga secret` returns.
+- Step 2 says to "use the dedicated customization ticket's ... route". Clarify
+  that 05 is not a gate: local-first bootstrap resolution already makes a
+  repo copy effective.
+- Record the trust consequence in `coga/secrets`: a repo-local override of
+  `bootstrap/secret/ticket.py` runs on every human secret query, and it
+  receives the resolved value.
+- The two halves are independent. If 03 is still unmerged at implement time,
+  allow shipping the uninstall/helper relocation and its microkernel record
+  first, and leave the `secret get` row open, rather than blocking the whole
+  ticket.
 
 ## Superseded designs
 
