@@ -55,99 +55,190 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (design)
-launch_generation: 5eaacf86-ad43-4f4f-85fb-683dbe2f843d
+step: 2 (evaluate-design)
 ---
 
 ## Description
 
-Settle `secret get` and `uninstall` by separating their user procedure from
-shared secret and bootstrap/recovery machinery. Propose moves only when they
-preserve the existing operational boundary and reduce the maintained surface.
-This refreshed design awaits owner scope review.
+Classify secret inspection and installation removal against the small-core
+rule, preserving their operational boundaries. Move the human secret query
+onto an editable deterministic command ticket after the generic stateless
+runner ships; retain the bounded uninstall recovery command. Do not introduce
+a second recovery launcher merely to move code out of the command directory.
+These are proposals for owner review, not ratified placement decisions.
 
 ### Objectives advanced
 
-Ticket ownership and hackability: secret inspection and removal procedure
-can be exposed as editable script behavior where the environment permits it.
-Simplification: reuse actual shared resolver/install primitives and remove
-redundant wrappers. Merely calling either head "bootstrap" is not a proof.
+The secret query becomes repo-customizable Python using the same resolver as
+launch. Removing its Typer group and command-specific dispatch exceptions
+simplifies the command surface. Uninstall retention avoids another loader,
+configuration bypass and teardown policy for a single recovery procedure.
+Relocation alone is not a reduction; measure the whole implementation.
 
-### Premise check against main
+### Acceptance criteria
 
-Snapshot: `49b34b229` (2026-11-12), physical lines including blanks/comments.
+- [ ] Record the reviewed placement of both heads in
+      `docs/contexts/coga-dev/microkernel/SKILL.md`, with the concrete proofs
+      below. Remove their open row only once the reviewed implementation
+      settles both; leave other command placements untouched.
+- [ ] Replace the built-in secret group with a packaged
+      `bootstrap/secret/ticket.md` and exact sibling `ticket.py`, using the
+      read-only stateless contract owned by
+      `v1/microkernel/03-launch-decomposition`. Proposed alias:
+      `secret = "launch --read-only bootstrap/secret --"`; the script parses
+      `get <ref>`. Preserve the public `coga secret get <ref>` spelling.
+      Do not migrate until that generic seam is implemented and verified.
+- [ ] Preserve discovery of a valid repo, `require_user=False`, existing
+      malformed-config failures, and invocation without agent configuration
+      or TTY. A successful query prints only the resolved value and existing
+      trailing newline to stdout. Framing/help failures use stderr; invalid
+      subcommands, missing/excess operands, raw literals, missing env refs,
+      missing op and failed op reads exit 2 with no value on stdout.
+- [ ] Fake resolver/tool outputs, including a distinctive failure sentinel,
+      and prove values never enter prompts, audit, notifications, reports,
+      usage files or Git publication. Test direct read-only launch and alias
+      invocation from a dirty repo, with no configured user/agent and no TTY.
+      Capture stdin/stdout/stderr as separate streams; never acquire real
+      credentials. Do not put returned values in a ticket's `secrets:` field.
+- [ ] Retain `uninstall` as a built-in recovery entry before alias validation,
+      tolerant of invalid shared/local config and absent local definitions,
+      without user/agent/TTY requirements when `--yes` is supplied. Preserve
+      preview, default-no confirmation, refusal with no deletion, guide
+      backups, relocated-root warning/containment and external-root-first
+      failure order, skill-link pruning, gitignore cleanup, and root-layout
+      refusal. No publication, checkout refresh or audit follows removal.
+- [ ] Exercise removal only in disposable fixtures. Cover malformed TOML,
+      invalid aliases, absent definitions/local config, edited and unmodified
+      guides, external contexts and failure before deleting coga.toml,
+      confirmation refusal, plus fake uv/pipx/pip purge success/failure.
+      Keep unresolved executable detection, UV_TOOL_DIR targeting and
+      platform-specific quoted manual recovery commands intact.
+- [ ] Classify launch-adjacent checks as below. Remove no preflight merely
+      because a later subprocess can fail. Any proposed deletion must prove
+      visible failure on ordinary, scripted and delegated recurring paths
+      before their relevant activation/publication effects.
+- [ ] Update package-owned `coga/secrets`, `coga/uninstall`, `coga/init`,
+      `coga/cli` and relevant launch/extension guidance in the same PR for
+      changed contracts; update packaging manifests for new/removed resources.
+      No live twins, forwarding modules or second upgrade mechanism.
+- [ ] Report before/after full revisions and physical production line counts
+      (including blanks/comments) separately for core, edge and ticket scripts;
+      list deleted entrypoints, exceptions and dependency edges. Report tests,
+      docs and resource copies separately. Run focused secret/uninstall/init/
+      CLI/launch/packaging tests, task validation and the full Linux suite with
+      receipts per `coga-dev/testing`. Native Windows/macOS checks are deferred
+      to release, not implementation gates.
 
-1. Both heads exist: `commands/secret.py` (75) and `commands/uninstall.py`
-   (413). `commands/update.py` (408) remains init support, not `coga update`.
-2. Secret resolution is `config.select_launch_secrets`; uninstall reads the
-   footprint and imports helpers from init/update. The install guide is the
-   project README's Get started section; the old `coga/install` pointer is stale.
-3. This body carries the requirements; the owning user topics supply the
-   contract. No archived audit or retired prerequisite is required.
-4. Acquisition/injection separation and the broken-alias recovery path are
-   already implemented. Classification/migration of these two heads is still open.
+### Proposed shape
 
-### Proposed boundary
+1. Consume the reviewed generic read-only runner from launch-decomposition.
+   Its contract must suppress launch and exit publication on success and
+   refusal, inherit streams without capture, avoid composition/agent fallback,
+   skip skill-view writes and checkout preparation, and clear outer lifecycle
+   authority. Reuse its subprocess/environment machinery; add no secret-only
+   mode or command-name allowlist. If it is unavailable at implementation,
+   block on exact slug `v1/microkernel/03-launch-decomposition` rather than
+   implement a second runner.
+2. Author the secret procedure directly beside its packaged ticket. Parse its
+   small argv with stdlib, reject literals with the existing human-facing
+   error, call `config.select_launch_secrets(None, [{"value": ref}])`, catch
+   `SecretError`, and print only the result. Do not duplicate configuration
+   loading already owned by read-only dispatch. The ticket has no agent
+   procedure or secret declarations. Use the dedicated customization ticket's
+   local-first discovery/forking route; the script itself contains the editable
+   behavior, rather than an import-only edge wrapper.
+3. Remove `src/coga/commands/secret.py` and its lazy registration/group entry
+   in `src/coga/cli.py`; add the alias in `src/coga/aliases.py`. Remove the
+   obsolete secret-specific sweep branch once the generic invocation policy
+   covers alias expansion and refusals. Keep help/argument behavior explicit
+   in integration tests. Do not edit this repository's coga.toml.
+4. Retain `src/coga/commands/uninstall.py` and `cli.main`'s early dispatch.
+   The co-versioned invariant is recovery before config/alias admission and
+   teardown without publishing after deleting the configuration/state roots.
+   Ordinary ticket launch cannot supply this contract: it loads those roots,
+   validates config and has lifecycle teardown. Moving the procedure behind
+   another recovery loader increases mechanisms without an identified saving.
+   Do not split the plan/executor or add core-to-edge imports.
+5. Remove misleading dependency ownership within the retained recovery code:
+   `commands.update.remove_host_gitignore`, `running_cli_location` and
+   `COGA_PIPX_PACKAGE` have only uninstall as a production consumer; move
+   their definitions into uninstall and update their tests/imports, without
+   forwarding exports. Keep shared gitignore marker constants in update and
+   the actual init/uninstall guide template shared as it is. No speculative
+   install-helper module. Count these moves as relocation, not deletion.
+6. Keep `launch._preflight_push_auth` and shared
+   `github_preflight.check_git_auth` enforced at use; keep
+   `agent_skills.refresh_agent_skill_view` shared by init and ordinary launch.
+   The read-only runner deliberately skips materialization. No installed/source
+   skew diagnostic implementation was found at the baseline; do not invent or
+   resurrect one from stale prose. Correct stale diagnostic guidance only after
+   verifying its absence again at implementation. No readiness check moves
+   into agent instructions.
 
-`secret get` is a candidate script command ticket using the existing resolver.
-Keep launch-time secret injection, environment scoping, redaction and errors
-in shared core. Preserve the direct human request's stdout-only result; never
-put values into agent prompts, task arguments stored as state, reports, logs
-or notification messages. A failed lookup reports the reference, not the value.
-The generic stateless runner must not compose an agent prompt or record the
-returned bytes, and must retain no-user-config inspection behavior.
+### Out of scope
 
-Recommend retaining a minimal `uninstall` recovery entry for now. It is
-dispatched before ordinary alias validation, works with damaged Coga config,
-and may remove the very tree a ticket would be loaded from. An ordinary
-`launch bootstrap/uninstall` alias does not preserve those properties.
-Its plan construction/removal procedure can move to packaged edge code only
-if the entry still reads the selected implementation without trusting broken
-config and performs no teardown publication after deletion. The design must
-show a net simplification; otherwise retain the bounded recovery command with
-a written proof rather than add a second recovery launcher.
-
-Preserve the removal preview and confirmation/`--yes`, backups of edited guide
-files, configured contexts handling and opt-in global `--purge`. Never run
-uninstall or real secret acquisition against the live repository for validation.
-
-### Launch-adjacent support
-
-Classify push-auth readiness, installed/source diagnostics and agent-skill-view
-refresh handed off by launch. Shared checks enforced at their point of use
-remain shared infrastructure. This ticket may remove a redundant preflight
-only with evidence that every affected execution path still fails visibly at
-the right boundary; moving all checks into an agent prompt is not equivalent.
-
-### Acceptance and reduction evidence
-
-- [ ] Give each head a concrete retained/moved decision in the local
-      microkernel topic and remove its open row only after review.
-- [ ] Exercise `secret get` streams/errors with fake resolvers, empty operator
-      config and no agent/TTY; prove no value enters audit or captured reports.
-- [ ] Exercise uninstall with broken aliases/config, missing local definitions,
-      edited guides, relocated contexts, confirmation refusal and purge plans
-      in disposable fixtures; preserve recovery before normal dispatch.
-- [ ] Identify actual shared init/uninstall helpers before extracting them;
-      report whole-system wrapper/dependency reductions, not just moved lines.
-- [ ] Update package-owned `coga/secrets`, `coga/uninstall`, `coga/init` and
-      CLI guidance if changed. Run secret/uninstall/init/CLI/launch tests and
-      the full Linux/native Windows receipts required for implementation.
+Changes to secret acquisition providers, launch injection/scrubbing/redaction,
+new secret stores, recovery plugins, uninstall customization loaders, package
+upgrade commands, arbitrary recipe registration, the generic runner itself,
+and implementation of resource discovery/forking. No real uninstall or secret
+query against this live repository. No code, branch or PR in this design step.
 
 ## Context
 
-Read `coga-dev/microkernel/objectives`, `coga-dev/testing` and
-`coga-dev/packaging`. User owners resolve below
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/`.
+Baseline: `850ad409c4e6a6dc50b725c9c168d292e8d90ddb` (2026-11-14),
+clean main equal to fetched origin/main. Physical lines including comments
+and blanks: `commands/secret.py` 75, `commands/uninstall.py` 413,
+`commands/update.py` 408. These are inventory, not promised savings.
 
-The generic stateless seam is owned by launch-decomposition. Editable resource
-discovery/forking is owned by the dedicated customization ticket; do not build
-a second updater here. Drop stale twin and `coga/install` instructions. Defer
-new upgrade commands and moving uninstall solely to improve a head count.
+- `src/coga/commands/secret.py`, `get`: loads config without requiring user,
+  rejects literals, calls `config.select_launch_secrets` and echoes its result.
+  `src/coga/cli.py`, `_should_sweep_coga_state` excludes the secret group.
+- `src/coga/cli.py`, `main`: tolerates config errors for uninstall and invokes
+  its built-in before `_validate_aliases`; it returns without the ordinary
+  sweep. This bypass must remain independent of local bootstrap definitions.
+- `src/coga/commands/uninstall.py`, `_build_plan`, `_configured_contexts_root`,
+  `_execute_plan`, `_handle_package`: inspect before removal, use
+  `config.resolve_layout_contexts_path` for safe root resolution, remove the
+  external root first and select installer-specific purge. The guide comparison
+  consumes `commands.init.AGENT_GUIDE_TEMPLATE` and `_AGENT_GUIDE_FILES`, which
+  init's `_write_agent_guides` also consumes. Verify symbol spelling if moved.
+- `src/coga/commands/update.py`, `ensure_host_gitignore` and
+  `remove_host_gitignore`: share marker constants, not one executable helper.
+  `running_cli_location` is used only by uninstall in production; test calls
+  in `tests/test_init.py` do not establish a second consumer.
+- `src/coga/launch.py`, `_preflight_push_auth`: calls
+  `github_preflight.check_git_remote` and `check_git_auth`; recurring runner
+  also invokes this preflight. `github_preflight.run_preflight` and megalaunch
+  also consume auth checks. `_refresh_agent_skills_for_launch` wraps the same
+  `agent_skills.refresh_agent_skill_view` init uses when wiring links.
+- `coga/tasks/v1/microkernel/03-launch-decomposition.md`, draft stateless
+  invocation contract, owns `launch --read-only` (currently proposed, absent
+  from `commands.launch.launch`).
+  `coga/tasks/v1/microkernel/05-make-packaged-behavior-discoverable-and-editable.md`
+  owns effective-source discovery and editable distribution.
+- User contract owners are under
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/`; development
+  classification belongs only in `docs/contexts/coga-dev/microkernel/`.
+  Follow `coga-dev/packaging` and `coga-dev/testing`; the README Get started
+  section owns installation, not a retired coga/install topic.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design handoff — 2026-11-14
+
+Traced production callers at the baseline above. Proposed secret migration
+consumes the not-yet-shipped read-only stateless seam; uninstall stays a
+bounded recovery command. Single-consumer update helpers move beside their
+actual caller, without claiming line reduction. No implementation changed.
+The previous native-Windows implementation gate was stale: current testing
+policy defers native checks to release.
+
+## Open Questions
+
+Owner scope review: accept the proposed retained uninstall recovery contract
+and secret migration dependent on launch-decomposition? These are review
+choices for the scheduled owner gate, not implementation authorization.
+
 
 ## Superseded designs
 
