@@ -57,8 +57,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
-launch_generation: 3664ffa2-16dd-421a-aa1d-bda7b8ee3aa1
+step: 3 (review-design)
 ---
 
 ## Description
@@ -424,6 +423,112 @@ For the owner review-design gate (do not block this design step):
 3. Approve implementation of all three increments here, or assign concrete
    follow-up tickets at scope review? Proposed order is promotion → authoring
    → complete skill family; none is dropped from the v1 placement gate.
+
+## Evaluator review
+
+Cold evaluation, 2026-11-14, on main `4b30967bb` (ticket-only commits since the
+design baseline `eccd3b31f`). Read the body as the implementer would; no
+ticket-body edits, branch, code or PR.
+
+**Verdict: implementable in shape, not yet ready as written.** The ownership
+table, consumer audit and baseline counts check out. Before implementation
+starts, resolve findings 1–3 at review-design. Finding 4 is a scope decision
+that blocks part of the work.
+
+### Must resolve before implementation
+
+1. **The documented `bootstrap/ticket` override breaks under the move.**
+   `tasks.resolve_bootstrap` chooses between local and packaged as a whole
+   directory: if a local `coga/bootstrap/ticket/ticket.md` exists, the local
+   directory wins. The packaged `bootstrap/ticket/ticket.md` tells users to
+   create exactly that file to change the install-wide authoring agent, and
+   `authoring.resolve_authoring_agent` reads its `agent:` as precedence step 5.
+   Once `ticket.py` exists only in the package, a repo that followed this advice
+   resolves to a local directory with no script. `coga ticket` would then
+   become a bare agent launch of that ticket, which skips readiness, the entry
+   snapshot and guarded finalization. Separately, adding `ticket.py` changes
+   what bare `coga launch bootstrap/ticket` does. A stateless script target
+   runs exactly one phase (`launch_script.run_script_chain`), so the launch
+   that ticket.md currently describes as an agent session becomes a script.
+   The spec needs to say: (a) where the install-level default-agent setting
+   lives after the move; (b) that a local `bootstrap/ticket` without
+   `ticket.py` fails loudly and never falls back to an agent; (c) the new
+   meaning of `coga launch bootstrap/ticket [--agent]`, given that launch's own
+   `--agent` comes before `--`; (d) the ticket.md text and the
+   `coga/tickets/authoring` updates. Each needs a test.
+2. **The rule for nested spellings conflicts with sibling 06.** 06 (Open
+   question 2) prefers to keep a fixed `recurring list` subcommand adapter over
+   the read-only launch API. 08 removes `recurring promote` and rejects an
+   adapter for `skill status`. 03's draft read-only contract explicitly lets a
+   consumer use "a thin argv-parsing adapter" for mixed heads. If the owner
+   approves 06's adapter, `recurring promote` and `skill status` could use the
+   same pattern without renaming. The owner should pick one rule for all
+   nested heads (adapter or rename) across 06 and 08. Questions 1 and 2 should
+   state the adapter option and what it costs, not only renaming.
+3. **Promotion changes an exit code without listing it.** Today
+   `commands.recurring.promote` treats a `git.publish` `GitError` as a yellow
+   `[git] sync failed` warning and exits 0. The Promotion increment says it
+   moves the code "unchanged except explicit partial-failure handling", but it
+   also requires publication refusal or failure to exit 75. That is a separate
+   change in user-visible behavior. Add it to the list of deliberate
+   differences, beside spelling and stderr framing, and test it.
+
+### Scope and dependency decision (blocks part of the work)
+
+4. **Two of the three increments depend on sibling work that has not landed.**
+   `skill-status` needs `launch --read-only`, which exists only as a draft in
+   `v1/microkernel/03-launch-decomposition` (step 5, review). Authoring needs
+   03's public readiness seams. Promotion needs neither and can start once
+   approved. The acceptance criterion "implement all three increments" in one
+   ticket either holds this ticket in progress until 03 merges or forces a
+   `coga block` partway through. Recommendation for Open question 3: split into
+   three execution tickets or PRs, with promotion first. About 3.4k lines move
+   plus new tests, which is too much to review as one PR. Each later ticket
+   should depend on 03 by exact ref.
+
+### Optional recommendations
+
+- **Existing `create.py`.** `src/coga/create.py` already exists (413 lines,
+  `create_task`, used by retire). Say to move `create_draft` and
+  `_split_create_path` into that module; the current wording reads like a new
+  file.
+- **Private branchsweep import.** The edge `skill_manager.py` would still call
+  the private `branchsweep._verbatim_patch_ids`; today it imports it lazily to
+  avoid a cycle. Make it a public shared helper as part of the move. An edge
+  module should not import a private core symbol.
+- **`bootstrap/skill` naming.** A `bootstrap/skill/` directory sitting beside
+  the `bootstrap/skills/` library, packaged and locally as `coga/bootstrap/skill/`
+  next to `coga/skills/`, is easy to confuse. Consider a distinct ref such as
+  `bootstrap/skill-manage`.
+- **Exit 75 is already handled.** For stateless targets, `run_script_chain`
+  already returns early on 75, and `commands/launch.py` sets
+  `git.state_sweep_withheld`. The implementer should verify and test this
+  existing generic path rather than build new retention.
+- **The reporting job becomes a nested launch.** `skill_update.run_update_json`
+  runs `coga skill update --all --pr --json` in a subprocess. After the move
+  that is a nested `coga launch bootstrap/skill` inside the `skill-update`
+  recurring period, which adds launch audit lines and alias stderr. Add one
+  test that runs the real job against the alias path and checks that stdout is
+  JSON its parser accepts and that the log entries are as expected.
+
+### Verified as stated
+
+Line counts (`commands/ticket.py` 423, `authoring.py` 352, `commands/skill.py`
+211, `skill_manager.py` 2,123, `commands/create.py` 175, `recurring.py` 2,781,
+`commands/recurring.py` 391, `skill_update.py` 434). Core consumers outside the
+moved code:
+- `skill_manager`: only `validate` (both skill roots) and `branchsweep`
+  (`SKILL_UPDATE_BRANCH`).
+- `finalize_authored`: called only from `commands/ticket.py`.
+- `megalaunch`: imports `resolve_authoring_agent` at module level and imports
+  the `commands.ticket` coordinator lazily inside `_author_draft`.
+- `promote_task`: used only by `commands/recurring.py`. Its order is copy (with
+  `.state-snapshot.json` excluded) → `Template.load` →
+  `rmtree(..., ignore_errors=True)` on failure → `run_delete_task` → audit.
+- `skill_update`: calls the public CLI through `subprocess.run`.
+
+Default aliases have no `ticket`, `skill-status` or `promote-recurring`
+collision once the built-ins are removed.
 
 ## Superseded designs
 
