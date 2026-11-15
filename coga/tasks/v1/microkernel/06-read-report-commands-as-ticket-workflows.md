@@ -56,8 +56,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
-launch_generation: 4e568f5a-cbbf-47f1-bdc2-0cf2da69bfbf
+step: 3 (review-design)
 ---
 
 ## Description
@@ -331,6 +330,117 @@ design outside the repo, fast-forwarded to
 These are review-design decisions, not blockers to completing this design
 step. The evaluator should test their completeness; implementation must wait
 for the selected contracts rather than silently changing semantics.
+
+## Evaluator review
+
+Cold review, 2026-11-14, at main `b11ac6739aca3e828db56e99b41e1ce9c706b94f`,
+plus the read-only dispatch implementation on
+`origin/coga/v1-microkernel-03-launch-decomposition-6852fc` (`0bf44d2a1`,
+PR #1233, open and not merged). The ticket body is composed correctly: every
+spec section is a `###` under `## Description`, background is under
+`## Context`. The baseline line counts and most consumer claims check out
+(`views.last_updated_map` has exactly one other production importer,
+`megalaunch.py`; `_operator_cell` is called by both renderers;
+`coga/recurring/usage-report/report.py` consumes `rollup`; recurring-list's
+table helpers have one caller). The show/status/usage shape is implementable.
+**Verdict: not ready as written.** Two must-fix gaps in the validation and
+shared-helper parts would force an implementer to guess. Neither needs new
+research; both need a sentence in the spec and an owner choice.
+
+### Must resolve before implementation
+
+1. **Validation has a second core consumer the spec omits.**
+   `src/coga/dream_validate_drift.py` (`build_validate_command`,
+   `run_validate_json`) backs the fixed `validate-drift` recipe in
+   `runner.RECIPES`. It subprocesses `sys.executable -m coga.validate --json`
+   and, by default, `--fix`. The packaged
+   `bootstrap/skills/bootstrap/dream/tasks/validate-drift/SKILL.md` documents
+   that spelling. `coga-dev/internals/git-regressions` relies on it as a
+   source-pinned validator. So:
+   - The JSON serialization of `ValidationReport` (`generated_at`, `ok_count`,
+     `fixes`, `issues`) and the fix-capable entry already have two real
+     consumers, the public head and a core recipe. Under the microkernel
+     rule, that presentation qualifies to stay in core. Proposed shape item 5
+     ("put ... report serialization in the validation ticket"; keep
+     `python -m coga.validate` only "if the owner elects") conflicts with that
+     rule and with "do not import edge code from `coga.validate`". A core
+     recipe cannot reach a ticket-owned serializer.
+   - Open Question 1 frames the fix path as a public-CLI decision only. The
+     recipe is a second, automated `--fix` caller, so the owner's answer must
+     cover it too.
+   - The acceptance line "Dream drift checks continue to work" is not
+     testable as written. Name the recipe and its exact command contract.
+   Fix: state that `python -m coga.validate` (argv, JSON payload, exits 0/1/2,
+   `--fix`) is a retained core contract for `validate-drift`. Then reduce
+   ticket ownership to whatever presentation that leaves (the text renderer),
+   or say that `validate` stays a core head and why. Either way, the
+   duplicate presentation in `commands/validate.validate` and `validate._main`
+   should fold into one *core* entry, not into the ticket.
+
+2. **The `_operator_cell` home is undecided and, as described, cannot work
+   with local overrides.** Item 3 allows "a small shared edge helper for
+   show/status" but names neither its path nor how two separate ticket
+   directories import it. If the helper sits beside one report, the other
+   report's `ticket.py` imports across ticket directories. A user who copies
+   only `bootstrap/status` locally then keeps importing the package copy of
+   that helper, which defeats the acceptance criterion that copying a
+   definition exposes its policy. If it sits in `coga_edge`, the
+   wrapper-only-fork problem in the objectives returns. Meanwhile
+   `_operator_cell` is 20 lines over core `bump.resolve_operator`, with two
+   real callers. "Count callers of one symbol" puts it in core as a public
+   `views.operator_cell` (or beside `resolve_operator`). Fix: name the home.
+   The rule-consistent choice is core, which removes the cross-ticket import
+   question. A deliberate edge choice must spell out its import path and
+   local-override behavior.
+
+### Should resolve (implementer would otherwise guess)
+
+3. **"As quick ... as today's direct CLI" has no criterion.** Every
+   migrated read spawns a second interpreter that re-imports `coga`. Measured
+   on this machine: `coga status` takes about 0.82 s end to end. A bare child
+   `import coga.views, coga.config, coga.tasks` takes 0.17–0.28 s, roughly
+   +25–35% per call, before any target resolution. Agents call `coga show`
+   and `coga status` often. Either add a bounded latency acceptance check
+   (for example, median wall time of migrated `status`/`show` within X% or
+   Y ms of baseline in the same fixture) or drop "as quick" from the
+   Description and record the accepted cost.
+4. **The dependency is a PR branch, not main.** Read-only dispatch exists
+   only on PR #1233. Its documented contract (bootstrap `ticket.py` only,
+   exit 2 refusals, stdout to the script, alias framing on stderr, no sweep
+   via `cli._read_only_launch_requested`, and `--` separator handling) matches
+   what this design assumes. Two points still need checking once it lands:
+   - its "requires valid existing repo configuration" refusal must keep
+     today's validate malformed-config behavior (red message, exit 2) for the
+     comparison criterion;
+   - `coga show --help` must reach the script through
+     `launch --read-only bootstrap/show -- --help` and must not be consumed by
+     Typer's launch help.
+
+   Make the precondition explicit: the implement step starts only after
+   #1233 merges, and a refusal path asserts both points.
+5. **Recurring-list adapter (Open Question 2).** The preferred residual
+   `recurring list` subcommand adapter keeps a co-versioned head. Say what
+   row the open-placements table gets afterwards. Emptying that table is a
+   v1 gate (`coga-dev/microkernel`), so a retained adapter must be recorded as
+   a settled core-adapter decision with its reason, not left open.
+
+### Optional
+
+6. Open Question 3 (prompt-report) is well argued; keeping it in launch is
+   consistent with `coga-dev/microkernel` and with sibling 03's own Context
+   ("Prompt-report rendering is a read-only compose diagnostic").
+7. The acceptance list is broad. The no-effects criterion (item 4 in the
+   acceptance list) could name its harness, for example the recording fakes
+   already in `tests/test_launch_script.py` on the PR branch, so a later
+   implementer reuses them instead of building a second one.
+8. The status recurring footer (`views.py` near the `coga recurring list`
+   pointer) calls a `recurring.py` helper that both `recurring list` and status
+   share. Its core placement is already implied by "keep
+   `recurring.list_templates`"; naming it avoids moving it by accident.
+
+Scope: one coherent PR is plausible for show/status/usage/recurring-list. If
+the owner keeps `validate` mostly in core (finding 1), splitting validation
+into its own follow-up would keep this PR's comparison matrix tractable.
 
 ## Superseded designs
 
