@@ -57,111 +57,372 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (design)
-launch_generation: 97e7d6f0-a2b3-4cc2-bdc5-e8f09477dbd1
+step: 2 (evaluate-design)
 ---
 
 ## Description
 
-Classify the remaining authoring/tooling surfaces and give each a concrete
-implementation owner: `ticket`, `skill *`, and the previously unassigned
-`recurring promote` row. Prefer procedure scripts over permanent core heads,
-while retaining the real shared validation/publication operations they use.
-This is a refreshed classification scope for owner review.
+Move authoring and skill-management procedure policy out of permanent core
+heads, and give task-to-recurring-template promotion an explicit owner. The
+kernel should supply execution, validation, task IO and guarded publication;
+the command ticket should own the procedure users want to change. This is a
+proposal for cold evaluation and owner scope review, not a settled placement.
 
-### Objectives advanced
+### Objectives and implementation scope
 
-Hackability and ticket ownership: guided authoring, skill maintenance policy
-and task-to-template promotion should be understandable and editable as
-procedures. Simplification: remove redundant coordinators and command-to-command
-imports rather than replacing them with equally coupled wrappers.
+Advance editable behavior and ticket ownership by putting the complete
+procedure beside a stateless command ticket. Advance simplification by deleting
+command-to-command imports and replaced coordinators, not by adding forwarding
+modules. This ticket owns three bounded implementation increments, after owner
+approval: promotion, authoring, then the complete skill command family. The
+owner may split these into execution tickets at review-design; until then all
+three remain assigned here. Moving only the skill parser is not completion.
 
-### Premise check against main
+### Proposed shape: ownership and consumers
 
-Snapshot: `49b34b229` (2026-11-12); physical lines include blanks/comments.
-
-1. All subjects remain. The microkernel open table also contains
-   `recurring promote` with no ticket; this scope proposal supplies its owner.
-2. `commands/ticket.py` is 423 lines, `authoring.py` 352;
-   `commands/skill.py` is 211, `skill_manager.py` 2,123. Promotion is
-   `commands.recurring.promote` plus `recurring.promote_task`.
-   Guided authoring already uses the `coga.launch` service.
-3. Requirements are stated here. The old description of `skill *` as merely
-   a thin `gh skill` wrapper omits URL installation, provenance, adapted-tree
-   updates and the PR flow; use the current module, not that shorthand.
-4. Alias dispatch, package fallback resolution and guarded authoring
-   finalization already ship. None of the three remaining placements is settled
-   by those facts; do not rebuild those delivered mechanisms.
-
-### Proposed classifications
-
-| Surface | Proposed boundary | Evidence/constraint |
+| Current surface | Proposed owner | Retained shared operation and actual consumers |
 | --- | --- | --- |
-| `ticket` | Move interview selection, create/edit kickoff and post-session coordination into `bootstrap/ticket` script behavior, consuming the public one-session executor | A plain agent-only launch alias would lose preflight-before-create and the deterministic post-exit phase |
-| `authoring.finalize_authored` | Move authoring-only finalization orchestration with its ticket; retain shared validation and `git.publish` primitives | Only the ticket command calls this finalizer. Preserve validation of all authored tickets and changed knowledge before one guarded publication |
-| `skill *` | Propose script command tickets for procedure and CLI policy; retain only demonstrated shared helpers or use the external tool directly where sufficient | Whole `skill_manager.py` is not proved shared by the generic runner or test imports; URL/provenance/adaptation/PR behavior must survive |
-| `recurring promote` | Propose deterministic command-ticket orchestration over shared template validation, task IO and deletion primitives | Validate schedule/destination/workflow and load the new template before source removal; preserve attachments and explicit audit/publication behavior |
+| `commands/ticket.py`, authoring snapshots and `authoring.finalize_authored` | Package `bootstrap/ticket/ticket.py` and sibling `authoring.py` | `launch.spawn_agent_session` is also used by launch and megalaunch; `validate.assert_task_valid`, task IO and `git.publish` remain shared. The finalizer has one direct production caller, `commands.ticket._run_authoring_session`; megalaunch reaches that coordinator indirectly. |
+| `authoring.resolve_authoring_agent`, `AUTHORING_AGENT_ENV` | Small shared authoring-agent policy module in core, with both consumers migrated | `commands.ticket.ticket`/picker and `megalaunch._author_draft` use the same precedence. Do not retain the finalizer merely to keep this resolver. |
+| `commands.create.create_draft`, `_split_create_path` | Shared creation machinery in `src/coga/create.py`, with presentation in callers | Both raw create and authoring need path splitting, validation, creation and its publication. Preserve their one creation operation and messages; edge must not import `commands.create`. |
+| `commands/skill.py` and procedure-specific `skill_manager.py` implementation | `bootstrap/skill/ticket.py`, sibling `skill_manager.py`; separate read entry below | Install/update/remove/status policy has one command family. `skill_update.run_update_json` consumes the public command as a subprocess, not individual implementation symbols. Test imports and generic runner dispatch are not independent consumers. |
+| `skill_manager.skills_root`, `bundled_skills_root` | `paths.py`, reused by validation and moved skill implementation | `validate._check_shebang_executables` uses both roots; skill operations also use them. Init and `agent_skills.refresh_agent_skill_view` do not import skill_manager; do not invent an init dependency. |
+| `skill_manager.SKILL_UPDATE_BRANCH` | Shared branch-protection contract in core, consumed by updater and branch cleanup | `branchsweep` protects this exact branch in candidate classification and ref handling. Move the constant to a small appropriate shared home, without making branch cleanup import the edge implementation. |
+| `recurring.promote_task`, `PromoteOutcome`, promotion-only transform/render helpers and command presentation | `bootstrap/recurring-promote/ticket.py` and sibling `promotion.py` | Keep `recurring.Template.load`, schedule validation, effective catalog/name validation, `delete_task.run_delete_task`, task IO, log IO and `git.publish`. Removal also serves delete and recurring replacement. |
 
-### Design work and bounded follow-ups
+Perform an import/call audit during implementation before moving each symbol.
+Helpers used only within one moved implementation move with it. In particular,
+`skill_manager.gh_skill_repo`, digest/include logic, download/archive handling,
+update classification and PR coordination have no second core production
+consumer in the baseline. `skill_manager._verbatim_patch_ids` calls shared
+branch-sweep support: retain that support where it is shared, not this wrapper.
+The promotion name pattern is also used by recurring selection/catalog parsing;
+expose the existing check as shared rather than copying the pattern. The
+promotion workflow check, frontmatter transform and YAML renderer have only
+promotion callers and move. Retain schedule validation as a public shared
+operation over the existing validator, not a duplicate cron parser.
 
-For authoring, preserve no-target/new/existing interviews, agent picking,
-readiness checks before creating a draft, least-privilege environment and no
-ticket-secret injection, snapshot-based changed-file selection and post-exit
-finalization. An authoring script can orchestrate a single agent session using
-the shared API; it must not recursively launch its own ticket or imitate a
-stateful workflow transition. `resolve_authoring_agent` has real consumers in
-authoring and megalaunch; that helper can remain shared without retaining the
-whole authoring procedure in core. Remove the import from `commands.create` by
-placing actually shared creation helpers with the existing creation machinery.
+### Invocation and editable paths
 
-For skills, inventory per-symbol consumers in skill commands, init/agent-view
-support and the recurring updater. Keep GitHub and URL sources, include
-allowlists, local adaptations and PR publication in the comparison. Define a
-bounded first migration and name any later implementation follow-up at owner
-scope review; do not close the open row merely because a future move is named.
-Changing the supported sources or installing a new plugin system is not part
-of this classification.
+The proposed final paths, relative to
+`src/coga/resources/templates/coga/`, are:
 
-For promotion, account for file and directory tasks, attachments, schedule
-validation, workflow conversion, fresh template verification and removal
-failure. `promote_task` is ordered filesystem work, not a proven distributed
-atomic transaction. Reuse the existing primitives without promising stronger
-atomicity, and preserve failures rather than suppressing a partial result.
-This ticket owns promotion only; the read/report sibling owns `recurring list`,
-and the recipe sibling owns `recurring-scan`.
+| Invocation proposal | Alias expansion | Script and implementation |
+| --- | --- | --- |
+| `coga ticket [target] [flags]` | `launch bootstrap/ticket --` | `bootstrap/ticket/{ticket.py,authoring.py}` |
+| `coga skill install\|install-local\|install-url\|update\|remove ...` | `launch bootstrap/skill --` | `bootstrap/skill/{ticket.py,skill_manager.py}` |
+| `coga skill-status [--check] [--json]` | `launch --read-only bootstrap/skill-status --` | `bootstrap/skill-status/ticket.py`, using the effective skill implementation as described below |
+| `coga promote-recurring <task> --schedule <cron> [--name <name>]` | `launch bootstrap/recurring-promote --` | `bootstrap/recurring-promote/{ticket.py,promotion.py}` |
 
-### Acceptance and reduction evidence
+These spellings are proposals requiring the owner's answers below. Existing
+aliases cannot replace only a nested subcommand. Do not add nested alias
+machinery or silently run `skill status` through writer dispatch. Proposed
+migration removes `recurring promote` and replaces it with `promote-recurring`;
+`recurring` still serves its other siblings. Proposed skill migration replaces
+`skill status` with `skill-status`; the writer parser rejects `status` with the
+new spelling before mutation. Preserve flags/results; changed command spelling
+and alias stderr framing are the deliberate differences. No compatibility head
+or permanent wrapper is implied. If the owner requires the old spellings,
+revise the dispatch design before implementation rather than smuggling policy
+selection into launch by command name.
 
-- [ ] Record a per-surface retained/moved proposal with actual consumers and
-      invariants; assign implementation steps/follow-ups with no unowned row.
-- [ ] Show the full alias → ticket → implementation path and the editable
-      local alternative for each moved procedure.
-- [ ] Preserve authoring's post-exit transaction and no-secret environment;
-      skill update's provenance/adaptation and PR behavior; promotion's
-      validation-before-removal and attachment behavior.
-- [ ] Identify coordinator/wrapper deletions and estimate full production
-      scope at a named revision; no claim of reduction before implementation.
-- [ ] Update user owners and microkernel placement when decisions land.
-      Carry forward authoring/ticket/create, skill-manager, recurring,
-      publication and packaging tests with required full-suite/native receipts.
+For a full local fork, copy each selected `bootstrap/<ref>/` directory to
+`coga/bootstrap/<ref>/` with all siblings, then edit the local implementation.
+For authoring instructions, copy/edit the independently resolved
+`coga/skills/bootstrap/ticket/` as well when desired. A local fork is not
+updated by wheel upgrades; removing it rejoins package defaults. No live copies
+are added to this source repo. Keep imports local to the selected ticket or
+use shared core; do not hard-code installed-package implementation paths.
+
+Skill status and writes must share the same classification/digest code, not
+copy it. The status entry resolves the effective `bootstrap/skill` directory
+through existing bootstrap resolution and invokes an explicitly named read
+entry in its sibling implementation using Python. This is procedure-owned
+composition between two concrete tickets, not new kernel plugin discovery.
+It must honor a local full fork, fail loud if that fork omits the read entry,
+and never fall back to stock code. Document this dependency in both tickets;
+the discoverability sibling must include it in complete-copy results. Keep the
+read entry separate from the writer parser so write operands cannot enter a
+read-only invocation. If this proves more complex than one shared wheel edge
+module, evaluate that alternative at owner review with a complete implementation
+fork path; do not duplicate the manager to preserve the proposed layout.
+
+### Authoring increment
+
+Consume the shared one-session executor from
+`v1/microkernel/03-launch-decomposition`; verify its landed public seams before
+coding. Today `launch.spawn_agent_session` already supplies one-shot execution,
+but the coordinator also reaches private readiness helpers. Do not recursively
+call `launch bootstrap/ticket` from its script, chain workflows, bump the
+interviewed ticket, or make core load procedure code.
+
+`megalaunch._author_draft` currently imports `_authoring_ticket`, kickoff and
+`_run_authoring_session` from `commands.ticket`. Remove that dependency in the
+same migration: invoke the public command-ticket authoring operation in a
+subprocess with the selected target and interviewer, preserving picked-draft
+error presentation and no picker. Core must not import or path-load the moved
+coordinator. Coordinate this call-site change with
+`v1/microkernel/09-work-orchestration-commands-to-tickets`; if its queue move
+lands first, update that effective caller instead. A retained-state 75 must
+stop queue progress/publication, not be swallowed as an ordinary skipped
+draft. Test both direct authoring and the picked-draft path.
+
+Move target selection (bare interview, new title, existing qualified or unique
+bare-leaf ref), ambiguity/parked refusal, ephemeral skill/step projection,
+agent picker, kickoff and post-exit coordination together. Preserve the
+interviewer precedence and validation of the winning term; never persist the
+interviewer choice onto the target. Check TTY, configured agent, CLI presence
+and Windows command representability before creating a new draft. The current
+`before_create` path checks representability, while TTY/CLI checks are later in
+`_run_authoring_session`: completing readiness-before-create is an explicit
+correction required by this spec, not a claim that all of it already happens.
+
+The child session uses the existing discussion interface, authoring skill and
+stateless identity, no execution step or blocker-resolution preamble, ambient
+environment scrubbed by `config.scrub_op_auth_env`, no target or bootstrap
+secret injection. Publish the launch audit before entering the interview and
+preserve usage/log teardown. Do not pass outer script completion authority
+into the interviewer. Nonzero agent exit keeps the current process-status
+translation and does not run successful finalization.
+
+After successful agent exit, reload configuration, refuse a changed Git
+destination, discover all changed/new surviving authored tasks and validate
+them before publication (including the named unchanged target). Retain
+workflow-less draft rejection, duplicate/discovery errors, symlink refusal,
+relocated roots, mode changes, deletions, attachments and file-to-directory
+conversion. Select exact changed files by the entry snapshot, including
+changed supporting knowledge; untouched entry-dirty attachments are excluded.
+Publish the selected task/support paths together through `git.publish` with
+required paths and its existing eligibility/concurrency guards. Preserve shared
+validation and publication safeguards; do not replace the operation with one
+publish per ticket or an unconditional exit sweep.
+
+A child process's `git.state_sweep_withheld` ContextVar cannot control its
+parent launcher. Finalization refusal therefore needs the generic retained
+state exit 75 so neither parent teardown refresh nor sweep separates retained
+tickets from knowledge. Test the entire alias/launch/subprocess path, not only
+a mocked finalizer. Coordinate generic retention behavior with the launch
+sibling; no authoring-name special case in core. This deliberately normalizes
+guarded finalization failures to 75; ordinary argument/readiness errors remain 2.
+
+### Skill increment
+
+Move the complete six-subcommand procedure and its manager logic; direct
+`gh skill` remains the external implementation for GitHub/local installation,
+not a replacement for URL handling or Coga's update results. Preserve source
+precedence, one measured result per managed installed skill, all current JSON
+fields/status meanings, exact refs and namespace collision checks, gh
+capability preflight before writes and nested GitHub-ref refusal. Preserve
+URL include pruning, source/installed digests and legacy repair, local
+adaptation/conflict classification, force semantics, notes and metadata-only
+PR changes. Status and update must continue using the same comparisons.
+
+For `--pr`, retain local staged/unstaged/untracked preflight and clean skills
+baseline before updates; then protect hand-pushed open-PR commits using the
+actual push destination/host, ancestry and whitespace-sensitive patch checks.
+Carry the observed remote head into the push lease. Preserve exact job commit
+identity, skills-only staging/commit, harmless unrelated edits, original branch
+restoration in `finally`, verification capture, draft PR create/update and
+failure reporting. Do not claim stronger verification gating than the current
+flow: it records verification outcomes in the PR. No new plugin system, source
+support reduction or changed gh overwrite policy.
+
+`skill status` currently loads without a user and never sweeps; the proposed
+read entry must preserve that, including dirty state, no agent/TTY and no
+launch audit/Git writes, through the launch sibling's read-only contract.
+Writer invocations preserve their current mutation/publication semantics.
+A refused branch-claim preflight currently withholds the sweep; propagate 75
+across the command-ticket process boundary so that remains true. Test stdout
+JSON uncontaminated by aliases, launch framing or shared-helper diagnostics.
+
+The recurring reporting job stays owned by
+`v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co`.
+It may continue calling public `coga skill update --all --pr --json`; this
+remains a real user invocation, so do not introduce core-to-edge imports to
+avoid that process. Preserve its structured failures and 0/1/2 report contract;
+coordinate retained-state 75 propagation without letting it become an ordinary
+failure followed by publication. No skill-manager follow-up remains unowned:
+this increment includes provenance, PR flow and status, not only installation.
+
+### Promotion increment
+
+Move the coordinator and transform unchanged except explicit partial-failure
+handling. Validate cron, source status, destination/name and workflow before
+writing; preserve refusal of `in_progress` and `blocked`. Convert frozen
+workflow to name, strip task-only fields and `coga/period-task`, warn on dropped
+skills/blackboard, retain extension fields and body above the fence. Copy file
+or directory task correctly, preserving attachments, directories, symlinks and
+modes, excluding `.state-snapshot.json`; reload the destination with
+`recurring.Template.load` before invoking shared local deletion. Do not replace
+`run_delete_task` with the publishing `coga delete` command.
+
+Retain cleanup of an invalid partially built destination, but report cleanup
+failure instead of hiding it with `ignore_errors=True`. If source removal
+fails, retain the verified destination and surviving source, name both paths
+and the failed operation, and exit 75. No success audit or success message.
+This is ordered filesystem work, not a distributed atomic transaction or an
+automatic rollback of a possibly partial source deletion. Preserve explicit
+human-attributed promotion audit only after successful source removal, then
+one publication of source deletion, destination and log. Publication refusal
+or failure keeps local evidence, reports recovery and exits 75; parent launch
+must not refresh or separately sweep it. Test guarded publication refusal for
+copied symlinks rather than silently dereferencing attachments. Do not promise
+that arbitrary symlink attachments can be published by `git.publish`.
+
+### Acceptance criteria
+
+- [ ] Owner resolves the dispatch/scope questions; every surface above has an
+      approved retained or moved owner. Leave the open-placement rows until
+      their implementation and receipts land; naming a future move is not closure.
+- [ ] Implement all three increments or record owner-approved execution-ticket
+      assignments before narrowing scope. No deferred skill or promotion row
+      loses its named owner. Shared helpers retain actual multiple consumers.
+- [ ] Each moved procedure executes through its proposed alias/ticket path
+      from an installed wheel, and through a complete edited local copy with
+      package resources read-only. No agent is needed for deterministic skill
+      or promotion invocations; no per-invocation stateful ticket is created.
+- [ ] Authoring tests cover bare/new/existing interviews, full readiness before
+      draft creation, picker/precedence, scrubbed no-secret child, kickoff,
+      all-authored validation and one guarded finalization. Failure through
+      the real launcher retains edits and suppresses parent publication.
+- [ ] Skill tests preserve GitHub, URL, local and unmanaged/bundled outcomes,
+      include/digest/adaptation rules, PR/branch guards and JSON. Read status
+      works without user/agent/TTY and leaves dirty state untouched. Writer
+      failures retain the prior publication exclusions across processes.
+- [ ] Promotion tests cover both task shapes, transforms, attachments, failed
+      validation/copy/cleanup/delete/publication and audit ordering; successful
+      control contains the whole move after one promotion publication.
+- [ ] Remove replaced registrations, single-consumer coordinators and obsolete
+      imports; no core forwarding stubs or core import/path-load of edge code.
+      Keep generic recipe/reporting and shared primitives with their owners.
+- [ ] Update package command tickets as capability owners, user authoring,
+      skill-management, recurring/templates, edge-code, script-tickets and
+      state-publication topics as appropriate; CLI remains an index. Update
+      local microkernel placement/codebase topics, dependent invocations,
+      required resource manifest and packaging tests in the same PR. Do not
+      edit archives, recreate live twins or duplicate specifications.
+- [ ] Carry forward `test_ticket`, `test_authoring`, `test_create`,
+      `test_skill_manager`, `test_skill_update`, `test_recurring`, `test_git`,
+      `test_aliases`, `test_cli`, `test_launch`, `test_launch_script`,
+      `test_megalaunch`,
+      `test_branchsweep`, `test_init`, `test_packaging` and their relevant
+      fixtures. Preserve cancellation fixture
+      coverage when its command monkeypatch targets move. Run affected tests,
+      full Linux suite, CLI smoke and task validation. Receipts record full
+      revision, OS/Python, command, counts and runtime; Windows/macOS checks
+      are deferred to release under current testing policy.
+
+### Reduction baseline and expected change
+
+Baseline `eccd3b31f199525707e1292f1517dc082ba5b511` (fetched main,
+2026-11-14). Counts are physical lines including blanks/comments, using
+`splitlines`; named symbol spans use Python AST `end_lineno - lineno + 1`,
+excluding decorators and intervening gaps. They are scope estimates, not savings.
+
+- Authoring: `commands/ticket.py` 423 + `authoring.py` 352 = 775 lines.
+  The 59-line resolver and shared constant stay as shared policy; most other
+  lines relocate. Creation adapter is 175 lines, with `create_draft` 64 and
+  `_split_create_path` 15: extraction reduces coupling, not total behavior.
+- Skills: `commands/skill.py` 211 + `skill_manager.py` 2,123 = 2,334 lines.
+  Retain the two path helpers and shared branch constant; the rest is procedure
+  scope. Do not count the 434-line `skill_update.py` reporting job as savings
+  here: its migration belongs to the recipe sibling.
+- Promotion: `commands.recurring.promote` 82 lines; `PromoteOutcome` 9,
+  `promote_task` 104, `_template_frontmatter` 34,
+  `_render_template_text` 11, `_validate_promoted_workflow` 15 = 255 named
+  symbol lines, plus promotion-only constants/imports. Do not count all 2,781
+  lines of `recurring.py` or all 391 command lines as removable.
+- Combined direct scope is approximately 3,364 lines before shared extraction
+  and the creation adapter. Most is relocation. Delete the replaced Typer
+  registration/adapters and command-to-command dependency; consolidate parser
+  presentation with script entrypoints. New dispatch/fork/error tests and
+  scripts may offset deletions. Record actual before/after core, edge and
+  ticket-script totals and removed dependency paths at named revisions;
+  report tests, docs and packaged resource copies separately. No reduction
+  is claimed by this design step.
+
+### Out of scope
+
+No implementation, branch or PR in this design step. No prompt-assembly
+replacement, new launch service, generic plugin registry, nested alias system,
+new supported skill sources, recurring scheduling redesign, `recurring list`
+migration, recipe-registry changes, arbitrary deletion atomicity, or discovery
+command implementation. The launch, read/report, recipes and discoverability
+siblings retain those responsibilities. Classification can proceed now;
+implementation waits only for the specific approved execution contracts it needs.
 
 ## Context
 
-Read `coga-dev/microkernel/objectives`, `coga-dev/packaging`,
-`coga-dev/testing`, and package-owned `coga/tickets/authoring`,
-`coga/skill-management`, `coga/recurring/templates`, `coga/edge-code`,
-`coga/script-tickets` and `coga/state-publication` under
-`src/coga/resources/templates/coga/bootstrap/contexts/`.
+Required reads beyond the attached topics: `coga-dev/packaging` at
+`docs/contexts/coga-dev/packaging/SKILL.md` (ownership and wheel rules), and
+package user topics under
+`src/coga/resources/templates/coga/bootstrap/contexts/`: `coga/tickets/authoring`,
+`coga/recurring/templates`, `coga/edge-code`, `coga/script-tickets`,
+`coga/state-publication`, `coga/knowledge` and `coga/extension-model`.
+They are cited rather than attached; read their authoring, promotion,
+invocation, ownership, publication and local-fork sections before implementation.
 
-Definition discovery and complete local copies now have their own ticket,
-`make-packaged-behavior-discoverable-and-editable`; do not hide that work inside
-`skill *`. Authoring migration consumes the launch session boundary, while
-classification and promotion design can proceed independently. Drop stale
-archive/twin edits, the "thin gh wrapper" assumption and cosmetic alias cleanup.
+Code relationships to recheck: `commands.ticket._run_authoring_session`
+passes scrubbed ambient env to `launch.spawn_agent_session`, snapshots before
+spawn and calls `authoring.finalize_authored` only on zero agent exit.
+`finalize_authored` validates authored refs then calls `git.publish` with exact
+changed paths and `require_paths`. `commands.skill.update` runs local/remote
+preflights before `skill_manager.update_skills` and then
+`run_skill_update_pr_flow`; `skill_update.build_update_command` invokes that
+public CLI from the reporting job. `commands.recurring.promote` calls
+`recurring.promote_task` before its explicit audit/move publication;
+`promote_task` uses `Template.load` before `delete_task.run_delete_task`.
+These relationships, not module residence or test imports, support the boundary.
+
+Dependencies by exact task ref:
+`v1/microkernel/03-launch-decomposition` owns one-session/public readiness and
+generic stateless read/retained-state execution;
+`v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co` owns the
+recurring skill reporting job;
+`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable` owns source
+inspection and complete local copies;
+`v1/microkernel/06-read-report-commands-as-ticket-workflows` owns read/report
+heads and the sibling recurring-list spelling decision. Coordinate invocation
+choices at owner review. None requires reading superseded archive material.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design handoff — 2026-11-14
+
+Investigated clean, fetched main at `eccd3b31f199525707e1292f1517dc082ba5b511`.
+This step changes only this ticket. No code, branch or PR was created.
+The proposed implementation remains assigned here in three increments; scope
+splits require explicit execution-ticket assignments at owner review.
+
+Key findings: the authoring resolver is shared with megalaunch, finalization is
+not directly shared, although megalaunch imports its coordinator; skill_manager's core consumers need only roots and the protected branch
+constant, not acquisition/update policy. Init/agent-view support does not import
+the manager. Promotion's ordered filesystem work is not atomic. ContextVar sweep
+withholding does not cross a command-ticket subprocess: retained-state 75 must
+be tested through parent teardown. Existing authoring pre-create checks do not
+cover every readiness condition; the proposed correction is explicit.
+
+Verification: `coga validate --task
+v1/microkernel/08-residual-command-surfaces --json` returned `ok_count: 1`, no
+issues; `git diff --check` passed. Final `git fetch origin main` succeeded and
+`git rev-list --left-right --count HEAD...origin/main` returned `0 0`.
+No production code changed; full-suite receipts belong to implementation and
+review, with native checks deferred to release. Ready for cold design evaluation.
+
+## Open Questions
+
+For the owner review-design gate (do not block this design step):
+
+1. Approve `promote-recurring` as the replacement for `recurring promote`,
+   coordinated with the read/report sibling's recurring-list decision? This
+   avoids adding nested alias dispatch or retaining a command-specific wrapper.
+2. Approve splitting `skill status` into the explicit read-only `skill-status`
+   alias, retaining `skill` for writes, and the shared effective implementation
+   path? Keeping the mixed spelling instead needs a reviewed pre-dispatch
+   policy adapter; it cannot be implemented as a blind writer alias.
+3. Approve implementation of all three increments here, or assign concrete
+   follow-up tickets at scope review? Proposed order is promotion → authoring
+   → complete skill family; none is dropped from the v1 placement gate.
 
 ## Superseded designs
 
