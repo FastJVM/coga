@@ -1,6 +1,6 @@
 ---
 title: 03 Implement the proven prompt assembly
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
