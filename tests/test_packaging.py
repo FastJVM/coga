@@ -1346,7 +1346,8 @@ stock = resolve_bootstrap(cfg, "bootstrap/usage").path
 local = Path("coga/bootstrap/usage")
 shutil.copytree(stock, local, ignore=shutil.ignore_patterns("__pycache__"))
 local.chmod(0o755)
-(local / "ticket.py").chmod(0o644)
+for copied in local.iterdir():
+    copied.chmod(0o644)
 (local / "ticket.py").write_text('print("local usage policy")\n', encoding="utf-8")
 outcome = subprocess.run([sys.executable, "-m", "coga.cli", "usage"], capture_output=True, text=True)
 assert outcome.returncode == 0, outcome.stderr
