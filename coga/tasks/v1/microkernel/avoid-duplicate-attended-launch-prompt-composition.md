@@ -1,8 +1,34 @@
 ---
 title: Avoid duplicate attended launch prompt composition
-status: draft
+status: in_progress
 owner: nicktoper
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+    checkout: create-or-reuse
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+    checkout: reuse-required
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+    checkout: control
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+    checkout: reuse-required
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -203,5 +229,10 @@ Sibling drafts from the same review are in `coga/tasks/v1/microkernel/`:
 same duplication through the launch class.
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-microkernel-avoid-duplicate-attended-launch-p-f53f94
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
