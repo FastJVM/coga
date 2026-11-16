@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
@@ -504,34 +504,133 @@ Limitations / not done:
 ## PR
 
 ```yaml
-title: Add coga fork and fork-copy for packaged behavior
-author:
-  agent: claude (Claude Opus 5.5, claude-opus-5-5), attended session
-head: 277f65c0e3e5a130fffc52e7161051217d29c89d
-base: f62cf70159aebedae864b2877804ae81b4b03a9e
-stacked_on: PR #1233 (cherry-picked as 426a1c8f7); merge after #1233
-review_depth: deep
-review_depth_rationale: new user-facing command ticket, write path into repo definitions, stacked on an unmerged dispatch change
-files:
-  src/coga/resources/templates/coga/bootstrap/fork/ticket.md: command contract (new)
-  src/coga/resources/templates/coga/bootstrap/fork/ticket.py: fork/fork-copy implementation (new)
-  src/coga/aliases.py: fork and fork-copy default aliases
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/*: user docs point to the commands
-  src/coga/resources/templates/coga/recurring/phone-home/operations.md: source-inspection pointer
-  docs/contexts/coga-dev/codebase/SKILL.md: source map entry
-  tests/test_fork_command.py: resolution, report, copy, return-to-stock, CLI, launch reuse
-  tests/test_edge_distribution.py: installed wheel, read-only install, upgrade, peer review
-  tests/test_aliases.py: alias expansions
-  tests/required_package_resources.txt: require the two new package files
-checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    tree: 8a5665818 (pre-rebase; rebase brought only coga/ state commits)
-    result: 4976 passed, 33 skipped (17m51s)
-  - command: .venv/bin/python -m pytest -q tests/test_fork_command.py tests/test_aliases.py tests/test_packaging.py tests/test_launch_script.py
-    tree: 277f65c0e (post-rebase head)
-    result: 199 passed
-  - omitted: native Windows receipt (no Windows host in this session)
-review: none yet; peer-review step follows. Design approval is not code review.
+"title": "Add coga fork and fork-copy for packaged behavior"
+"author": "claude/codex"
+"author_evidence": "Claude (Claude Opus 5.5) implemented the feature in the attended\
+  \ implement session. Codex authored the four approved review fixes in this peer-review\
+  \ session. The patch-identical dispatch dependency belongs to PR #1233."
+"head": "be2ee4d1f3693c9569df0304c6abdfacc3f2982a"
+"base": "bf01531c818cc27add8d4b0ea3e87d63662ea0fb"
+"depth": "deep"
+"rationale": "Substantial new user-facing inspection and repository write path, stacked\
+  \ on the still-open dispatch PR #1233. Merge #1233 first. Original implementation\
+  \ independently reviewed; Codex fixes self-reviewed."
+"implementation": "Adds a package-owned bootstrap/fork command ticket and two aliases\
+  \ for read-only discovery and copying one artifact. Follows effective resolvers\
+  \ and references, identifies implementations through AST, expands forkable edge\
+  \ modules, preserves carrier state and executable attachments, and rejects traversal\
+  \ refs. Includes patch-identical #1233 dispatch dependency as commit 18469b692."
+"deviations": "Untyped names also resolve a unique definition kind to support code/with-review.\
+  \ Tests are named test_fork_command.py. Legacy guarded migration and frozen-period\
+  \ copy commands remain. Installed-wheel peer-review test covers discovery, editing\
+  \ and freezing; complementary real-Git/fake-agent in-process test proves branch\
+  \ reuse."
+"limitations": "Must merge after #1233. Fork comparison is byte-exact, so CRLF copies\
+  \ can report modified. Native Windows/macOS verification is deferred to release\
+  \ under coga-dev/testing; this Linux receipt does not provide native evidence. No\
+  \ second agent reviewed the Codex-authored fixes. This adds capability and makes\
+  \ ownership discoverable; it does not reduce core code. Size follow-up: v1/why-is-the-code-so-big."
+"files":
+  "docs/contexts/coga-dev/codebase/SKILL.md": "Map the command ticket and shared readiness\
+    \ helper to their source owners."
+  "docs/contexts/coga-dev/internals/agent-spawn/SKILL.md": "Document shared agent\
+    \ readiness from the stacked dispatch dependency."
+  "docs/contexts/coga-dev/internals/state-publication/SKILL.md": "Document read-only\
+    \ dispatch publication boundaries from the stacked dependency."
+  "src/coga/aliases.py": "Expose fork and fork-copy with fixed read/write dispatch\
+    \ policies."
+  "src/coga/cli.py": "Withhold checkout, audit and sweep effects for read-only launch\
+    \ (stacked #1233)."
+  "src/coga/commands/launch.py": "Expose and forward read-only launch policy (stacked\
+    \ #1233)."
+  "src/coga/launch.py": "Dispatch bootstrap readers and share agent readiness (stacked\
+    \ #1233)."
+  "src/coga/launch_script.py": "Run read-only scripts without lifecycle or publication\
+    \ effects (stacked #1233)."
+  "src/coga/megalaunch.py": "Consume shared readiness without changing admission ordering\
+    \ (stacked #1233)."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md": "Explain\
+    \ the read-only exemption from checkout preparation (stacked #1233)."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md": "List\
+    \ the new fork and fork-copy aliases."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md": "Explain\
+    \ discovery, local overrides and return to stock, linking the command contract."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md": "Route\
+    \ explicit implementation forks through fork-copy."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md": "Use\
+    \ fork for discovery and fork-copy for fresh template forks; retain guarded legacy\
+    \ migration and frozen-period copying."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md": "List\
+    \ discovery and fork commands in the extension model."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md": "Document\
+    \ read-only command dispatch (stacked #1233)."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md": "Point\
+    \ recurring customization to fork and fork-copy."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md": "Explain\
+    \ read-only dispatch and discovering/forking script implementations."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md": "Document\
+    \ read-only dispatch withholding the state sweep (stacked #1233)."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md": "Document\
+    \ read-only dispatch outside ordinary launch publication (stacked #1233)."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md": "Show\
+    \ discovery and copying of packaged workflows."
+  "src/coga/resources/templates/coga/bootstrap/fork/ticket.md": "Own the discovery/copy\
+    \ contract, including conservative shim classification and safe relative refs."
+  "src/coga/resources/templates/coga/bootstrap/fork/ticket.py": "Implement resolver-based\
+    \ inspection, AST classification and definition-last copying; preserve executable\
+    \ attachments and reject traversal."
+  "src/coga/resources/templates/coga/recurring/phone-home/operations.md": "Point operators\
+    \ to source discovery through fork."
+  "tests/required_package_resources.txt": "Require both package-owned fork ticket\
+    \ files."
+  "tests/test_aliases.py": "Verify the two fixed-policy alias expansions."
+  "tests/test_cli.py": "Verify read-only sweep policy (stacked #1233)."
+  "tests/test_edge_distribution.py": "Verify installed-wheel discovery, copying from\
+    \ a read-only install, local period execution and upgrade behavior."
+  "tests/test_fork_command.py": "Cover resolution, broken overrides, copying, carrier\
+    \ restoration, customized checkout reuse and the four review fixes."
+  "tests/test_launch_script.py": "Verify read-only admission, execution and absence\
+    \ of lifecycle/publication effects (stacked #1233)."
+  "tests/test_megalaunch.py": "Verify shared readiness and pre-publication refusal\
+    \ ordering (stacked #1233)."
+"review":
+  "reviewer": "codex"
+  "kind": "self"
+  "status": "passed"
+  "head": "be2ee4d1f3693c9569df0304c6abdfacc3f2982a"
+  "base": "bf01531c818cc27add8d4b0ea3e87d63662ea0fb"
+  "detail": "Direct review completed on the final diff, including the stacked dispatch\
+    \ dependency. Codex independently reviewed Claude implementation and self-reviewed\
+    \ its own fixes. Four findings resolved: lost executable bits, malformed ticket\
+    \ reported healthy, overly broad shim detection, and traversal refs escaping the\
+    \ repository. No unresolved must-fix findings. Plain CLI discovery and help output\
+    \ driven manually; no raw-terminal UI introduced."
+"checks":
+- "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/coga-fork-peer-review-pytest-20261115"
+  "status": "passed"
+  "head": "be2ee4d1f3693c9569df0304c6abdfacc3f2982a"
+  "base": "bf01531c818cc27add8d4b0ea3e87d63662ea0fb"
+  "detail": "5032 passed, 33 skipped in 1206.86s (20m06s), Linux."
+- "command": "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m coga.cli fork workflow:code/with-review"
+  "status": "passed"
+  "head": "be2ee4d1f3693c9569df0304c6abdfacc3f2982a"
+  "base": "bf01531c818cc27add8d4b0ea3e87d63662ea0fb"
+  "detail": "Passed on the dirty checkout without TTY: inspected workflow, peer-review\
+    \ skill, checkout policy and customization paths."
+- "command": "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m coga.cli fork --help"
+  "status": "passed"
+  "head": "be2ee4d1f3693c9569df0304c6abdfacc3f2982a"
+  "base": "bf01531c818cc27add8d4b0ea3e87d63662ea0fb"
+  "detail": "Passed, usage printed to stdout and exit 0."
+- "command": "git diff --check"
+  "status": "passed"
+  "head": "be2ee4d1f3693c9569df0304c6abdfacc3f2982a"
+  "base": "bf01531c818cc27add8d4b0ea3e87d63662ea0fb"
+  "detail": "Passed."
+- "command": "Native Windows/macOS verification"
+  "status": "not-run"
+  "detail": "Deferred to release per the 2026-11-12 owner policy in coga-dev/testing;\
+    \ no native platform evidence claimed."
 ```
 
 ## Open Questions
@@ -542,3 +641,56 @@ policies, and the owner preferred two plain aliases over a `--copy` argv
 adapter. Unselected recurring jobs — no refusal, fork-copy reports the
 resulting selection; `coga fork` exits 1 on broken definitions; edge-shim
 expansion is the default for recurring forks.
+
+## Peer review — completed (Codex, 2026-11-15)
+
+Direct review **completed** at head `be2ee4d1f3693c9569df0304c6abdfacc3f2982a`,
+base `bf01531c818cc27add8d4b0ea3e87d63662ea0fb`. Codex independently reviewed Claude's
+implementation, then self-reviewed its own owner-approved fixes; no second
+reviewer examined those fixes. No unresolved must-fix findings.
+
+Resolved with regressions:
+- Preserve POSIX executable attachment bits without copying read-only
+  installation permissions into editable forks.
+- Mark bootstrap/recurring YAML parse failures broken (exit 1).
+- Require a plain main()/SystemExit(main()) guard before expanding an edge
+  shim; custom guard behavior remains a full script.
+- Reject absolute, drive-relative, backslash and dot-component refs before
+  resolution/copying; invalid referenced refs are reported broken.
+Blackboard byte-preservation concern dismissed after reading read_blackboard
+(read_bytes/decode, no newline translation).
+
+Full Linux check: `.venv/bin/python -m pytest -q -p no:cacheprovider
+--basetemp=/home/n/Code/coga-fork-peer-review-pytest-20261115`: **5032 passed,
+33 skipped in 1206.86s (20m06s)** on the final head/base above.
+Focused regressions before the final traversal commit: 177 passed in 11.30s
+(code subsequently committed unchanged). The interrupted earlier full run
+is not a receipt. Historical implementation checks remain historical: the
+implementer reported 4976 passed/33 skipped on pre-rebase tree 8a5665818,
+and 199 focused passed on 277f65c0e; neither is re-stamped as current.
+
+Manual plain CLI checks on final head: `PYTHONDONTWRITEBYTECODE=1
+.venv/bin/python -m coga.cli fork workflow:code/with-review` and `... fork
+--help` passed on the dirty checkout without TTY. Inspected workflow, skill,
+checkout, override and customization output. No raw-terminal/pager UI added.
+`git diff --check` passed. Native Windows/macOS deferred to release per
+coga-dev/testing; no native receipt claimed.
+
+Freshness: rebased unconditionally onto fetched main, preserving/restoring
+the projected ticket byte-for-byte. Final fetch found main unchanged at the
+base above. PR #1233 remains open at 0bf44d2a1ff5e5e846f29007f707c6d461cdee9e;
+its stable patch-id equals this branch's dependency (18469b692),
+46f0566827a807d5e35da017ff104fbc3f7b1066. **Merge after #1233**.
+
+Size evidence: `git diff --numstat 18469b692..be2ee4d1f` (dependency
+excluded; physical lines including blanks/comments): script +930/-0,
+aliases +7/-1, command contract +130/-0, other docs +62/-10, tests and
+resource manifest +834/-0. No implementation entrypoints, dependency paths,
+or duplicate implementations removed. Legacy migration/period-copy commands
+remain. Gain: one resolver-based discovery/copy path; no core reduction.
+Deferred simplification: v1/why-is-the-code-so-big.
+
+Branch pushed with `git push --force-with-lease` at be2ee4d1f.
+Structured PR preparation validated through the publication formatter with
+all 31 diff paths explained; recommendation deep. Next step is mechanical
+PR opening; retain the merge-after-#1233 dependency notice.
