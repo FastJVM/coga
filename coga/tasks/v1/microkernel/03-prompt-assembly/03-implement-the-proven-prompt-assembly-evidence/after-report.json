@@ -1,0 +1,104 @@
+{
+  "code_revision": "8c53bcecc8cbe7b5125171a80c1593c7ef9966dc",
+  "method": "compose_prompt_report; same live peer-review ticket; default unsupplied checkout notice",
+  "total_bytes": 104676,
+  "approx_tokens": 26131,
+  "layers": [
+    {
+      "layer": "header",
+      "ref": null,
+      "bytes": 252,
+      "approx_tokens": 63
+    },
+    {
+      "layer": "base_prompt",
+      "ref": "prompt.md",
+      "bytes": 3664,
+      "approx_tokens": 916
+    },
+    {
+      "layer": "ticket_loop",
+      "ref": "prompt-ticket.md",
+      "bytes": 3168,
+      "approx_tokens": 792
+    },
+    {
+      "layer": "session_conduct",
+      "ref": "prompt-attended.md",
+      "bytes": 1735,
+      "approx_tokens": 434
+    },
+    {
+      "layer": "repo_context",
+      "ref": "context.md",
+      "bytes": 284,
+      "approx_tokens": 71
+    },
+    {
+      "layer": "ticket_context",
+      "ref": "coga-dev/microkernel/objectives",
+      "bytes": 5647,
+      "approx_tokens": 1412
+    },
+    {
+      "layer": "ticket_context",
+      "ref": "coga-dev/principles",
+      "bytes": 5271,
+      "approx_tokens": 1317
+    },
+    {
+      "layer": "ticket_context",
+      "ref": "coga-dev/codebase/gotchas",
+      "bytes": 11199,
+      "approx_tokens": 2799
+    },
+    {
+      "layer": "ticket_context",
+      "ref": "coga-dev/testing",
+      "bytes": 20319,
+      "approx_tokens": 5079
+    },
+    {
+      "layer": "ticket_context",
+      "ref": "coga-dev/microkernel",
+      "bytes": 9779,
+      "approx_tokens": 2444
+    },
+    {
+      "layer": "ticket_context",
+      "ref": "coga-dev/project-stage",
+      "bytes": 3062,
+      "approx_tokens": 764
+    },
+    {
+      "layer": "workflow_skill",
+      "ref": "code/peer-review",
+      "bytes": 5685,
+      "approx_tokens": 1416
+    },
+    {
+      "layer": "task_description",
+      "ref": "ticket.md##Description",
+      "bytes": 13233,
+      "approx_tokens": 3297
+    },
+    {
+      "layer": "task_context",
+      "ref": "ticket.md##Context",
+      "bytes": 3606,
+      "approx_tokens": 899
+    },
+    {
+      "layer": "blackboard",
+      "ref": "ticket.md##blackboard",
+      "bytes": 17432,
+      "approx_tokens": 4349
+    },
+    {
+      "layer": "checkout_notice",
+      "ref": null,
+      "bytes": 234,
+      "approx_tokens": 59
+    }
+  ]
+}
