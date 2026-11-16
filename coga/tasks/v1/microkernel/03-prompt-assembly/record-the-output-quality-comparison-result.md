@@ -24,7 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
