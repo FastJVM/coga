@@ -1967,6 +1967,16 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
 # --- CLI entry ----------------------------------------------------------------
 
 
+class ValidationOptionError(ValueError):
+    """An option combination the validation entries refuse with exit 2."""
+
+    def __init__(self, option: str, concern: str) -> None:
+        self.short = f"{option} is not supported with --task"
+        super().__init__(
+            f"{self.short}; it probes {concern}, which is a whole-repo concern."
+        )
+
+
 def execute_validation(
     cfg: Config,
     *,
@@ -1981,10 +1991,7 @@ def execute_validation(
     if task is not None and (check_slack or check_github):
         option = "--check-slack" if check_slack else "--check-github"
         concern = "the Slack webhook" if check_slack else "git/GitHub auth"
-        raise ValueError(
-            f"{option} is not supported with --task; "
-            f"it probes {concern}, which is a whole-repo concern."
-        )
+        raise ValidationOptionError(option, concern)
     if task is not None:
         return validate_task(
             cfg, task, fix=fix,
@@ -2067,9 +2074,9 @@ def _main(argv: list[str] | None = None) -> int:
             max_blackboard_kb=args.max_blackboard_kb,
             check_slack=args.check_slack, check_github=args.check_github,
         )
-    except ValueError as exc:
+    except ValidationOptionError as exc:
         # The module entry historically uses a shorter probe refusal.
-        sys.stderr.write(str(exc).split(";", 1)[0] + "\n")
+        sys.stderr.write(exc.short + "\n")
         return 2
     return emit_report(report, json_output=args.json)
 

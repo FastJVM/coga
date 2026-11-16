@@ -251,6 +251,7 @@ def promote(
 def list_recurring(ctx: typer.Context) -> None:
     """List recurring templates and instantiated tasks."""
     from coga.launch import LaunchBail, launch as launch_target
+    from coga.oscompat import process_exit_status
 
     if (ctx.obj or {}).get("agent_override") is not None:
         typer.secho(
@@ -266,9 +267,9 @@ def list_recurring(ctx: typer.Context) -> None:
     except LaunchBail as exc:
         if exc.reason:
             typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        raise typer.Exit(exc.code)
+        raise typer.Exit(process_exit_status(exc.code)) from exc
     finally:
         # Read dispatch does not retain a failed writer transaction. Restore
         # the caller policy; recurring list already has no exit sweep.
         git.state_sweep_withheld.reset(policy_token)
-    raise typer.Exit(result.exit_code or 0)
+    raise typer.Exit(process_exit_status(result.exit_code or 0))

@@ -7,7 +7,7 @@ import typer
 
 from coga.blackboard import BLACKBOARD_WARN_BYTES
 from coga.config import ConfigError, load_config
-from coga.validate import execute_validation, emit_report
+from coga.validate import ValidationOptionError, emit_report, execute_validation
 
 
 def validate(
@@ -59,7 +59,7 @@ def validate(
             max_blackboard_kb=max_blackboard_kb,
             check_slack=check_slack, check_github=check_github,
         )
-    except ValueError as exc:
+    except ValidationOptionError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
     raise typer.Exit(emit_report(report, json_output=json_output))

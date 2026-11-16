@@ -3143,3 +3143,34 @@ def test_safe_fix_refuses_concurrent_ticket_write(repo: Path, monkeypatch: pytes
         apply_safe_fixes(cfg)
     assert path.read_text().endswith("Concurrent edit.\n")
     assert "<!-- coga:blackboard -->" not in path.read_text()
+
+
+@pytest.mark.parametrize("probe", ["--check-slack", "--check-github"])
+def test_module_entry_refuses_probe_with_task_using_short_message(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, probe: str
+) -> None:
+    monkeypatch.chdir(repo)
+
+    assert _main(["--task", "anything", probe]) == 2
+    assert capsys.readouterr().err == f"{probe} is not supported with --task\n"
+
+
+def test_validation_entries_do_not_mask_internal_value_errors(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from coga.cli import app
+    import coga.validate as validate_module
+
+    def broken(*args, **kwargs):
+        raise ValueError("internal; failure")
+
+    monkeypatch.setattr(validate_module, "run", broken)
+    monkeypatch.chdir(repo)
+
+    with pytest.raises(ValueError, match="internal; failure"):
+        _main(["--json"])
+    result = CliRunner().invoke(app, ["validate", "--json"])
+    assert isinstance(result.exception, ValueError)
+    assert result.exit_code != 2
