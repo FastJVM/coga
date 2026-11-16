@@ -1,6 +1,6 @@
 ---
 title: 03 Implement the proven prompt assembly
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
