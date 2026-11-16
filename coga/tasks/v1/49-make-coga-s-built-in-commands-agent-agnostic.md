@@ -1,7 +1,7 @@
 ---
 title: Make coga's built-in commands agent-agnostic
 status: in_progress
-owner: zach
+owner: nicktoper
 workflow:
   name: code/design-then-implement
   steps:
