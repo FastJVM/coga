@@ -13,6 +13,7 @@ import argparse
 import ast
 import importlib.util
 import json
+import os
 import shlex
 import sys
 from dataclasses import asdict, dataclass, field
@@ -124,6 +125,7 @@ def _is_main_guard(node: ast.stmt) -> bool:
     return (
         isinstance(test, ast.Compare)
         and isinstance(test.left, ast.Name) and test.left.id == "__name__"
+        and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq)
         and len(test.comparators) == 1
         and isinstance(test.comparators[0], ast.Constant)
         and test.comparators[0].value == "__main__"
@@ -139,6 +141,22 @@ def _parse(path: Path) -> ast.Module:
     return ast.parse(path.read_bytes(), filename=str(path))
 
 
+def _is_shim_guard(node: ast.stmt) -> bool:
+    """Only a plain main() or raise SystemExit(main()) delegates completely."""
+    if not _is_main_guard(node) or node.orelse or len(node.body) != 1:
+        return False
+    statement = node.body[0]
+    call = statement.value if isinstance(statement, ast.Expr) else None
+    if isinstance(statement, ast.Raise) and statement.cause is None:
+        outer = statement.exc
+        if (isinstance(outer, ast.Call) and isinstance(outer.func, ast.Name)
+                and outer.func.id == "SystemExit" and len(outer.args) == 1
+                and not outer.keywords):
+            call = outer.args[0]
+    return (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+            and call.func.id == "main" and not call.args and not call.keywords)
+
+
 def classify_script(path: Path) -> dict[str, object]:
     """Classify a `ticket.py` without importing or running it."""
     try:
@@ -148,14 +166,15 @@ def classify_script(path: Path) -> dict[str, object]:
     edge_module = None
     shim = True
     for node in tree.body:
-        if _is_docstring(node) or _is_main_guard(node):
+        if _is_docstring(node) or _is_shim_guard(node):
             continue
         if isinstance(node, ast.ImportFrom) and node.module == "__future__":
             continue
         if (
             isinstance(node, ast.ImportFrom) and node.level == 0
             and (node.module or "").startswith("coga_edge.")
-            and [a.name for a in node.names] == ["main"] and edge_module is None
+            and [(a.name, a.asname) for a in node.names] == [("main", None)]
+            and edge_module is None
         ):
             edge_module = node.module
             continue
@@ -354,12 +373,12 @@ def _ref_list(value: object) -> list[str]:
     return []
 
 
-def _ticket_references(path: Path, details: dict[str, object]) -> list[str]:
+def _ticket_references(path: Path, record: Record) -> list[str]:
     try:
         from coga.ticket import Ticket
         fm = Ticket.read(path).frontmatter
     except (OSError, UnicodeError, TicketError) as exc:
-        details["ticket error"] = str(exc)
+        record.state = f"broken: {exc}"
         return []
     refs = []
     workflow = fm.get("workflow")
@@ -470,7 +489,7 @@ def definition_record(cfg: Config, kind: str, ref: str) -> Record | None:
     if kind == "workflow" and not record.broken:
         _workflow_details(Path(selected), record)
     if kind in {"bootstrap", "recurring"} and not record.broken:
-        record.references += _ticket_references(Path(selected) / "ticket.md", record.details)
+        record.references += _ticket_references(Path(selected) / "ticket.md", record)
         script = Path(selected) / "ticket.py"
         if script.is_file():
             record.script = describe_script(script)
@@ -783,6 +802,11 @@ def copy_definition(cfg: Config, record: Record) -> CopyResult:
         path = targets[rel]
         path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_bytes(path, files[rel])
+        if os.name == "posix":
+            source = packaged / rel if definition else packaged
+            # Keep executable attachments usable without copying read-only
+            # installation permissions into the editable repository fork.
+            path.chmod(path.stat().st_mode | (source.stat().st_mode & 0o111))
     return CopyResult(record, destination, [str(targets[r]) for r in order],
                       note, carrier is not None)
 

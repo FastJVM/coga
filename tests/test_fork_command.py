@@ -111,6 +111,19 @@ def test_other_scripts_are_full_scripts_and_never_imported(tmp_path: Path) -> No
     assert fork.classify_script(bomb)["kind"] == "full script"
 
 
+@pytest.mark.parametrize("guard", [
+    "if __name__ == '__main__':\n    print('custom behavior')\n",
+    "if __name__ == '__main__':\n    main()\n    print('extra')\n",
+    "if __name__ != '__main__':\n    main()\n",
+    "if __name__ == '__main__':\n    main()\nelse:\n    print('extra')\n",
+    "if __name__ == '__main__':\n    main('custom argument')\n",
+])
+def test_custom_guard_is_a_full_script(tmp_path: Path, guard: str) -> None:
+    script = tmp_path / "ticket.py"
+    script.write_text("from coga_edge.trim_log import main\n" + guard, encoding="utf-8")
+    assert fork.classify_script(script)["kind"] == "full script"
+
+
 @pytest.mark.parametrize(("source", "cause"), [
     ("from . import helper\nif __name__ == '__main__':\n    pass\n", "relative import"),
     ("from coga_edge.other import x\nif __name__ == '__main__':\n    pass\n", "imports coga_edge.other"),
@@ -311,6 +324,28 @@ def test_task_separates_frozen_snapshot_from_live_resolution(repo: Path, capsys)
 
 
 # --- copying ---------------------------------------------------------------------
+
+
+def test_malformed_bootstrap_is_reported_as_broken(repo: Path, capsys) -> None:
+    parent = repo / "bootstrap/retire"
+    parent.mkdir(parents=True)
+    (parent / "ticket.md").write_text("---\ntitle: [\n---\n", encoding="utf-8")
+    code, out, err = _run(capsys, "inspect", "bootstrap:retire", "--json")
+    assert code == 1
+    record = _record(json.loads(out), "bootstrap:retire")
+    assert record["broken"] and "Invalid YAML" in record["state"]
+    assert "is broken:" in err
+
+
+@windows_skip("POSIX executable permission bits; Windows uses interpreter dispatch")
+def test_forked_skill_preserves_executable_attachments(repo: Path, capsys) -> None:
+    code, out, err = _run(capsys, "copy", "skill:coga/gmail")
+    assert code == 0, out + err
+    script = repo / "skills/coga/gmail/gmail.py"
+    source = PACKAGED / "bootstrap/skills/coga/gmail/gmail.py"
+    assert script.stat().st_mode & 0o111 == source.stat().st_mode & 0o111
+    assert os.access(script, os.X_OK)
+    assert script.read_bytes() == source.read_bytes()
 
 
 @pytest.mark.parametrize(("target", "dest", "definition"), [

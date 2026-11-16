@@ -59,7 +59,8 @@ each step's `checkout:`); a bootstrap or recurring ticket's `workflow`,
 A `ticket.py` is classified by parsing it with `ast`, never importing it:
 
 - **edge shim** — only imports `main` from `coga_edge.<module>` plus a
-  `__main__` guard; the implementation is the installed module file;
+  `__main__` guard that only calls `main()` (optionally through
+  `raise SystemExit(main())`); the implementation is the installed module file;
 - **recipe adapter** — calls `coga.runner.run_recipe` with a literal name;
   the implementation is that kernel recipe, not forkable here;
 - **full script** — anything else; the script is the implementation.
@@ -88,7 +89,9 @@ diagnostics to stderr.
    `workflows/<ref>.md`; skill `skills/<ref>/`; context
    `<contexts root>/<ref>/` (honours `[layout] contexts`); bootstrap
    `bootstrap/<name>/`; recurring `recurring/<name>/`; resource
-   `resources/<name>`. Runtime caches and nested definitions (a child
+   `resources/<name>`. Executable attachment bits are preserved on POSIX; the local copy keeps
+   repository write permissions even when the installation is read-only.
+   Runtime caches and nested definitions (a child
    directory holding its own `SKILL.md`) are not copied.
 3. **Refuse conflicts before any write**, listing every existing destination
    entry. The one exception is a recurring parent holding a valid state-only
