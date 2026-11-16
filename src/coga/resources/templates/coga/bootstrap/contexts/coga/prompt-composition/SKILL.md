@@ -1,6 +1,6 @@
 ---
 name: coga/prompt-composition
-description: How `coga launch` builds an agent prompt — the exact layer order, how the one session-conduct resource is selected, what each layer reads (including repo overrides of the fixed text resources), the three-region ticket extract, the blocker preamble and authoring projection, failure on missing refs, what never composes, and `--prompt-report`.
+description: How `coga launch` builds an agent prompt — the exact layer order, how the one session-conduct resource is selected, what each layer reads (including repo overrides of the fixed text resources), the three-region ticket extract, the blocker preamble and authoring projection, failure on missing refs, what never composes, `--prompt-report`, and the ruling that retains the current assembler.
 ---
 
 # Prompt composition
@@ -142,6 +142,35 @@ end-of-command state sweep
 ([coga/launch](../launch/SKILL.md#options-and-exits)). A prompt too large for
 one argv argument is delivered as a pointer to the prompt file;
 such a size usually means context bloat.
+
+## Assembler ruling
+
+The production assembler — `compose.compose_prompt_report`, the authoring
+projection above, and the recurring-autofix prompt builder — is retained.
+The owner ruled on 2026-11-13 that candidate C1, which separated orientation
+from invocation authority and omitted the execution loop from guided
+authoring, was **disqualified**:
+
+- In an owner-assist run, C1 merged `origin/main` into the prepared branch
+  without a request: a checkout-gate violation, and a lost successful run in
+  that case. The predeclared protocol makes either disqualifying.
+- Its authoring advantage (2/2 against 1/2) does not override the gate and
+  did not come from the predicted execute/bump conflict: the baseline failure
+  was a missing cold evaluator, and no baseline authoring run advanced the
+  ticket.
+- Secondary measures showed no gain (inspectability +1/6 against a +2
+  threshold; payload −3.40% against 15%), and no simplification was claimed.
+  The implementation follow-up stays unlaunched.
+
+Reopening needs a materially revised candidate with a new owner-approved
+protocol and a new paired comparison; this evidence does not carry over. A
+revision should keep authoring free of execution-loop text without weakening
+the owner-assist and [reconciliation](../checkouts/reconciliation/SKILL.md)
+guidance that keeps a read-only assist from merging into a prepared branch.
+Evidence: the
+[trial report](https://github.com/FastJVM/coga/blob/main/coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/report.md)
+(§3, §4, §8) and its
+[blind verdicts](https://github.com/FastJVM/coga/blob/main/coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/blind/verdicts.csv).
 
 Implementation detail (prompt files, the launch marker's cache rationale,
 error classes, argv delivery) is in
