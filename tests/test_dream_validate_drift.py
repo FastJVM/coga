@@ -753,3 +753,24 @@ def test_commit_and_push_main_passes_configured_remote(
 
     assert result == 0
     assert captured["remote"] == "upstream"
+
+
+@pytest.mark.parametrize("broken", [False, True])
+def test_recipe_consumes_real_module_entry_with_fix_and_thresholds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, broken: bool,
+) -> None:
+    from coga.dream_validate_drift import run_validate_json
+    root = tmp_path / "coga"
+    _write(root / "coga.toml", 'version = 1\n[git]\nenabled = false\n[notification]\nchannels = []\n')
+    _write(root / "tasks" / "sample.md",
+           '---\ntitle: Sample\nstatus: ' + ('invalid' if broken else 'draft') + '\nowner: tester\nworkflow: null\n---\n\n## Description\nSample.\n')
+    monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src"))
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    payload, command = run_validate_json(cwd=root, idle_hours=48, max_blackboard_kb=12)
+    assert command == build_validate_command(idle_hours=48, max_blackboard_kb=12)
+    assert set(payload) == {"generated_at", "ok_count", "fixes", "issues"}
+    assert payload["fixes"][0]["kind"] == "blackboard-fence"
+    assert any(i["severity"] == "error" for i in payload["issues"]) == broken
+    _write(root / "coga.toml", 'version = 99\n')
+    with pytest.raises(RuntimeError, match="exit 2"):
+        run_validate_json(cwd=root)

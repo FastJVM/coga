@@ -421,10 +421,12 @@ def _stub_git(monkeypatch, request):
         "coga.launch._orientation_checkout_guard", lambda cfg: nullcontext()
     )
     monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
-    # `views` binds the probe at import time, so patch its name too.
-    monkeypatch.setattr("coga.views.stale_coga_task_rels", lambda *a, **k: [])
-    monkeypatch.setattr("coga.views.feature_sync_plan", lambda *a, **k: None)
-    monkeypatch.setattr("coga.views.stale_index_lock", lambda *a, **k: None)
+    # The report binds probes at import time; patch the owning script.
+    from report_helpers import report_module
+    status_report = report_module("status")
+    monkeypatch.setattr(status_report, "stale_coga_task_rels", lambda *a, **k: [])
+    monkeypatch.setattr(status_report, "feature_sync_plan", lambda *a, **k: None)
+    monkeypatch.setattr(status_report, "stale_index_lock", lambda *a, **k: None)
     # Launch's push-auth gate also shells out to git (check_git_remote /
     # check_git_auth). Default the remote probe to "unresolved" so the gate
     # self-skips exactly as it would in a non-git checkout; the dedicated gate

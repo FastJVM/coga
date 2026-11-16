@@ -1330,6 +1330,29 @@ assert "installed" in str(resolve_workflow_path(cfg, "direct/body"))
 assert "installed" in str(resolve_workflow_path(cfg, "phone-home/run"))
 assert "installed" in str(resolve_context_path(cfg, "coga/recurring/templates"))
 assert "installed" in str(resolve_bootstrap(cfg, "bootstrap/retire").path)
+# Report source is present and executable without agent setup in the wheel.
+for name in ("show", "status", "usage", "recurring-list"):
+    report = resolve_bootstrap(cfg, "bootstrap/" + name)
+    assert "installed" in str(report.path)
+    assert (report.path / "ticket.py").is_file()
+    argv = ["recurring", "list"] if name == "recurring-list" else [name]
+    outcome = subprocess.run([sys.executable, "-m", "coga.cli", *argv, "--help"],
+                             capture_output=True, text=True)
+    assert outcome.returncode == 0, outcome.stderr
+    assert "Usage:" in outcome.stdout
+# Copying the complete report exposes its implementation; local edits win.
+import shutil
+stock = resolve_bootstrap(cfg, "bootstrap/usage").path
+local = Path("coga/bootstrap/usage")
+shutil.copytree(stock, local, ignore=shutil.ignore_patterns("__pycache__"))
+local.chmod(0o755)
+(local / "ticket.py").chmod(0o644)
+(local / "ticket.py").write_text('print("local usage policy")\n', encoding="utf-8")
+outcome = subprocess.run([sys.executable, "-m", "coga.cli", "usage"], capture_output=True, text=True)
+assert outcome.returncode == 0, outcome.stderr
+assert outcome.stdout == "local usage policy\n", outcome.stdout
+shutil.rmtree(local)
+
 names = set(sys.argv[1].split(","))
 sources = {s.name: s for s in iter_template_sources(cfg)}
 for name in names:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from report_helpers import report_cli
+
 import threading
 from contextlib import contextmanager
 from dataclasses import replace
@@ -2185,7 +2187,7 @@ def test_show_prints_ticket_blackboard_and_log(repo: Path) -> None:
     upsert_blackboard(task_path, "# Plan\n\nfigure it out\n")
     append_log(load_config(repo), slug, "system", "created task")
     runner = CliRunner()
-    result = runner.invoke(app, ["show", slug])
+    result = report_cli(["show", slug])
     assert result.exit_code == 0, result.output
     # The single-file ticket section, the blackboard content folded into it,
     # and the reconstructed log history all show.
@@ -2198,7 +2200,7 @@ def test_show_prints_ticket_blackboard_and_log(repo: Path) -> None:
 def test_show_resolves_prefix(repo: Path) -> None:
     slug, _ = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["show", slug[:6]])
+    result = report_cli(["show", slug[:6]])
     assert result.exit_code == 0, result.output
     assert "ticket.md" in result.output
 
@@ -2212,7 +2214,7 @@ def test_show_handles_missing_blackboard_and_log(repo: Path) -> None:
     replace_blackboard(task_path, "")
     log_path(load_config(repo)).unlink(missing_ok=True)
     runner = CliRunner()
-    result = runner.invoke(app, ["show", slug])
+    result = report_cli(["show", slug])
     assert result.exit_code == 0, result.output
     # Ticket still renders; the log section reports no reconstructable history.
     assert "ticket.md" in result.output
@@ -2221,7 +2223,7 @@ def test_show_handles_missing_blackboard_and_log(repo: Path) -> None:
 
 def test_show_unknown_task_exits_nonzero(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(app, ["show", "no-such-task-xyz"])
+    result = report_cli(["show", "no-such-task-xyz"])
     assert result.exit_code == 2
 
 
@@ -2231,7 +2233,7 @@ def test_show_unknown_task_exits_nonzero(repo: Path) -> None:
 def test_status_shows_active(repo: Path) -> None:
     slug, _ = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0
     assert slug in result.output
 
@@ -2242,7 +2244,7 @@ def test_status_blocked_expands_open_blockers(repo: Path) -> None:
     result = runner.invoke(app, ["block", "--task", slug, "--reason", "pick retry ceiling"])
     assert result.exit_code == 0, result.output
 
-    result = runner.invoke(app, ["status", "--blocked"], env={"COLUMNS": "200"})
+    result = report_cli(["status", "--blocked"], env={"COLUMNS": "200"})
 
     assert result.exit_code == 0, result.output
     assert slug in result.output
@@ -2269,7 +2271,7 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     )
     monkeypatch.setenv("COLUMNS", "60")
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     # Header + one data row + separator, followed by the summary footer.
     # Anything more in the table means Rich wrapped.
@@ -2317,7 +2319,7 @@ def test_status_renders_recurring_tasks_as_normal_rows(repo: Path) -> None:
         slug_override="recurring/foo",
     )
     _write_recurring_template(repo, "foo")
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     out = result.output
     # Instantiated period tasks are ordinary tasks: both rows share the main
@@ -2334,7 +2336,7 @@ def test_status_renders_recurring_tasks_as_normal_rows(repo: Path) -> None:
 
 def test_status_shows_templates_even_without_instantiated_tasks(repo: Path) -> None:
     _write_recurring_template(repo, "foo")
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     # No tasks on disk at all — the templates footer still renders, so a
     # steady-state repo (all period tasks done or not yet created) keeps its
@@ -2353,7 +2355,7 @@ def test_status_summarizes_fresh_templates_in_one_line(repo: Path) -> None:
     names = ["dream", "skill-update", "triage", "retro", "audit", "digest"]
     for name in names:
         _write_recurring_template(repo, name)
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     lines = [line for line in result.output.splitlines() if line.strip()]
     assert lines == [
@@ -2383,7 +2385,7 @@ def test_status_names_template_errors_below_summary(repo: Path) -> None:
             <!-- coga:blackboard -->
             """,
         )
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     lines = [line for line in result.output.splitlines() if line.strip()]
     assert lines[1] == "Recurring: 3 templates · 1 due · 2 errors — coga recurring list"
@@ -2394,7 +2396,7 @@ def test_status_names_template_errors_below_summary(repo: Path) -> None:
 
 
 def test_status_has_no_recurring_footer_without_templates(repo: Path) -> None:
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     assert result.output.strip() == "(no tasks)"
 
@@ -2412,10 +2414,10 @@ def test_status_hides_templates_footer_outside_recurring_scope(repo: Path) -> No
         slug_override="marketing/other",
     )
     _write_recurring_template(repo, "foo")
-    result = CliRunner().invoke(app, ["status", "marketing"])
+    result = report_cli(["status", "marketing"])
     assert result.exit_code == 0, result.output
     assert "Recurring" not in result.output
-    no_recurse = CliRunner().invoke(app, ["status", "--no-recurse"])
+    no_recurse = report_cli(["status", "--no-recurse"])
     assert no_recurse.exit_code == 0, no_recurse.output
     assert "Recurring" not in no_recurse.output
 
@@ -2433,7 +2435,7 @@ def test_status_does_not_show_title_column(repo: Path) -> None:
         slug_override="t1",
     )
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     assert "A distinctive ticket title" not in result.output
     assert "title" not in result.output.lower().split()
@@ -2508,8 +2510,8 @@ def test_status_shows_done_tasks_with_all(repo: Path) -> None:
     t.write(task_path)
     runner = CliRunner()
     # Done is hidden by default; --all reveals it.
-    assert slug not in runner.invoke(app, ["status"]).output
-    result = runner.invoke(app, ["status", "--all"])
+    assert slug not in report_cli(["status"]).output
+    result = report_cli(["status", "--all"])
     assert result.exit_code == 0, result.output
     assert slug in result.output
 
@@ -2538,7 +2540,7 @@ def test_status_hides_done_by_default_without_deleting(repo: Path) -> None:
     )
     runner = CliRunner()
 
-    result = runner.invoke(app, ["status", "--order-by", "slug"])
+    result = report_cli(["status", "--order-by", "slug"])
 
     assert result.exit_code == 0, result.output
     assert active["slug"] in result.output
@@ -2562,7 +2564,7 @@ def test_status_all_includes_done_tasks(repo: Path) -> None:
         slug_override="finished-task",
     )
 
-    result = CliRunner().invoke(app, ["status", "--all"])
+    result = report_cli(["status", "--all"])
 
     assert result.exit_code == 0, result.output
     assert "finished-task" in result.output
@@ -2604,7 +2606,7 @@ def test_status_hides_canceled_by_default_and_all_reports_terminal_totals(
     )
     runner = CliRunner()
 
-    default = runner.invoke(app, ["status", "--order-by", "slug"])
+    default = report_cli(["status", "--order-by", "slug"])
 
     assert default.exit_code == 0, default.output
     assert done["slug"] not in default.output
@@ -2614,7 +2616,7 @@ def test_status_hides_canceled_by_default_and_all_reports_terminal_totals(
         in default.output
     )
 
-    all_tasks = runner.invoke(app, ["status", "--all", "--order-by", "slug"])
+    all_tasks = report_cli(["status", "--all", "--order-by", "slug"])
 
     assert all_tasks.exit_code == 0, all_tasks.output
     assert done["slug"] in all_tasks.output
@@ -2641,7 +2643,7 @@ def _set_log_timestamp(repo: Path, slug: str, when: str) -> None:
 def test_status_includes_updated_column(repo: Path) -> None:
     _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     assert "updated" in result.output
 
@@ -2672,7 +2674,7 @@ def test_status_default_orders_by_updated_desc(repo: Path) -> None:
     _set_log_timestamp(repo, newer["slug"], "2026-04-30 17:00")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     new_idx = result.output.index("zzz-new")
     old_idx = result.output.index("aaa-old")
@@ -2693,7 +2695,7 @@ def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
             slug_override=slug,
         )
     runner = CliRunner()
-    result = runner.invoke(app, ["status", "--order-by", "slug"])
+    result = report_cli(["status", "--order-by", "slug"])
     assert result.exit_code == 0, result.output
     a = result.output.index("alpha")
     m = result.output.index("mu")
@@ -2715,7 +2717,7 @@ def test_status_reverse_flips_order(repo: Path) -> None:
             slug_override=slug,
         )
     runner = CliRunner()
-    result = runner.invoke(app, ["status", "--order-by", "slug", "--reverse"])
+    result = report_cli(["status", "--order-by", "slug", "--reverse"])
     assert result.exit_code == 0, result.output
     assert result.output.index("zeta") < result.output.index("alpha"), result.output
 
@@ -2723,7 +2725,7 @@ def test_status_reverse_flips_order(repo: Path) -> None:
 def test_status_rejects_unknown_order_by(repo: Path) -> None:
     _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["status", "--order-by", "bogus"])
+    result = report_cli(["status", "--order-by", "bogus"])
     assert result.exit_code == 2
 
 
@@ -2763,12 +2765,12 @@ def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
 
     runner = CliRunner()
     # Default order (updated desc) — logged task on top, no-log task at bottom.
-    result = runner.invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0, result.output
     assert result.output.index("zzz-logged") < result.output.index("aaa-nolog")
 
     # Even with --reverse, missing log stays at the bottom.
-    result = runner.invoke(app, ["status", "--reverse"])
+    result = report_cli(["status", "--reverse"])
     assert result.exit_code == 0, result.output
     assert result.output.index("zzz-logged") < result.output.index("aaa-nolog")
 

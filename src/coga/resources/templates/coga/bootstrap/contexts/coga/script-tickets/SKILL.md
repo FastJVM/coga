@@ -75,6 +75,8 @@ Read-only command dispatch reuses this subprocess and environment builder but
 skips lifecycle and reload/teardown handling; its complete effects contract is
 owned by [launch](../launch/SKILL.md#read-only-command-dispatch). Ordinary
 bootstrap scripts keep their existing config requirements and exit sweep.
+The report command tickets carry their complete implementations beside
+`ticket.md`; copying one does not require importing another report.
 
 ## Chaining
 

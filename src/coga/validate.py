@@ -1967,6 +1967,61 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
 # --- CLI entry ----------------------------------------------------------------
 
 
+def execute_validation(
+    cfg: Config,
+    *,
+    task: str | None = None,
+    fix: bool = False,
+    idle_hours: float = 72.0,
+    max_blackboard_kb: float = BLACKBOARD_WARN_BYTES / 1024,
+    check_slack: bool = False,
+    check_github: bool = False,
+) -> ValidationReport:
+    """Shared option-to-report contract for the CLI and validate-drift entry."""
+    if task is not None and (check_slack or check_github):
+        option = "--check-slack" if check_slack else "--check-github"
+        concern = "the Slack webhook" if check_slack else "git/GitHub auth"
+        raise ValueError(
+            f"{option} is not supported with --task; "
+            f"it probes {concern}, which is a whole-repo concern."
+        )
+    if task is not None:
+        return validate_task(
+            cfg, task, fix=fix,
+            max_blackboard_bytes=int(max_blackboard_kb * 1024),
+            idle_hours=idle_hours,
+        )
+    return run(
+        cfg, idle_hours=idle_hours,
+        max_blackboard_bytes=int(max_blackboard_kb * 1024),
+        check_slack=check_slack, check_github=check_github, fix=fix,
+    )
+
+
+def emit_report(report: ValidationReport, *, json_output: bool) -> int:
+    """Emit the stable validation payload or text and return its 0/1 verdict."""
+    if json_output:
+        payload: dict[str, Any] = {
+            "generated_at": report.generated_at,
+            "ok_count": report.ok_count,
+            "fixes": [asdict(f) for f in report.fixes],
+            "issues": [asdict(i) for i in report.issues],
+        }
+        json.dump(payload, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        for fix_item in report.fixes:
+            print(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
+        if not report.issues:
+            print(f"All good ({report.ok_count} tasks checked).")
+        else:
+            for issue in report.issues:
+                sev = issue.severity.upper()
+                print(f"[{sev}] {issue.task}: {issue.kind} — {issue.message}")
+
+    return 1 if any(i.severity == "error" for i in report.issues) else 0
+
+
 def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Coga repo validator")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
@@ -2006,53 +2061,17 @@ def _main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"{exc}\n")
         return 2
 
-    if args.task is not None:
-        if args.check_slack:
-            sys.stderr.write("--check-slack is not supported with --task\n")
-            return 2
-        if args.check_github:
-            sys.stderr.write("--check-github is not supported with --task\n")
-            return 2
-        report = validate_task(
-            cfg,
-            args.task,
-            fix=args.fix,
-            max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
-            idle_hours=args.idle_hours,
+    try:
+        report = execute_validation(
+            cfg, task=args.task, fix=args.fix, idle_hours=args.idle_hours,
+            max_blackboard_kb=args.max_blackboard_kb,
+            check_slack=args.check_slack, check_github=args.check_github,
         )
-    else:
-        report = run(
-            cfg,
-            idle_hours=args.idle_hours,
-            max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
-            check_slack=args.check_slack,
-            check_github=args.check_github,
-            fix=args.fix,
-        )
-
-    if args.json:
-        payload: dict[str, Any] = {
-            "generated_at": report.generated_at,
-            "ok_count": report.ok_count,
-            "fixes": [asdict(f) for f in report.fixes],
-            "issues": [asdict(i) for i in report.issues],
-        }
-        json.dump(payload, sys.stdout, indent=2)
-        sys.stdout.write("\n")
-    else:
-        if not report.issues:
-            for fix_item in report.fixes:
-                print(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
-            print(f"All good ({report.ok_count} tasks checked).")
-        else:
-            for fix_item in report.fixes:
-                print(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
-            for issue in report.issues:
-                sev = issue.severity.upper()
-                print(f"[{sev}] {issue.task}: {issue.kind} — {issue.message}")
-
-    # Exit code: 0 if no errors, 1 if errors, 2 on tool failure.
-    return 1 if any(i.severity == "error" for i in report.issues) else 0
+    except ValueError as exc:
+        # The module entry historically uses a shorter probe refusal.
+        sys.stderr.write(str(exc).split(";", 1)[0] + "\n")
+        return 2
+    return emit_report(report, json_output=args.json)
 
 
 if __name__ == "__main__":

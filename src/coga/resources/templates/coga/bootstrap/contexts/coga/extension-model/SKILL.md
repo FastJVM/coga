@@ -23,7 +23,9 @@ Reach for the lowest tier the shape allows:
   trailing argv as its operands and no agent; its `ticket.md` owns the verb's
   contract. Repo-local definitions win over packaged ones.
   `resolve-conflicts` and `address-pr-comments` are the shipped agent
-  examples; `retire` (`bootstrap/retire`) is the shipped script example.
+  examples; `retire` (`bootstrap/retire`) is a shipped writer example.
+  The show, status, usage and recurring-list command tickets are editable
+  readers using [read-only dispatch](../launch/SKILL.md#read-only-command-dispatch).
 - **External tool**: an existing CLI (`git`, `gh`, `op`) that Coga shells out
   to and whose output it verifies.
 - **Stateful ticket or workflow**: reviewable work that wants its own

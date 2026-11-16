@@ -8,6 +8,8 @@ fails loud on an unknown directory.
 
 from __future__ import annotations
 
+from report_helpers import report_cli
+
 from pathlib import Path
 from textwrap import dedent
 
@@ -179,7 +181,7 @@ def test_status_directory_filter_lists_subtree(repo: Path) -> None:
     _task(repo, "marketing/digest-sweep")
     _task(repo, "marketing/social/relaunch")
 
-    result = CliRunner().invoke(app, ["status", "marketing"])
+    result = report_cli(["status", "marketing"])
 
     assert result.exit_code == 0
     assert "digest-sweep" in result.stdout
@@ -191,7 +193,7 @@ def test_status_no_recurse_lists_only_top_level(repo: Path) -> None:
     _task(repo, "fix-retry-logic")
     _task(repo, "marketing/digest-sweep")
 
-    result = CliRunner().invoke(app, ["status", "--no-recurse"])
+    result = report_cli(["status", "--no-recurse"])
 
     assert result.exit_code == 0
     assert "fix-retry-logic" in result.stdout
@@ -202,7 +204,7 @@ def test_status_directory_no_recurse_excludes_nested(repo: Path) -> None:
     _task(repo, "marketing/digest-sweep")
     _task(repo, "marketing/social/relaunch")
 
-    result = CliRunner().invoke(app, ["status", "marketing", "--no-recurse"])
+    result = report_cli(["status", "marketing", "--no-recurse"])
 
     assert result.exit_code == 0
     assert "digest-sweep" in result.stdout
@@ -212,7 +214,7 @@ def test_status_directory_no_recurse_excludes_nested(repo: Path) -> None:
 def test_status_unknown_directory_fails_loud(repo: Path) -> None:
     _task(repo, "marketing/digest-sweep")
 
-    result = CliRunner().invoke(app, ["status", "sales"])
+    result = report_cli(["status", "sales"])
 
     assert result.exit_code == 2
     assert "Unknown directory 'sales'" in result.output
@@ -228,7 +230,7 @@ def test_status_dirs_lists_all_directories_not_tasks(repo: Path) -> None:
     _task(repo, "marketing/social/relaunch")
     _task(repo, "ops/rotate-keys")
 
-    result = CliRunner().invoke(app, ["status", "--dirs"])
+    result = report_cli(["status", "--dirs"])
 
     assert result.exit_code == 0
     lines = result.stdout.split()
@@ -241,7 +243,7 @@ def test_status_dirs_no_recurse_keeps_only_top_level(repo: Path) -> None:
     _task(repo, "marketing/social/relaunch")
     _task(repo, "ops/rotate-keys")
 
-    result = CliRunner().invoke(app, ["status", "--dirs", "--no-recurse"])
+    result = report_cli(["status", "--dirs", "--no-recurse"])
 
     assert result.exit_code == 0
     lines = result.stdout.split()
@@ -253,7 +255,7 @@ def test_status_dirs_under_directory_excludes_the_query_itself(repo: Path) -> No
     _task(repo, "marketing/social/relaunch")
     _task(repo, "marketing/social/paid/promo")
 
-    result = CliRunner().invoke(app, ["status", "marketing", "--dirs"])
+    result = report_cli(["status", "marketing", "--dirs"])
 
     assert result.exit_code == 0
     lines = result.stdout.split()
@@ -265,7 +267,7 @@ def test_status_dirs_under_directory_no_recurse_is_immediate_level(repo: Path) -
     _task(repo, "marketing/social/relaunch")
     _task(repo, "marketing/social/paid/promo")
 
-    result = CliRunner().invoke(app, ["status", "marketing", "--dirs", "--no-recurse"])
+    result = report_cli(["status", "marketing", "--dirs", "--no-recurse"])
 
     assert result.exit_code == 0
     lines = result.stdout.split()
@@ -275,7 +277,7 @@ def test_status_dirs_under_directory_no_recurse_is_immediate_level(repo: Path) -
 def test_status_dirs_unknown_directory_fails_loud(repo: Path) -> None:
     _task(repo, "marketing/digest-sweep")
 
-    result = CliRunner().invoke(app, ["status", "sales", "--dirs"])
+    result = report_cli(["status", "sales", "--dirs"])
 
     assert result.exit_code == 2
     assert "Unknown directory 'sales'" in result.output
@@ -284,7 +286,7 @@ def test_status_dirs_unknown_directory_fails_loud(repo: Path) -> None:
 def test_status_dirs_empty_prints_note(repo: Path) -> None:
     _task(repo, "fix-retry-logic")  # only top-level tasks, no plain directories
 
-    result = CliRunner().invoke(app, ["status", "--dirs"])
+    result = report_cli(["status", "--dirs"])
 
     assert result.exit_code == 0
     assert "no directories" in result.stdout
@@ -306,7 +308,7 @@ def test_status_order_by_created_lists_oldest_first(repo: Path) -> None:
         encoding="utf-8", newline="\n",
     )
 
-    result = CliRunner().invoke(app, ["status", "--order-by", "created"])
+    result = report_cli(["status", "--order-by", "created"])
 
     assert result.exit_code == 0, result.output
     assert result.output.index("beta") < result.output.index("alpha")
@@ -323,7 +325,7 @@ def test_status_order_by_created_reverse_lists_newest_first(repo: Path) -> None:
         encoding="utf-8", newline="\n",
     )
 
-    result = CliRunner().invoke(app, ["status", "--order-by", "created", "--reverse"])
+    result = report_cli(["status", "--order-by", "created", "--reverse"])
 
     assert result.exit_code == 0, result.output
     assert result.output.index("alpha") < result.output.index("beta")
@@ -397,7 +399,7 @@ def test_status_updated_survives_a_task_directory_rename(git_repo) -> None:
     _g("mv", "coga/tasks/old-name", "coga/tasks/new-name")
     _g("commit", "-m", "rename task")
 
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
 
     assert result.exit_code == 0, result.output
     line = next(l for l in result.output.splitlines() if "new-name" in l)
@@ -409,7 +411,7 @@ def test_status_updated_is_blank_without_git_rather_than_crashing(repo: Path) ->
     """No git checkout (the `repo` fixture) degrades to the log-only column."""
     _task(repo, "alpha")
 
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
 
     assert result.exit_code == 0, result.output
     assert "alpha" in result.output
