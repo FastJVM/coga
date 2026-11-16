@@ -48,7 +48,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -228,6 +228,122 @@ branch: coga/v1-microkernel-03-prompt-assembly-03-implement-t-3ce4ed
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implementation handoff (2026-11-15, implement, claude)
+
+Pushed `419654e47` (two commits on merge base `35e878245`). Implemented Proposed shape §1–§7 as written, with the deviations below.
+
+- **Normalizer** `compose._prompt_text(text, drop_title=, frontmatter=)` plus `_without_html_comments`, `_comment_end`, `_leading_heading`. It is applied when each layer is constructed. The header stays raw and the checkout notice is generated, so neither is normalized. Comments are also stripped from `body_above` before `_extract_section`.
+- **Conduct**: no longer `raw`. Its title comes from the resource's leading heading (fallback `Session conduct`).
+- **Blockers once**: `blackboard.without_open_blockers` plus `_scan_blockers` (the shared scan that `parse_blockers_text` now wraps, with entry line indexes via `_without_superseded_designs(keep_lines=True)`). It runs only when the preamble layer composes. Pointer: `compose.OPEN_BLOCKERS_POINTER`.
+- **Filler**: `blackboard.without_stock_placeholder` runs before `blackboard_for_prompt`. Candidates come from the new `_stock_templates`, which `_is_stock_blackboard` now shares, plus the override rendered with the title. An existing region left blank composes `compose.EMPTY_BLACKBOARD_TEXT` (`*No state recorded yet.*`).
+- **Guided authoring**: one clause of `bootstrap/ticket` "Before the interview" changed; there is no new compose flag.
+- **Docs**: `coga/prompt-composition` and `coga-dev/internals/compose` are updated.
+
+### Decisions and deviations
+
+1. **Filler match is a standalone block anywhere, not leading-only.** The owner chose this in session on 2026-11-15. Leading-only missed the motivating case: launch inserts `## Dev` above the placeholder in this ticket and about 10 other live ones. The rule matches whole lines outside fences, with a blank line or the region edge on both sides. Quoted or glued text stays.
+2. **Frontmatter stripping is limited to whole-file layers** (resources, `context.md`, contexts, skills). Ticket regions and inline workflow sections pass `frontmatter=False`. They are never whole files, and a blackboard or description that opens with a `---` rule and has a later `---` would otherwise lose content.
+3. **The stock candidates use the archive-projected override only.** This matches `_is_stock_blackboard`. Including the raw override could remove a template's `## Superseded designs` heading while leaving its archived body live.
+
+### Before/after evidence (this ticket, `compose_prompt_report`)
+
+Captured by script, because `--prompt-report` is not run inside a launch. Base `35e878245` (code identical to the earlier capture at `22cb02ec5`; only state commits differ). PR head `419654e47`. Same ticket file.
+
+| layer | before B | after B |
+| --- | ---: | ---: |
+| header | 252 | 252 |
+| base_prompt | 3680 | 3664 |
+| ticket_loop | 3180 | 3168 |
+| session_conduct | 1736 | 1735 |
+| repo_context | 295 | 284 |
+| contexts (6) | 5882/5439/11564/20586/9964/3303 | 5647/5271/11199/20319/9779/3062 |
+| workflow_skill | 10893 | 10613 |
+| task_description | 13233 | 13233 |
+| task_context | 8742 | 3606 |
+| blackboard | 8524 | 8436 |
+| checkout_notice | 234 | 234 |
+| **total** | **107,612 (~26,865 tok)** | **100,608 (~25,118 tok)** |
+
+The reported total equals `len(prompt.encode())` in both captures. Prompt shape: `^# ` lines went 11 → 1, `^## ` lines 61 → 15 (one per layer), and frontmatter `name:` lines 7 → 0. The ticket-guide comment block went 1 → 0; `task_context` lost 5,136 B. The filler line is gone. The remaining mentions of both are this ticket's own Description prose quoting them. Excerpts:
+
+- Before: `## Repo context` / `# Context`; after: `## Repo context` / `This is Coga's own repository…`.
+- Before: `## Context — coga-dev/principles` / `---` / `name: coga-dev/principles`; after: `## Context — coga-dev/principles` / `Coga is an instrument…`.
+- Before: `## Blackboard (current state)` / `## Dev`; after: `## Blackboard (current state)` / `### Dev`.
+- `### Blockers` keeps both resolved entries with their `resolved:` lines. Open-ask dedupe is shown by the controlled fixture `tests/test_compose.py::test_compose_lists_open_blockers_once`, not by manufacturing live blockers here (per the evaluator).
+
+The full composed texts are not attached: this is a file-form ticket, and converting it to directory form would move its path. Regenerate them with `compose.compose_prompt(cfg, ref, read_ticket(ref))` at either OID.
+
+### Code size (`git diff --numstat 35e878245..419654e47`)
+
+- Production: `compose.py` +148/−19, `blackboard.py` +132/−24. That is net +237 lines of new behavior: no relocation, and no entrypoints removed.
+- Tests: `test_compose.py` +356/−14, `test_blackboard.py` +91, plus small fixes in `test_create.py` and `test_recurring_autofix.py`.
+- Docs: the two topics, plus one clause in the skill.
+
+### Verification
+
+- Full Linux suite at `419654e479c04d055ae3b0eddd3a959b6e1f5451`, Ubuntu (Linux 7.2.15), Python 3.12.12: `PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.pytest-coga-tmp` → 4919 passed, 33 skipped in 772s.
+- An earlier run at `c5ae9a6ea` found 3 failures. They were stale assertions of raw composition in `test_create` (guide in prompt) and `test_recurring_autofix` (frontmatter in layer text), fixed in the second commit.
+- Python 3.11 is not run (not available here). Native Windows/macOS checks are deferred to release.
+- No code review has run yet; the self-QA and review steps follow.
+
+### Follow-ups (not done here)
+
+- `## Blocker reminders` composition (out of scope, possible follow-up).
+- `---` separators inside a blackboard still look like layer separators (separator out of scope).
+
+## PR
+
+```yaml
+title: Normalize composed prompt layers and project blackboard filler and duplicate blockers
+author: claude
+author_evidence: "Implement session ran as Claude Code (claude-opus-5-5) under coga launch; see implementation handoff."
+head: 419654e479c04d055ae3b0eddd3a959b6e1f5451
+base: 35e878245c35c19a99a8e7fa0a0bf1d2df50c6aa
+depth: deep
+rationale: >-
+  Changes every composed prompt (heading levels, dropped frontmatter, comments, titles) and adds
+  two blackboard projections; the reviewer should read the normalizer and both projections closely.
+implementation: >-
+  One fence-aware normalizer (compose._prompt_text) applied at layer construction drops whole-file
+  frontmatter, whole-line HTML comment blocks and the lone document title, then demotes headings to
+  level 3 under the layer heading. Comments are also stripped above the fence before section
+  extraction. Conduct takes its layer title from its resource heading. blackboard.without_open_blockers
+  removes open asks when the preamble lists them; blackboard.without_stock_placeholder removes the
+  stock placeholder before the archive pointer is added.
+deviations: >-
+  Owner-approved in session: the placeholder is removed as a standalone block anywhere outside fences,
+  not only when leading (launch puts ## Dev above it). Frontmatter stripping is limited to whole-file
+  layers so a leading --- rule in a ticket region is never eaten.
+limitations: >-
+  Setext headings and mid-line comments are not handled by design. Full composed texts are not attached
+  as files (file-form ticket); per-layer report and excerpts are on the blackboard. Python 3.11 and native
+  platforms not run.
+files:
+  src/coga/compose.py: Layer normalizer, comment pre-strip before extraction, conduct title, blocker and filler projections wired in.
+  src/coga/blackboard.py: without_open_blockers, without_stock_placeholder, shared _scan_blockers and _stock_templates.
+  tests/test_compose.py: New coverage for each defect; existing literal-heading and raw-text assertions updated.
+  tests/test_blackboard.py: Unit tests for the two blackboard projections.
+  tests/test_create.py: Guide stays in the file but no longer composes.
+  tests/test_recurring_autofix.py: Context layer text is now normalized.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Contract for normalization, blockers once, placeholder, what never composes.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md: Tell the authoring agent to read the guide in the ticket file.
+  docs/contexts/coga-dev/internals/compose/SKILL.md: Implementation notes for the projections and normalizer.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; self-QA and review steps have not run yet.
+checks:
+  - command: PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.pytest-coga-tmp
+    status: passed
+    head: 419654e479c04d055ae3b0eddd3a959b6e1f5451
+    base: 35e878245c35c19a99a8e7fa0a0bf1d2df50c6aa
+    detail: "4919 passed, 33 skipped in 772s; Linux, Python 3.12.12."
+  - command: native Windows and macOS full suite
+    status: not-run
+    detail: Deferred to release per coga-dev/testing.
+```
 
 ## Design (2026-11-15, design session)
 
