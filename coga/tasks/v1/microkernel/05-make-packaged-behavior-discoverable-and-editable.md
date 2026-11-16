@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
@@ -456,6 +456,83 @@ Spec written above the fence. Owner decisions this session:
 
 Hard dependency: `launch --read-only` (PR #1233, branch
 `coga/v1-microkernel-03-launch-decomposition-6852fc`) is not on main.
+**Owner decision 2026-11-15 (implement session): stack on #1233.** This branch
+carries #1233's commit cherry-picked (`426a1c8f7` after rebase) under the
+fork commit; this PR must not merge before #1233. If #1233 changes in review,
+rebase this branch onto its final form (or onto main once merged; git drops
+the patch-identical commit).
+
+## Implement handoff 2026-11-15 (attended, owner approved result)
+
+Commit `277f65c0e` "Add coga fork and fork-copy for packaged behavior" on
+the branch (pushed). What changed:
+- `bootstrap/fork/ticket.md` (contract) + `ticket.py` (argparse
+  `inspect`/`copy`, `--json`): resolves typed refs or an untyped word
+  (alias -> built-in -> task -> definition name), follows aliases, reports
+  per-definition origin/selected/packaged/override/fork state/references,
+  `ticket.py` classification by `ast` (edge shim / recipe adapter / full
+  script) and edge-module forkability; copy writes definition-last, refuses
+  conflicts, converts state-only carriers, expands forkable edge shims.
+- Default aliases `fork` / `fork-copy` in `aliases.DEFAULT_ALIASES`.
+- Docs: context-layout (new "Finding and forking packaged behavior"),
+  edge-code + upgrades, workflows, recurring/templates, script-tickets, cli,
+  extension-model, phone-home operations, coga-dev/codebase source map.
+- Tests: new `tests/test_fork_command.py` (43), alias tests, packaging list,
+  three installed-wheel cases in `tests/test_edge_distribution.py`.
+
+Deviations from the spec (decide in review):
+- Untyped word falls back to a definition name of exactly one kind, so
+  `coga fork code/with-review` works as the acceptance case expects.
+- Test file named `tests/test_fork_command.py` (repo naming rule), not
+  `test_source_command.py`.
+- `migration:locate` snippet kept in edge-code-upgrades.md: it is the tested
+  input of the legacy guarded-replacement step; `coga fork` added beside it.
+  Only the fresh template-fork snippet became `coga fork-copy` (period
+  scripts still use the manual copy: fork-copy never writes periods).
+- Peer-review launch-reuse is proven in-process (fake agent, real git);
+  the installed-wheel case covers discovery, copy, edit and freezing.
+
+Limitations / not done:
+- No native Windows receipt (needs the Windows box per coga-dev/testing).
+- Fork-state comparison is byte-exact: a CRLF checkout of a fork reads as
+  `fork (modified)`.
+- Size: ticket.py ~890 lines (778 non-blank/non-comment), ticket.md 125,
+  tests ~785; docs +~60. Removed instructions: the fresh-fork cp snippet
+  (partially) only. This is a new capability, not a core reduction; the
+  owner's new draft `v1/why-is-the-code-so-big` is related.
+
+## PR
+
+```yaml
+title: Add coga fork and fork-copy for packaged behavior
+author:
+  agent: claude (Claude Opus 5.5, claude-opus-5-5), attended session
+head: 277f65c0e3e5a130fffc52e7161051217d29c89d
+base: f62cf70159aebedae864b2877804ae81b4b03a9e
+stacked_on: PR #1233 (cherry-picked as 426a1c8f7); merge after #1233
+review_depth: deep
+review_depth_rationale: new user-facing command ticket, write path into repo definitions, stacked on an unmerged dispatch change
+files:
+  src/coga/resources/templates/coga/bootstrap/fork/ticket.md: command contract (new)
+  src/coga/resources/templates/coga/bootstrap/fork/ticket.py: fork/fork-copy implementation (new)
+  src/coga/aliases.py: fork and fork-copy default aliases
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/*: user docs point to the commands
+  src/coga/resources/templates/coga/recurring/phone-home/operations.md: source-inspection pointer
+  docs/contexts/coga-dev/codebase/SKILL.md: source map entry
+  tests/test_fork_command.py: resolution, report, copy, return-to-stock, CLI, launch reuse
+  tests/test_edge_distribution.py: installed wheel, read-only install, upgrade, peer review
+  tests/test_aliases.py: alias expansions
+  tests/required_package_resources.txt: require the two new package files
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    tree: 8a5665818 (pre-rebase; rebase brought only coga/ state commits)
+    result: 4976 passed, 33 skipped (17m51s)
+  - command: .venv/bin/python -m pytest -q tests/test_fork_command.py tests/test_aliases.py tests/test_packaging.py tests/test_launch_script.py
+    tree: 277f65c0e (post-rebase head)
+    result: 199 passed
+  - omitted: native Windows receipt (no Windows host in this session)
+review: none yet; peer-review step follows. Design approval is not code review.
+```
 
 ## Open Questions
 
