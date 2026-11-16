@@ -61,7 +61,8 @@ copies onto the package, follow the reviewed
 **Resolution is by artifact, not by merging text.** A local definition owns
 its whole directory: a local `ticket.md` with no `ticket.py` is agent-backed
 (omission does not inherit the packaged script), so copy every sibling a
-customized job needs. A package-backed job keeps only a **state-only
+customized job needs; `coga fork-copy recurring:<name>` does that, converting
+a state-only carrier in place and never editing `jobs.toml`. A package-backed job keeps only a **state-only
 carrier** at `coga/recurring/<name>/ticket.md`:
 
 ```markdown

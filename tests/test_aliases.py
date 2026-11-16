@@ -252,6 +252,37 @@ def test_default_retire_alias_keeps_its_options_for_the_script(
     ]
 
 
+def test_fork_aliases_fix_read_only_and_write_dispatch_separately() -> None:
+    """One alias cannot carry two dispatch policies, so `fork` reads and `fork-copy` writes."""
+    assert _DEFAULT_ALIASES["fork"] == "launch --read-only bootstrap/fork -- inspect"
+    assert _DEFAULT_ALIASES["fork-copy"] == "launch bootstrap/fork -- copy"
+    assert {"fork", "fork-copy"}.isdisjoint(_BUILTIN_COMMANDS)
+
+
+@pytest.mark.parametrize(
+    ("alias", "expanded"),
+    [
+        ("fork", ["launch", "--read-only", "bootstrap/fork", "--", "inspect"]),
+        ("fork-copy", ["launch", "bootstrap/fork", "--", "copy"]),
+    ],
+)
+def test_default_fork_aliases_pass_target_and_options_to_the_script(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, alias: str, expanded: list[str],
+) -> None:
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", ["coga", alias, "skill:code/peer-review", "--json"])
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+    main()
+    assert captured["argv"] == ["coga", *expanded, "skill:code/peer-review", "--json"]
+
+
 def test_default_resolve_conflicts_alias_carries_optional_pr(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

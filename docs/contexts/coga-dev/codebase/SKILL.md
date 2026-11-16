@@ -18,6 +18,11 @@ The repo separates implementation from the OS it operates:
 
 - `src/coga_edge/phone_home.py`: the default telemetry implementation behind
   the repo shim; [phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md) owns its contract.
+- `src/coga/resources/templates/coga/bootstrap/fork/ticket.py`: the edge script
+  behind the `fork` (read-only report) and `fork-copy` (copy one packaged
+  definition) default aliases; it asks the shared resolvers what is selected
+  and classifies `ticket.py`/edge modules with `ast`. Its `ticket.md` owns the
+  contract.
 
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
   with no business logic are the target; `init.py` still carries substantial

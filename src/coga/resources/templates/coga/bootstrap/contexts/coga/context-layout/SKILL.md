@@ -90,6 +90,26 @@ This policy covers context refs only, not skills or ordinary attachments.
 and drifts. Deliberate authoring there is fine: a repo mints its own command
 ticket or intentionally overrides a shipped one.
 
+## Finding and forking packaged behavior
+
+`coga fork <target>` asks these same resolvers what is selected. It follows
+an alias or typed ref (`workflow:`, `skill:`, `context:`, `bootstrap/`,
+`recurring:`, `resource:`, `task:`) to the definition, its references and its
+`ticket.py` implementation. For each it reports the selected and packaged
+paths, the local override destination, and whether the local copy is stock,
+an identical or modified fork, local-only, or broken. It runs under read-only
+dispatch and writes nothing; built-in commands and `coga run` recipes are
+reported as kernel primitives, not forkable.
+
+`coga fork-copy <ref>` copies one packaged definition to that destination
+(for a context, under the contexts root) and prints a `coga fork-copy`
+command for each referenced definition that is still stock. An edge shim is
+expanded to its real module source. Returning to stock is a deletion: the
+local workflow or resource file, or the local skill, context or bootstrap
+directory; a recurring job goes back to a state-only carrier. `coga fork`
+prints the exact steps for each fork. The command ticket
+`bootstrap/fork/ticket.md` owns the full contract.
+
 ## Relocating: `[layout] contexts`
 
 ```toml

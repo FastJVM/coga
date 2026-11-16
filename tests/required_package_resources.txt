@@ -62,6 +62,8 @@ src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKIL
 src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md
 src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md
 src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md
+src/coga/resources/templates/coga/bootstrap/fork/ticket.md
+src/coga/resources/templates/coga/bootstrap/fork/ticket.py
 src/coga/resources/templates/coga/bootstrap/orient/ticket.md
 src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md
 src/coga/resources/templates/coga/bootstrap/retire/ticket.md

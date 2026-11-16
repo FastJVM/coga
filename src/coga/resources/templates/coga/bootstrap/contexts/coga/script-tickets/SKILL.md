@@ -14,7 +14,10 @@ call them through `runner.run_recipe`.
 
 A repo script can be a thin import of a wheel-owned edge implementation or a
 full local fork; distribution and adoption are in
-[coga/edge-code](../edge-code/SKILL.md). Classification below is unchanged.
+[coga/edge-code](../edge-code/SKILL.md). `coga fork <target>` reports which
+of these shapes a `ticket.py` has (edge shim, recipe adapter or full script)
+and where its implementation lives, by parsing it rather than importing it.
+Classification below is unchanged.
 
 ## Classifier
 

@@ -10,7 +10,11 @@ A workflow is an ordered list of steps in a markdown file:
 `bootstrap/workflows/<ref>.md`; local wins. Shipped workflows, including
 `direct/body` (which runs the ticket body's ordered phases), resolve from the
 package's `bootstrap/workflows/`; `coga init` copies only the ignored
-`workflows/_template.md` authoring starter into the repo.
+`workflows/_template.md` authoring starter into the repo. To change a shipped
+workflow, `coga fork workflow:<ref>` shows its steps, their skills and
+`checkout:` policies; `coga fork-copy workflow:<ref>` copies it to
+`coga/workflows/<ref>.md` and prints the commands that fork its step skills
+([coga/context-layout](../context-layout/SKILL.md#finding-and-forking-packaged-behavior)).
 
 An existing local entry always wins, including an unreadable file, directory,
 or broken symlink: it must be repaired, never bypassed with bundled text. A

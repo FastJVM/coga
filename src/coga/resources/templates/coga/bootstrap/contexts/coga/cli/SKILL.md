@@ -52,6 +52,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | Command | Owner |
 | --- | --- |
 | `run <recipe>` and `[aliases]` | [coga/extension-model](../extension-model/SKILL.md) |
+| `fork` → `launch --read-only bootstrap/fork -- inspect`, `fork-copy` → `launch bootstrap/fork -- copy` | packaged `bootstrap/fork/ticket.md`; [coga/context-layout](../context-layout/SKILL.md#finding-and-forking-packaged-behavior) |
 | `skill` | [coga/skill-management](../skill-management/SKILL.md) |
 | `slack` | [coga/notifications](../notifications/SKILL.md) |
 | `usage` | [coga/usage](../usage/SKILL.md) |

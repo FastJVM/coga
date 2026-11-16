@@ -46,8 +46,9 @@ If desktop authorization fails, the owner can set the constant locally.
 Rotation follows [Multiply's key procedure](https://github.com/FastJVM/multiply/blob/main/infra/posthog/README.md#rotation):
 update the vault source and the edge module constant and release. Adopted shims
 receive it on the next process after wheel upgrade; legacy copies and local
-forks need reviewed reconciliation. Source inspection and adoption commands
-are in [coga/edge-code](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md). Resetting the shared key
+forks need reviewed reconciliation. `coga fork recurring:phone-home` shows the
+selected definition and implementation source; `coga fork-copy
+recurring:phone-home` creates a full local fork. Adoption commands are in [coga/edge-code](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md). Resetting the shared key
 breaks already-shipped Multiply builds too. Moving Coga to a dedicated project
 requires a new constant and Coga release, not a config option. Follow-up in the
 Multiply repo: its expected event catalog should mention `coga_weekly_snapshot`.

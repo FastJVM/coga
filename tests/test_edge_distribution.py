@@ -580,3 +580,118 @@ def test_documented_trim_adoption_uses_resolved_interpreter(tmp_path, edge_wheel
     assert result.returncode == 0, result.stdout + result.stderr
     assert "already installed" in result.stdout
     assert not (guard / "called").exists()
+
+
+# --- coga fork / fork-copy from an installed wheel ---------------------------
+
+
+def _coga(root, env, *args, code=0):
+    result = subprocess.run([sys.executable, "-m", "coga.cli", *args], cwd=root / "coga", env=env,
+                            capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert result.returncode == code, result.stdout + result.stderr
+    return result.stdout
+
+
+def _hashes(tree):
+    import hashlib
+    return {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in tree.rglob("*") if p.is_file()}
+
+
+def test_installed_peer_review_is_discoverable_and_forkable(tmp_path, edge_wheels):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
+    report = _coga(root, env, "fork", "code/with-review")
+    assert "workflow: code/with-review" in report
+    assert "skill: code/peer-review" in report
+    assert str(_packaged(installed, "bootstrap", "workflows", "code", "with-review.md")) in report
+    assert "coga fork-copy workflow:code/with-review" in report
+    copied = _coga(root, env, "fork-copy", "workflow:code/with-review")
+    assert "coga fork-copy skill:code/peer-review" in copied
+    _coga(root, env, "fork-copy", "skill:code/peer-review")
+    workflow = root / "coga/workflows/code/with-review.md"
+    head, _, tail = workflow.read_text(encoding="utf-8").partition("- name: peer-review")
+    step, sep, rest = tail.partition("- name:")
+    workflow.write_text(head + "- name: peer-review" + step.replace("other-agent", "agent") + sep + rest,
+                        encoding="utf-8", newline="\n")
+    skill = root / "coga/skills/code/peer-review/SKILL.md"
+    skill.write_text(skill.read_text(encoding="utf-8") + "\nSingle-agent review.\n", encoding="utf-8", newline="\n")
+    report = _coga(root, env, "fork", "workflow:code/with-review")
+    assert report.count("state: fork (modified)") == 2
+    _run(root, env, "-c", '''
+from pathlib import Path
+from coga.checkout_policy import select_checkout_policy
+from coga.config import load_config
+from coga.create import create_task
+from coga.tasks import read_ticket, resolve_task
+cfg = load_config(Path("coga"))
+created = create_task(cfg=cfg, title="Review", workflow_name="code/with-review", contexts=[],
+                      owner="tester", agent="claude", status="active")
+ticket = read_ticket(resolve_task(cfg, created["slug"]))
+[step] = [s for s in ticket.workflow["steps"] if s["name"] == "peer-review"]
+assert step["checkout"] == "reuse-required" and step["assignee"] == "agent", step
+ticket.frontmatter["step"] = "2 (peer-review)"
+assert select_checkout_policy(cfg, ticket).kind == "reuse-required"
+''')
+    assert not (guard / "called").exists()
+
+
+def test_fork_from_read_only_installation_runs_the_local_implementation(tmp_path, edge_wheels):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["B"])
+    before = _hashes(installed)
+    modes = {p: p.stat().st_mode for p in [installed, *installed.rglob("*")]}
+    try:
+        for path in sorted(modes, key=lambda p: len(p.parts), reverse=True):
+            path.chmod(modes[path] & ~0o222)
+        out = _coga(root, env, "fork-copy", "recurring:trim-log")
+        assert "ticket.py is the implementation" in out
+        script = root / "coga/recurring/trim-log/ticket.py"
+        assert script.read_bytes() == (installed / "coga_edge/trim_log.py").read_bytes()
+        source = script.read_text(encoding="utf-8")
+        marked = source.replace(
+            '    code = run_reported(cfg, "trim-log", run_trim_log, sys.argv[1:])',
+            '    print("TRIM FORK MARKER")\n    code = 0',
+        )
+        assert marked != source
+        script.write_text(marked, encoding="utf-8", newline="\n")
+        assert "state: fork (modified)" in _coga(root, env, "fork", "recurring:trim-log")
+        _run(root, env, "-c", '''
+from pathlib import Path
+from coga.config import load_config
+from coga.recurring import create_named
+assert create_named(load_config(Path("coga")), "trim-log").created
+''')
+        period = root / "coga/tasks/recurring/trim-log/ticket.py"
+        assert period.read_bytes() == script.read_bytes()
+        if os.name == "nt":
+            env["PATH"] = str(Path(shutil.which("git")).parent)
+        else:
+            (tmp_path / "bin").mkdir()
+            (tmp_path / "bin/git").symlink_to(shutil.which("git"))
+            env["PATH"] = str(tmp_path / "bin")
+        launched = subprocess.run([sys.executable, "-m", "coga.cli", "launch", "recurring/trim-log"],
+                                  cwd=root / "coga", env=env, capture_output=True, text=True,
+                                  encoding="utf-8", timeout=120)
+        assert launched.returncode == 0, launched.stdout + launched.stderr
+        assert "TRIM FORK MARKER" in launched.stdout + launched.stderr
+        from coga.ticket import Ticket
+        assert Ticket.read(period.with_suffix(".md")).status == "done"
+    finally:
+        for path, mode in modes.items():
+            path.chmod(mode)
+    assert _hashes(installed) == before
+    assert not (guard / "called").exists()
+
+
+def test_wheel_upgrade_changes_stock_definitions_but_not_forks(tmp_path, edge_wheels):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
+    _coga(root, env, "fork-copy", "recurring:phone-home")
+    script = root / "coga/recurring/phone-home/ticket.py"
+    forked = script.read_bytes()
+    assert b"## Phone home A" in forked
+    assert "state: fork (identical to installed package)" in _coga(root, env, "fork", "recurring:phone-home")
+    _install(edge_wheels["B"], installed)
+    assert script.read_bytes() == forked
+    assert b"## Phone home B" in (installed / "coga_edge/phone_home.py").read_bytes()
+    assert "state: fork (modified)" in _coga(root, env, "fork", "recurring:phone-home")
+    # A stock definition follows the installed package.
+    assert "state: stock" in _coga(root, env, "fork", "recurring:trim-log")
+    assert not (guard / "called").exists()

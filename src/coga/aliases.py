@@ -62,7 +62,11 @@ ONBOARDING_TASK = "coga-build"
 # launch-argument prompt block through the same argv rewrite. ``retire`` fronts
 # the script command ticket ``bootstrap/retire``; its trailing ``--`` keeps
 # ``--agent`` and ``--no-launch`` away from launch's own parser, so they reach
-# the script's argv.
+# the script's argv. ``fork`` and ``fork-copy`` front the script command ticket
+# ``bootstrap/fork``. One alias cannot carry two dispatch policies, so the
+# read-only report and the writing copy are two aliases: ``fork`` uses
+# read-only dispatch (no audit, checkout or publication effects) and
+# ``fork-copy`` ordinary launch.
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
@@ -74,6 +78,8 @@ DEFAULT_ALIASES: dict[str, str] = {
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",
     "address-pr-comments": "launch bootstrap/address-pr-comments",
     "retire": "launch bootstrap/retire --",
+    "fork": "launch --read-only bootstrap/fork -- inspect",
+    "fork-copy": "launch bootstrap/fork -- copy",
 }
 
 

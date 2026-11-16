@@ -78,6 +78,10 @@ positional args forward to the expansion. The default aliases, which a repo
 entry overrides, are listed with their expansions in
 [coga/cli](../cli/SKILL.md). In `retire`'s expansion,
 `launch bootstrap/retire --`, the `--` passes its options to the script.
+An alias also fixes its dispatch policy: `fork` (`launch --read-only
+bootstrap/fork -- inspect`) and `fork-copy` (`launch bootstrap/fork -- copy`)
+front one script ticket as two aliases because one alias cannot be both a
+read-only reader and a writer.
 
 Guardrails:
 

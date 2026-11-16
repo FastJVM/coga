@@ -108,7 +108,10 @@ ambient Python. Then upgrade that installation:
 For a tool environment without pip use its existing environment manager to
 replace that same installation. Record the wheel hash (`sha256sum
 /path/to/reviewed-coga.whl`), not just `importlib.metadata.version("coga")`.
-Locate the new files by importing, which does not execute `main` or deliver:
+`coga fork recurring:phone-home` reports the selected definition, its shim and
+the installed implementation path without importing or running anything. For
+this procedure's variables, locate the new files by importing, which does not
+execute `main` or deliver:
 
 <!-- migration:locate -->
 ```sh
@@ -138,7 +141,12 @@ generation, frozen workflows and unrelated attachments byte-for-byte.
 For each edited file, explicitly choose a manual port to the new implementation
 or retention as a full local fork, and review compatibility with the new shared
 core. Unknown baselines stay unchanged until reviewed. To create a fresh full
-fork after adoption, inspect the first located path (`IMPLEMENTATION`), then:
+template fork after adoption, run `coga fork-copy recurring:<name>`: it turns
+the state-only carrier into a full local definition (keeping its blackboard
+and runtime state) whose `ticket.py` is the installed implementation, and
+refuses when any local definition is already present. Fork-copy never writes
+period tasks; to fork an already-frozen period script, inspect the first
+located path (`IMPLEMENTATION`), then:
 
 ```sh
 less "$IMPLEMENTATION"

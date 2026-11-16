@@ -47,9 +47,14 @@ Editing a wrapper that still imports the default is not an implementation fork.
 A fork stops receiving upstream fixes and must remain compatible with the
 shared core it imports; restoring the stock shim rejoins wheel updates.
 
-Phone-home's module is self-contained, so a copy of the single file works as
-a local fork. The migration procedure includes source inspection and copy
-commands; do not run production telemetry to find its source.
+`coga fork recurring:<name>` shows the selected definition, its shim, and the
+installed module behind it, and whether that module is completely forkable
+(it imports only shared `coga.*` core and has its own `__main__` guard).
+`coga fork-copy recurring:<name>` creates the full template fork: the packaged
+`ticket.md` and siblings, with the shim replaced by the module source, and a
+state-only carrier converted in place. Phone-home's and trim-log's modules are
+self-contained, so the single file works as a local fork. Do not run
+production telemetry to find its source.
 
 ## Audit retention adoption
 
