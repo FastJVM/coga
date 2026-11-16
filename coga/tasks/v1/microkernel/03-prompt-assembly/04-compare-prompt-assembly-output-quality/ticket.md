@@ -1,6 +1,6 @@
 ---
 title: 04 Compare prompt assembly output quality
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -17,7 +17,6 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -217,7 +216,8 @@ ordinary ticket.
 - [x] infra check; 16 counted sessions (2026-11-14, 18:42–20:20 UTC)
 - [x] blind pack `blind/` (8 pairs), key and gates sealed
 - [x] owner: blinded verdicts, then decision — inconclusive; keep current assembly (2026-11-15)
-- [ ] owner: restore `/etc/codex/requirements.toml` from `.trial-aside`
+- [x] owner restored `/etc/codex/requirements.toml` (2026-11-15, verified: `.trial-aside` gone, file present)
+- [x] report-to-coga recorded (2026-11-15)
 
 ## Handoff (agent-produces → human-owns-and-finishes)
 
@@ -286,3 +286,15 @@ ordinary ticket.
 ## Owner-step handoff (2026-11-15)
 
 All eight blinded judgments recorded and sealed before unblinding. Owner approved **inconclusive**, keeping current assembly, and advancement to report-to-coga. Final report includes mapped judgments, mechanical gates, secondary totals and presentation limitations. Reconciled with fresh origin/main; incoming change was a log-only entry, preserved. Next launched reporting step records the ruling in the appropriate Coga surfaces; do not implement candidate C1′. Machine requirements restoration remains unchecked; prior handoff says `/etc/codex/requirements.toml` was set aside.
+
+## Report to Coga (2026-11-15, attended)
+
+- **Produced:** 16 counted Codex sessions (4 cases × 2 arms × 2 reps), 8 blinded pairs and the owner's verdicts, sealed before unblinding. Final artifact: `report.md` in this directory (§3 verdicts, §4 secondary, §5 decision). Evidence: `prompts/` (frozen arm prompts plus SHA256SUMS), `runs/` (raw rollouts), `blind/` (pack and `verdicts.csv`), `blind-key.json`, `gates.json`, and the disposable harness scripts.
+- **Result:** baseline 4, C1′ 3, tie 1. All gates passed in both arms.
+- **Owner decision:** **inconclusive**. Keep the current assembly. No rubric and no further trial.
+- **Owner follow-ups (this session):**
+  - Ticket 03 was rescoped and unblocked (now `active`, step design). It no longer migrates to a selected form. It fixes current-assembly defects seen in a captured `--prompt-report` and the full composed text: the ticket-guide comment composes (~5 KiB per launch), context/skill frontmatter composes, heading levels collide, open blockers appear twice, and blackboard filler composes. It adds unit tests in `tests/test_compose.py`. Its title is still the old one; changing the frontmatter title is the owner's call.
+  - New draft `record-the-output-quality-comparison-result` (`docs/with-review`) records this result in `coga/prompt-composition` after PR #1234 merges.
+  - The group `README.md` table now lists 04 and 03's new scope.
+- **Machine:** `/etc/codex/requirements.toml` restored. The `/tmp/coga-quality-trial*` fixtures and the scratchpad venv are disposable.
+
