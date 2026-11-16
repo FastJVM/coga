@@ -24,7 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -140,3 +140,21 @@ branch: coga/v1-microkernel-03-prompt-assembly-record-the-out-38f7c9
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Handoff (implement, 2026-11-15)
+
+- Sequencing: PR #1234 was still open. With the owner's explicit approval, I
+  merged it (merge commit 210a140fb) and fast-forwarded this branch onto it.
+- Change: commit 3685c8d38 adds one paragraph to `## Assembler ruling` in
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md`.
+  It says ticket 02 measured rule compliance only. It records ticket 04's
+  output-quality result: baseline 4, C1' 3, tie 1, all gates passed in both
+  arms, and the owner ruled it inconclusive, so the current assembler stays.
+  It names the limits: one model, two reps, chat presentations with varying
+  abridgment. It links report.md §3, §5 by GitHub main URL, as the ticket-02
+  evidence is linked. It does not restate the protocol or mention ticket 03's
+  rescope.
+- Verified: the link target is tracked on main.
+  `python -m pytest -q tests/test_packaging.py` gave 40 passed.
+  `coga validate --json` exited 0.
+- Pushed. The PR is not opened yet; that is the next step.
