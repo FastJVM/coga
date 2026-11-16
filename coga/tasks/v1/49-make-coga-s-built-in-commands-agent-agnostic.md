@@ -1,6 +1,6 @@
 ---
 title: Make coga's built-in commands agent-agnostic
-status: draft
+status: in_progress
 owner: zach
 workflow:
   name: code/design-then-implement
@@ -35,6 +35,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
