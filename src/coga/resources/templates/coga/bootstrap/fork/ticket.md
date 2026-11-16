@@ -30,7 +30,9 @@ A typed ref: `workflow:<ref>`, `skill:<ref>`, `context:<ref>`,
 `resource:<name>`, `task:<slug>`. An untyped word resolves, in order, as an
 effective alias (defaults merged with `[aliases]`), a built-in command, a task
 ref, then a definition name of exactly one kind. An unknown or ambiguous
-target exits 1 and lists what was checked on stderr.
+target exits 1 and lists what was checked on stderr. Refs must be relative,
+using slash-separated names without empty, `.` or `..` components, Windows
+drives, backslashes or colons; invalid refs refuse before resolution or copying.
 
 An alias reports its expansion and follows it: `launch bootstrap/<n>` to the
 bootstrap ticket, `recurring launch <n>` to the recurring job, `launch <slug>`

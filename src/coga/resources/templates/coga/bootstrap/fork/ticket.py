@@ -17,7 +17,7 @@ import os
 import shlex
 import sys
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import coga
 from coga.aliases import BUILTIN_COMMANDS, DEFAULT_ALIASES
@@ -90,6 +90,14 @@ class TargetError(Exception):
     def __init__(self, message: str, checked: list[str]) -> None:
         super().__init__(message)
         self.checked = checked
+
+
+def _validate_ref(kind: str, ref: str) -> None:
+    if (not ref or Path(ref).is_absolute() or PureWindowsPath(ref).drive
+            or "\\" in ref or ":" in ref or "\0" in ref
+            or any(part in {"", ".", ".."} for part in ref.split("/"))):
+        raise TargetError(f"invalid {kind} ref {ref!r}: expected a relative ref "
+                          "without dot or parent components", [f"{kind} ref syntax"])
 
 
 @dataclass
@@ -410,6 +418,7 @@ def _workflow_details(path: Path, record: Record) -> None:
 
 def definition_record(cfg: Config, kind: str, ref: str) -> Record | None:
     """Report one definition, or None when nothing (local or package) exists."""
+    _validate_ref(kind, ref)
     record = Record(kind=kind, ref=ref, state=STOCK)
     if kind == "workflow":
         override, packaged = workflow_path(cfg, ref), bootstrap_workflow_path(cfg, ref)
@@ -511,6 +520,7 @@ def kernel_record(kind: str, name: str) -> Record:
 
 
 def task_record(cfg: Config, slug: str) -> Record:
+    _validate_ref("task", slug)
     ref = resolve_task(cfg, slug)
     record = Record(kind="task", ref=ref.id_slug, state="task (not forkable)",
                     selected=str(ref.ticket_path))
@@ -609,7 +619,10 @@ def _expand(cfg: Config, kind: str, ref: str) -> list[Record]:
             continue
         seen.add(typed)
         k, _, r = typed.partition(":")
-        record = definition_record(cfg, k, r)
+        try:
+            record = definition_record(cfg, k, r)
+        except TargetError as exc:
+            record = Record(kind=k, ref=r, state=f"broken: {exc}")
         if record is None:
             record = Record(kind=k, ref=r, state=f"broken: unresolved ({_where(cfg, k, r)})")
         out.append(record)

@@ -326,6 +326,18 @@ def test_task_separates_frozen_snapshot_from_live_resolution(repo: Path, capsys)
 # --- copying ---------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("kind", ["workflow", "skill", "context", "bootstrap", "recurring", "resource", "task"])
+@pytest.mark.parametrize("ref", ["../../../../retire", "/tmp/retire", "code/../retire",
+                                "code/./retire", "C:/retire", "C:retire", "..\\retire"])
+def test_invalid_refs_refuse_without_writes(repo: Path, capsys, kind: str, ref: str) -> None:
+    before = _tree(repo.parent)
+    for mode in ("inspect", "copy"):
+        code, out, err = _run(capsys, mode, f"{kind}:{ref}")
+        assert code == 1 and out == ""
+        assert "invalid" in err and "ref" in err
+    assert _tree(repo.parent) == before
+
+
 def test_malformed_bootstrap_is_reported_as_broken(repo: Path, capsys) -> None:
     parent = repo / "bootstrap/retire"
     parent.mkdir(parents=True)
