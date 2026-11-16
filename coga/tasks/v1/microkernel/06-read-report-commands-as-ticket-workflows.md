@@ -350,6 +350,7 @@ and the acceptance example, not a competing customization API.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1240
 branch: coga/v1-microkernel-06-read-report-commands-as-ticket-a9e2cd
 
 
@@ -828,10 +829,10 @@ files:
 review:
   reviewer: claude
   kind: independent
-  status: returned
+  status: passed
   head: c43fd777d591ff84944fdb24325d786eba000545
   base: 3d589e7d434dce7e758afa262ad5b8f1e5fb9a65
-  detail: "/code-review (default effort) by Claude Opus 5.5 returned 10 findings across the branch including stacked #1233. Fixed validation error narrowing and recurring-list exit normalization; help-outside-repo regression accepted and documented by owner; #1233-owned findings recorded in Peer review. The fix commits after the reviewed head were not re-reviewed; the full suite covers the final head."
+  detail: "/code-review (default effort) by Claude Opus 5.5 returned 10 findings across the branch including stacked #1233. Fixed validation error narrowing and recurring-list exit normalization; help-outside-repo regression accepted and documented by owner; #1233-owned findings recorded in Peer review. The fix commits after the reviewed head were not re-reviewed; the full suite covers the final head. The owner explicitly deferred the five residual #1233 findings to linked follow-up drafts on 2026-11-16; passed records completion with those accepted deferrals, not a finding-free review."
 checks:
   - command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga06-pytest-peer2 -q -p no:cacheprovider"
     status: passed
