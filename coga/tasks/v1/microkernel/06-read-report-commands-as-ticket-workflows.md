@@ -345,6 +345,11 @@ and the acceptance example, not a competing customization API.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-microkernel-06-read-report-commands-as-ticket-a9e2cd
+
+
 ## Design handoff — 2026-11-14
 
 Completed source investigation at `57b37dfc1aeddf13cde81d7eda13725587935b85`.
