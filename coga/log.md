@@ -11215,3 +11215,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-16 12:22 v1 [v1/microkernel/restore-sweep-policy-after-read-only-launch-api-ca] [human:nicktoper] created (status=draft)
 2026-11-16 12:22 v1 [v1/microkernel/remove-dead-megalaunch-agent-lookup] [human:nicktoper] created (status=draft)
 2026-11-16 12:22 v1 [v1/microkernel/avoid-duplicate-attended-launch-prompt-composition] [human:nicktoper] created (status=draft)
+2026-11-16 12:23 v1 [v1/microkernel/06-read-report-commands-as-ticket-workflows] [agent:codex] advanced to step 7 (review) → nicktoper
