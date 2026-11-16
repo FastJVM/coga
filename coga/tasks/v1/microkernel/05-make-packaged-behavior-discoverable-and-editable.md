@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
