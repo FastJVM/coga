@@ -172,6 +172,16 @@ Evidence: the
 (§3, §4, §8) and its
 [blind verdicts](https://github.com/FastJVM/coga/blob/main/coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/blind/verdicts.csv).
 
+That trial measured rule compliance only. A follow-up measured output quality
+against C1′, which is C1 with the baseline checkout and reconciliation guidance
+restored. In eight blinded pairs the baseline won 4, C1′ won 3 and one was a
+tie, and both arms passed every mechanical gate. The owner ruled the result
+**inconclusive** on 2026-11-15, so the current assembler stays. The trial was
+a pilot: one model, two repetitions, and judgments made from chat
+presentations with varying abridgment. Evidence: the
+[quality report](https://github.com/FastJVM/coga/blob/main/coga/tasks/v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality/report.md)
+(§3, §5).
+
 Implementation detail (prompt files, the launch marker's cache rationale,
 error classes, argv delivery) is in
 [coga-dev/internals/compose](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/compose/SKILL.md).
