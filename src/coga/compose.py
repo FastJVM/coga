@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,8 @@ from coga.blackboard import (
     Blocker,
     blackboard_for_prompt,
     parse_blockers_text,
+    without_open_blockers,
+    without_stock_placeholder,
 )
 from coga.config import Config, ConfigError
 from coga.paths import (
@@ -27,7 +30,7 @@ from coga.paths import (
     resolve_workflow_path,
     workflow_path,
 )
-from coga.taskfile import body_sections, split_body
+from coga.taskfile import body_sections, markdown_lines, split_body
 from coga.tasks import BootstrapRef, TargetRef
 from coga.ticket import Ticket
 from coga.workflow import Workflow, WorkflowError, WorkflowNotFoundError
@@ -123,6 +126,15 @@ class CheckoutNotice:
             "The full start/work/handoff/end procedure is `coga/checkouts`."
         )
         return "\n\n".join(lines)
+
+
+OPEN_BLOCKERS_POINTER = (
+    '- Open asks are listed under "Resolve the open blocker first" above.'
+)
+"""Stands where open blocker entries were when the preamble lists them."""
+
+EMPTY_BLACKBOARD_TEXT = "*No state recorded yet.*"
+"""Body of a blackboard layer whose region holds only placeholder or nothing."""
 
 
 UNSUPPLIED_CHECKOUT_NOTICE = (
@@ -241,7 +253,16 @@ def compose_prompt_report(
     body_above, blackboard_text = split_body(
         ticket.body, blackboard_required=not isinstance(task_ref, BootstrapRef)
     )
+    # Comments go before section extraction too: a complete comment holding a
+    # `## Context` line must neither end a section nor start one. Composition
+    # only; the file and `body_sections` callers elsewhere are unchanged.
+    body_above = _without_html_comments(body_above)
     if blackboard_text is not None:
+        # The stock placeholder goes first, while it is still in place: the
+        # archive projection below prepends a pointer line.
+        blackboard_text = without_stock_placeholder(
+            blackboard_text, cfg=cfg, task_title=ticket.title
+        )
         # Filter before every prompt consumer, including the blocker preamble:
         # historical blocker examples must not reappear as current asks.
         blackboard_text = blackboard_for_prompt(blackboard_text, task_ref.ticket_path)
@@ -261,7 +282,7 @@ def compose_prompt_report(
     layers.append(PromptLayer(
         "base_prompt",
         "Coga base prompt",
-        base_text,
+        _prompt_text(base_text, drop_title=True),
         ref="prompt.md",
         path=_override_path(base_path),
     ))
@@ -274,7 +295,7 @@ def compose_prompt_report(
         layers.append(PromptLayer(
             "ticket_loop",
             "Ticket loop",
-            loop_text,
+            _prompt_text(loop_text, drop_title=True),
             ref="prompt-ticket.md",
             path=_override_path(loop_path),
         ))
@@ -289,17 +310,16 @@ def compose_prompt_report(
             f"Unknown launch context {launch_context!r}. Valid contexts: "
             f"{', '.join(sorted(SESSION_CONDUCT_RESOURCES))}."
         )
-    # `raw` so the resource's own `## Session conduct — <context>` heading is
-    # the section heading: the selected context stays visible to the agent
-    # instead of being flattened into one generic title.
+    # The resource's own `## Session conduct — <context>` heading becomes the
+    # layer title, so the selected context stays visible to the agent instead
+    # of being flattened into one generic title.
     conduct_text, conduct_path = _resource(cfg, conduct_resource)
     layers.append(PromptLayer(
         "session_conduct",
-        "Session conduct",
-        conduct_text,
+        _leading_heading(conduct_text) or "Session conduct",
+        _prompt_text(conduct_text, drop_title=True),
         ref=conduct_resource,
         path=_override_path(conduct_path),
-        raw=True,
     ))
 
     # 2b. Blocker-resolution preamble. An interactive session whose blackboard
@@ -320,10 +340,15 @@ def compose_prompt_report(
             preamble, preamble_path = _blocker_preamble(
                 cfg, task_ref.id_slug, open_asks
             )
+            # The preamble lists the open asks; the blackboard keeps only the
+            # resolved history and a pointer, so no ask composes twice.
+            blackboard_text = without_open_blockers(
+                blackboard_text or "", OPEN_BLOCKERS_POINTER
+            )
             layers.append(PromptLayer(
                 "blocker_preamble",
                 "Resolve the open blocker first",
-                preamble,
+                _prompt_text(preamble, drop_title=True),
                 ref="prompt-blocker-resolution.md",
                 path=_override_path(preamble_path),
             ))
@@ -334,7 +359,7 @@ def compose_prompt_report(
         layers.append(PromptLayer(
             "repo_context",
             "Repo context",
-            pctx.read_text(encoding="utf-8"),
+            _prompt_text(pctx.read_text(encoding="utf-8"), drop_title=True),
             ref="context.md",
             path=str(pctx),
         ))
@@ -355,7 +380,7 @@ def compose_prompt_report(
         layers.append(PromptLayer(
             "ticket_context",
             f"Context — {ref}",
-            cp.read_text(encoding="utf-8"),
+            _prompt_text(cp.read_text(encoding="utf-8"), drop_title=True),
             ref=ref,
             path=str(cp),
         ))
@@ -378,7 +403,7 @@ def compose_prompt_report(
         layers.append(PromptLayer(
             "task_description",
             "Task description",
-            desc,
+            _prompt_text(desc, drop_title=False, frontmatter=False),
             ref="ticket.md##Description",
             path=str(task_ref.ticket_path),
         ))
@@ -388,16 +413,19 @@ def compose_prompt_report(
         layers.append(PromptLayer(
             "task_context",
             "Task-specific context",
-            inline_ctx,
+            _prompt_text(inline_ctx, drop_title=False, frontmatter=False),
             ref="ticket.md##Context",
             path=str(task_ref.ticket_path),
         ))
 
-    if blackboard_text and blackboard_text.strip():
+    if blackboard_text is not None:
+        # An existing region always composes: the ticket loop tells the agent
+        # the blackboard is in the prompt, so an empty one says so.
+        board = _prompt_text(blackboard_text, drop_title=False, frontmatter=False)
         layers.append(PromptLayer(
             "blackboard",
             "Blackboard (current state)",
-            blackboard_text,
+            board if board.strip() else EMPTY_BLACKBOARD_TEXT,
             ref="ticket.md##blackboard",
             path=str(task_ref.ticket_path),
         ))
@@ -492,6 +520,107 @@ def _section(title: str, body: str) -> str:
     return f"## {title}\n\n{body}"
 
 
+_FRONTMATTER_RE = re.compile(
+    r"\A---[ \t]*\r?\n(?:.*?\r?\n)?---[ \t]*(?:\r?\n|\Z)", re.DOTALL
+)
+_ATX_HEADING_RE = re.compile(r"^( {0,3})(#{1,6})(?=[ \t\r\n]|$)")
+_COMMENT_OPEN_RE = re.compile(r"^ {0,3}<!--")
+_LAYER_BODY_MIN_LEVEL = 3
+
+
+def _prompt_text(text: str, *, drop_title: bool, frontmatter: bool = True) -> str:
+    """Normalize one file-backed layer body for the prompt.
+
+    In order: drop a leading YAML frontmatter block (whole-file layers only),
+    drop HTML comment blocks, drop the document title when `drop_title` and
+    the body opens with its one shallowest heading, then demote ATX headings
+    so the shallowest sits at level 3 under the `##` layer heading. Fenced
+    lines are never touched, and setext headings are left alone because
+    blackboards use `---` as a separator.
+    """
+    if frontmatter:
+        text = _FRONTMATTER_RE.sub("", text, count=1)
+    lines = list(markdown_lines(_without_html_comments(text)))
+    headings = [
+        (index, len(match.group(2)))
+        for index, (line, fenced) in enumerate(lines)
+        if not fenced and (match := _ATX_HEADING_RE.match(line))
+    ]
+    if drop_title and headings:
+        first = next(i for i, (line, _) in enumerate(lines) if line.strip())
+        top = min(level for _, level in headings)
+        index, level = headings[0]
+        if index == first and level == top and sum(
+            1 for _, other in headings if other == top
+        ) == 1:
+            lines[index] = ("", False)
+            headings = headings[1:]
+    shift = 0
+    if headings:
+        shift = max(0, _LAYER_BODY_MIN_LEVEL - min(level for _, level in headings))
+    out: list[str] = []
+    heading_lines = {index for index, _ in headings}
+    for index, (line, _) in enumerate(lines):
+        match = _ATX_HEADING_RE.match(line) if index in heading_lines else None
+        if shift and match:
+            level = min(6, len(match.group(2)) + shift)
+            line = match.group(1) + "#" * level + line[match.end():]
+        out.append(line)
+    return "".join(out)
+
+
+def _leading_heading(text: str) -> str | None:
+    """The text of a resource's leading ATX heading, if it opens with one."""
+    text = _without_html_comments(_FRONTMATTER_RE.sub("", text, count=1))
+    for line, fenced in markdown_lines(text):
+        if not line.strip():
+            continue
+        if fenced or not _ATX_HEADING_RE.match(line):
+            return None
+        title = line.strip().lstrip("#").strip()
+        return re.sub(r"(?:^|[ \t]+)#+$", "", title).strip() or None
+    return None
+
+
+def _without_html_comments(text: str) -> str:
+    """Remove whole-line HTML comment blocks outside code fences.
+
+    A block starts on a line whose content (after up to three spaces) opens
+    with `<!--` and runs through the first `-->`, which must end its line.
+    An unterminated opener, or a block with text after its `-->`, is kept as
+    written; inline comments mid-line are prose. One blank line after a
+    removed block goes with it.
+    """
+    lines = list(markdown_lines(text))
+    out: list[str] = []
+    index = 0
+    while index < len(lines):
+        line, fenced = lines[index]
+        end = None if fenced or not _COMMENT_OPEN_RE.match(line) else _comment_end(
+            lines, index
+        )
+        if end is None:
+            out.append(line)
+            index += 1
+            continue
+        index = end + 1
+        if index < len(lines) and not lines[index][0].strip():
+            index += 1
+    return "".join(out)
+
+
+def _comment_end(lines: list[tuple[str, bool]], start: int) -> int | None:
+    """Index of the line closing the comment opened at `start`, if clean."""
+    for index in range(start, len(lines)):
+        line = lines[index][0]
+        if index == start:
+            line = line[line.index("<!--") + 4:]
+        close = line.find("-->")
+        if close != -1:
+            return index if not line[close + 3:].strip() else None
+    return None
+
+
 def _extract_section(body: str, heading: str) -> str:
     """Extract the contents of `## <heading>` from a markdown body.
 
@@ -511,7 +640,7 @@ def _skill_layers(cfg: Config, skill_ref: str, *, slug: str) -> list[PromptLayer
     return [PromptLayer(
         "top_level_skill",
         f"Skill: {skill_ref}",
-        sp.read_text(encoding="utf-8"),
+        _prompt_text(sp.read_text(encoding="utf-8"), drop_title=True),
         ref=skill_ref,
         path=str(sp),
     )]
@@ -534,7 +663,7 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
             out.append(PromptLayer(
                 "workflow_skill",
                 f"Current step: {name} (skill: {skill_ref})",
-                sp.read_text(encoding="utf-8"),
+                _prompt_text(sp.read_text(encoding="utf-8"), drop_title=True),
                 ref=skill_ref,
                 path=str(sp),
             ))
@@ -565,7 +694,7 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
         return [PromptLayer(
             "workflow_inline",
             f"Current step: {name}",
-            inline,
+            _prompt_text(inline, drop_title=False, frontmatter=False),
             ref=wf_name,
             path=str(wp),
         )]

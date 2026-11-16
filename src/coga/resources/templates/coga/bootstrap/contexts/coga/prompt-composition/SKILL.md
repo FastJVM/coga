@@ -88,9 +88,20 @@ input, not conduct, and never change which resource is selected.
   exists but cannot be read or rendered refuses, naming the repo file, never
   a silent fallback; `coga validate` flags an unreadable override and a file
   in `resources/` that matches no name.
-- Contexts and skills resolve local-first, then the package bootstrap copy,
-  and are read **whole**: `SKILL.md` frontmatter (`name`, `description`) is
-  included in the prompt.
+- Contexts and skills resolve local-first, then the package bootstrap copy.
+- Every layer except the generated header and checkout notice is
+  **normalized** before it composes: a leading YAML frontmatter block of a
+  whole file (resource, `context.md`, context, skill) and whole-line HTML
+  comment blocks are dropped; a resource's, context's or skill's leading
+  document title is dropped when it is the body's one shallowest heading,
+  since the `##` layer heading names the layer; and the remaining ATX
+  headings are demoted so the shallowest sits at `###`. Only one `#`
+  heading (the task header) and one `##` per layer remain. Lines inside code
+  fences are never touched, an unterminated `<!--` stays as text, inline
+  comments within a prose line stay, and setext headings are not rewritten.
+  The session-conduct layer takes its heading from the resource's leading
+  heading, so it names the selected context (`## Session conduct —
+  attended`), falling back to `Session conduct`.
 - Markdown links inside a context or skill are not followed; only attached
   refs compose ([coga/knowledge](../knowledge/SKILL.md)).
 - A missing context, skill, or packaged resource refuses the launch, naming
@@ -101,7 +112,10 @@ input, not conduct, and never change which resource is selected.
 
 ## The ticket is a three-region extract
 
-Composition takes each `##` section (heading case-insensitive, fence-aware,
+Composition first drops complete HTML comment blocks from the body above
+the fence, so a comment holding `##` lines (such as the ticket guide) neither
+ends nor starts a section; the file and every other parser are unchanged. It
+then takes each `##` section (heading case-insensitive, fence-aware,
 so a `##` line inside a code fence does not end it) and carries only
 `## Description`, `## Context`, and the blackboard region. Every other `##`
 section above the fence is uncomposed: it reaches no layer, but launch and
@@ -109,32 +123,45 @@ section above the fence is uncomposed: it reaches no layer, but launch and
 `coga validate` does. Where that material belongs is owned by
 [coga/tickets](../tickets/SKILL.md) (Body regions). The exact
 `## Superseded designs` content is replaced by a short pointer to the ticket
-file and archive heading; the stored ticket is unchanged.
+file and archive heading; the stored ticket is unchanged. The stock
+blackboard placeholder (packaged `blackboard.md`, the repo override, or that
+override rendered with the ticket title) is dropped wherever it stands as a
+block of whole lines outside a fence, before the archive pointer is added. A
+blackboard region left empty composes as `*No state recorded yet.*`.
 
 ## Blocker preamble versus authoring
 
 The preamble is derived from state, not a flag: it appears while unresolved
 asks exist and disappears once `coga unblock` records an answer, so it
 survives a session that dies mid-discussion. It lists open asks verbatim and
-makes resolve-or-re-block the session's first job.
+makes resolve-or-re-block the session's first job. Open asks compose once:
+while the preamble lists them, the blackboard layer replaces exactly those
+entries with one pointer line and keeps resolved entries with their
+`resolved:` lines. An unchecked entry followed by a `resolved:` line counts
+as resolved, as in the blocker parser.
 
 Guided `coga ticket` authoring composes an ephemeral projection: `skills:`
 becomes only `bootstrap/ticket`, `step:` is removed so no step layer
-composes, and the blocker preamble is off. Blocker text still appears in the
-blackboard layer, so authoring a blocked ticket neither runs its step,
+composes, and the blocker preamble is off. Blocker text, open asks included,
+still appears in the blackboard layer, so authoring a blocked ticket neither runs its step,
 resolves its asks, nor reactivates it. The stored ticket keeps its workflow
-position.
+position. Authoring composes through the same normalization, so the ticket
+guide comment is absent from its prompt; `bootstrap/ticket` directs the agent
+to read the guide in the ticket file, which it must read to edit anyway.
 
 ## What never composes
 
 - `coga/log.md`: repo-global, never a layer; [retention](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/ticket.md) bounds eligible old history. Only the blackboard carries state forward.
 - Ticket attachments and superseded-design text (pointer only).
+- HTML comment blocks and file frontmatter, from any layer.
+- The stock blackboard placeholder.
 - Unattached contexts, docs pages, and anything reached by a link.
 
 ## Measuring
 
 `coga launch <ref> --prompt-report` prints one line per layer (layer id, ref,
-bytes, `approx_tokens` = ceil(chars/4)) and the total; the `session_conduct`
+bytes, `approx_tokens` = ceil(chars/4)) and the total, all measured on the
+normalized text; the `session_conduct`
 line names the selected resource, the ticket's regions stay separate lines so
 an oversized blackboard is visible, and layers read from a repo override are
 listed under `Repo resource overrides:`. It works on drafts and skips the

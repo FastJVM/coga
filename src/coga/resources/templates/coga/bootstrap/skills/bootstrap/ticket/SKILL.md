@@ -15,7 +15,8 @@ the interview short — 4–6 questions, not a survey.
 
 New tickets carry a field guide in an HTML comment under `## Context`: the
 frontmatter keys, the frozen workflow shape, and the `## Dev` / `## PR`
-blackboard records. Read it and keep it while filling in the actual content.
+blackboard records. Launch prompts omit HTML comments, so read the guide in
+the ticket file itself, and keep it while filling in the actual content.
 A ticket created before the guide existed may lack it; the editing rules here
 and in the base prompt apply either way, so do not paste the guide into it.
 
