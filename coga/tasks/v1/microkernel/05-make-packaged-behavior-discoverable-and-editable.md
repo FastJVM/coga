@@ -437,6 +437,11 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-microkernel-05-make-packaged-behavior-discove-156f8c
+
+
 ## Design session 2026-11-14 (attended, owner present)
 
 Spec written above the fence. Owner decisions this session:
