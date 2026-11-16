@@ -48,7 +48,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -263,3 +263,21 @@ Baseline (before), `compose_prompt_report` for this ticket at `2d28c451b` (run v
 
 - [x] [2026-11-14 18:48] [agent:claude] id=20261114T184855 Still no positive selection (checked 2026-11-14). v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality has 16 runs complete, every gate passed, and its blind pack built; it is at step human-owns-and-finishes. Owner: fill blind/verdicts.csv for the 8 pairs, then unblind and record positive, negative or inconclusive. Design starts only on a positive selection.
   resolved: [2026-11-15 18:15] [human:nicktoper] Owner rescoped 2026-11-15: 04 ended inconclusive (no positive selection), so the migration gate is dropped. Ticket now fixes current-assembly defects (template comments, frontmatter, heading collisions, duplicate blockers, filler) with unit tests.
+
+## Evaluator review
+
+Cold design review, 2026-11-15. Reviewed at `ad44e15d584e180b78c1ff0da99e5e516a061677`; fetched origin/main before review and handoff, with no intervening relevant drift. Verdict: **resolve the two must-fix projection-order cases before implementation**. The scope is coherent, the named symbols and guided-authoring path exist, intent/acceptance live in the composed body regions, and the frozen workflow correctly routes the next step to owner review. No implementation, branch, or PR produced.
+
+### Must fix
+
+1. **Strip comments before ticket section extraction, without changing on-disk parsing contracts.** Proposed shape §1–2 normalizes each extracted layer only when constructed, but `compose._extract_section` first calls `taskfile.body_sections`, which ignores fences, not HTML comments. Reproduction against current code: `## Context\n\nVisible.\n\n<!-- hidden\n## Example\nsecret\n-->\n\nVisible tail.\n` extracts only `Visible.\n\n<!-- hidden`. The proposed unterminated-comment preservation then leaks the opener, and visible prose after the comment is lost. A comment containing `## Context` can also manufacture a composed section. Specify a composition-only comment-removal pass over the above-fence body before `_extract_section` (or an equivalent comment-aware extraction), preserving fenced/inline comments and truly unterminated openers. Add regressions with section headings inside a complete comment and visible prose after it. Keep general ticket parsing/validation changes outside scope unless deliberately authorized.
+
+2. **Remove a leading placeholder before adding the superseded-history pointer.** Proposed shape §5 calls `without_stock_placeholder` immediately after `blackboard_for_prompt`. In `blackboard.blackboard_for_prompt`, any removed `## Superseded designs` section causes an archive pointer to be prepended. Reproduction: packaged stub + `\n\n## Superseded designs\nOld.\n` projects to pointer + stub; the proposed leading-only matcher cannot remove the stub, despite it leading the stored blackboard region. Specify the order or coordinate the projections so the placeholder is removed and the archive pointer retained. Test stock-only live state plus superseded history, and stock + live notes + superseded history. Do not change size-warning/readiness semantics incidentally.
+
+### Recommendations and owner decisions
+
+- The guided-authoring choice in Proposed shape §7 is concrete and consistent with `commands.ticket._authoring_ticket` / `_run_authoring_session`: stripping there too avoids another compose flag. Owner should resolve the listed Open Questions against the body before handing off; the evaluator does not approve them on the owner's behalf.
+- For blocker deduplication, test checkbox entries with a following `resolved:` line as well as legacy entries: `blackboard.parse_blockers_text` marks either form resolved when that line is encountered, even when the checkbox remains unchecked. Its pending entry survives intervening prose/fenced lines. The removal projection must follow the parser's final resolved state, rather than treating every unchecked line as open.
+- This ticket currently has resolved blockers only. Its before/after capture can demonstrate resolved-history preservation, but use a controlled test fixture/capture for open-ask deduplication rather than manufacturing live blockers in the ticket.
+
+Verification: inspected composition, shared Markdown parsing, blocker parsing/stock recognition/archive projection, guided-authoring callers, packaged authoring skill/workflow, contract topics, and relevant compose tests. Ran two read-only Python reproductions above using `.venv/bin/python`; no product code changed, so no full-suite run is claimed or required for this design-only review. Implementation still owes the Linux receipt and release-deferred native checks required by the ticket.
