@@ -826,6 +826,8 @@ The ticket's phase-2 box run (Implement — phase 2, session 1) measured a limit
 
 The done v1/26 ticket's peer-review receipt records a verified test gotcha: a `--basetemp` inside the checkout lets the "missing repo" tests walk up and discover the checkout's real `coga.toml`, so they stop testing the no-repo case. The fix is a basetemp outside the checkout (the receipt used `--basetemp=/home/n/Code/.coga-pytest-...`). `docs/contexts/coga-dev/testing/SKILL.md` says only to pass `--basetemp` on a roomy volume (around line 66), and doesn't say it has to be outside the checkout. Add that requirement and the reason to the same bullet. Branch `coga/v1-26-retire-install-topic` is gone locally and on origin, and the `## Dev` section records no worktree.
 
+Superseded 2026-11-16 by PR #1241: do not re-propose `--basetemp`. An explicit basetemp is never pruned, and the "beside the checkout" placement leaked ~40 fixture trees into `~/Code` that `coga recurring --all` then swept. The testing topic now uses `TMPDIR` on a roomy volume outside every checkout and swept tree (Windows keeps a short `--basetemp`).
+
 #### Record the native-Windows limits of the package-publication control regressions
 
 - shard: ks-08
