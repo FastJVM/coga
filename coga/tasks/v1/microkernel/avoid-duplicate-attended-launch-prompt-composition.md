@@ -27,7 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -234,5 +234,102 @@ same duplication through the launch class.
 
 branch: coga/v1-microkernel-avoid-duplicate-attended-launch-p-f53f94
 
+## Handoff (implement, 2026-11-16)
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+Approach chosen by the owner in session (of three offered: resolve/render
+split, read-only check, resolve+stat): **split composition into resolve and
+render**.
+
+- `src/coga/compose.py`: new `resolve_prompt_layers` reads every file-backed
+  layer (base, ticket loop, conduct, repo context, contexts, skills, step,
+  blocker template when open asks exist) and checks the fence; it raises
+  every ComposeError / vanished-file FileNotFoundError. `compose_prompt` /
+  `compose_prompt_report` take `resolved=` and render header, blocker
+  preamble, ticket regions and checkout notice around it; they re-resolve
+  when `ResolvedPromptLayers.selection` (slug, bootstrap, launch_context,
+  blocker flag, contexts, skills, current step, workflow name) differs.
+  Error precedence within a composition is unchanged.
+- `src/coga/launch.py`: the entry preflight calls `resolve_prompt_layers`
+  (same place, so the Agent preflight order is unchanged) and stores
+  `self.resolved_layers`; the first step passes it to the one
+  `compose_prompt` call in `_prepare_step_checkout` or in
+  `spawn_agent_session` (`resolved_layers=`). Chained steps pass None.
+  Confirm-time recompose and the `before_recompose` re-run are unchanged
+  (the confirm recompose also reuses the layers when the selection still
+  matches).
+- Tradeoff: the first step's file-backed layer text is the text read at
+  preflight, not at spawn. Managed launches already composed before the
+  switch. Plain launches only publish ticket/log between the two points, so
+  this is a narrow window. Ticket and notice freshness are unaffected.
+- Docs: `coga/launch` "Agent preflight order" describes the new sequence.
+  `coga-dev/internals/compose` has a new "Resolve, then render" section.
+  `coga/state-publication/launch-boundaries` was checked and needs no change,
+  because composition did not move relative to startup publication.
+- Tests: plain count/refusal tests in tests/test_launch.py; a managed count
+  test in tests/test_checkouts.py; and the existing
+  `test_grouped_preflight_refuses_before_any_startup_write[compose]` covers
+  the managed missing-layer refusal. Two existing launch tests that hard-coded
+  the old two-call sequence were rewritten. Unit tests in tests/test_compose.py
+  cover reuse and re-resolve. The new tests failed against the old src
+  (checked).
+- Megalaunch untouched (it composes through spawn_agent_session without
+  resolved layers, so its behavior is unchanged).
+
+## PR
+
+```yaml
+title: Compose an attended launch's first prompt once
+author: claude
+author_evidence: >-
+  Implement session ran in Claude Code on claude-opus-5-5 (attended launch).
+head: 47b9c5d2e6f3c904d94938f14bedf83a18ef9a18
+base: af84e4b95b1775ce0fe7bd27ee72896e02ad423e
+depth: deep
+rationale: >-
+  Changes the launch preflight and prompt-composition internals on every
+  attended agent launch; no code review has run yet.
+implementation: >-
+  Splits compose into resolve_prompt_layers (file-backed layers, all
+  missing-layer refusals) and a render that places the fresh ticket and
+  checkout notice around them. The launch entry preflight resolves instead
+  of composing a discarded prompt, and the first step's single
+  compose_prompt reuses those layers, re-resolving when the ticket selects
+  different contexts, skills, step, or workflow.
+deviations: >-
+  None from the ticket. The confirm-time recompose also reuses the resolved
+  layers when the selection still matches.
+limitations: >-
+  First-step file-backed layer text is captured at the entry preflight rather
+  than at spawn; ticket and checkout-notice layers stay fresh.
+files:
+  src/coga/compose.py: "Add ResolvedPromptLayers / resolve_prompt_layers and the resolved= render path."
+  src/coga/launch.py: "Preflight resolves layers; first step's single composition reuses them."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "Describe the new Agent preflight order sequence."
+  docs/contexts/coga-dev/internals/compose/SKILL.md: "Document the resolve/render split for maintainers."
+  tests/test_launch.py: "Plain-launch single-composition and pre-write refusal tests; rewrite two tests that assumed two compositions."
+  tests/test_checkouts.py: "Managed-checkout single-composition regression test."
+  tests/test_compose.py: "Unit tests for layer reuse and re-resolution on a changed selection."
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Code review belongs to the later self-qa / peer-review steps of
+    code/with-review.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 47b9c5d2e6f3c904d94938f14bedf83a18ef9a18
+    base: af84e4b95b1775ce0fe7bd27ee72896e02ad423e
+    detail: >-
+      4905 passed, 33 skipped. Ran on the uncommitted tree before commit;
+      the committed src/tests/docs are identical, and the rebase pulled in
+      only a ticket-state commit.
+  - command: .venv/bin/python -m pytest -q tests/test_launch.py tests/test_checkouts.py -k "composes_its_first_prompt_once or refuses_missing_layer or preflight_names"
+    status: passed
+    head: 47b9c5d2e6f3c904d94938f14bedf83a18ef9a18
+    base: af84e4b95b1775ce0fe7bd27ee72896e02ad423e
+    detail: >-
+      4 new/rewritten tests pass; the same 4 failed against the pre-change
+      src/coga/compose.py and launch.py.
+```

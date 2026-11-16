@@ -11226,3 +11226,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-16 14:03 v1 [v1/microkernel/avoid-duplicate-attended-launch-prompt-composition] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-16 14:03 v1 [v1/microkernel/avoid-duplicate-attended-launch-prompt-composition] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-16 14:03 v1 [v1/microkernel/avoid-duplicate-attended-launch-prompt-composition] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-16 14:32 v1 [v1/microkernel/avoid-duplicate-attended-launch-prompt-composition] [agent:claude] advanced to step 2 (peer-review) → codex
