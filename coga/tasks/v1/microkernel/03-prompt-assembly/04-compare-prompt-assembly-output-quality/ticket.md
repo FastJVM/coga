@@ -17,7 +17,7 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -216,7 +216,7 @@ ordinary ticket.
 - [x] owner set `/etc/codex/requirements.toml` aside (2026-11-14)
 - [x] infra check; 16 counted sessions (2026-11-14, 18:42–20:20 UTC)
 - [x] blind pack `blind/` (8 pairs), key and gates sealed
-- [ ] owner: blinded verdicts, then decision (step human-owns-and-finishes)
+- [x] owner: blinded verdicts, then decision — inconclusive; keep current assembly (2026-11-15)
 - [ ] owner: restore `/etc/codex/requirements.toml` from `.trial-aside`
 
 ## Handoff (agent-produces → human-owns-and-finishes)
@@ -250,3 +250,39 @@ ordinary ticket.
 - **Disposable tooling** in this directory, which is evidence and not core:
   `adapter.py`, `c1prime.py`, `blind.py`, `ctl.sh`, `seq.sh`, `answer.sh`,
   `autoanswer.sh`.
+
+## Owner judging (attended)
+
+- Pair `1846ec`: owner prefers **Y**. Both artifacts were shown in chat in abridged form; full artifacts remain available. No arm key opened.
+- Shared owner concern (clarified): insert the actual context and skill content, including the step explanation, directly in the prompt sent to the agent (base/system prompt), rather than only referencing it. This is recorded as feedback, not a change to the frozen trial prompts. Owner subsequently supplied the comparative reason: the rationale section is important.
+
+## Prompt insertion verification (owner requested)
+
+- Current source: `PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest tests/test_compose.py -q` → 97 passed in 1.68s.
+- Disposable fixture exercised real config/task/composition APIs with a context, a ticket skill and a step skill: all three complete file bodies were present, including frontmatter. Real `build_agent_command` preserved the composed text as the ordinary positional user prompt and, in Codex discussion mode, as `developer_instructions`. No model session launched for this check.
+- Current ticket has no attached contexts or ticket skills and an empty step skills list; it composes repo context and inline workflow-step guidance. Markdown links do not recursively attach their targets.
+- Correction to chat explanation: Coga base prompt is a composition layer, not necessarily the model system role. Ordinary task launch sends the assembled prompt as the initial user message; discussion mode uses system/developer context.
+
+- Pair `283a63` (authoring): owner prefers **Y**; reason: text can be very terse, preferring the terser output. Shown in chat with only shared template comment and empty blackboard omitted. Key remains sealed.
+
+- Pair `367ff1` (design): owner prefers **X**; reason: more direct writing style. Judged from excerpts shown in chat; full artifacts remain available. Key remains sealed.
+
+- Pair `6601ad` (design): owner judges **tie** ("tie ine"); no further reason supplied. Judged from excerpts in chat. Key remains sealed.
+
+- Pair `732331` (authoring): owner prefers **Y**; reason: more precise. Judged from chat presentation with template/empty blackboard omitted and source-pointer paths shortened. Key remains sealed.
+
+- Pair `7d6512` (docs): owner prefers **X**; reason: more precise. Full new guidance shown in chat, handoffs shortened. Key remains sealed.
+
+- Pair `b030d4` (code): owner prefers **X**; reason: clearer. Judged from abridged code/docs/handoff in chat. Key remains sealed.
+
+- Pair `e2f466` (docs): owner prefers **Y**; reason: clearer and more precise. Full new guidance shown, handoffs shortened. All eight verdicts now recorded; verdict-sheet SHA256 recorded in report before opening the key.
+
+## Unblinded result (2026-11-15)
+
+- Verdict sheet sealed before key access; hash and all eight mapped verdicts are in `report.md`. Baseline wins **4**, candidate C1′ wins **3**, tie **1**. All recorded mechanical gates pass. Secondary totals recorded separately; no correction ratings supplied.
+- Chat used varying abridgment/excerpts, a limitation for artifact/style judgments.
+- Owner confirmed **inconclusive** and keeping the current assembly on 2026-11-15; explicitly authorized advancing once to report-to-coga. No production change or further trial commissioned. Ticket 03 remains ineligible.
+
+## Owner-step handoff (2026-11-15)
+
+All eight blinded judgments recorded and sealed before unblinding. Owner approved **inconclusive**, keeping current assembly, and advancement to report-to-coga. Final report includes mapped judgments, mechanical gates, secondary totals and presentation limitations. Reconciled with fresh origin/main; incoming change was a log-only entry, preserved. Next launched reporting step records the ruling in the appropriate Coga surfaces; do not implement candidate C1′. Machine requirements restoration remains unchecked; prior handoff says `/etc/codex/requirements.toml` was set aside.

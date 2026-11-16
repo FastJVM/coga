@@ -1,8 +1,7 @@
 # Output-quality comparison: C1′ vs current assembler — report
 
-Status: **runs complete; awaiting the owner's blinded judgments.** Sections 3–5
-are filled only after `blind/verdicts.csv` is complete and its hash is
-recorded here, and only then are `blind-key.json` and `gates.json` opened.
+Status: **complete; owner decision: inconclusive (2026-11-15).**
+Verdict-sheet hash was recorded before opening the key and gate details.
 
 ## 1. What ran
 
@@ -56,14 +55,33 @@ recorded here, and only then are `blind-key.json` and `gates.json` opened.
 
 ## 3. Owner's blinded judgments
 
-_To fill after verdicts:_ the `verdicts.csv` sha256, then the per-pair
-winners mapped to arms, ties, and the reasons.
+Verdict sheet sealed before unblinding (2026-11-15):
+`c2013e9ccee9355793d57acae85151fddc922356bf1c3118ea8a9fa48262316f`.
+
+All eight preferences supplied by the owner in attended chat. Pair 6601ad was a tie with no further reason supplied. Artifacts were presented in chat with varying abridgment; see ticket notes.
+
+| Pair | Case | Verdict | Winning arm | Reason |
+| --- | --- | --- | --- | --- |
+| 1846ec | code | Y | candidate | The rationale section is important. |
+| 283a63 | author | Y | baseline | Text can be very terse; prefer the terser output. |
+| 367ff1 | design | X | candidate | More direct writing style. |
+| 6601ad | design | tie | tie | No further reason supplied. |
+| 732331 | author | Y | candidate | More precise. |
+| 7d6512 | docs | X | baseline | More precise. |
+| b030d4 | code | X | baseline | Clearer. |
+| e2f466 | docs | Y | baseline | Clearer and more precise. |
+
+Baseline wins 4, candidate C1′ wins 3, tie 1. Both arms passed all recorded mechanical gates. Results are mixed: no clear quality advantage for C1′. Judgments were made from chat presentations with varying abridgment, not uniformly from full raw artifacts; this limits the comparison, especially writing-style preferences.
 
 ## 4. Secondary (reported only)
 
-_After unblinding: wall time, tokens, and correction needed, per arm, from `gates.json` and the verdict sheet._
+| Arm | Runs | Wall time total (s) | Mean (s) | Total tokens incl. cached input | Cached input tokens | Output tokens |
+| --- | --- | --- | --- | --- | --- | --- |
+| baseline | 8 | 2821.3 | 352.7 | 13,668,031 | 13,100,032 | 52,033 |
+| candidate | 8 | 2841.1 | 355.1 | 11,603,724 | 10,912,384 | 46,412 |
+
+Token totals sum recorded rollouts, including authoring evaluator sub-agents. Cached input is included in total tokens; these are not cost estimates. No correction-needed ratings were supplied. Secondary measures do not determine selection.
 
 ## 5. Owner decision
 
-_Positive selection / negative / inconclusive._ Only a positive selection
-makes `03-implement-the-proven-prompt-assembly` eligible.
+Owner decision (2026-11-15, attended): **inconclusive**. Keep the current prompt assembly. The current baseline won four pairs, candidate C1′ three, with one tie; this does not establish a clear quality improvement. No additional rubric or trial is commissioned. `03-implement-the-proven-prompt-assembly` remains ineligible because there is no positive selection. No production prompt or launcher change follows from this trial.
