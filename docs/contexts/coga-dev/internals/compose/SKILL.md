@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/compose
-description: How `src/coga/compose.py` implements prompt composition — prompt files, `PromptLayer`, the launch marker, resource-override errors and validate codes, section extraction, the authoring projection, conduct selection, and argv delivery of large prompts.
+description: How `src/coga/compose.py` implements prompt composition — prompt files, `PromptLayer`, the resolve/render split, the launch marker, resource-override errors and validate codes, section extraction, the authoring projection, conduct selection, and argv delivery of large prompts.
 ---
 
 # Prompt composition internals
@@ -27,6 +27,23 @@ is built from `compose.CheckoutNotice`; composition runs no Git and infers
 nothing from the workflow, so callers that pass no notice (bare
 `compose_prompt_report`, megalaunch, recurring) get the "no preparation was
 supplied" text.
+
+## Resolve, then render
+
+`compose.resolve_prompt_layers` is the file-backed half of a composition. It
+checks the ticket's fence and reads the base, ticket-loop, conduct, repo
+context, ticket contexts, skills, and step layers, plus the blocker template
+when open asks exist. Every `ComposeError` and vanished-file
+`FileNotFoundError` a composition can raise from those layers is raised here.
+`compose_prompt_report(..., resolved=)` renders the header, blocker
+preamble, ticket regions, and checkout notice from the ticket and notice it
+is given, around the resolved layers. It reuses them only when their
+`ResolvedPromptLayers.selection` (contexts, skills, current step, workflow,
+conduct, blocker flag) matches that ticket; otherwise it resolves again.
+`coga launch` resolves at its entry preflight, before any lifecycle write, and
+hands the result to the first step's single `compose_prompt` call, in
+`_prepare_step_checkout` or in `spawn_agent_session`. Chained steps compose
+without it, so they read files as they stand at that step.
 
 ## Launch marker
 
