@@ -24,7 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -158,3 +158,67 @@ The blackboard is a notepad to be written to often as the human and agent works 
   `python -m pytest -q tests/test_packaging.py` gave 40 passed.
   `coga validate --json` exited 0.
 - Pushed. The PR is not opened yet; that is the next step.
+
+## Peer review
+
+- Independent Codex content review of Claude's commit 3685c8d38; authorship
+  confirmed by its Claude co-author trailer and the implement handoff.
+- No must-fix findings. The result, mechanical gates, owner decision and
+  limitations match report sections 2, 3 and 5; the GitHub main target is
+  tracked. Only the packaged topic changes; no duplicate definition is added.
+- The paragraph uses more than the suggested one or two sentences but remains
+  a concise summary; no protocol restatement or ticket-03 discussion.
+- Freshness: fetched origin/main twice. Its changes since the reviewed base
+  affect only this ticket and coga/log.md, not the topic or evidence. This
+  read-only review requires no branch merge; projected ticket state is preserved.
+- `git diff --check origin/main...HEAD` passed. Pytest was not run because
+  neither code nor fixtures changed. Branch push confirmed up to date.
+
+## PR
+
+```yaml
+title: Record the prompt-assembly output-quality result
+author: claude
+author_evidence: >-
+  Implementation commit 3685c8d38 has a Claude Opus 5.5 co-author trailer;
+  the implement handoff records that change.
+head: 3685c8d38f329eceee788833f18499fec768ec0f
+base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
+depth: merge
+rationale: >-
+  Small prose-only evidence summary; independent content review and whitespace
+  check passed, with no unresolved findings.
+implementation: >-
+  Extends the assembler ruling with the inconclusive output-quality pilot,
+  its 4/3/1 result, passed gates, limitations and report link.
+deviations: >-
+  Uses a short paragraph rather than the suggested one or two sentences to
+  preserve readability while including the requested evidence and limits.
+limitations: >-
+  The underlying comparison is a one-model pilot with two repetitions and
+  varying abridgment in chat presentations; it establishes no replacement.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: >-
+    The packaged topic owns the assembler ruling and links the comparison evidence.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 3685c8d38f329eceee788833f18499fec768ec0f
+  base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
+  detail: >-
+    Reviewed the complete Markdown diff, surrounding ruling, report sections
+    2/3/5, prerequisite merge and tracked link target; no must-fix findings.
+checks:
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 3685c8d38f329eceee788833f18499fec768ec0f
+    base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
+    detail: >-
+      Exit 0; no whitespace errors.
+  - command: python -m pytest
+    status: not-run
+    detail: >-
+      Pure prose change; the peer-review workflow directs pytest only for code
+      or fixture changes.
+```
