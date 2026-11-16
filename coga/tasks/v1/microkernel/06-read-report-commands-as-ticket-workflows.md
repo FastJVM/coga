@@ -52,7 +52,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (implement)
+step: 5 (peer-review)
 ---
 
 ## Description
@@ -166,9 +166,10 @@ no checkout normalization, Git refresh/write, audit, skill materialization,
 notification, lifecycle or exit publication; inherited streams and integer
 exit codes pass through. Use the same executor and environment isolation as
 ordinary scripts. PR #1233 is still OPEN and unmerged as checked on
-2026-11-15 at main `0f336bef647715f62fc66854864228ff432c98b4`. Implementation
-starts only after #1233 merges and its contract is verified on main; only
-read-only dispatch is a dependency, not all launch work. Verify that report
+2026-11-15 at main `0f336bef647715f62fc66854864228ff432c98b4`. Owner override, 2026-11-15: implementation may stack on PR #1233 before
+merge; the owner will merge the dependent changes in order. Verify the
+read-only contract on the stacked branch; only read-only dispatch is a
+dependency, not all launch work. Verify that report
 `--help` passes through `launch --read-only bootstrap/show -- --help` to
 the script rather than Typer's launch help. Validation stays outside this
 dispatch and must preserve its malformed-config diagnostic and exit 2.
@@ -197,47 +198,47 @@ relative overhead in the implementation receipt so the owner can assess it.
 
 ### Acceptance criteria
 
-- [ ] Implement the six dispositions specified above: four script reports,
+- [x] Implement the six dispositions specified above: four script reports,
       retained shared validation with two thin entries, and launch's retained
       prompt diagnostic. Verify the launch prerequisite before migration.
-- [ ] Effective local report scripts can change selection/formatting without
+- [x] Effective local report scripts can change selection/formatting without
       editing the installed wheel. Fresh-wheel tests find all four package
       definitions and demonstrate one local override. No core imports or
       path-loads ticket/edge implementations.
-- [ ] Compare baseline and migrated public invocations in disposable repos
+- [x] Compare baseline and migrated public invocations in disposable repos
       using captured argv/stdout/stderr/exit results. Fix clock, terminal width,
       color and report timestamps for meaningful comparisons. Preserve normal
       stdout bytes and JSON schemas; account separately for the documented
       stderr alias line and help's command-path framing. Preserve parse-error
       exit 2, validation error exit 1, and successful exit 0.
-- [ ] Cover show task-prefix and bootstrap resolution/history/missing target;
+- [x] Cover show task-prefix and bootstrap resolution/history/missing target;
       status subtree, no-recurse, dirs, all/terminal counts, blocked asks,
       order aliases, reverse, narrow rendering and stale/index-lock/sync hints;
       usage every grouping, exact task filter, dates, empty/unknown records
       and bad inputs; validation task/repo modes, JSON/text, thresholds,
       fixes, malformed config and probe refusals; recurring empty/local/
       package/disabled/error/clone catalogs and picked period tasks.
-- [ ] Run reads/help/refusals without configured user/agent, without TTY,
+- [x] Run reads/help/refusals without configured user/agent, without TTY,
       offline, from feature and control checkouts, with dirty ticket, log,
       context and local definitions. Reuse the recording fakes in `tests/test_launch_script.py` to assert
       no fetch/push/agent-spawn/notification
       or sweep calls and unchanged tracked/untracked bytes, index, HEAD,
       refs, lifecycle and log. Explicit probes are the only network exception.
       Verify no generated skill view is created by the four report scripts.
-- [ ] Verify the retained core fix path separately: only a missing fence
+- [x] Verify the retained core fix path separately: only a missing fence
       plus blackboard region is repaired, existing body/frontmatter is
       preserved, concurrent writes are refused, scoped validation stays
       scoped, and both entries require no user and perform no publication.
       Keep ordinary bootstrap writers/stateful scripts covered so read policy
       never becomes an accidental global no-publication mode.
-- [ ] Core validation preflights remain callable by launch, activation,
+- [x] Core validation preflights remain callable by launch, activation,
       creation, bump and owner reassignment. Carry existing validation issue
       and fix JSON fields and usage `Rollup.to_dict()` through unchanged;
       downstream weekly usage continues to work. Exercise `coga run
       validate-drift`'s `build_validate_command` / `run_validate_json` against
       the module entry with default `--fix`, thresholds, JSON payload and
       exits 0/1 (valid inputs for the recipe) versus 2 (failure).
-- [ ] Carry forward `tests/test_commands.py`, `test_cli.py`, `test_status.py`,
+- [x] Carry forward `tests/test_commands.py`, `test_cli.py`, `test_status.py`,
       `test_views.py`, `test_validate.py`, `test_usage.py`, `test_usage_report.py`,
       `test_recurring.py`, `test_compose.py`, `test_launch.py`,
       `test_launch_script.py`, `test_log_retention.py` and packaging coverage.
@@ -245,7 +246,7 @@ relative overhead in the implementation receipt so the owner can assess it.
       rather than testing removed heads through the old Typer app alone.
       Run the full Linux suite and scoped validation with exact receipts per
       `coga-dev/testing`; Windows/macOS are deferred to release.
-- [ ] Update owning user topics, CLI index and local microkernel decision in
+- [x] Update owning user topics, CLI index and local microkernel decision in
       the implementation PR. Report named baseline/final revisions and physical
       lines (including blanks/comments) across affected core, edge and ticket
       scripts; list removed entrypoints/dependency paths and duplicates.
@@ -311,8 +312,10 @@ That review found the behavior implementable and the existing workflow and
 single-PR scope appropriate. Its required context cleanup and stale-wording
 fix are applied. Broader context trimming is optional; testing and checkout
 rules remain attached because they apply across the remaining workflow.
-Implementation still waits for PR #1233 to merge and verification of its
-read-only contract on main. Authoring does not advance the review-design gate.
+The owner subsequently authorized implementing on top of PR #1233 before
+its merge, with the owner merging the dependent branches in order. The
+implementation verifies the read-only contract on the stacked branch.
+Authoring did not advance the review-design gate.
 
 ### Cited editing targets
 
@@ -573,3 +576,225 @@ display parameter, say why and keep the substance outside the command file.
 Previous ref: `microkernel/read-report-commands-as-ticket-workflows` (renamed 2026-10-27); earlier audit lines retain that ref. Parked by the owner for v2; this work does not gate v1.
 
 Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.
+
+
+## Implementation progress — 2026-11-15
+
+Owner explicitly overrode the merge prerequisite in this attended session:
+“implement it; I'll merge on top of each other.” Merged dependency PR #1233
+at `0bf44d2a1ff5e5e846f29007f707c6d461cdee9e`; baseline after that merge
+was `15c867b6ea7b48ec8a4ff01fa7df06e904c7dda2`. Reconciled current
+origin/main with only newer ticket/log linkage. No PR opened in implement.
+
+Four complete report scripts now live beside their package command tickets.
+Show/status/usage are default read-only aliases. Recurring list is a fixed
+forwarding adapter; it restores its caller's sweep policy after the read
+API, avoiding a misleading retained-writer warning. Core validation has one
+execution/rendering contract, two thin parsers and unchanged local safe-fix
+semantics. Shared activity/operator, usage and recurring readers stay in core.
+Updated contract owners, CLI index, show skill and packaging inventory.
+
+Verification complete: final Linux suite at
+`932888b381582ff39ad234052ae6f113fa0ebb9e`: 4,944 passed, 33 skipped in
+1,037.66s (17m17s), Pop!_OS 24.04 LTS, Python 3.12.12. Exact command and
+full head/base receipt are in PR preparation below. Scoped validation checked
+1 task and seeded validation checked 5; both had no fixes or issues.
+Native Windows/macOS and Python 3.11 floor suite are deferred to release.
+
+Earlier checks: 12 dispatch/no-effects cases passed; differential matrix
+116/116; wheel/local-override and seeded smoke passed. One initial full
+attempt was interrupted after discovering two old autoclose tests invoking
+the removed status head. An intervening full run passed 4,944/33 in 1,290.72s.
+A final review then made the wheel test's copied files writable for portable
+cleanup; its focused check passed, and the full final run above includes it.
+No unresolved failures or adjacent bug obligations remain.
+
+Differential comparison: 116/116 baseline/migrated public invocations at
+widths 60 and 120 match after isolating alias stderr and normalizing parser
+command-path/usage wrapping. Frozen datetime, fixed color and terminal width;
+includes task/bootstrap show, status scope/ordering/blocked/terminal modes,
+all usage groupings, exact filters/dates/unknown/duplicate records, recurring
+local/package/disabled/error rows and validation modes/probe refusals.
+Commands: `.venv/bin/python /tmp/coga06-matrix.py` and normalization of its
+captured `/tmp/coga06-matrix/results.json`. Initial smoke matrix also matched.
+
+Startup benchmark: `.venv/bin/python /tmp/coga06-baseline.py` captured the
+baseline source. Final paired run: `.venv/bin/python
+/tmp/coga06-paired-timing.py`; same disposable fixture, Python 3.12.12,
+TERM=dumb, width 100, one warmup plus ten measured calls per source/command,
+alternating order to reduce machine-load bias. At runtime source
+`87fd7b19f7b0e049f082fc5e05fef460d910da3a` (production unchanged at
+`932888b381582ff39ad234052ae6f113fa0ebb9e`), median show:
+0.357473s -> 0.533026s (+0.175553s, +49.11%); status:
+0.277857s -> 0.485878s (+0.208021s, +74.87%). Full-suite load was present
+on both paired measurements. These are accepted extra interpreter costs,
+not a latency guarantee. The earlier light-load comparison measured about
+0.16s overhead per command.
+
+
+## Whole-system accounting
+
+Baseline `15c867b6ea7b48ec8a4ff01fa7df06e904c7dda2` (dependency merged,
+before report changes) versus final implementation
+`932888b381582ff39ad234052ae6f113fa0ebb9e`. Count method: `git show
+<revision>:<path>` physical lines via `splitlines()`, including blank/comment
+lines; missing paths count zero. Same named paths at both revisions.
+
+| Production path | Before | After |
+| --- | ---: | ---: |
+| src/coga/aliases.py | 95 | 95 |
+| src/coga/cli.py | 675 | 672 |
+| src/coga/commands/recurring.py | 391 | 274 |
+| src/coga/commands/show.py | 37 | 0 |
+| src/coga/commands/status.py | 96 | 0 |
+| src/coga/commands/usage.py | 108 | 0 |
+| src/coga/commands/validate.py | 116 | 65 |
+| src/coga/views.py | 701 | 97 |
+| src/coga/validate.py | 2059 | 2078 |
+| bootstrap/show/ticket.py (under package resources) | 0 | 100 |
+| bootstrap/status/ticket.py | 0 | 618 |
+| bootstrap/usage/ticket.py | 0 | 114 |
+| bootstrap/recurring-list/ticket.py | 0 | 149 |
+| Total | 4278 | 4262 |
+
+Core: 4278 -> 3281; full ticket scripts: 0 -> 981; coga_edge: 0 -> 0
+in this scope. Most of the core decrease is relocation, not deletion.
+Whole-system physical delta is -16 lines; validation's two adapters plus
+engine decrease by 32 lines through consolidated execution/serialization.
+The recurring adapter adds scaffolding; no wholesale complexity reduction
+is claimed from moving files. Removed three built-in heads/registrations,
+their collision entries, core renderer entrypoints and recurring's private
+table helpers; no forwarding render functions or core-to-ticket imports.
+Shared operator cells/activity clocks, usage rollups and recurring catalog
+readers remain single shared implementations. Prompt-report remains launch's
+existing diagnostic; no new parallel classifier/executor was introduced.
+
+Separately, `git diff --numstat <baseline> <final>`: tests/inventory/helper
+files, 19 paths, +314/-80 lines; documentation and package ticket Markdown,
+19 paths, +175/-12 lines (excludes routine ticket/log changes from main).
+These are committed package owners only; no physical/live counterparts or
+forwarders were added. The four scripts are counted once as production,
+not again as package copies. PR #1233's own decomposition changes predate
+this counting baseline and are not claimed as this ticket's simplification.
+
+
+## Implement handoff — 2026-11-15
+
+Implemented and pushed branch
+`coga/v1-microkernel-06-read-report-commands-as-ticket-a9e2cd` at
+`932888b381582ff39ad234052ae6f113fa0ebb9e`. Final fetch found no new main
+commits; merge base is `a8d0e9f8cc5b97ff68f60962826cd5a3448113f9`. Only
+this projected ticket is dirty and it was never staged or committed.
+
+Peer review should inspect the report ownership boundary, validation's shared
+entry and the recurring-list forwarding policy. PR #1233 is included at
+`0bf44d2a1ff5e5e846f29007f707c6d461cdee9e` by explicit owner direction;
+it must merge before or with this branch. Its own code is not claimed as
+this report extraction's reduction. No PR was opened in implement.
+Independent code review is next; the prepared advisory depth is deep.
+No coga.toml or coga.local.toml edits. All code, docs and tests are committed;
+startup overhead and release-only native verification are disclosed above.
+
+
+## PR
+
+```yaml
+title: "Move read reports into editable command tickets"
+author: codex
+author_evidence: "This implementation session ran as Codex; identity comes from the session, not ticket assignment."
+head: 932888b381582ff39ad234052ae6f113fa0ebb9e
+base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+depth: deep
+rationale: "Significant ownership/dispatch change stacked on an open dependency; independent review is the next workflow step."
+implementation: "Four complete editable script reports, three read-only aliases, a recurring-list adapter and shared validation execution/rendering; contracts and packaging updated."
+deviations: "Owner authorized stacking PR #1233 before merge; the dependency is included in this branch."
+limitations: "Windows/macOS and Python 3.11 floor suite deferred to release. Startup adds an interpreter. PR #1233 must land before or with this branch."
+files:
+  "docs/contexts/coga-dev/codebase/SKILL.md": "Stacked PR #1233 read-only executor dependency."
+  "docs/contexts/coga-dev/internals/agent-spawn/SKILL.md": "Stacked PR #1233 read-only executor dependency."
+  "docs/contexts/coga-dev/internals/state-publication/SKILL.md": "Stacked PR #1233 read-only executor dependency."
+  "docs/contexts/coga-dev/microkernel/SKILL.md": "Update the owning report/shared-core contract or index."
+  "docs/contexts/coga-dev/packaging/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/aliases.py": "Replace report built-ins with default read-only aliases."
+  "src/coga/cli.py": "Remove replaced registrations and command-name sweep exceptions."
+  "src/coga/commands/launch.py": "Stacked PR #1233 read-only executor dependency."
+  "src/coga/commands/recurring.py": "Forward list argv/help to the same read-only launch API."
+  "src/coga/commands/show.py": "Remove replaced show head."
+  "src/coga/commands/status.py": "Remove replaced status head."
+  "src/coga/commands/validate.py": "Keep the public parser over shared core execution/rendering."
+  "src/coga/launch.py": "Stacked PR #1233 read-only executor dependency."
+  "src/coga/launch_script.py": "Stacked PR #1233 read-only executor dependency."
+  "src/coga/megalaunch.py": "Stacked PR #1233 read-only executor dependency."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md": "Stacked PR #1233 read-only executor dependency."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md": "Stacked PR #1233 read-only executor dependency."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/recurring-list/ticket.md": "Own the stateless report behavior and customization route."
+  "src/coga/resources/templates/coga/bootstrap/recurring-list/ticket.py": "Own the complete editable report parser and presentation."
+  "src/coga/resources/templates/coga/bootstrap/show/ticket.md": "Own the stateless report behavior and customization route."
+  "src/coga/resources/templates/coga/bootstrap/show/ticket.py": "Own the complete editable report parser and presentation."
+  "src/coga/resources/templates/coga/bootstrap/skills/coga/show/SKILL.md": "Update the owning report/shared-core contract or index."
+  "src/coga/resources/templates/coga/bootstrap/status/ticket.md": "Own the stateless report behavior and customization route."
+  "src/coga/resources/templates/coga/bootstrap/status/ticket.py": "Own the complete editable report parser and presentation."
+  "src/coga/resources/templates/coga/bootstrap/usage/ticket.md": "Own the stateless report behavior and customization route."
+  "src/coga/commands/usage.py": "Remove replaced usage head."
+  "src/coga/resources/templates/coga/bootstrap/usage/ticket.py": "Own the complete editable report parser and presentation."
+  "src/coga/validate.py": "Consolidate CLI/module execution and stable report serialization."
+  "src/coga/views.py": "Retain only shared activity and operator APIs."
+  "tests/conftest.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/report_helpers.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/required_package_resources.txt": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_aliases.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_autoclose.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_cli.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_commands.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_dream_validate_drift.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_git.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_launch_script.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_log_retention.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_megalaunch.py": "Stacked PR #1233 read-only executor dependency."
+  "tests/test_packaging.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_recurring.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_recurring_state.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_smoke.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_status.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_usage.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_validate.py": "Verify moved reports, shared validation or resource ownership."
+  "tests/test_views.py": "Verify moved reports, shared validation or resource ownership."
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: "Independent code review belongs to the next peer-review step; design approval is not code review."
+checks:
+  - command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga06-pytest-portable-final -q"
+    status: passed
+    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
+    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+    detail: "4944 passed, 33 skipped in 1037.66s (17m17s); Pop!_OS 24.04 LTS, Python 3.12.12. The tested implementation/test/doc tree equals this commit. Windows/macOS and Python 3.11 floor suite deferred to release."
+  - command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/06-read-report-commands-as-ticket-workflows --json"
+    status: passed
+    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
+    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+    detail: "1 task checked, no fixes or issues; Pop!_OS 24.04 LTS, Python 3.12.12."
+  - command: "env -u SLACK_WEBHOOK_URL TERM=dumb PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json (from tests/fixtures/seeded-repo/coga)"
+    status: passed
+    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
+    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+    detail: "5 tasks checked, no fixes or issues; Pop!_OS 24.04 LTS, Python 3.12.12."
+  - command: "git diff --check"
+    status: passed
+    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
+    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+    detail: "No whitespace errors."
+```
