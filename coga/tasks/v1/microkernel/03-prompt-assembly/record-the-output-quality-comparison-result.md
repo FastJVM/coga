@@ -1,6 +1,6 @@
 ---
 title: Record the output-quality comparison result
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -132,5 +133,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-microkernel-03-prompt-assembly-record-the-out-38f7c9
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
