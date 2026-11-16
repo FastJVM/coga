@@ -1,6 +1,6 @@
 ---
 title: 03 Implement the proven prompt assembly
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -54,43 +54,38 @@ agent: claude
 
 ## Description
 
-Implement the general prompt assembly form only after the owner accepts paired evidence that it improves on the current form. The ticket is the common unit of deterministic code and agent work. Agent prompts assemble the selected minimal base, requested skills, relevant context blocks and workflow material, ticket intent/state and explicit invocation additions through one inspectable composition mechanism. Done means every in-scope production prompt builder uses the selected contract, its behavior and provenance match the demonstrated form, real duplicate or command-specific assembly paths have been removed, and the required regressions, documentation and review receipts are complete.
+Fix structural defects in the current prompt assembly (`compose.compose_prompt_report`). Owner rewrite, 2026-11-15: the experiment line ended with no positive selection (ticket 02: C1 disqualified; ticket 04: output quality inconclusive, current assembly kept), so this ticket no longer migrates to a new assembly form. Instead, it fixes defects in the current form that are visible in any captured launch prompt. Done means each defect below is fixed with unit-test coverage, a before/after `coga launch <ref> --prompt-report` (plus the full composed text) shows the change on a real ticket, and `coga/prompt-composition` describes the result.
 
-### Positive experimental gate
+### Defects to fix
 
-Do not activate or begin this ticket until `v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly` has an owner-recorded positive selection, not merely status `done`. A negative or inconclusive comparison leaves this draft unlaunched. During design, copy the selected complete prompts, comparison result, applicability contract, required base additions and limitations into this ticket or its attachments. Do not depend on predecessor tickets remaining live. A material change to the selected form requires renewed comparison and owner review before replacement.
+Observed in the composed prompt for this ticket on 2026-11-15 (85 KiB, ~21.7k tokens):
+
+1. **Template comments compose.** The ticket-guide HTML comment (`<!-- Ticket guide — keep this comment … -->`, about 5 KiB, in 83 tickets) is in `## Context` and is passed through verbatim as "Task-specific context" on every launch. Template comments must not reach the agent. The file on disk keeps the comment for human editors.
+2. **Frontmatter composes.** Context and skill layers include their YAML frontmatter (`---\nname: …\ndescription: …\n---`). Its `---` delimiters are indistinguishable from the `---` separators between layers.
+3. **Heading hierarchy collides.**
+   - Each layer's wrapper `## <title>` is followed by the resource's own H1, so titles repeat (`## Coga base prompt` / `# Coga base prompt`, `## Repo context` / `# Context`).
+   - The resources' `##` sections sit at the same level as the layer headings, so the prompt is one flat list of `##` headings.
+   - The blackboard's own `## Blockers` and `## Gate status` look like top-level prompt sections.
+
+   Make the layer boundaries unambiguous, for example by demoting headings inside each layer. The design picks the mechanism, which must stay fence-aware (no rewriting `#` lines inside code fences).
+4. **Open blockers appear twice.** When the blocker preamble lists them, the blackboard repeats them under `## Blockers`. Compose them once, and keep resolved blocker history available where it matters.
+5. **Template filler composes.** The blackboard placeholder ("The blackboard is a notepad to be written to often …") goes in as current state.
+
+### Tests
+
+Add unit tests in `tests/test_compose.py` (and fixtures as needed) that cover each defect: template comment absent from the composed prompt, frontmatter absent, heading levels inside layers below the layer level (including a fenced `#` line left untouched), blockers composed once, and filler absent. Keep the `--prompt-report` layer accounting correct. Update the seeded fixture under `tests/fixtures/seeded-repo/` if the smoke path changes.
 
 ### Scope and boundary
 
-Migrate ordinary workflow prompts, stateless agent procedures, guided authoring, megalaunch, recurring sessions AND noninteractive `recurring_autofix.build_prompt` / `recurring_autofix.analyze_record`. Preserve the latter's structured-output/parse, transport, secret and failure contracts; sharing composition does not require an interactive supervisor. Migrate real callers together with the shared assembly seam. Do not introduce a second public launch API, forwarding re-exports or a command-name allowlist.
-
-The assembler receives explicit invocation facts and resolves declared file references. It must not guess procedure from command/skill/workflow names or compare instruction text to shipped copies. Make each composed block's effective source and selection reason inspectable. Preserve local-first resolution and refusal of required missing or unreadable inputs. Consume the approved skilled/inline workflow rule; do not blindly compose both.
-
-Authoring must not instruct execution or advancement of the target ticket. Stateless agent work must not acquire a task lifecycle. Stateful work must retain its applicable completion and checkout guarantees. Deterministic-only `ticket.py` execution remains code, with no prompt or configured-agent requirement; exit zero still never advances a stateful step. Invocation conduct and runtime checkout notices must remain truthful.
-
-### Verification and simplification
-
-Exercise every migrated production caller through composition and integration regressions, including noninteractive analysis. Preserve environment isolation, secrets/redaction, command representability, completion authority, publication order, checkout returns, assist receipts, recurring leases and released launch claims wherever the changed boundary touches them. Report the whole-system production-code and dependency-path delta at named revisions, separating relocation from deletion/deduplication and tests/docs from production code.
-
-Update `coga/prompt-composition`, changed prompt resources and instruction owners, affected launch/script/checkout/publication contracts, autofix's owning procedure, and the local source map in the same implementation PR. An extraction earns its place through the selected contract and real migrated consumers. The separate launch-decomposition ticket owns the stateless invocation/publication and shared execution contracts; consume them without bundling their full refactor into this ticket.
+Change composition only. Do not change prompt resource wording beyond what the heading fix requires, the layer order, launch/checkout behavior, or `recurring_autofix.build_prompt` unless it shares the defective helper. Guided authoring (`commands.ticket._authoring_ticket`) composes through the same path: check it, and keep the ticket guide visible wherever the authoring agent needs it to edit the file. That is a design decision to record, not a guess.
 
 ## Context
 
-This draft implements evidence selected in the numbered group's ticket 02; it does not choose the winning prompt form. The owner reviews its design before code through `code/design-then-implement`. Leave the draft workflow as a reference until activation; do not copy the old launch ticket's paused workflow position into this new scope.
+Prior scope: this ticket was drafted to migrate to an experimentally selected assembly form. It is now ineligible, because tickets 02 and 04 produced no positive selection. Their evidence is `coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/report.md` and `…/04-compare-prompt-assembly-output-quality/report.md`. That scope is dropped and is not to be revived here.
 
-Implementation sources: `src/coga/compose.py` (`compose_prompt_report`, `_step_layers`), `src/coga/commands/ticket.py` (`_authoring_ticket`, `_run_authoring_session`), `src/coga/launch.py` (`spawn_agent_session`, `_LaunchInvocation`), both megalaunch modules, `src/coga/recurring_runner.py`, and `src/coga/recurring_autofix.py` (`build_prompt`, `analyze_record`, `build_analyze_command`). Inventory actual callers again at implementation time.
+Implementation source: `src/coga/compose.py` (`compose_prompt_report`, `_section`, `_extract_section`, `_skill_layers`, `_step_layers`), `src/coga/taskfile.py` (`split_body`, `body_sections`) and `src/coga/blackboard.py` (`blackboard_for_prompt`). Reproduce the defects with `coga launch <ref> --prompt-report` and with `compose.compose_prompt(cfg, ref, read_ticket(ref))` for the full text.
 
-Editing targets are cited rather than attached. Read `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md` ("Layer order", "What each layer reads", "Blocker preamble versus authoring"); `docs/contexts/coga-dev/internals/agent-spawn/SKILL.md` ("Order inside one call", "Per-caller parameters", "Large prompts", "The supervisor"); and `docs/contexts/coga-dev/internals/state-publication/SKILL.md` ("Invariants", "The end-of-command sweep", "Guided-authoring finalization") plus "Ordinary managed startup" in its `publish/SKILL.md` leaf. `launch._LaunchInvocation._publish_startup` groups ordinary startup before checkout entry; `authoring.finalize_authored` validates and publishes the required authored set together.
-
-User contract owners resolve under `src/coga/resources/templates/coga/bootstrap/contexts/`: `coga/launch` ("Phases and routing", "Agent preflight order", "The step chain"), `coga/script-tickets` ("One deterministic phase", "Chaining", "COGA_TASK_* contract"), `coga/checkouts` ("Start, work, end"), and `coga/state-publication` ("When Coga publishes", "Prepared ticket transactions"). The source map is `docs/contexts/coga-dev/codebase/SKILL.md`, "Source map". Read and update those owners where the actual change affects their contract.
-
-The autofix owner is also cited rather than attached:
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md`,
-"The loop". Preserve its one-shot, text-only, non-mutating analyst contract,
-surfacing of unparseable replies and independence from the sweep's exit code.
-The shared assembly must not inject an interactive lifecycle into that path.
-
-The checkout-policy declaration sibling owns checkout selection and compatibility; this ticket owns no competing policy table. The paused launch-decomposition ticket remains a distinct delivery scope, not an umbrella. Decide any narrower invocation/session interface with that ticket's owner before depending on it, without making exploratory prompt trials depend on unfinished runtime work.
+The contract owner is `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md` ("Layer order", "What each layer reads", "The ticket is a three-region extract", "Blocker preamble versus authoring", "What never composes"). Update it in the same PR.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -180,6 +175,13 @@ ordinary ticket.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Rescoped (2026-11-15, owner, from 04's report-to-coga session)
+
+- 04 ended **inconclusive** (baseline 4, C1′ 3, tie 1); the current assembly is kept. No positive selection, so the old migration scope is dead.
+- The owner rewrote this ticket to fix the current assembly's defects, seen in a captured `--prompt-report` and the full composed text, and asked for unit-test coverage. The body above is the new scope.
+- The title is still the old one ("03 Implement the proven prompt assembly"). It is a frontmatter field, so the owner changes it.
+- The gate notes below are historical.
+
 ## Gate status (2026-11-13, design session)
 
 - Launched without a positive selection: ticket 02 ended with C1 disqualified (owner, 2026-11-13). No spec written.
@@ -192,6 +194,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-11-13 23:26] [agent:claude] id=20261113T232634 Parked at owner request: no positive selection. Waiting on v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality to record a positive output-quality selection before design can start.
+- [x] [2026-11-13 23:26] [agent:claude] id=20261113T232634 Parked at owner request: no positive selection. Waiting on v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality to record a positive output-quality selection before design can start.
+  resolved: [2026-11-15 18:15] [human:nicktoper] Owner rescoped 2026-11-15: 04 ended inconclusive (no positive selection), so the migration gate is dropped. Ticket now fixes current-assembly defects (template comments, frontmatter, heading collisions, duplicate blockers, filler) with unit tests.
 
-- [ ] [2026-11-14 18:48] [agent:claude] id=20261114T184855 Still no positive selection (checked 2026-11-14). v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality has 16 runs complete, every gate passed, and its blind pack built; it is at step human-owns-and-finishes. Owner: fill blind/verdicts.csv for the 8 pairs, then unblind and record positive, negative or inconclusive. Design starts only on a positive selection.
+- [x] [2026-11-14 18:48] [agent:claude] id=20261114T184855 Still no positive selection (checked 2026-11-14). v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality has 16 runs complete, every gate passed, and its blind pack built; it is at step human-owns-and-finishes. Owner: fill blind/verdicts.csv for the 8 pairs, then unblind and record positive, negative or inconclusive. Design starts only on a positive selection.
+  resolved: [2026-11-15 18:15] [human:nicktoper] Owner rescoped 2026-11-15: 04 ended inconclusive (no positive selection), so the migration gate is dropped. Ticket now fixes current-assembly defects (template comments, frontmatter, heading collisions, duplicate blockers, filler) with unit tests.
