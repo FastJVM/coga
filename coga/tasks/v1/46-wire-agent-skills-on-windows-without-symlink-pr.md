@@ -1,6 +1,6 @@
 ---
 title: Wire agent skills on Windows without symlink privilege
-status: draft
+status: in_progress
 owner: zach
 workflow:
   name: code/design-then-implement
@@ -35,6 +35,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
