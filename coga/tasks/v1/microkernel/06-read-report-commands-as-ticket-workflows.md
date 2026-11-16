@@ -731,6 +731,25 @@ No terminal-only surface beyond CLI output, which the differential matrix and
 spot checks covered.
 
 
+
+## Publication obligations — 2026-11-16
+
+The attending owner explicitly approved deferring the five remaining PR #1233
+review findings to follow-up drafts and publishing this report PR with those
+findings disclosed. The independent review returned; no review remains in flight.
+These findings are not discharged by merging this ticket:
+
+- Finding 2: [Windows supervised environment](preserve-supervised-environment-in-megalaunch-wind.md).
+- Finding 6: [Read-only signal exit normalization](normalize-signal-exits-from-read-only-launch.md).
+- Finding 7: [Read-only API sweep policy restoration](restore-sweep-policy-after-read-only-launch-api-ca.md).
+- Finding 9: [Dead megalaunch agent lookup](remove-dead-megalaunch-agent-lookup.md).
+- Finding 10: [Duplicate attended prompt composition](avoid-duplicate-attended-launch-prompt-composition.md).
+
+Native Windows/macOS and Python 3.11 floor verification remain release-owned
+checks under coga-dev/testing, not unfinished implementation obligations.
+PR #1233 remains open and must merge before or with this stacked branch.
+
+
 ## PR
 
 ```yaml
@@ -743,7 +762,7 @@ depth: deep
 rationale: "Significant ownership/dispatch change stacked on an open dependency; independent review returned with fixes applied, and residual #1233 findings need the owner."
 implementation: "Four complete editable script reports, three read-only aliases, a recurring-list adapter and shared validation execution/rendering; contracts and packaging updated."
 deviations: "Owner authorized stacking PR #1233 before merge; the dependency is included in this branch."
-limitations: "Windows/macOS and Python 3.11 floor suite deferred to release. Startup adds an interpreter. Report --help now needs a valid repo config (owner-accepted, documented). PR #1233 must land before or with this branch; its own review findings are listed under Peer review."
+limitations: "Windows/macOS and Python 3.11 floor suite deferred to release. Startup adds an interpreter. Report --help now needs a valid repo config (owner-accepted, documented). PR #1233 must land before or with this branch; the owner explicitly deferred its five residual review findings to linked drafts under Publication obligations (2026-11-16)."
 files:
   "docs/contexts/coga-dev/codebase/SKILL.md": "Stacked PR #1233 read-only executor dependency."
   "docs/contexts/coga-dev/internals/agent-spawn/SKILL.md": "Stacked PR #1233 read-only executor dependency."
@@ -830,3 +849,13 @@ checks:
     base: 3d589e7d434dce7e758afa262ad5b8f1e5fb9a65
     detail: "No whitespace errors."
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/microkernel/06-read-report-commands-as-ticket-workflows`
+Recorded: 2026-11-16T20:22:41+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: invalid status 'returned'.
