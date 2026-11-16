@@ -232,6 +232,7 @@ same duplication through the launch class.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1242
 branch: coga/v1-microkernel-avoid-duplicate-attended-launch-p-f53f94
 
 ## Handoff (implement, 2026-11-16)
