@@ -48,7 +48,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -295,54 +295,86 @@ The full composed texts are not attached: this is a file-form ticket, and conver
 ## PR
 
 ```yaml
-title: Normalize composed prompt layers and project blackboard filler and duplicate blockers
-author: claude
-author_evidence: "Implement session ran as Claude Code (claude-opus-5-5) under coga launch; see implementation handoff."
-head: 419654e479c04d055ae3b0eddd3a959b6e1f5451
-base: 35e878245c35c19a99a8e7fa0a0bf1d2df50c6aa
-depth: deep
-rationale: >-
-  Changes every composed prompt (heading levels, dropped frontmatter, comments, titles) and adds
-  two blackboard projections; the reviewer should read the normalizer and both projections closely.
-implementation: >-
-  One fence-aware normalizer (compose._prompt_text) applied at layer construction drops whole-file
-  frontmatter, whole-line HTML comment blocks and the lone document title, then demotes headings to
-  level 3 under the layer heading. Comments are also stripped above the fence before section
-  extraction. Conduct takes its layer title from its resource heading. blackboard.without_open_blockers
-  removes open asks when the preamble lists them; blackboard.without_stock_placeholder removes the
-  stock placeholder before the archive pointer is added.
-deviations: >-
-  Owner-approved in session: the placeholder is removed as a standalone block anywhere outside fences,
-  not only when leading (launch puts ## Dev above it). Frontmatter stripping is limited to whole-file
-  layers so a leading --- rule in a ticket region is never eaten.
-limitations: >-
-  Setext headings and mid-line comments are not handled by design. Full composed texts are not attached
-  as files (file-form ticket); per-layer report and excerpts are on the blackboard. Python 3.11 and native
-  platforms not run.
-files:
-  src/coga/compose.py: Layer normalizer, comment pre-strip before extraction, conduct title, blocker and filler projections wired in.
-  src/coga/blackboard.py: without_open_blockers, without_stock_placeholder, shared _scan_blockers and _stock_templates.
-  tests/test_compose.py: New coverage for each defect; existing literal-heading and raw-text assertions updated.
-  tests/test_blackboard.py: Unit tests for the two blackboard projections.
-  tests/test_create.py: Guide stays in the file but no longer composes.
-  tests/test_recurring_autofix.py: Context layer text is now normalized.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Contract for normalization, blockers once, placeholder, what never composes.
-  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md: Tell the authoring agent to read the guide in the ticket file.
-  docs/contexts/coga-dev/internals/compose/SKILL.md: Implementation notes for the projections and normalizer.
-review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; self-QA and review steps have not run yet.
-checks:
-  - command: PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.pytest-coga-tmp
-    status: passed
-    head: 419654e479c04d055ae3b0eddd3a959b6e1f5451
-    base: 35e878245c35c19a99a8e7fa0a0bf1d2df50c6aa
-    detail: "4919 passed, 33 skipped in 772s; Linux, Python 3.12.12."
-  - command: native Windows and macOS full suite
-    status: not-run
-    detail: Deferred to release per coga-dev/testing.
+"title": "Normalize composed prompt layers and project blackboard filler and duplicate\
+  \ blockers"
+"author": "claude"
+"author_evidence": "Implement session ran as Claude Code (claude-opus-5-5) under coga\
+  \ launch; see implementation handoff."
+"head": "8c53bcecc8cbe7b5125171a80c1593c7ef9966dc"
+"base": "23e0a5b5f2a25d013e9a43209ab2301378de2d04"
+"depth": "deep"
+"rationale": "Every launch receives the normalized layers; inspect the comment, heading\
+  \ and blackboard projections despite the completed independent review and green\
+  \ Linux suite."
+"implementation": "One fence-aware normalizer (compose._prompt_text) applied at layer\
+  \ construction drops whole-file frontmatter, whole-line HTML comment blocks and\
+  \ the lone document title, then demotes headings to level 3 under the layer heading.\
+  \ Comments are also stripped above the fence before section extraction. Conduct\
+  \ takes its layer title from its resource heading. blackboard.without_open_blockers\
+  \ removes open asks when the preamble lists them; blackboard.without_stock_placeholder\
+  \ removes the stock placeholder before the archive pointer is added."
+"deviations": "Owner-approved in session: the placeholder is removed as a standalone\
+  \ block anywhere outside fences, not only when leading (launch puts ## Dev above\
+  \ it). Frontmatter stripping is limited to whole-file layers so a leading --- rule\
+  \ in a ticket region is never eaten. Stock override candidates use the archive-projected\
+  \ override, matching readiness semantics and preserving archive ownership."
+"limitations": "Setext headings and mid-line comments remain unchanged by design.\
+  \ Paired full prompts and layer reports are saved beside the ticket; API captures\
+  \ replace a nested launch invocation. Python 3.11 unavailable here; native Windows/macOS\
+  \ checks deferred to release."
+"files":
+  "src/coga/compose.py": "Layer normalizer, comment pre-strip before extraction, conduct\
+    \ title, blocker and filler projections wired in."
+  "src/coga/blackboard.py": "without_open_blockers, without_stock_placeholder, shared\
+    \ _scan_blockers and _stock_templates."
+  "tests/test_compose.py": "New coverage for each defect; existing literal-heading\
+    \ and raw-text assertions updated."
+  "tests/test_blackboard.py": "Unit tests for the two blackboard projections."
+  "tests/test_create.py": "Guide stays in the file but no longer composes."
+  "tests/test_recurring_autofix.py": "Context layer text is now normalized."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md": "Contract\
+    \ for normalization, blockers once, placeholder, what never composes."
+  "src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md": "Tell\
+    \ the authoring agent to read the guide in the ticket file."
+  "docs/contexts/coga-dev/internals/compose/SKILL.md": "Implementation notes for the\
+    \ projections and normalizer."
+"review":
+  "reviewer": "codex"
+  "kind": "independent"
+  "status": "passed"
+  "head": "8c53bcecc8cbe7b5125171a80c1593c7ef9966dc"
+  "base": "23e0a5b5f2a25d013e9a43209ab2301378de2d04"
+  "detail": "Direct Codex peer review completed on the final rebased diff; no must-fix\
+    \ findings. Implementation authored by Claude; reviewer did not implement the\
+    \ diff."
+"checks":
+- "command": "PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider\
+    \ --basetemp=/home/n/Code/.pytest-coga-peer-review"
+  "status": "passed"
+  "head": "8c53bcecc8cbe7b5125171a80c1593c7ef9966dc"
+  "base": "23e0a5b5f2a25d013e9a43209ab2301378de2d04"
+  "detail": "4919 passed, 33 skipped in 804.60s (0:13:24); Pop!_OS 24.04 LTS, Linux\
+    \ 7.2.15-76070215-generic, Python 3.12.12."
+- "command": "git diff --check"
+  "status": "passed"
+  "head": "8c53bcecc8cbe7b5125171a80c1593c7ef9966dc"
+  "base": "23e0a5b5f2a25d013e9a43209ab2301378de2d04"
+  "detail": "No whitespace errors."
+- "command": "PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/03-prompt-assembly/03-implement-the-proven-prompt-assembly\
+    \ --json"
+  "status": "passed"
+  "head": "8c53bcecc8cbe7b5125171a80c1593c7ef9966dc"
+  "base": "23e0a5b5f2a25d013e9a43209ab2301378de2d04"
+  "detail": "ok_count 1; no issues or fixes."
+- "command": "PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider\
+    \ --basetemp=/home/n/Code/.pytest-coga-tmp"
+  "status": "passed"
+  "head": "419654e479c04d055ae3b0eddd3a959b6e1f5451"
+  "base": "35e878245c35c19a99a8e7fa0a0bf1d2df50c6aa"
+  "detail": "4919 passed, 33 skipped in 772s; Linux, Python 3.12.12."
+- "command": "native Windows and macOS full suite"
+  "status": "not-run"
+  "detail": "Deferred to release per coga-dev/testing."
 ```
 
 ## Design (2026-11-15, design session)
@@ -404,3 +436,31 @@ Cold design review, 2026-11-15. Reviewed at `ad44e15d584e180b78c1ff0da99e5e516a0
 - This ticket currently has resolved blockers only. Its before/after capture can demonstrate resolved-history preservation, but use a controlled test fixture/capture for open-ask deduplication rather than manufacturing live blockers in the ticket.
 
 Verification: inspected composition, shared Markdown parsing, blocker parsing/stock recognition/archive projection, guided-authoring callers, packaged authoring skill/workflow, contract topics, and relevant compose tests. Ran two read-only Python reproductions above using `.venv/bin/python`; no product code changed, so no full-suite run is claimed or required for this design-only review. Implementation still owes the Linux receipt and release-deferred native checks required by the ticket.
+
+## Peer review (2026-11-15, Codex)
+
+Independent direct review **completed**, covering final head `8c53bcecc8cbe7b5125171a80c1593c7ef9966dc` against base `23e0a5b5f2a25d013e9a43209ab2301378de2d04`. Verdict: no must-fix findings. Read the complete production, test and documentation diff, checked normalization/extraction ordering, fenced examples, blocker final-state parsing, placeholder/archive projection, guided authoring, and report accounting. No production changes were needed. The branch rebased cleanly onto fetched main and was force-pushed with lease. No PR existed at review entry; control's ticket remains in_progress at peer-review.
+
+The missing full-text evidence is now saved in [the evidence directory](03-implement-the-proven-prompt-assembly-evidence/): `before-prompt.txt`, `after-prompt.txt`, both per-layer JSON reports, `capture-ticket.txt` (identical input), and `README.txt` (method). This closes the earlier handoff omission without moving the file-form ticket. API composition was used instead of invoking launch inside launch.
+
+| Layer/ref | Before bytes / tokens | After bytes / tokens |
+| --- | ---: | ---: |
+| header () | 252 / 63 | 252 / 63 |
+| base_prompt (prompt.md) | 3680 / 920 | 3664 / 916 |
+| ticket_loop (prompt-ticket.md) | 3180 / 795 | 3168 / 792 |
+| session_conduct (prompt-attended.md) | 1736 / 434 | 1735 / 434 |
+| repo_context (context.md) | 295 / 74 | 284 / 71 |
+| ticket_context (coga-dev/microkernel/objectives) | 5882 / 1470 | 5647 / 1412 |
+| ticket_context (coga-dev/principles) | 5439 / 1359 | 5271 / 1317 |
+| ticket_context (coga-dev/codebase/gotchas) | 11564 / 2890 | 11199 / 2799 |
+| ticket_context (coga-dev/testing) | 20586 / 5146 | 20319 / 5079 |
+| ticket_context (coga-dev/microkernel) | 9964 / 2490 | 9779 / 2444 |
+| ticket_context (coga-dev/project-stage) | 3303 / 823 | 3062 / 764 |
+| workflow_skill (code/peer-review) | 5999 / 1495 | 5685 / 1416 |
+| task_description (ticket.md##Description) | 13233 / 3297 | 13233 / 3297 |
+| task_context (ticket.md##Context) | 8742 / 2182 | 3606 / 899 |
+| blackboard (ticket.md##blackboard) | 17513 / 4369 | 17432 / 4349 |
+| checkout_notice () | 234 / 59 | 234 / 59 |
+| **Total** | **111707 / 27886** | **104676 / 26131** |
+
+Full Linux receipt at `8c53bcecc8cbe7b5125171a80c1593c7ef9966dc`, base `23e0a5b5f2a25d013e9a43209ab2301378de2d04`: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12; `PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.pytest-coga-peer-review` → 4919 passed, 33 skipped in 804.60s (0:13:24). `git diff --check` passed. Python 3.11 unavailable; native Windows/macOS deferred to release. This change has no new terminal UI to exercise.
