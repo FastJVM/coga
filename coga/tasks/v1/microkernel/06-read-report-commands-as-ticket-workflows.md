@@ -7,15 +7,11 @@ contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
 - coga/tickets
-- coga/lifecycle
-- coga/usage
 - coga/recurring
 - coga-dev/codebase
 - coga-dev/testing
 - coga-dev/current-direction
-- coga-dev/microkernel
 - coga-dev/project-stage
-- coga/cli
 - coga/checkouts
 workflow:
   name: code/design-then-implement
@@ -62,9 +58,10 @@ step: 3 (review-design)
 ## Description
 
 Move deterministic report and inspection policy into script command tickets
-where the resulting command remains as quick, quiet and usable as today's
-direct CLI. Keep shared readers, rendering and validation primitives in core
-when they have real consumers. Refreshed proposal for owner scope review.
+while preserving command output, failure behavior and quiet operation. Keep
+shared readers, rendering and validation contracts in core when they have real
+consumers. The owner approved revising the design around these retained core
+contracts on 2026-11-15; this authoring session does not advance the review gate.
 
 ### Objectives advanced
 
@@ -75,12 +72,12 @@ reusing actual shared readers and checks.
 
 ### Proposed shape
 
-This is a proposal for the evaluate-design and owner review-design gates, not
-approval to change the mixed-command contracts below. Implement after those
-choices are resolved and the necessary stateless dispatch is on main.
+The dispositions below are the revised design for owner review. Implementation
+preserves the mixed-command contracts and waits for the necessary stateless
+dispatch on main; this authoring session does not advance the workflow.
 
 1. Use package-owned directory command tickets at
-   `src/coga/resources/templates/coga/bootstrap/{show,status,validate,usage,recurring-list}/`
+   `src/coga/resources/templates/coga/bootstrap/{show,status,usage,recurring-list}/`
    with `ticket.md` and the exact sibling `ticket.py`. No workflow, status,
    per-invocation task, agent, or completion command. Prefer full report
    implementations beside their tickets so copying a definition exposes its
@@ -102,41 +99,50 @@ choices are resolved and the necessary stateless dispatch is on main.
    and its `_git_updated_by_slug` dependency in core while megalaunch and
    status both consume them. Keep shared Git proofs, log readers, task
    discovery, blocker parsing, operator derivation and service ordering in
-   their existing modules. A small shared edge helper for show/status is
-   justified only by their actual common operator-cell behavior; avoid two
-   copies or a core-to-edge import. Update tests to import the owning
-   implementation, rather than retaining forwarding render functions in core.
+   their existing modules. Rename `views._operator_cell` to the shared core
+   API `views.operator_cell`, consumed by both report scripts; it wraps
+   `bump.resolve_operator` and has two real production callers. Neither
+   ticket imports the other ticket's helpers. Local scripts may replace their
+   own operator-cell presentation without copying another definition. Update
+   tests to import the owning implementation, rather than retaining forwarding render functions in core.
 4. Move usage grouping-option selection and `_format_rollup` /
    `_format_overall` from `commands/usage.py` into its script. Keep
    `usage.load_records`, `usage.rollup`, record models, capture and append
    logic in core: the repo's weekly usage-report also consumes the reader
    and rollup. Preserve deduplication, unknown accounting and timestamp
    semantics by calling those readers rather than reparsing log lines.
-5. Put validation argument handling and report serialization in the
-   validation ticket. Consolidate the duplicate presentation in
-   `commands/validate.validate` and `validate._main` onto that owner; preserve
-   `python -m coga.validate` only as a thin entry to the selected public
-   invocation if the owner elects to retain that documented spelling.
-   Do not import edge code from `coga.validate`. Preserve `validate.run`,
-   `validate_task`, `assert_task_valid` and their shared checks as direct
-   core APIs. Preserve fixes through `apply_safe_fixes`, including its
-   state lock, concurrent-byte check and atomic write. Resolve the mixed
-   dispatch question below before removing the old validate head. A pure
-   report target must reject `--fix` before any repair; it cannot upgrade
-   its launch policy in the child.
+5. Retain `coga validate` as a thin core head and `python -m coga.validate`
+   as a core module entry. Consolidate their duplicated option-to-report
+   execution and serialization into one core entry in `validate.py`, with
+   thin CLI/parser adapters preserving each invocation's existing syntax and
+   diagnostics. Do not create a validation bootstrap ticket or an edge import.
+   `dream_validate_drift.build_validate_command` / `run_validate_json` back
+   the fixed `validate-drift` recipe and invoke
+   `sys.executable -m coga.validate --json`, with `--fix` by default and
+   optional `--idle-hours` / `--max-blackboard-kb`. Preserve this argv contract,
+   JSON fields (`generated_at`, `ok_count`, `fixes`, `issues`) and exits 0/1/2.
+   The public command and recipe are real consumers of the fix-capable entry
+   and serialization. Preserve `validate.run`, `validate_task`,
+   `assert_task_valid` and shared checks as core APIs; keep `apply_safe_fixes`'s
+   state lock, concurrent-byte check and atomic write. Both entrypoints remain
+   user-independent, non-sweeping local operations, including `--fix`.
 6. Move `commands/recurring.list_recurring`'s selection/presentation and
    `_print_templates_table` / `_print_picked_table` into recurring-list's
    script. Keep `recurring.list_templates` and its package-aware effective
    catalog, selection, clone ledger and scheduling machinery in core.
    Preserve catalog errors, bundled-available summary, clone rows, picked
-   tasks and the `--agent` refusal. Resolve the two-word dispatch choice
-   below; do not add nested alias machinery for this one surface.
-7. Proposed prompt diagnostic disposition: retain `launch --prompt-report`
-   as a composition diagnostic in launch, including script-target refusal,
+   tasks and the `--agent` refusal. Retain `recurring list` as a fixed core
+   subcommand adapter to the same read-only bootstrap launch API, forwarding
+   flags and help to `bootstrap/recurring-list`. This preserves the two-word
+   spelling with no nested alias mechanism or second executor. Record the
+   adapter as a settled co-versioned dispatch exception in the microkernel
+   topic: its contract must agree with launch's private read-only boundary,
+   while selection and formatting belong entirely to the script.
+7. Retain `launch --prompt-report` as a composition diagnostic in launch, including script-target refusal,
    warnings and `_format_prompt_report`. It describes the launch-selected
    composition before spawn, including override/resource provenance, rather
-   than an independent ticket report. This is a proposed co-versioned
-   adapter decision for owner review, not a claim of two rendering callers.
+   than an independent ticket report. Record this as a settled co-versioned
+   launch diagnostic adapter, not a claim of two rendering callers.
    `compose.compose_prompt_report` remains the write-free Python API.
    The CLI currently refreshes `.agent-skills/`; preserve and document that
    effect rather than claiming the entire flag is write-free. Moving this
@@ -144,9 +150,11 @@ choices are resolved and the necessary stateless dispatch is on main.
    launch target/operator classification; do not build that parallel path.
 8. Delete replaced command registrations, builtin alias collisions and
    obsolete single-consumer wrappers in `cli.py` / `aliases.py`. Keep
-   retained adapters explicit in the placement decision, with the reason
-   and deferred work; do not declare the open-placement row settled merely
-   because files moved. Update the package contract owners listed in Context,
+   retained core contracts explicit in the placement decision with their
+   reasons. After implementation and verification, remove these five report
+   heads from the open-placements row and record validation and the fixed
+   recurring-list adapter under settled decisions; file relocation alone
+   does not settle the row. Update the package contract owners listed in Context,
    `bootstrap/skills/coga/show/SKILL.md`, packaging resource inventory and
    required-resource tests. Do not recreate live local definition copies.
 
@@ -157,29 +165,43 @@ read-only bootstrap dispatch: `require_user=False` throughout, no agent/TTY,
 no checkout normalization, Git refresh/write, audit, skill materialization,
 notification, lifecycle or exit publication; inherited streams and integer
 exit codes pass through. Use the same executor and environment isolation as
-ordinary scripts. The sibling records implementation work, but this design's
-main snapshot has no `read_only` API yet. Verify the landed contract before
-starting migration; only that contract is a dependency, not all launch work.
+ordinary scripts. PR #1233 is still OPEN and unmerged as checked on
+2026-11-15 at main `0f336bef647715f62fc66854864228ff432c98b4`. Implementation
+starts only after #1233 merges and its contract is verified on main; only
+read-only dispatch is a dependency, not all launch work. Verify that report
+`--help` passes through `launch --read-only bootstrap/show -- --help` to
+the script rather than Typer's launch help. Validation stays outside this
+dispatch and must preserve its malformed-config diagnostic and exit 2.
 
 Current `validate --fix` is also non-sweeping and loads with
 `require_user=False`: `apply_safe_fixes` writes the selected ticket locally,
 without audit, lifecycle or publication. Ordinary writer launch would require
 a user and can refresh/publish unrelated dirt. Read-only launch must not run
-a repair. Neither is a semantics-preserving substitute. Owner review must
-settle the question on the blackboard; until then the implementation must
-not silently change repair publication or route fixes through read-only mode.
+a repair. Retaining validation in core preserves these semantics for both
+the public head and automated `validate-drift` caller; no new generic
+local-write mode is required by this ticket. The recipe's own later fix
+publication remains its separate responsibility, unchanged by this refactor.
 Explicit `--check-slack` and `--check-github` remain opt-in network probes;
 `--task` rejects either. Preserve those probes without making normal reads
 perform network calls. A read invocation may make these explicitly requested
 probes but must still have no local/publication effects.
 
+### Startup cost
+
+Accept the extra interpreter startup inherent in the four script reports in
+exchange for editable behavior. Do not promise equal latency or invent a
+hard threshold. Measure baseline and migrated `show` / `status` median wall
+time using the same disposable fixture, interpreter and environment, with
+one warmup and at least ten measured runs per command. Report absolute and
+relative overhead in the implementation receipt so the owner can assess it.
+
 ### Acceptance criteria
 
-- [ ] Record the owner-selected disposition for each of the six surfaces,
-      including mixed validation, two-word recurring dispatch and the prompt
-      diagnostic. No unresolved publication choice reaches implementation.
+- [ ] Implement the six dispositions specified above: four script reports,
+      retained shared validation with two thin entries, and launch's retained
+      prompt diagnostic. Verify the launch prerequisite before migration.
 - [ ] Effective local report scripts can change selection/formatting without
-      editing the installed wheel. Fresh-wheel tests find all five package
+      editing the installed wheel. Fresh-wheel tests find all four package
       definitions and demonstrate one local override. No core imports or
       path-loads ticket/edge implementations.
 - [ ] Compare baseline and migrated public invocations in disposable repos
@@ -197,20 +219,24 @@ probes but must still have no local/publication effects.
       package/disabled/error/clone catalogs and picked period tasks.
 - [ ] Run reads/help/refusals without configured user/agent, without TTY,
       offline, from feature and control checkouts, with dirty ticket, log,
-      context and local definitions. Assert no fetch/push/spawn/notification
+      context and local definitions. Reuse the recording fakes in `tests/test_launch_script.py` to assert
+      no fetch/push/agent-spawn/notification
       or sweep calls and unchanged tracked/untracked bytes, index, HEAD,
       refs, lifecycle and log. Explicit probes are the only network exception.
-      Verify no generated skill view is created by the five report scripts.
-- [ ] Verify the owner-selected fix path separately: only a missing fence
+      Verify no generated skill view is created by the four report scripts.
+- [ ] Verify the retained core fix path separately: only a missing fence
       plus blackboard region is repaired, existing body/frontmatter is
       preserved, concurrent writes are refused, scoped validation stays
-      scoped, and publication/user requirements match the approved contract.
+      scoped, and both entries require no user and perform no publication.
       Keep ordinary bootstrap writers/stateful scripts covered so read policy
       never becomes an accidental global no-publication mode.
 - [ ] Core validation preflights remain callable by launch, activation,
       creation, bump and owner reassignment. Carry existing validation issue
       and fix JSON fields and usage `Rollup.to_dict()` through unchanged;
-      downstream weekly usage and Dream drift checks continue to work.
+      downstream weekly usage continues to work. Exercise `coga run
+      validate-drift`'s `build_validate_command` / `run_validate_json` against
+      the module entry with default `--fix`, thresholds, JSON payload and
+      exits 0/1 (valid inputs for the recipe) versus 2 (failure).
 - [ ] Carry forward `tests/test_commands.py`, `test_cli.py`, `test_status.py`,
       `test_views.py`, `test_validate.py`, `test_usage.py`, `test_usage_report.py`,
       `test_recurring.py`, `test_compose.py`, `test_launch.py`,
@@ -250,19 +276,24 @@ wholesale extraction totals.
   In `src/coga/views.py`, only `last_updated_map` has a second production
   importer: `src/coga/megalaunch.py` uses it for the picker. Renderer test
   imports are not additional production consumers. Show and status both
-  call `_operator_cell`, so retain one implementation of that edge formatting.
+  call `_operator_cell`, so retain it as the shared core `views.operator_cell` API.
 - `src/coga/commands/validate.py`, `validate`, and
   `src/coga/validate.py`, `_main`, separately parse, invoke `run` /
   `validate_task` and serialize `ValidationReport`. Launch's preflight in
   `src/coga/launch.py` imports `assert_task_valid`; mark, bump, create,
   authoring and owner reassignment also use that gate. Shared checks cannot
-  become a ticket-only dependency.
+  become a ticket-only dependency. `dream_validate_drift.build_validate_command`
+  and `run_validate_json` also consume the module JSON/fix contract for
+  `runner.RECIPES["validate-drift"]`; this requires shared core serialization.
+  The recipe's own later publication is separate from the validator's local fix.
 - `src/coga/commands/usage.py`, `usage`, passes `load_records` to `rollup`.
   `coga/recurring/usage-report/report.py` also invokes rollup for model and
   agent groupings. Keep those real shared readers; move report formatting.
 - `src/coga/commands/recurring.py`, `list_recurring`, calls
   `src/coga/recurring.py`, `list_templates(include_available=True)` and
   `tasks.list_tasks`; only that command calls its two table helpers.
+  Status's recurring footer also calls `recurring.list_templates`; retain
+  that shared catalog API rather than moving it with list presentation.
 - `src/coga/cli.py`, `_should_sweep_coga_state`, excludes validate for all
   options, including fixes; `validate.apply_safe_fixes` repairs under
   `git.state_lock` and never publishes. `cli.main` rewrites only a first-token
@@ -273,6 +304,31 @@ wholesale extraction totals.
   `_format_prompt_report`; `cli._should_sweep_coga_state` skips its sweep.
   This is already non-sweeping, but includes ignored local skill-view writes.
 
+### Readiness review disposition — 2026-11-15
+
+The owner confirmed this revised design after independent authoring review.
+That review found the behavior implementable and the existing workflow and
+single-PR scope appropriate. Its required context cleanup and stale-wording
+fix are applied. Broader context trimming is optional; testing and checkout
+rules remain attached because they apply across the remaining workflow.
+Implementation still waits for PR #1233 to merge and verification of its
+read-only contract on main. Authoring does not advance the review-design gate.
+
+### Cited editing targets
+
+These refs are cited rather than attached because implementation edits them:
+`coga/lifecycle` at `src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md`
+(read “Triage”), `coga/usage` at the corresponding `coga/usage/SKILL.md`
+(read “The read API” and “Retained history”), `coga/cli` at the corresponding
+`coga/cli/SKILL.md` (command index and aliases), and `coga-dev/microkernel`
+at `docs/contexts/coga-dev/microkernel/SKILL.md` (microkernel rule, open
+placements and migration). Across implementation, peer review and publication,
+preserve pure local status/usage reads, exact usage filtering and shared
+rollups, positional aliases with stderr framing, and core-to-edge dependency
+direction. Settle placements only after implementation and verification.
+The symbol-based relationships above supply the relevant current facts;
+update each owner for its own contract in the same implementation PR.
+
 ### Contract owners to read and update during implementation
 
 Under `src/coga/resources/templates/coga/bootstrap/contexts/coga/`:
@@ -281,8 +337,9 @@ Under `src/coga/resources/templates/coga/bootstrap/contexts/coga/`:
 `script-tickets`, `extension-model`, `edge-code`, `state-publication` and
 `cli`. Update each owner only for the contract it owns; link rather than
 repeat dispatch specifications. `docs/contexts/coga-dev/microkernel/SKILL.md`
-owns the placement decision; `coga-dev/testing` and `coga-dev/packaging`
-own verification and package inventory. The customization sibling owns the
+owns the placement decision. `coga-dev/testing` is attached read-only
+verification guidance across implementation, peer review and publication; this
+ticket does not change its policy. `coga-dev/packaging` owns package inventory. The customization sibling owns the
 unified inspection/copy command; this ticket supplies editable report files
 and the acceptance example, not a competing customization API.
 
@@ -305,7 +362,7 @@ only unrelated marketing-ticket/log changes; preserved and byte-verified the
 design outside the repo, fast-forwarded to
 `988c8d14aa391562e1fb6b5dd3f08aeb3734c6f5`, then reapplied it unchanged.
 
-## Open Questions
+## Prior design questions — superseded by the revised body
 
 1. **Mixed validation dispatch:** current `validate --fix` requires no user,
    repairs locally and never publishes. Read-only scripts cannot repair;
@@ -331,7 +388,7 @@ These are review-design decisions, not blockers to completing this design
 step. The evaluator should test their completeness; implementation must wait
 for the selected contracts rather than silently changing semantics.
 
-## Evaluator review
+## Prior evaluator review — 2026-11-14
 
 Cold review, 2026-11-14, at main `b11ac6739aca3e828db56e99b41e1ce9c706b94f`,
 plus the read-only dispatch implementation on
@@ -461,7 +518,16 @@ wrapper with a co-versioning proof, an edge command, or alias sugar.
 
 Preserve quick read ergonomics and machine-readable output (`--json`).
 
-##### Acceptance criteria
+##### Startup cost
+
+Accept the extra interpreter startup inherent in the four script reports in
+exchange for editable behavior. Do not promise equal latency or invent a
+hard threshold. Measure baseline and migrated `show` / `status` median wall
+time using the same disposable fixture, interpreter and environment, with
+one warmup and at least ten measured runs per command. Report absolute and
+relative overhead in the implementation receipt so the owner can assess it.
+
+### Acceptance criteria
 
 - [ ] Apply the group's [reduction objective](README.md#reduction-objective):
       identify redundant command/report wrappers and duplicated rendering or
