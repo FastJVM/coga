@@ -222,6 +222,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/v1-microkernel-03-prompt-assembly-03-implement-t-3ce4ed
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
