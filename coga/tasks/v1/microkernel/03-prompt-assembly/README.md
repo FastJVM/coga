@@ -9,15 +9,15 @@ its tickets own the deliverables and their own workflows.
 | --- | --- | --- |
 | 01 | [Candidates and protocol](01-define-prompt-candidates-and-trial-protocol/ticket.md) | Complete prompt specimens and an owner-approved comparison protocol |
 | 02 | [Paired comparison](02-compare-current-and-candidate-prompt-assembly/ticket.md) | Observed results and an owner decision, including a possible negative or inconclusive result |
-| 03 | [Proven assembly implementation](03-implement-the-proven-prompt-assembly.md) | Production migration of the experimentally selected form, if replacement is justified |
+| 03 | [Assembly defect fixes](03-implement-the-proven-prompt-assembly.md) | Rescoped 2026-11-15: fix defects in the current assembly, with unit tests (no migration) |
+| 04 | [Output-quality comparison](04-compare-prompt-assembly-output-quality/ticket.md) | Owner's blinded judgment of current vs C1′: inconclusive (2026-11-15); current assembly kept |
 
-The first two tickets use `draft-for-human` so the owner reviews the protocol
-and judges the evidence. The implementation uses
-`code/design-then-implement`, retaining design review and code review.
-Numbering expresses the intended order, not an automatic scheduler gate.
-Each dependent ticket names its prerequisite evidence. In particular, the
-implementation ticket's positive-selection gate is stronger than completion
-of the experiment. These drafts are not activated by this authoring pass.
+Tickets 01, 02 and 04 use `draft-for-human` so the owner reviews the protocol
+and judges the evidence. Neither comparison produced a positive selection (02:
+C1 disqualified; 04: inconclusive), so ticket 03 was rescoped to fixing
+defects in the current assembly. It uses `code/design-then-implement`,
+retaining design review and code review. Numbering expresses the intended
+order, not an automatic scheduler gate.
 
 The experiment covers both interactive sessions and noninteractive recurring
 autofix analysis. Its implementation contract must keep deterministic ticket
