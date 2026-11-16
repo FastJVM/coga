@@ -220,3 +220,27 @@ The blackboard is a notepad to be written to often as the human and agent works 
   Charts showing explicit trade-offs: Option B: Cheapest? No. Fastest? Yes. Easiest to set up? No. Option A: Cheapest? Yes. Fastest? No. Easiest to set up? Yes. Agents can quickly answer questions posed by the user's prompt. A table helps if it answers what the agent was asked, not just because it's a table. This supports that edits achieved the best gains when the strategies suited the specific query need. **The real hurdle, in my opinion, in gaining visibility, is almost being able to guess how a user in a specific market will prompt the agent?**
 
   In-context: describes a situation: the model is given information right now, inside the conversation, and answers from that information rather than only from what it memorized in training. "In context" means "in front of it at the moment."
+
+**Important Point** GEO is a pipeline (discovery->retrieval->citation->traffic) 
+
+"In Chameleon Table 6, with one source supporting what ChatGPT already believed against two contradicting it, ChatGPT sided with the contradicting sources about 70% of the time. With equal numbers, the prior belief won. So "the majority view wins" partly means count the sources, and that actually helps your third-party argument (below)."
+
+**Agent session notes (Nov 15–16)**
+
+Findings doc: [GEO research: findings and view](https://docs.google.com/document/d/1mhyblHAhw4GSKY5dn6jAJmedTL5AbPrtfBzxiRx77Po/edit)
+
+Corrections:
+- Relevance (Wan et al.) = text that directly answers the question in its own words. On-topic text that doesn't answer it doesn't help. Win rate = which of two in-context docs the model sides with, so it measures being chosen, not discovery.
+- Assertiveness ("most reliable", "actively maintained") helped only for picking between tools (Faghih). In Wan, rewriting for confidence was neutral to negative. Don't group it with relevance.
+- References and data underneath didn't move models in either study. Evidence isn't shown to be what wins.
+- Nico's doc never says how evidence reaches the agent (search, training, codebase), and says evidence gets "a new route," not that it wins.
+
+Coding-agent sources (summaries only, check before citing numbers):
+- Twist et al. 2025, https://arxiv.org/abs/2503.17181: coding models default to established libraries (NumPy unnecessarily in up to 48% of cases). Incumbent bias from training.
+- CodeUpdateArena + ReCode, https://arxiv.org/abs/2506.20495: models ignore updated API docs even when they're in the prompt.
+- Faghih et al. 2025, https://arxiv.org/abs/2505.18135: description-only edits shift tool choice up to ~10x between identical tools.
+- Allouah et al. 2025, https://arxiv.org/abs/2508.02630: shopping agents. Query-matched description tweaks won market share.
+
+Discovery (survey): no technique proven to improve it. SAGEO: body-only rewrites cut retrieval about 9%. 53% of AI Overview–cited domains weren't in Google's organic top 10.
+
+Coga discoverability test (Nov 15): two Claude searches, one using near-README wording, never surfaced Coga. Repo is public and on PyPI (0.4.1) but has no GitHub topics and no outside mentions. Both sessions had Coga memory, so rerun clean.
