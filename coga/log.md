@@ -11211,3 +11211,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-16 12:05 v1 [v1/49-make-coga-s-built-in-commands-agent-agnostic] [human:zach] started (active → in_progress) via coga launch
 2026-11-16 12:05 v1 [v1/49-make-coga-s-built-in-commands-agent-agnostic] [human:zach] launched (operator=claude, agent=claude)
 2026-11-16 12:22 v1 [v1/microkernel/preserve-supervised-environment-in-megalaunch-wind] [human:nicktoper] created (status=draft)
+2026-11-16 12:22 v1 [v1/microkernel/normalize-signal-exits-from-read-only-launch] [human:nicktoper] created (status=draft)
