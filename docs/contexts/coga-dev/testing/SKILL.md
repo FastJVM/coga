@@ -62,13 +62,22 @@ is their hand-run counterpart: a first-time user installs on a fresh
   pinned Stage A merge, and final-state dirty/committed package edits must
   stay on the feature branch during a mutating CLI exit sweep. The historical
   transition test needs Git history containing that merge; a shallow checkout
-  reports an explicit skip and cannot supply that transition receipt. Pass
-  `--basetemp` on a roomy volume for full runs: the suite creates many
-  temporary repos and can fill a small `/tmp` tmpfs. Keep that basetemp
-  outside the checkout (for example a sibling directory of it): an in-checkout
-  basetemp lets the missing-repo tests walk up, discover the checkout's real
-  `coga.toml`, and stop testing the no-repo case (observed 2026-11-04).
-  On Windows, use a short
+  reports an explicit skip and cannot supply that transition receipt. The
+  suite creates many temporary repos and can fill a small `/tmp` tmpfs, so
+  on Linux and macOS point `TMPDIR` at a roomy volume for full runs, for
+  example `mkdir -p ~/.cache/coga-pytest && TMPDIR=~/.cache/coga-pytest
+  python -m pytest` (a missing `TMPDIR` silently falls back to `/tmp`), and
+  do not pass `--basetemp`. pytest then numbers each run's directory, removes a passing
+  run's directory under the `failed` retention policy in `pyproject.toml`,
+  and keeps at most three runs. An explicit `--basetemp` is never removed, so
+  each uniquely named one leaks its session fixtures (about 60 MB). Keep
+  the temp root outside every checkout and outside any tree swept by
+  `coga recurring --all`: an in-checkout root lets the missing-repo tests walk
+  up, discover the checkout's real `coga.toml`, and stop testing the no-repo
+  case (observed 2026-11-04), and a root beside checkouts (for example
+  `~/Code/<name>`) fills the swept tree with fixture repos that `--all` then
+  services (observed 2026-11-16). Copy anything you must keep out of the temp
+  root before the run is pruned. On Windows, use `--basetemp` with a short
   root such as `C:\ct`; nested control checks and wheel copies can otherwise
   exceed MAX_PATH. Control clones disable `core.autocrlf` to preserve pinned
   definition bytes. The Stage A check backports one explicit-LF test-fixture
