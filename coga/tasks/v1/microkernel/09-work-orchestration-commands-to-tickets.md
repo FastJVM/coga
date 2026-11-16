@@ -1,17 +1,56 @@
 ---
 title: Move work orchestration commands to tickets
-status: draft
+status: in_progress
 owner: nicktoper
 agent: codex
 contexts:
-  - coga-dev/microkernel/objectives
-  - coga-dev/principles
-  - coga-dev/testing
-  - coga-dev/project-stage
-  - coga/script-tickets
-  - coga/state-publication
-  - coga/state-publication/launch-boundaries
-workflow: code/design-then-implement
+- coga-dev/microkernel/objectives
+- coga-dev/principles
+- coga-dev/testing
+- coga-dev/project-stage
+- coga/script-tickets
+- coga/state-publication
+- coga/state-publication/launch-boundaries
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+    checkout: control
+  - name: evaluate-design
+    skills:
+    - code/review-design
+    assignee: other-agent
+    checkout: control
+  - name: review-design
+    skills: []
+    assignee: owner
+    checkout: control
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+    checkout: create-or-reuse
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+    checkout: reuse-required
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+    checkout: control
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+    checkout: reuse-required
+step: 1 (design)
 ---
 
 ## Description
