@@ -93,7 +93,7 @@ authority to it. Megalaunch mints the same pair. Both also pin
 override included), so `bump` and `mark done` from that session credit
 `agent:<who ran>` rather than the step's routed operator. Known gap
 (unresolved, no follow-up ticket): `coga slack` does not read it.
-`commands/slack.py` builds its actor from `current_operator`, the routed or
+`coga_edge/slack.py` builds its actor from `current_operator`, the routed or
 default agent, so under an override (seen with `coga dream --agent codex`,
 2026-09-24) it logs `[agent:claude]` and posts "claude on <slug>"; an
 agent-run `coga create` in the same runs logged `[human:<user>]`, because its
@@ -216,9 +216,10 @@ immediately before spawn. They compare it with post-session state through
 `repl_supervisor.unsignalled_advance_warning` to print the
 [advisory](#unsignalled-advance-advisory) below. After a Coga teardown the
 terminal's input modes are reset. A stateless bootstrap target has no
-lifecycle: its final `coga slack --task bootstrap/<name>` FYI is the
-completion signal, attributed to its explicit agent or the configured
-default; an invalid explicit agent refuses that FYI before posting.
+lifecycle: `coga mark done bootstrap/<name>` is its completion signal,
+attributed to its explicit agent or the configured default; an invalid
+explicit agent refuses before any audit line. Its roll-up `coga slack` FYI
+is not terminal.
 
 ### Windows supervisor
 

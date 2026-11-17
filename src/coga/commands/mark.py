@@ -166,7 +166,14 @@ def done(
         "won't reach the control branch (the code will stay stranded).",
     ),
 ) -> None:
-    """Set status to `done`. Allowed from `active` or `in_progress`."""
+    """Set status to `done`. Allowed from `active` or `in_progress`.
+
+    For a stateless `bootstrap/<name>` command ticket, end that command's
+    supervised session instead: no ticket changes, only an audit line.
+    """
+    if task.startswith(_BOOTSTRAP_PREFIX):
+        _finish_stateless_command(task, message=message, force=force)
+        return
     cfg, ref, ticket, prepared = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
@@ -270,6 +277,71 @@ def canceled(
 
     # Cancellation is terminal and can happen from inside a launched agent
     # session. Release the same supervisor sentinel as `mark done` / `block`.
+    emit_done_marker(session_id=ref.id_slug)
+
+
+# --- stateless command completion ----------------------------------------------
+
+_BOOTSTRAP_PREFIX = "bootstrap/"
+STATELESS_DONE_LOG = "done (stateless command)"
+
+
+def _finish_stateless_command(task: str, *, message: str | None, force: bool) -> None:
+    """End a stateless agent-backed command's session after its audit line lands.
+
+    A bootstrap target has no ticket, workflow or status to change, so this is
+    only the completion boundary `bump`/`block` give ordinary tickets. The
+    marker is requested only once the audit line is confirmed on control (or
+    appended locally with Git disabled); a publication miss keeps the line,
+    exits 75, and leaves the session to its idle/max-session backstops.
+    """
+    from coga.bump import OperatorResolutionError, resolve_main_agent
+    from coga.logfile import append_log
+    from coga.paths import log_path
+    from coga.tasks import BootstrapRef, resolve_target
+
+    if message is not None or force:
+        _bail(
+            "mark done on a bootstrap/<name> command takes no --message or "
+            "--force; post any roll-up with `coga slack` first."
+        )
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        _bail(str(exc))
+    try:
+        ref = resolve_target(cfg, task)
+    except TaskNotFoundError as exc:
+        _bail(str(exc))
+    assert isinstance(ref, BootstrapRef)
+    ticket = read_ticket(ref)
+    # Lifecycle exception (owner decision): the command ticket's configured
+    # agent is credited, as `coga slack` credits it, since a stateless command
+    # has no supervised task identity to verify.
+    try:
+        operator = resolve_main_agent(
+            cfg,
+            ticket.agent,
+            task_label=ref.id_slug,
+            allow_prospective_default="agent" not in ticket.frontmatter,
+        )
+    except OperatorResolutionError as exc:
+        _bail(str(exc))
+    actor = f"agent:{operator}" if operator else f"human:{cfg.current_user}"
+
+    append_log(cfg, ref.id_slug, actor, STATELESS_DONE_LOG)
+    if cfg.git_enabled:
+        published = git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+        if published is None:
+            git.state_sweep_withheld.set(True)
+            _bail(
+                f"{ref.id_slug}: completion not signalled — its audit line is "
+                "not confirmed on control and was kept locally. Publish it "
+                f"with `coga run publish-state {log_path(cfg)}`; the session "
+                "ends through its idle backstop.",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
+    typer.echo(f"{ref.id_slug}: done")
     emit_done_marker(session_id=ref.id_slug)
 
 

@@ -25,7 +25,9 @@ the other sync layer (`coga/sync`).
   when. Commits that reach `main` without a Done ticket are never announced;
   `git log` and GitHub are the record.
 
-The event-by-event inventory is `coga/notifications/producers`.
+The event-by-event inventory is `coga/notifications/producers`. The explicit
+FYI, `coga slack`, is the editable `bootstrap/slack` script ticket; it never
+ends a session, even for a stateless `bootstrap/<name>` target.
 
 ## Configuration
 

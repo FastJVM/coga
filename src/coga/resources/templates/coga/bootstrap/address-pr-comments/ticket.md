@@ -21,9 +21,9 @@ open PR. The optional selector arrives in the composed prompt's
 `## Launch arguments` JSON array.
 
 This target is stateless: do not create a task per run, edit this ticket, write
-results to any ticket blackboard, or run `coga bump` / `coga mark`. Print the
-per-PR report, post its roll-up through `coga slack`, then exit the agent
-session.
+results to any ticket blackboard, or run `coga bump`. Print the per-PR report,
+post its roll-up through `coga slack`, then end the session with
+`coga mark done bootstrap/address-pr-comments`.
 
 ### Mechanics: reuse the skill, not its attended conduct
 
@@ -57,12 +57,11 @@ the remaining contradictions in favour of this ticket:
   needs a human answer gets one reply saying so (step 5) and is reported as
   `needs-human`. `coga block` is not available either: this target is
   stateless and has no ticket to park.
-- Opposite to the skill, `coga slack --task bootstrap/address-pr-comments`
-  **is** the completion signal. It emits the bootstrap done sentinel (the
-  `BootstrapRef` branch of `commands/slack.py`) that completes a delegated
-  recurring period. The skill's "do not use `coga slack` as a completion
-  signal" rule is about an ordinary ticket on its `review` step, not this
-  command ticket.
+- Opposite to the skill, this command ticket **does** end with
+  `coga mark done bootstrap/address-pr-comments`, which completes a delegated
+  recurring period. The skill's "do not run `coga mark done`" rule is about an
+  ordinary ticket on its `review` step, not this command ticket. `coga slack`
+  stays a non-terminal FYI here too.
 
 ### Scope and accepted limitation
 
@@ -266,12 +265,17 @@ A PR with mixed item outcomes gets one line under the precedence
 per-outcome counts in `<detail>` (for example `2 addressed, 1 needs-human`).
 
 After all PRs, post one compact count roll-up (and the PR numbers needing human
-attention) with the command below. This must be the final action: a successful
-bootstrap-target FYI also signals the stateless launch supervisor that the
-command is complete.
+attention) with the first command below, then run the second as the final
+action. The FYI is not a completion signal; `coga mark done` on this
+stateless target is what tells the launch supervisor the command is complete.
 
 `coga slack --task bootstrap/address-pr-comments --message "<one-line roll-up>"`
 
-A Slack failure is a command failure and must be surfaced. The Slack line is
+`coga mark done bootstrap/address-pr-comments`
+
+A Slack failure is a command failure and must be surfaced: state it in your
+final report, then still run `coga mark done` so the session ends promptly.
+If `mark done` exits 75, report its retained log line; the session then ends
+through its idle backstop. The Slack line is
 the only cross-run record: do not persist the per-PR lines or roll-up in this
 command ticket or in any other task file.

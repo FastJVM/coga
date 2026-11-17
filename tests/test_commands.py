@@ -1465,15 +1465,24 @@ def test_delete_reports_a_filesystem_failure_as_delete_task_error(
     assert "could not delete" in result.output
 
 
-# --- slack --------------------------------------------------------------------
+# --- slack (edge FYI, `coga_edge.slack`) ---------------------------------------
+#
+# Direct tests of the wheel-owned FYI implementation. The alias path
+# (`coga slack` → `launch bootstrap/slack --` → `ticket.py`) runs a fresh
+# interpreter, so it is exercised end to end in `tests/test_launch_script.py`.
 
 
-def test_slack_logs(repo: Path) -> None:
+def _slack(*argv: str) -> int:
+    from coga_edge.slack import main as slack_main
+
+    return slack_main(list(argv))
+
+
+def test_slack_logs(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
     slug, task_path = _make_task(repo)
-    runner = CliRunner()
-    result = runner.invoke(app, ["slack", "--task", slug, "--message", "opened PR #142"])
-    assert result.exit_code == 0
+    assert _slack("--task", slug, "--message", "opened PR #142") == 0
     assert "slack: opened PR #142" in _log_text(repo, slug)
+    assert capsys.readouterr().out.strip().endswith("posted")
 
 
 def test_slack_on_durable_task_does_not_complete_session(
@@ -1483,36 +1492,42 @@ def test_slack_on_durable_task_does_not_complete_session(
     sentinel = repo / "task-session.done"
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
 
-    result = CliRunner().invoke(
-        app, ["slack", "--task", slug, "--message", "still working"]
-    )
-
-    assert result.exit_code == 0, result.output
+    assert _slack("--task", slug, "--message", "still working") == 0
     assert not sentinel.exists()
 
 
-def test_slack_accepts_and_completes_stateless_bootstrap_target(
+def test_slack_on_stateless_bootstrap_target_posts_without_completing(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A command ticket's final roll-up releases its stateless supervisor."""
+    """An FYI is never a completion signal: that is `mark done bootstrap/<name>`."""
     sentinel = repo / "bootstrap-command.done"
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
-    result = CliRunner().invoke(
-        app,
-        [
-            "slack",
-            "--task",
-            "bootstrap/resolve-conflicts",
-            "--message",
-            "2 rebased-pushed; 1 conflict",
-        ],
+
+    code = _slack(
+        "--task", "bootstrap/resolve-conflicts",
+        "--message", "2 rebased-pushed; 1 conflict",
     )
 
-    assert result.exit_code == 0, result.output
+    assert code == 0
     assert "slack: 2 rebased-pushed; 1 conflict" in _log_text(
         repo, "bootstrap/resolve-conflicts"
     )
-    assert sentinel.read_text(encoding="utf-8") == "bootstrap/resolve-conflicts\n"
+    assert not sentinel.exists()
+
+
+def test_slack_edge_never_imports_the_supervisor() -> None:
+    import ast
+    import coga_edge.slack as edge
+
+    tree = ast.parse(Path(edge.__file__).read_text(encoding="utf-8"))
+    imported = {
+        node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+    } | {
+        alias.name
+        for node in ast.walk(tree) if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    assert "coga.repl_supervisor" not in imported
 
 
 def test_slack_important_forwards_to_notification_post(
@@ -1524,24 +1539,78 @@ def test_slack_important_forwards_to_notification_post(
     def fake_post(cfg, message, **kwargs):  # type: ignore[no-untyped-def]
         calls.append({"message": message, **kwargs})
 
-    monkeypatch.setattr("coga.commands.slack.post", fake_post)
+    monkeypatch.setattr("coga_edge.slack.post", fake_post)
 
-    result = CliRunner().invoke(
-        app,
-        ["slack", "--task", slug, "--message", "fee window closes", "--important"],
-    )
-
-    assert result.exit_code == 0, result.output
+    assert _slack("--task", slug, "--message", "fee window closes", "--important") == 0
     assert len(calls) == 1
     assert calls[0]["important"] is True
     assert "fee window closes" in calls[0]["message"]
+
+
+def test_slack_delivery_miss_exits_1_without_audit_line(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import typer
+
+    slug, _ = _make_task(repo)
+
+    def failed_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise typer.Exit(1)
+
+    monkeypatch.setattr("coga_edge.slack.post", failed_post)
+
+    assert _slack("--task", slug, "--message", "hello") == 1
+    assert "slack: hello" not in _log_text(repo, slug)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--task", "x", "--message", "  "],
+        ["--task", "no-such-task", "--message", "hi"],
+        ["--message", "hi"],
+    ],
+)
+def test_slack_refusals_exit_2(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    monkeypatch.setattr(
+        "coga_edge.slack.post",
+        lambda *a, **k: pytest.fail("refused FYI reached notification"),
+    )
+    assert _slack(*argv) == 2
+
+
+def test_slack_config_error_exits_2(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, _ = _make_task(repo)
+    (repo / "coga.toml").write_text("version = 1\n[notification]\nbogus = 1\n",
+                                    encoding="utf-8", newline="\n")
+    assert _slack("--task", slug, "--message", "hi") == 2
+    assert "bogus" in capsys.readouterr().err
+
+
+def test_slack_help_marker_refuses_before_any_effect(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coga slack --message --help`: `--message` consumed `--help` as its value."""
+    slug, _ = _make_task(repo)
+    monkeypatch.setenv("COGA_SCRIPT_HELP", "1")
+    monkeypatch.setattr(
+        "coga_edge.slack.post",
+        lambda *a, **k: pytest.fail("help request posted"),
+    )
+
+    assert _slack("--task", slug, "--message", "--help") == 2
+    assert "slack:" not in _log_text(repo, slug)
 
 
 @pytest.mark.parametrize(
     ("agent_field", "expected_agent"),
     [("", "claude"), ("agent: codex\n", "codex")],
 )
-def test_bootstrap_slack_completion_attributes_configured_agent(
+def test_bootstrap_slack_attributes_configured_agent(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     agent_field: str,
@@ -1560,45 +1629,37 @@ def test_bootstrap_slack_completion_attributes_configured_agent(
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
     posts: list[str] = []
     monkeypatch.setattr(
-        "coga.commands.slack.post",
+        "coga_edge.slack.post",
         lambda cfg, message, **kwargs: posts.append(message),
     )
 
-    result = CliRunner().invoke(
-        app, ["slack", "--task", "bootstrap/completion-check", "--message", "finished"]
-    )
+    assert _slack("--task", "bootstrap/completion-check", "--message", "finished") == 0
 
-    assert result.exit_code == 0, result.output
     assert len(posts) == 1
     assert f"{expected_agent} on *bootstrap/completion-check*" in posts[0]
     assert f"[agent:{expected_agent}] slack: finished" in _log_text(
         repo, "bootstrap/completion-check"
     )
-    assert sentinel.read_text(encoding="utf-8") == "bootstrap/completion-check\n"
+    assert not sentinel.exists()
     assert ticket_path.read_bytes() == before
 
 
 @pytest.mark.parametrize("agent_field", ["agent: null", 'agent: ""', "agent: removed"])
-def test_bootstrap_slack_refuses_invalid_agent_without_completing(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, agent_field: str
+def test_bootstrap_slack_refuses_invalid_agent(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, agent_field: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     ticket_path = repo / "bootstrap" / "completion-check" / "ticket.md"
     _write(ticket_path, f"---\ntitle: Completion check\n{agent_field}\n---\n\nDone.\n")
     before = ticket_path.read_bytes()
-    sentinel = repo / "bootstrap-command.done"
-    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
     monkeypatch.setattr(
-        "coga.commands.slack.post",
+        "coga_edge.slack.post",
         lambda *args, **kwargs: pytest.fail("invalid agent reached notification"),
     )
 
-    result = CliRunner().invoke(
-        app, ["slack", "--task", "bootstrap/completion-check", "--message", "finished"]
-    )
+    assert _slack("--task", "bootstrap/completion-check", "--message", "finished") == 2
 
-    assert result.exit_code == 2, result.output
-    assert "agent" in result.output
-    assert not sentinel.exists()
+    assert "agent" in capsys.readouterr().err
     assert _log_text(repo, "bootstrap/completion-check") == ""
     assert ticket_path.read_bytes() == before
 

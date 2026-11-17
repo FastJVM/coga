@@ -135,6 +135,12 @@ reviewed PR.
 
 ### Every log line has a publisher
 
+A stateless command completion (`coga mark done bootstrap/<name>`) publishes
+its one audit line with an explicit log sync and requests the done marker only
+after that line is confirmed on control. A miss keeps the line, withholds the
+sweep, and exits 75 with the strict recipe for the log; recovery never
+signals completion ([coga/cli](../cli/SKILL.md#stateless-command-completion)).
+
 Each `coga/log.md` write is published before its command exits, by the
 lifecycle sync, an explicit log sync, or the end-of-command sweep, or else its
 command reports it. Failure records (`sync failed`, `sync refused`, `refresh

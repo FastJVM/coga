@@ -66,6 +66,8 @@ src/coga/resources/templates/coga/bootstrap/orient/ticket.md
 src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md
 src/coga/resources/templates/coga/bootstrap/retire/ticket.md
 src/coga/resources/templates/coga/bootstrap/retire/ticket.py
+src/coga/resources/templates/coga/bootstrap/slack/ticket.md
+src/coga/resources/templates/coga/bootstrap/slack/ticket.py
 src/coga/resources/templates/coga/bootstrap/skills/bootstrap/delete-task/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/contract-audit/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/knowledge-scan/SKILL.md

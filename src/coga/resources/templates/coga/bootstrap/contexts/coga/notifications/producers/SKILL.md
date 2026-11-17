@@ -14,7 +14,7 @@ when a post fails, are defined in [`coga/notifications`](../SKILL.md).
 | --- | --- |
 | `coga block` blocker, owner named | flow |
 | Blocker reminder | flow |
-| `coga slack` FYI | flow; important with `--important` |
+| `coga slack` FYI (the editable `bootstrap/slack` script; never a completion signal) | flow; important with `--important` |
 | `coga bump --message` FYI | flow |
 | `coga launch` of an `active` ticket (→ `in_progress`), once per task | flow |
 | Recurring `ticket.py` exits non-zero | important |
@@ -56,7 +56,8 @@ branch-sweep template (it writes a `## Branch Sweep` blackboard report, or
 stdout without a task); the skill-update template (its PR is the
 notification); and the `resolve-conflicts` and `address-pr-comments`
 templates, whose own period tasks emit nothing while their bootstrap
-delegates post one roll-up through `coga slack`.
+delegates post one roll-up through `coga slack` and then end with the silent
+`coga mark done bootstrap/<name>` ([coga/cli](../../cli/SKILL.md#stateless-command-completion)).
 
 The [blocker-reminders template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md) owns reminder eligibility,
 recovery guidance and its one-attempt watermark.

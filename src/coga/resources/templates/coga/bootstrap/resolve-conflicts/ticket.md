@@ -18,9 +18,9 @@ PR. The optional selector arrives in the composed prompt's
 `## Launch arguments` JSON array.
 
 This target is stateless: do not create a task per run, edit this ticket, write
-results to any ticket blackboard, or run `coga bump` / `coga mark`. Print the
-per-PR report, post its roll-up through `coga slack`, then exit the agent
-session.
+results to any ticket blackboard, or run `coga bump`. Print the per-PR report,
+post its roll-up through `coga slack`, then end the session with
+`coga mark done bootstrap/resolve-conflicts`.
 
 ### Scope and accepted limitation
 
@@ -137,11 +137,16 @@ Use these status tokens exactly:
 - `skipped-human-review`
 
 After all PRs, post one compact count roll-up (and the PR numbers needing human
-attention) with the command below. This must be the final action: a successful
-bootstrap-target FYI also signals the stateless launch supervisor that the
-command is complete.
+attention) with the first command below, then run the second as the final
+action. The FYI is not a completion signal; `coga mark done` on this
+stateless target is what tells the launch supervisor the command is complete.
 
 `coga slack --task bootstrap/resolve-conflicts --message "<one-line roll-up>"`
 
-A Slack failure is a command failure and must be surfaced. Do not persist the
+`coga mark done bootstrap/resolve-conflicts`
+
+A Slack failure is a command failure and must be surfaced: state it in your
+final report, then still run `coga mark done` so the session ends promptly.
+If `mark done` exits 75, report its retained log line; the session then ends
+through its idle backstop. Do not persist the
 per-PR lines or roll-up in this command ticket or in any other task file.

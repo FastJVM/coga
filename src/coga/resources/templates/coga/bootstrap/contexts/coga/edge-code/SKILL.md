@@ -90,3 +90,13 @@ override rejoins packaged definitions and wheel updates. Restoring the stock
 shim beside a local ticket also selects the installed implementation again.
 The discover/copy command is being delivered separately; this manual full-copy
 route exposes the same complete implementation in the meantime.
+
+## Forking the slack command
+
+`coga slack` uses the same full-copy route: copy `bootstrap/slack/ticket.md`
+to `coga/bootstrap/slack/ticket.md` and the `coga_edge.slack` module file (not
+the shim) to `coga/bootstrap/slack/ticket.py`, then edit operands, message
+format or route selection there. The fork must keep the help-marker refusal
+([coga/script-tickets](../script-tickets/SKILL.md#stateless-command-help-and-interrupts)).
+A forked FYI cannot complete a session: script isolation clears the done
+sentinel, and stateless completion stays `coga mark done bootstrap/<name>`.

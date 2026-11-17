@@ -21,10 +21,11 @@ unavailable.
 - Finish an ordinary workflow step with `coga bump`, `coga mark done`, or
   `coga block`. An authorized `coga mark canceled` transition also releases the
   queue; use it only when intentional abandonment is the task decision.
-- A stateless `bootstrap/<name>` command ticket has no task lifecycle to bump,
-  mark, or block. Follow its declared final completion action instead; a
-  successful `coga slack --task bootstrap/<name> ...` posts its roll-up and
-  releases that stateless session. If the command cannot proceed, include the
-  failure in that final report rather than trying to block a nonexistent task.
+- A stateless `bootstrap/<name>` command ticket has no task lifecycle to bump
+  or block. Follow its declared final completion action instead:
+  `coga mark done bootstrap/<name>` releases that stateless session, while
+  `coga slack` is only a non-terminal FYI. If the command cannot proceed,
+  include the failure in your final report rather than trying to block a
+  nonexistent task, then still run that completion.
   A normal final response or an agent CLI `task_complete` event still does not
   signal Coga and does not release the queue.

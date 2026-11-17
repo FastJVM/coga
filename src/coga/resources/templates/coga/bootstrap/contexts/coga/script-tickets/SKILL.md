@@ -127,6 +127,12 @@ uses the derived agent only when `COGA_EXPECTED_TASK` matches. Otherwise the
 local human is credited. Ticket metadata and configured agents never prove an
 agent ran. A later agent spawn clears the marker.
 
+A script child cannot end an outer agent session: it has no done sentinel or
+expected identity. A stateless agent-backed command ends its own session from
+the agent with `coga mark done bootstrap/<name>`
+([coga/cli](../cli/SKILL.md#stateless-command-completion)); the `bootstrap/slack`
+FYI script never completes anything.
+
 ## `COGA_TASK_*` contract
 
 The namespace is exactly `COGA_TASK_SLUG`,

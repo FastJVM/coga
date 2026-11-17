@@ -128,7 +128,9 @@ the step advanced, and the next operator is an agent (`agent` and
 `other-agent` rotate CLIs). It stops at owner handoffs, terminal, paused, or
 blocked status, a workflow-less ticket, no progress, an unresolvable
 operator, a missing CLI, a deleted task directory, a timeout, or a non-zero
-exit. A bootstrap target never chains. Sessions not run under a live
+exit. A bootstrap target never chains; an agent-backed one ends its session
+with `coga mark done bootstrap/<name>`
+([coga/cli](../cli/SKILL.md#stateless-command-completion)). Sessions not run under a live
 `coga launch` do not chain: after `coga bump`, stop and relaunch. Every exit
 path of an exempt launch refreshes a control checkout from control; a
 prepared launch returns its checkout instead.
