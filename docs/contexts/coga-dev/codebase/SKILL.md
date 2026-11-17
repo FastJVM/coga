@@ -43,6 +43,10 @@ The repo separates implementation from the OS it operates:
   (`coga-dev/internals/git-regressions`).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
+  It also owns the shared `## Recipe Failure` floor (`run_reported`, with an
+  optional root resolver) and the edge entry sequence `run_entry`
+  (report → publish → bump). `state_sweep.py` is the end-of-invocation sweep
+  mechanism shared by `cli._sweep_coga_state` and `run_entry`.
 - `oscompat.py`: per-user lock paths and descriptor locks for publication
   and chat, and owned process trees for both recurring runners and the
   Windows agent supervisor. POSIX uses flock/process groups; Windows uses
