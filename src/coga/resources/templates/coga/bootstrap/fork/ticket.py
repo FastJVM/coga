@@ -536,13 +536,21 @@ def task_record(cfg: Config, slug: str) -> Record:
             {k: s.get(k) for k in ("name", "skills", "checkout", "assignee", "requires")}
             for s in frozen.get("steps") or [] if isinstance(s, dict)
         ]
+        inline_steps = []
         for step in record.details["frozen steps"]:
-            record.references += [f"skill:{s}" for s in _ref_list(step["skills"])]
+            skills = _ref_list(step["skills"])
+            record.references.extend(f"skill:{skill}" for skill in skills)
+            if not skills:
+                inline_steps.append(str(step["name"]))
         name = frozen.get("name")
-        if isinstance(name, str):
+        if isinstance(name, str) and name:
+            if inline_steps:
+                record.references.append(f"workflow:{name}")
+                usage = f"supplies inline instructions for: {', '.join(inline_steps)}"
+            else:
+                usage = "all frozen steps use skills"
             record.details["live workflow file"] = (
-                f"{resolve_workflow_path(cfg, name)} "
-                "(not used by this ticket's frozen snapshot)"
+                f"{resolve_workflow_path(cfg, name)} ({usage})"
             )
     elif isinstance(frozen, str):
         record.details["draft workflow"] = frozen

@@ -74,8 +74,9 @@ with the cause named.
 
 `task:<slug>` separates what the ticket froze (workflow name and steps with
 `checkout:`/`assignee:`/`requires:`) from what resolves live at launch (step
-skills, ticket skills and contexts, sibling `ticket.py`). The live workflow
-file is reported as not used by the frozen snapshot.
+skills, ticket skills and contexts, sibling `ticket.py`). When any frozen
+step has no skills, the report includes the live workflow as a dependency
+and names the steps that read inline instructions from it.
 
 Exit 0 when nothing reported is broken; 1 for an unknown target or any broken
 definition (the report still prints); 2 for usage errors. Text goes to stdout,

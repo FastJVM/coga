@@ -311,7 +311,9 @@ def test_task_separates_frozen_snapshot_from_live_resolution(repo: Path, capsys)
     task = payload["records"][0]
     assert task["kind"] == "task"
     assert "frozen workflow" in task["details"]
-    assert "(not used by this ticket's frozen snapshot)" in task["details"]["live workflow file"]
+    assert "supplies inline instructions for: execute" in task["details"]["live workflow file"]
+    assert "workflow:deterministic/check" in task["references"]
+    assert _record(payload, "workflow:deterministic/check")["origin"] == "local"
     assert task["script"]["kind"] == "full script"
     code, payload = _inspect_json(capsys, "task:declined-dream-finding")
     task = payload["records"][0]
