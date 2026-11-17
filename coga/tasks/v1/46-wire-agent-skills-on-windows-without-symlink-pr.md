@@ -1,7 +1,7 @@
 ---
 title: Wire agent skills on Windows without symlink privilege
 status: in_progress
-owner: zach
+owner: nicktoper
 workflow:
   name: code/design-then-implement
   steps:
@@ -47,7 +47,7 @@ Two code paths fail the same way:
 - `coga init`: `_link_skills_for_agents` (`src/coga/commands/init.py`) catches the `symlink_to` OSError and adds the link to `blocked`. That is then reported as "`.claude\skills\coga` exists but isn't a directory. Remove or convert it so skill wiring can complete." Nothing exists there: `mkdir` succeeded, and only the symlink failed. The same happens for `.codex\skills\coga`.
 - `coga launch`: the skill view in `src/coga/agent_skills.py` adds every failed `symlink_to` to `skipped`. Launch then prints "Warning: skipped 31 agent skill link(s): …" with no cause and no remedy.
 
-Done means that on a non-elevated, non-Developer-Mode Windows 11 account, init and launch wire the skills so the agent can discover them. One direction is a directory junction, which needs no privilege, or a copied view on Windows. When linking does fail, the message names the real cause and the fix, distinct from the genuine "a file is in the way" case. This is platform-sensitive, so per coga-dev/testing it needs a native Windows receipt. The attended VM route (snapshot `bare + tools` of `coga-win11-walk`) reproduces it.
+Done means that on a non-elevated, non-Developer-Mode Windows 11 account, init and launch wire the skills so the agent can discover them. 
 
 ## Context
 

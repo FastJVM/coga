@@ -52,7 +52,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 5 (peer-review)
+step: 7 (review)
 ---
 
 ## Description
@@ -350,6 +350,7 @@ and the acceptance example, not a competing customization API.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1240
 branch: coga/v1-microkernel-06-read-report-commands-as-ticket-a9e2cd
 
 
@@ -696,19 +697,73 @@ No coga.toml or coga.local.toml edits. All code, docs and tests are committed;
 startup overhead and release-only native verification are disclosed above.
 
 
+## Peer review
+
+2026-11-16, Claude (Opus 5.5) peer-review session. The `/code-review` skill
+(default effort) **returned** against `main...HEAD` after rebasing onto
+`3d589e7d434dce7e758afa262ad5b8f1e5fb9a65` (main moved only by ticket/log commits). It covered the whole branch,
+including stacked PR #1233. Independent of implementation (Codex authored it).
+The review covered head `c43fd777d591ff84944fdb24325d786eba000545`. The fixes
+below are small and were re-verified by the full suite at final head `de22be4715a86bc8025f9170caaae151079cada3`,
+but no second review ran on that head.
+
+Findings and dispositions:
+1. Confirmed: report `--help` (`status`/`show`/`usage`/`recurring list`)
+   exits 2 with "No coga.toml found" outside a repo or with a broken config;
+   it used to print help. The attending owner chose **accept and document**
+   over a package-only fallback. Documented in `coga/launch` "Read-only
+   command dispatch".
+3–4. Fixed: validation caught every `ValueError` as an exit-2 option refusal,
+   and the module entry split the message on `;`. A dedicated
+   `ValidationOptionError` now carries the long and short refusals. Tests
+   cover both probe refusals and confirm internal ValueErrors are not masked.
+5. Fixed: the `recurring list` adapter now passes its exits through
+   `process_exit_status`, like `coga launch`.
+Belong to stacked PR #1233 code, not this ticket; left for that PR/owner:
+(2) megalaunch Windows `agent_command_refusal` now runs against the plain
+launch env instead of the supervised step env; (6) the read-only path returns
+a negative code when the child is killed by a signal (-2 → shell 254, not 130);
+(7) `launch(read_only=True)` sets `state_sweep_withheld` without resetting it,
+which the recurring adapter compensates for; (9) a dead `agent` lookup in
+megalaunch preflight; (10) attended launch composes the prompt twice.
+(8) Ad-hoc `TOMLDecodeError` handling predates this branch.
+
+No terminal-only surface beyond CLI output, which the differential matrix and
+spot checks covered.
+
+
+
+## Publication obligations — 2026-11-16
+
+The attending owner explicitly approved deferring the five remaining PR #1233
+review findings to follow-up drafts and publishing this report PR with those
+findings disclosed. The independent review returned; no review remains in flight.
+These findings are not discharged by merging this ticket:
+
+- Finding 2: [Windows supervised environment](preserve-supervised-environment-in-megalaunch-wind.md).
+- Finding 6: [Read-only signal exit normalization](normalize-signal-exits-from-read-only-launch.md).
+- Finding 7: [Read-only API sweep policy restoration](restore-sweep-policy-after-read-only-launch-api-ca.md).
+- Finding 9: [Dead megalaunch agent lookup](remove-dead-megalaunch-agent-lookup.md).
+- Finding 10: [Duplicate attended prompt composition](avoid-duplicate-attended-launch-prompt-composition.md).
+
+Native Windows/macOS and Python 3.11 floor verification remain release-owned
+checks under coga-dev/testing, not unfinished implementation obligations.
+PR #1233 remains open and must merge before or with this stacked branch.
+
+
 ## PR
 
 ```yaml
 title: "Move read reports into editable command tickets"
 author: codex
 author_evidence: "This implementation session ran as Codex; identity comes from the session, not ticket assignment."
-head: 932888b381582ff39ad234052ae6f113fa0ebb9e
-base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+head: de22be4715a86bc8025f9170caaae151079cada3
+base: 3d589e7d434dce7e758afa262ad5b8f1e5fb9a65
 depth: deep
-rationale: "Significant ownership/dispatch change stacked on an open dependency; independent review is the next workflow step."
+rationale: "Significant ownership/dispatch change stacked on an open dependency; independent review returned with fixes applied, and residual #1233 findings need the owner."
 implementation: "Four complete editable script reports, three read-only aliases, a recurring-list adapter and shared validation execution/rendering; contracts and packaging updated."
 deviations: "Owner authorized stacking PR #1233 before merge; the dependency is included in this branch."
-limitations: "Windows/macOS and Python 3.11 floor suite deferred to release. Startup adds an interpreter. PR #1233 must land before or with this branch."
+limitations: "Windows/macOS and Python 3.11 floor suite deferred to release. Startup adds an interpreter. Report --help now needs a valid repo config (owner-accepted, documented). PR #1233 must land before or with this branch; the owner explicitly deferred its five residual review findings to linked drafts under Publication obligations (2026-11-16)."
 files:
   "docs/contexts/coga-dev/codebase/SKILL.md": "Stacked PR #1233 read-only executor dependency."
   "docs/contexts/coga-dev/internals/agent-spawn/SKILL.md": "Stacked PR #1233 read-only executor dependency."
@@ -772,29 +827,36 @@ files:
   "tests/test_validate.py": "Verify moved reports, shared validation or resource ownership."
   "tests/test_views.py": "Verify moved reports, shared validation or resource ownership."
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: "Independent code review belongs to the next peer-review step; design approval is not code review."
+  reviewer: claude
+  kind: independent
+  status: passed
+  head: c43fd777d591ff84944fdb24325d786eba000545
+  base: 3d589e7d434dce7e758afa262ad5b8f1e5fb9a65
+  detail: "/code-review (default effort) by Claude Opus 5.5 returned 10 findings across the branch including stacked #1233. Fixed validation error narrowing and recurring-list exit normalization; help-outside-repo regression accepted and documented by owner; #1233-owned findings recorded in Peer review. The fix commits after the reviewed head were not re-reviewed; the full suite covers the final head. The owner explicitly deferred the five residual #1233 findings to linked follow-up drafts on 2026-11-16; passed records completion with those accepted deferrals, not a finding-free review."
 checks:
-  - command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga06-pytest-portable-final -q"
+  - command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga06-pytest-peer2 -q -p no:cacheprovider"
     status: passed
-    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
-    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
-    detail: "4944 passed, 33 skipped in 1037.66s (17m17s); Pop!_OS 24.04 LTS, Python 3.12.12. The tested implementation/test/doc tree equals this commit. Windows/macOS and Python 3.11 floor suite deferred to release."
+    head: de22be4715a86bc8025f9170caaae151079cada3
+    base: 3d589e7d434dce7e758afa262ad5b8f1e5fb9a65
+    detail: "4947 passed, 33 skipped in 1111.74s (18m31s); Pop!_OS 24.04 LTS, Python 3.12.12. Windows/macOS and Python 3.11 floor suite deferred to release. Implementation-session receipts (4944/33 at 932888b38, differential matrix 116/116, timing) are historical."
   - command: "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/06-read-report-commands-as-ticket-workflows --json"
     status: passed
-    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
-    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+    head: de22be4715a86bc8025f9170caaae151079cada3
+    base: 3d589e7d434dce7e758afa262ad5b8f1e5fb9a65
     detail: "1 task checked, no fixes or issues; Pop!_OS 24.04 LTS, Python 3.12.12."
-  - command: "env -u SLACK_WEBHOOK_URL TERM=dumb PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json (from tests/fixtures/seeded-repo/coga)"
+  - command: "git diff --check origin/main...HEAD"
     status: passed
-    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
-    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
-    detail: "5 tasks checked, no fixes or issues; Pop!_OS 24.04 LTS, Python 3.12.12."
-  - command: "git diff --check"
-    status: passed
-    head: 932888b381582ff39ad234052ae6f113fa0ebb9e
-    base: a8d0e9f8cc5b97ff68f60962826cd5a3448113f9
+    head: de22be4715a86bc8025f9170caaae151079cada3
+    base: 3d589e7d434dce7e758afa262ad5b8f1e5fb9a65
     detail: "No whitespace errors."
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/microkernel/06-read-report-commands-as-ticket-workflows`
+Recorded: 2026-11-16T20:22:41+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: invalid status 'returned'.

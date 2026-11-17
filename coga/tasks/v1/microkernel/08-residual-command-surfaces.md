@@ -57,7 +57,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (review-design)
+step: 7 (review)
 ---
 
 ## Description
@@ -68,7 +68,24 @@ kernel should supply execution, validation, task IO and guarded publication;
 the command ticket should own the procedure users want to change. This is a
 proposal for cold evaluation and owner scope review, not a settled placement.
 
-### Objectives and implementation scope
+### Approved implementation scope — 2026-11-17
+
+The owner directed this step to ship promotion first under
+`coga promote-recurring`. Promotion's guarded publication failures now
+return 75 (previously a warning could exit zero). The remaining increments
+have separate draft execution tickets:
+
+- `v1/microkernel/move-ticket-authoring-to-a-command-ticket` owns authoring,
+  including the migration of existing `bootstrap/ticket` overrides.
+- `v1/microkernel/move-skill-management-to-command-tickets` owns the full
+  skill family, including the status spelling and read-only dispatch decision.
+
+Both follow-ups depend on `v1/microkernel/03-launch-decomposition` as described
+below. The design and acceptance criteria for those increments remain
+reference material for their owners. This implementation reviews the
+promotion-specific criteria and the shared packaging and verification criteria.
+
+### Original objectives and proposed implementation scope
 
 Advance editable behavior and ticket ownership by putting the complete
 procedure beside a stateless command ticket. Advance simplification by deleting
@@ -387,6 +404,12 @@ choices at owner review. None requires reading superseded archive material.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1248
+branch: coga/v1-microkernel-08-residual-command-surfaces-c6e747
+
+
 ## Design handoff — 2026-11-14
 
 Investigated clean, fetched main at `eccd3b31f199525707e1292f1517dc082ba5b511`.
@@ -529,6 +552,147 @@ moved code:
 
 Default aliases have no `ticket`, `skill-status` or `promote-recurring`
 collision once the built-ins are removed.
+
+## Implementation intake — 2026-11-17
+
+The projected ticket matches fetched main at `09a2451a4`. The feature
+branch has no unique commits and no associated PR. The transition to
+`implement` did not record answers to the design evaluator's scope and
+dispatch questions. Launch decomposition and read/report are both still in
+review. Asked the owner to decide whether promotion goes first with separate
+execution tickets and whether the command spellings use top-level aliases or
+preserve nested dispatch. The authoring override migration and promotion's
+publication-failure exit code also need explicit treatment before their
+respective implementations. Implementation is awaiting owner direction.
+
+## Promotion implementation handoff — 2026-11-17
+
+`coga promote-recurring` now dispatches through `bootstrap/recurring-promote`.
+It verifies the destination before removing the source, then guards the
+source deletion, destination files and promotion audit as one publication.
+Exit 75 preserves local state on partial failure or publication refusal.
+The two follow-up drafts in the approved scope above are on control.
+
+At base `b252b9cfbaa4971b147d46c26e885a5ec314708d` and feature head `e9d717c1addec249ba49cb3c53d3c229eed79325`, physical lines
+(`bytes.splitlines()` across changed paths, including blanks/comments) went from
+5,326 to 5,020 in core Python and 0 to 398 in ticket Python. No `coga_edge`
+files changed. Combined production scope increased by 92 lines. Most of the
+procedure moved, the nested Typer adapter and core procedure ownership were
+removed, and failure reporting and guarded publication checks were added.
+Documentation (including the packaged command contract) went from 893 to
+922 lines. Tests and the package manifest went from 16,451 to 16,570 lines.
+There is one packaged procedure owner and no checked-in local duplicate.
+
+## Peer review — 2026-11-17
+
+Claude (Opus 5.5) ran `/code-review` at default effort on `main...HEAD`. It
+returned with eight unverified findings, reviewing head
+`63c35085288d09ba0cfda94c3497fbdf314d38d0` on base `291b1d58af4d940ebd8a0ed14e0dba26b18f10f1` after this step's
+unconditional rebase. Codex wrote the implementation, so this was an
+independent review. I checked each finding against the code.
+
+Applied in `be11d4a5edf456be2b1acfce385fc0107bfa746e` (`peer-review: apply review findings`), with the owner
+approving the approach for the two behavior fixes:
+
+1. **Gitignored attachments broke publication.** Copied files such as
+   `__pycache__/*.pyc` were added to `require_paths`, so promotion exited 75
+   after the move. The old command published them fine. They are now dropped
+   from the required set with `git check-ignore --no-index`. The new test
+   reproduces the 75 without the fix.
+2. **Symlink refusal came only after the source was deleted.** With Git
+   enabled, a directory task holding any symlink is now refused with exit 2
+   before anything moves. The test now asserts that the task, log and control
+   are unchanged. The post-move symlink check stays as a backstop.
+3. **Stale `recurring promote` spelling.** Fixed in the shipped
+   `coga/recurring`, `coga/recurring/scheduling` and `coga/cli` topics.
+4. **Misleading collision message.** A name used only by a bundled or other
+   effective definition now names that definition instead of saying the
+   local directory exists. A test covers it.
+5. The command ticket documents the symlink and ignored-file behavior.
+
+Not changed, with reasons:
+
+- **`None` from `git.publish` with Git enabled is treated as 75.** This covers
+  the soft-skips for "not a git repo" and a missing control branch. Promotion
+  deliberately treats unconfirmed publication of a move as retained state.
+  The cases are rare with Git enabled, and launch treats the same condition
+  as "publication not confirmed".
+- **The removed `--agent` refusal.** A global `--agent` on the alias now reaches
+  generic launch, as it does for every other script alias. That handling
+  belongs to the launch sibling, not to promotion.
+
+Verification at `be11d4a5edf456be2b1acfce385fc0107bfa746e`: full Linux suite 4908 passed, 33 skipped; promotion
+tests 19 passed; validate, CLI smoke and `git diff --check` passed. Main has
+since gained one log-only commit (`76a799cf6`, `coga/log.md`). I did not
+rebase again, so the receipts stay valid for this head. Native Windows and
+macOS checks are deferred to release.
+
+## PR
+
+```yaml
+title: Move recurring promotion to a command ticket
+author: codex
+author_evidence: "Codex implemented the change in the attended implementation session; Claude applied the peer-review fixes in be11d4a5e."
+head: be11d4a5edf456be2b1acfce385fc0107bfa746e
+base: 291b1d58af4d940ebd8a0ed14e0dba26b18f10f1
+depth: deep
+rationale: "Review the changed command dispatch and retained-state behavior around Git publication. The review fixes landed after the reviewed revision."
+implementation: "The default alias launches the packaged procedure. With Git enabled, promotion refuses symlinked attachments before anything moves. It verifies the template before removing the source and requires the source deletion, the non-ignored destination files and the audit in one guarded publication."
+deviations: "The promoted spelling is coga promote-recurring. The procedure rejects occupied effective names, including bundled definitions, and returns 75 on publication refusal or failure. Symlinked directory tasks are refused with exit 2 while Git sync is enabled. A global --agent is no longer refused by promotion itself."
+limitations: "Authoring and skill management have their own execution tickets. With Git enabled, a publish soft-skip (not a git repo, or a missing control branch) exits 75 with the move retained. Native Windows and macOS verification is deferred to release. Checks used Python 3.12.12."
+files:
+  docs/contexts/coga-dev/codebase/SKILL.md: "Point contributors to the promotion ticket's implementation."
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: "Name the relocated promotion audit writer."
+  docs/contexts/coga-dev/microkernel/SKILL.md: "Close the promotion placement and point remaining rows to their execution tickets."
+  src/coga/aliases.py: "Route the new top-level spelling through the generic launch command."
+  src/coga/commands/recurring.py: "Remove the replaced recurring promote adapter."
+  src/coga/recurring.py: "Retain shared schedule and template-name checks and remove the promotion procedure."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: "Index the new default alias and drop promote from the recurring row."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md: "Name the new promotion spelling in the command overview."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: "Use the current promotion spelling in the variants and gate text."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: "Link the promotion procedure and recovery to its command ticket."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/promotion.py: "Own the template transformation, validation, attachments, removal and audit, and name a shadowed effective definition."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/ticket.md: "Own the command contract, symlink and ignored-file rules, local customization and recovery."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/ticket.py: "Parse arguments, refuse symlinks up front, and publish the complete non-ignored move through the shared Git guard."
+  src/coga/validate.py: "Use the shared schedule check under its public name."
+  tests/conftest.py: "Update the publication-stub comment for subprocess dispatch."
+  tests/required_package_resources.txt: "Pin all three command-ticket resources."
+  tests/test_packaging.py: "Exercise the alias through a read-only installed wheel and an edited local copy."
+  tests/test_recurring.py: "Carry forward promotion cases; cover one Git publication, ignored attachments, up-front symlink refusal, bundled-name collisions and retained failures."
+review:
+  reviewer: claude
+  kind: independent
+  status: passed
+  head: 63c35085288d09ba0cfda94c3497fbdf314d38d0
+  base: 291b1d58af4d940ebd8a0ed14e0dba26b18f10f1
+  detail: "Claude /code-review (default effort) returned eight findings on the implementation head. Two behavior fixes, three doc fixes and the message fix were applied in be11d4a5e. The two remaining findings were judged non-blocking (see Peer review). The fix commit itself was not re-reviewed by a tool."
+checks:
+- command: PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/coga-pytest-bt
+  status: passed
+  head: be11d4a5edf456be2b1acfce385fc0107bfa746e
+  base: 291b1d58af4d940ebd8a0ed14e0dba26b18f10f1
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12. 4908 passed, 33 skipped in 850.28s."
+- command: PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_recurring.py -k promot
+  status: passed
+  head: be11d4a5edf456be2b1acfce385fc0107bfa746e
+  base: 291b1d58af4d940ebd8a0ed14e0dba26b18f10f1
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12. 19 passed, 526 deselected in 7.48s."
+- command: PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/08-residual-command-surfaces --json
+  status: passed
+  head: be11d4a5edf456be2b1acfce385fc0107bfa746e
+  base: 291b1d58af4d940ebd8a0ed14e0dba26b18f10f1
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12. ok_count 1, no issues."
+- command: PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli --help | grep promote-recurring
+  status: passed
+  head: be11d4a5edf456be2b1acfce385fc0107bfa746e
+  base: 291b1d58af4d940ebd8a0ed14e0dba26b18f10f1
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12. The alias row shows coga launch bootstrap/recurring-promote --."
+- command: git diff --check main HEAD
+  status: passed
+  head: be11d4a5edf456be2b1acfce385fc0107bfa746e
+  base: 291b1d58af4d940ebd8a0ed14e0dba26b18f10f1
+  detail: "Passed."
+```
 
 ## Superseded designs
 

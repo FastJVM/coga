@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import TYPE_CHECKING
 
 import typer
 
@@ -39,6 +40,10 @@ from coga.tasks import (
 )
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import Workflow, WorkflowError
+
+if TYPE_CHECKING:
+    from coga.config import Config
+    from coga.ticket import Ticket
 
 
 def bump(
@@ -127,7 +132,9 @@ def bump(
         reason = rewind_status_error(ref.id_slug, ticket.status)
         if reason:
             _bail(reason)
-    elif ticket.status != "in_progress":
+    elif ticket.status != "in_progress" and not _human_completes_active_owner_step(
+        cfg, ref, ticket
+    ):
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
     _assert_supervised_step_is_current(ref, ticket.step)
@@ -281,10 +288,10 @@ def bump(
     next_agent = next_operator.name if next_operator is not None else None
 
     # An active/paused rewind must still be resumable with `coga launch`.
-    # Normal launch intentionally refuses an owner handoff, while a forward bump
-    # intentionally requires `in_progress`; accepting this combination would
-    # therefore strand the target step. An already in-progress human handoff
-    # remains valid and can be completed normally.
+    # Normal launch intentionally refuses an owner handoff; only an unsupervised
+    # human bump can complete an `active` owner step, and a `paused` one cannot
+    # advance at all, so a rewind keeps landing on an agent step. An already
+    # in-progress human handoff remains valid and can be completed normally.
     if (
         rewind
         and ticket.status in {"active", "paused"}
@@ -378,6 +385,28 @@ def bump(
     # cwd never matched what the supervisor polled for and the REPL hung. The
     # slug is identical from any checkout.
     emit_done_marker(session_id=ref.id_slug)
+
+
+def _human_completes_active_owner_step(
+    cfg: Config, ref: TaskRef, ticket: Ticket
+) -> bool:
+    """Whether an unsupervised human may forward-bump an `active` owner step.
+
+    Only `coga launch` writes `in_progress`, and plain launch refuses an
+    owner-held step, so an `active` ticket on one (for example, a paused review
+    that was reactivated) could otherwise never advance. The human who holds
+    the gate completes it from outside any launch. Agents, ticket scripts and
+    unresolvable routing keep the `in_progress` requirement.
+    """
+    if ticket.status != "active" or os.environ.get("COGA_SUPERVISED"):
+        return False
+    if is_script_task(ref):
+        return False
+    try:
+        operator = resolve_operator(cfg, ref, ticket)
+    except OperatorResolutionError:
+        return False
+    return operator is not None and operator.is_human
 
 
 def _bail(msg: str, *, exit_code: int = 2) -> None:
