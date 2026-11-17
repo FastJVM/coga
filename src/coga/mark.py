@@ -846,6 +846,9 @@ def reblock_unresolved_resume(
 
 
 
+# The refusals `prepare_active` raises before `mark_active` writes anything.
+# `TaskValidationError` is deliberately not one of them: it comes from the
+# post-write `assert_task_valid`, so it belongs to the commit half alone.
 PREPARE_ACTIVE_ERRORS = (
     WorkflowMissing,
     WorkflowError,

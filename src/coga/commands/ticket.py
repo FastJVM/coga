@@ -14,6 +14,8 @@ from coga import git
 from coga.authoring import (
     AUTHORING_AGENT_ENV,
     AuthoringError,
+    authored_state_retained,
+    existing_target_only,
     finalize_authored,
     resolve_authoring_agent,
     snapshot_authoring_state,
@@ -285,6 +287,10 @@ def _resolve_or_create_target(
                 f"Ambiguous task ref {target!r}: matches {slugs}. "
                 "Re-run with the qualified `<dir>/<slug>` to disambiguate."
             )
+        if existing_target_only.get():
+            # The queue's adapter names a picked ticket; a miss means it moved
+            # or vanished since the pick, never a request for a new draft.
+            _bail(f"{msg}; not creating a draft for a picked ticket.")
         directory, _ = _split_create_path(target)
         if is_parked_dir(directory):
             # Discovery skips parked directories, so the draft could not be
@@ -407,6 +413,7 @@ def _run_authoring_session(
         # A retry sweep would separate an authored ticket from knowledge its
         # guarded transaction refused, potentially publishing broken refs.
         git.state_sweep_withheld.set(True)
+        authored_state_retained.set(True)
         _bail(
             f"{exc}\n[ticket] Authoring edits are retained under {cfg.repo_root} "
             f"and the configured contexts root ({cfg.contexts_root}); the state "

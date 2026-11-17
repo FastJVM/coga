@@ -62,6 +62,9 @@ class ClaimedSessionResult:
     refusal: str | None = None
     released: bool = False
     retained: bool = False
+    # The refused activation itself, so the caller classifies it exactly as
+    # its own prepare half does (an unlaunchable workflow is not a failure).
+    activation_error: Exception | None = None
 
 
 class _LaunchClaimRefused(Exception):
@@ -478,7 +481,7 @@ def run_claimed_agent_session(
         try:
             prepare_active(cfg, ref, expected_view)
         except _PREPARE_ACTIVE_ERRORS as exc:
-            return ClaimedSessionResult(refusal=str(exc))
+            return ClaimedSessionResult(refusal=str(exc), activation_error=exc)
     if expected_view.render() != prospective_ticket.render():
         return ClaimedSessionResult(refusal="prospective ticket does not match source routing")
     try:
@@ -506,7 +509,10 @@ def run_claimed_agent_session(
             source_bytes=source_bytes,
         )
         if failure is not None:
-            return ClaimedSessionResult(refusal=str(failure.error), retained=failure.retained)
+            return ClaimedSessionResult(
+                refusal=str(failure.error), retained=failure.retained,
+                activation_error=failure.error,
+            )
 
     # Activation sync can spend long enough fetching/publishing for a peer
     # to edit or complete the ticket. Bind the following start write to the
