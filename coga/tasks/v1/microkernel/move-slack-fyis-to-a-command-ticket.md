@@ -49,160 +49,207 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
-launch_generation: c0c35033-4fbc-4112-b3f1-c04fbbc5e6ce
 ---
 
 ## Description
 
-Move the `slack` FYI procedure (operands, formatting, route selection) into an editable bootstrap command ticket and complete edge implementation, only with a verified matching-session completion path. Split from v1/microkernel/09-work-orchestration-commands-to-tickets at its owner gate on 2026-11-16; the carried-over design is below.
+Move the `slack` FYI procedure (operands, formatting, route selection) into an
+editable bootstrap command ticket with a complete edge implementation. Split
+from v1/microkernel/09-work-orchestration-commands-to-tickets at its owner gate
+on 2026-11-16.
 
-### Carried-over scope and objectives
+The blocker 09 found is that `coga slack` is two things at once: an FYI, and
+the only completion signal a stateless agent-backed bootstrap session has
+(`bootstrap/address-pr-comments` and `bootstrap/resolve-conflicts` end with a
+`coga slack --task bootstrap/<name>` roll-up, and `prompt-queue.md` tells
+megalaunch sessions the same). A script-phase child loses the sentinel and
+expected identity, so an edge FYI script cannot also end the outer session.
+09's carried options were a parent-owned audited-notification protocol
+(Option A), a post-exit audit-line check (Option B), or keeping the 94-line
+head (Option C).
 
-Hackability: users can change FYI operands, formatting and route selection
-through ticket-owned files. The current head is `src/coga/commands/slack.py`,
-`slack` (94 physical lines). It calls `notification.post`, then
-`logfile.append_log`, then `repl_supervisor.emit_done_marker` for a bootstrap
-ref, through `deferred_done_marker`, which defers the request to command exit
-but does not check whether `git.sync_log` succeeded (`True`/`False` confirmed,
-`None` miss; truthiness would wrongly reject an already-landed log).
+This design recommends **Option D: separate completion from notification.**
+Stateless bootstrap completion becomes an explicit lifecycle action in the
+command that already owns session-ending (`coga mark done`), and `coga slack`
+becomes a pure, non-terminal FYI that moves wholesale to the edge. No new
+transport, protocol or parent callback is needed: the completion runs in the
+agent's own supervised process, which already holds the sentinel, exactly as
+`bump`/`mark`/`block` do today. It removes the only special case that ties a
+notification head to supervisor authority, which is the microkernel
+objective ("fewer special cases"). The cost is one extra instruction line in
+two bootstrap tickets and the queue prompt, and the roll-up FYI and
+completion are no longer one atomic command (see Open Questions on the
+blackboard). If the owner rejects D, Option C (retain the head under 09's
+recorded proof) is the fallback; A and B are summarized under *Alternatives*.
 
-Ticket 09 retained this head under a co-versioning proof: the script phase
-clears `COGA_SUPERVISED`, the sentinel and the expected identity, so an edge
-script cannot preserve delivery + audit + matching-session completion without
-a new parent-owned mechanism. This ticket decides whether that mechanism is
-worth its cost, or records the retained head as the settled placement.
+### Acceptance criteria
 
-Invocation uses 09's plain-launch rules (`slack = "launch bootstrap/slack --"`,
-no agent fallback, Typer help recognition, interrupt rule). Verify they merged
-before designing on them. Under 09's fail-closed help rule, `--message --help`
-is detected as help, and the script must exit 2 when its parse reaches the
-command body under `COGA_SCRIPT_HELP=1`; today's head would post the literal
-message. Design must decide whether that change is acceptable or require
-`-- --help` quoting.
+Completion (core, `coga mark done` on a bootstrap target):
 
-### Carried-over acceptance criteria (from 09, to be refined at design)
+- [ ] `coga mark done bootstrap/<name>` is accepted for a stateless bootstrap
+  ref (`tasks.BootstrapRef`). It writes no ticket file, runs no workflow or
+  completion gate, and keeps refusing every other `mark` verb on a bootstrap
+  ref (`active`, `paused`, `canceled`, …) with exit 2.
+- [ ] It resolves the actor as today's slack head does for a bootstrap ref
+  (`bump.resolve_main_agent` with the same `allow_prospective_default` rule);
+  an `OperatorResolutionError` exits 2 without logging or signalling.
+- [ ] It appends exactly one audit line (`done (stateless command)` or similar,
+  fixed text chosen by the implementer and documented in `coga/cli`) and then
+  confirms it: with Git enabled, `git.sync_log` must return `True` or `False`
+  (`None` is a miss). With Git explicitly disabled (`cfg` git-disabled), a
+  successful local append suffices; the implementer must distinguish this
+  from `_publishable_root` returning `None` for a failure, since `publish`
+  returns `None` for both.
+- [ ] On confirmed audit it calls `repl_supervisor.emit_done_marker(ref.id_slug)`
+  (deferred by `cli.main`'s `deferred_done_marker` as today). On a publication
+  miss it does **not** request the marker, retains the log line, exits 75,
+  and prints the strict-publication recovery (`coga run publish-state <log>`).
+  Recovery never signals completion; the idle/max-session backstops still
+  release the session. This is the deliberate audit-gate tightening; document
+  it as new behavior, not as parity.
+- [ ] The marker names `ref.id_slug`, so a bootstrap completion never releases
+  a session for a different target (existing supervisor check). No
+  notification is posted by `mark done` on a bootstrap ref (the roll-up FYI
+  is the notification; avoid a double post).
 
-- [ ] `slack` operands, FYI formatting and route selection live in
-  `bootstrap/slack` and its complete edge implementation, only after the
-  completion mechanism below is implemented and reviewed. Otherwise retain the
-  entire head and record the owner-reviewed proof; moving ordinary FYIs alone
-  does not complete the migration.
-- [ ] Ordinary FYIs never complete a task or enclosing session. A bootstrap FYI
-  completes only the matching live bootstrap session, after successful channel
-  handling, durable audit and command finalization. Mismatched root, identity,
-  stale invocation, nonzero child, delivery failure, audit failure, or
-  uncertain publication never signals completion. No outer sentinel, assist or
-  expected-step authority reaches `ticket.py`; stdout is never a completion
-  channel.
-- [ ] Preserve disabled-channel handling (diagnostic, audit and `posted`),
-  important-route refusal rather than flow fallback, actor resolution, message
-  validation, sanitized errors and one send attempt. A delivery followed by an
-  audit failure reports the delivered-but-unrecorded state without automatic
-  resend. Git-disabled completion requires successful local audit, not a claim
-  of remote durability. Explicitly document the stricter audit gate below.
-- [ ] Complete local fork through sibling 05; contract owners
-  (`coga/notifications`, `producers`, `coga/cli`, `coga/edge-code`,
-  `coga/script-tickets`, `coga/state-publication`, `coga-dev/microkernel`)
-  updated in the same PR; line counts and Linux receipts as in 09.
+FYI (edge):
 
-### Completion mechanism — options for design
+- [ ] `slack = "launch bootstrap/slack --"` alias (09's plain-launch rules)
+  replaces the Typer command; `"slack"` is removed from `cli.py`'s command
+  table and `src/coga/commands/slack.py` is deleted.
+- [ ] `bootstrap/slack/ticket.md` + `ticket.py` ship in the package; the
+  script is a thin import of `coga_edge.slack` (the 05 edge-code pattern),
+  and the module holds operands (`--task`, `--message`, `--important`),
+  message formatting and route selection. A local fork gets the full
+  behavior, per `coga/edge-code`.
+- [ ] Behavior parity for every target: empty message → exit 2; config error
+  → exit 2; unknown target → exit 2; bootstrap actor via
+  `resolve_main_agent`, ordinary actor via `commands.common.current_operator`
+  (both derive from ticket metadata, not env, so script isolation does not
+  change attribution); one `notification.post(..., important=...)` attempt
+  with `fatal=True` (delivery miss → exit 1, no audit line beyond the
+  channel's own failure record); important route never falls back to flow;
+  disabled/no-channel keeps today's stderr diagnostic + audit + `posted`;
+  `slack: <message>` audit line via `logfile.append_log`; `posted` on stdout
+  only after the post and append.
+- [ ] `coga slack` **never** completes any session, including for a
+  `bootstrap/<name>` target. Nothing in the edge module imports
+  `repl_supervisor`.
+- [ ] Help: the script checks `COGA_SCRIPT_HELP == "1"` at its command body and
+  exits 2 before any effect, so `coga slack --message --help` exits 2 instead
+  of posting `--help` (accepted behavior change; document in `coga/cli`).
+  `coga slack --help` shows the script's help.
+- [ ] Every caller that relies on slack-as-completion switches to the explicit
+  pair: `bootstrap/address-pr-comments/ticket.md`,
+  `bootstrap/resolve-conflicts/ticket.md`, `resources/prompt-queue.md`
+  (stateless bootstrap paragraph), and any skill or context that states the
+  slack-completes-bootstrap rule (grep `coga slack --task bootstrap` and
+  "releases that stateless session").
 
-#### Option A — parent-owned audited-notification protocol (carried from 09)
+Docs and verification:
 
-Do not give the script the caller's sentinel or expected-task/assist variables.
-Do not treat successful exit from `bootstrap/slack` as proof that a different
-bootstrap session finished. Proposed minimal handoff to siblings 03 and 10:
+- [ ] Contract owners updated in the same PR: `coga/notifications`,
+  `coga/notifications/producers`, `coga/cli`, `coga/edge-code`,
+  `coga/script-tickets`, `coga/state-publication` (the new completion audit
+  gate and exit 75), `coga/launch` if it describes bootstrap completion, and
+  `coga-dev/microkernel` (remove the `slack` row from *Open command
+  placements*; replace 09's "retained head" paragraph with the settled
+  boundary: completion is a `mark done` lifecycle case, FYI is edge).
+- [ ] Packaging: `tests/required_package_resources.txt` lists the new ticket
+  files; `test_packaging` passes.
+- [ ] Report before/after production line counts per
+  `coga-dev/microkernel/objectives` (removed `commands/slack.py`, added
+  `coga_edge/slack.py` + shim, added `mark` bootstrap branch), distinguishing
+  relocation from deletion.
+- [ ] Full Linux suite receipt per `coga-dev/testing`; native checks deferred
+  to release.
 
-- The invoking parent captures and validates the existing live outer-session
-  identity before script isolation: repository identity, bootstrap slug and
-  session generation/channel. Repository identity must permit a verified
-  same-repository command from a separate checkout/clone, as existing slug
-  completion does; an absolute checkout-path equality test is insufficient. With no verified outer session, ordinary FYIs
-  still work but cannot end one. A matching string supplied by the child is
-  insufficient. Existing supervisor identity checks must gain generation-bound
-  verification where needed; no ambient-only new completion credential.
-- Provide one fixed, invocation-scoped **audited notification operation**, not
-  arbitrary RPC/plugin callbacks. The parent services a structured request
-  carrying resolved target, formatted text, requested destination and audit
-  message. It resolves target/root and actor itself, uses `notification.post`
-  once, appends the audit and confirms required log publication with existing
-  `git.sync_log`/strict publication semantics. Return a typed success/failure
-  receipt bound to this invocation and target. The edge owns operands and
-  formatting, and prints `posted` only after successful acknowledgement.
-- Only the parent holds completion authority. For a successful request naming
-  the exact captured bootstrap target in the same repository/generation, it
-  records a deferred completion intent. Finish only after child exit zero,
-  successful audit confirmation and final publication/retained-log checks.
-  Use `repl_supervisor.deferred_done_marker`/`emit_done_marker` after those
-  checks; do not request a marker merely because a notification was attempted.
-- Ordinary task targets and different bootstrap targets may receive valid FYIs
-  but never release the outer session. No replay across child invocations,
-  nested unrelated scripts, roots or supervisor generations. A child crash,
-  stale/duplicate receipt, broken request channel or parent interruption cannot
-  authorize completion. Consume/close the one-invocation channel at teardown.
-- Disabled notifications keep existing successful no-channel handling; delivery
-  failures remain exit 1, invalid operands/config/target/agent remain exit 2.
-  A new audit-publication refusal retains the delivered FYI and log, exits 75,
-  suppresses sweep/refresh and gives strict-publication recovery. Recovery must
-  not resend or replay a completion/transition. Log recovery alone never
-  terminates a later session; any new explicit FYI is a new send.
+### Proposed shape
 
-The transport must work on POSIX and native Windows without terminal parsing,
-inherit no completion capability into grandchildren, and contain no knowledge
-of the Slack alias or command-ticket name. Lifecycle sibling 10 must consume
-or explicitly accept the generic verified finalizer; do not count hypothetical
-callers as two real consumers. Notification/audit operations retain their
-co-versioning proof independently of whether that finalizer gains a second
-caller. Add no queue, retry service, durable message spool or general RPC host.
+Order of work (requires 09's PR #1244 merged; see blockers below):
 
-**Tradeoff for owner decision:** this parent operation adds transport and
-verification code to move a 94-line head. It is a proposed dependency, not an
-existing safe API or an approved implementation. If siblings 03/10 cannot
-supply this small bounded operation economically, retain `commands.slack.slack`
-under an explicit reviewed proof: it joins delivery, audit and matching-session
-completion inside the CLI's deferred finalization, and the script boundary
-currently destroys the authority needed to preserve that transaction. Keep
-its placement open until the owner accepts that proof; do not claim full Slack
-forkability or a completed move. The preferred migration waits for the shared
-operation rather than introducing a command-specific completion exception.
+1. **Core completion.** In `src/coga/commands/mark.py` (the `done` verb),
+   branch on `isinstance(ref, BootstrapRef)` *before* the prepared-ticket
+   transaction (bootstrap targets are packaged/stateless; there is no ticket
+   to reconcile). Implement as a small private helper in `mark.py`, e.g.
+   `_finish_stateless_command(cfg, ref)`: resolve actor → `append_log` →
+   confirm with `git.sync_log` (or Git-disabled local success) →
+   `emit_done_marker(ref.id_slug)` or exit 75 with recovery text. Reuse
+   `git.sync_failure_report` wording where possible. If sibling 10 has already
+   moved `mark` by implementation time, put the branch wherever `mark done`
+   lives and record it on 10's ticket.
+2. **Edge FYI.** Add `src/coga_edge/slack.py` (argparse, `main(argv) -> int`,
+   help-marker check, the body of today's `commands.slack.slack` minus the
+   `emit_done_marker` call). Add
+   `src/coga/resources/templates/coga/bootstrap/slack/ticket.md` (stateless
+   command ticket describing operands and how to fork) and `ticket.py`
+   (shebang? follow the shim convention 09 used for `bootstrap/retire` and
+   `bootstrap/megalaunch`, including mode). Add the alias to the shipped
+   `coga.toml` `[aliases]` next to 09's `megalaunch` alias.
+3. **Remove the head.** Delete `src/coga/commands/slack.py`, its `cli.py`
+   registration and help-table entry.
+4. **Callers.** Update the two bootstrap tickets and `prompt-queue.md`:
+   "post the roll-up with `coga slack --task bootstrap/<name> --message …`,
+   then, as the final action, run `coga mark done bootstrap/<name>`; run the
+   completion even if the FYI failed, after stating the failure in your final
+   report" (subject to the Open Question on failure semantics).
+5. **Docs + tests** (below), then line counts and receipts.
 
-There is also a deliberate correctness tightening to approve: today the head
-requests completion after local `append_log`, while `deferred_done_marker`
-waits for the best-effort sweep but does not inspect whether publication
-succeeded. The new durable-audit criterion must reject failed confirmation.
-Do not describe this as existing exact remote-durability parity; update
-`coga/state-publication`, `coga/script-tickets` and notification owners with
-this behavior if approved.
+Tests:
 
+- `tests/test_commands.py`: rewrite
+  `test_slack_accepts_and_completes_stateless_bootstrap_target` →
+  slack on a bootstrap target posts and logs but writes **no** sentinel;
+  keep `test_slack_on_durable_task_does_not_complete_session`,
+  `test_slack_important_forwards_to_notification_post` (patch target moves to
+  `coga_edge.slack.post`), `test_bootstrap_slack_completion_attributes_configured_agent`
+  (attribution only), `test_bootstrap_slack_refuses_invalid_agent_without_completing`.
+  Invoke through the alias (`runner.invoke(app, ["slack", …])`) so the
+  plain-launch path is exercised, plus a direct `coga_edge.slack.main` unit.
+- `tests/test_done_marker_emission.py`: `mark done bootstrap/<name>` signals
+  with the slug after the boundary (`test_main_writes_the_sentinel_only_after_the_boundary`
+  pattern); publication miss → exit 75, line retained, no sentinel;
+  Git-disabled → signals after local append; invalid agent → exit 2, no line,
+  no sentinel; other `mark` verbs on a bootstrap ref → exit 2; a marker from
+  `bootstrap/a` does not satisfy a supervisor polling `bootstrap/b`.
+- `tests/test_notification_messages.py::test_slack_fyi_includes_title`:
+  retarget to the edge module.
+- Help: `coga slack --message --help` exits 2 with no post and no log line;
+  `coga slack --help` exits 0.
+- Packaging/alias tests per 09's precedent (`tests/test_aliases.py`,
+  `tests/test_packaging.py`).
 
-#### Option B — post-exit audit-line check (evaluator recommendation, 09)
+### Alternatives (owner may choose instead of D)
 
-The parent captures the session identity before isolation, runs the child,
-and after exit 0 confirms on control (or locally when Git is disabled) a new
-`slack:` audit line for the captured bootstrap slug written during this
-invocation; only then does it request the marker. This trusts cooperative
-child output, which Option A rejects. Make the threat model explicit
-(accidental versus adversarial completion) so the owner can choose. Option C
-is to keep the 94-line head under the proof.
+- **C — retain the head.** Keep `commands/slack.py` under 09's recorded
+  co-versioning proof; this ticket then only lands the doc settlement and
+  (optionally) the audit-gate tightening inside the existing head. Cheapest,
+  but leaves FYI formatting unforkable and keeps the notification/completion
+  special case.
+- **A — parent-owned audited-notification protocol** (09's carried design): an
+  invocation-scoped channel through which the launching parent performs the
+  post/audit and holds completion authority. Preserves single-command
+  atomicity, but adds cross-platform transport and generation verification
+  to move a 94-line head, and 03/10 have not offered it. Not recommended.
+- **B — post-exit audit-line check**: parent completes after the child exits 0
+  if a fresh `slack:` line for the captured slug landed. Cheap, but turns a
+  cooperative child's log output into a completion credential (fine against
+  accidents, not against a forked script), and still couples FYI to
+  completion. Not recommended.
 
-### Test map carried from 09
+### Out of scope
 
-Extend `tests/test_commands.py`,
-`test_slack_accepts_and_completes_stateless_bootstrap_target` and
-`test_slack_on_durable_task_does_not_complete_session`, plus
-`tests/test_notification_messages.py`, `test_slack_fyi_includes_title`, and
-`tests/test_done_marker_emission.py`. Current ambient-sentinel fixtures are
-insufficient proof of the proposed verified parent boundary: add real nested
-script subprocess tests using fake agent seams, with matching/mismatching
-slug, repository and generation, absent/stale identity, ordinary targets,
-disabled channel, send/audit/publish failures, already-published audit,
-child crash, duplicate request and channel loss. Assert no outer completion
-variables or assist authority in the child's environment and no completion
-on failure. Pair successful completion with an assertion that finalization
-finished before the sentinel write. No real Slack or agent process is needed.
-
+- Any parent↔script RPC, completion callback, or new completion credential.
+- Moving `mark`/`bump`/`block` themselves (sibling 10 owns that placement);
+  this ticket only adds a bootstrap case to `mark done`.
+- Changing notification channels, webhook config, `notification.post`, or
+  `logfile.append_log`.
+- Retrying or spooling FYIs; strict publication of an FYI's own log line
+  (the launch settlement/sweep publishes it as for any script).
+- `bump --message` FYIs and other producers.
+- Native Windows/macOS receipts (release-only).
 
 ## Context
 
@@ -291,6 +338,69 @@ template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
 
+### Codebase facts
+
+- Current head: `src/coga/commands/slack.py`, `slack()`; registered in
+  `src/coga/cli.py` command table (`"slack": ("coga.commands.slack", "slack", {})`).
+  Completion is the `emit_done_marker(session_id=ref.id_slug)` call for a
+  `BootstrapRef`; `cli.main` wraps dispatch in
+  `repl_supervisor.deferred_done_marker()`, which writes the marker after the
+  end-of-command sweep but never checks publication success.
+- `git.sync_log(cfg, message=...)` returns `True`/`False` (published / already
+  held) or `None` (failure or skip). `git.publish` returns `None` from
+  `_publishable_root` both for disabled Git and for unpublishable roots, so
+  the Git-disabled branch must be decided from config, not the return value.
+- `notification.post(..., fatal=True)` raises `typer.Exit(1)` on delivery
+  miss; with no channels it writes `[notification] no channels configured`
+  to stderr and returns (today's disabled-channel success path).
+- Actor resolution reads ticket metadata only: `commands.common.current_operator`
+  (ordinary) and `bump.resolve_main_agent` (bootstrap). Script isolation's
+  cleared env does not affect it.
+- `mark.py` has no `BootstrapRef` handling today; only `slack.py` and
+  `ticket.py` among commands accept bootstrap refs.
+- Slack-as-completion callers: `bootstrap/address-pr-comments/ticket.md`,
+  `bootstrap/resolve-conflicts/ticket.md` (both agent-only, no `ticket.py`),
+  `src/coga/resources/prompt-queue.md` (stateless bootstrap paragraph).
+- 09's plain-launch rules (`COGA_SCRIPT_HELP`, stateless script interrupts,
+  `megalaunch`/`retire` alias + shim precedent) exist only on PR #1244's
+  branch `coga/v1-microkernel-09-work-orchestration-commands-to-b46008`, not
+  on main as of 2026-11-16. Edge-code shim conventions come from 05 (PR #1239,
+  also open).
+
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design status (design step, 2026-11-16)
+
+Spec written above recommending Option D (completion via
+`coga mark done bootstrap/<name>`; slack becomes a pure edge FYI). Option C is
+the fallback. Investigation notes are under `### Codebase facts` in Context.
+
+## Dependencies
+
+- Implementation requires 09 (PR #1244: plain-launch alias rules,
+  `COGA_SCRIPT_HELP`) and 05 (PR #1239: edge-code shim pattern) merged; both
+  were OPEN at design time. Implement must verify, and block naming
+  `v1/microkernel/09-work-orchestration-commands-to-tickets` if 09 is not
+  merged.
+- Sibling 10 (`lifecycle-verbs-to-ticket-operations`, at design) should know
+  `mark done` gains a bootstrap case; 03 is not needed under Option D.
+
+## Open Questions
+
+1. **Choose D vs C (vs A/B).** D drops single-command atomicity of
+   "roll-up posted ⇒ session ends" in exchange for no new protocol and a
+   fully forkable slack. Accept?
+2. **Failure semantics of the roll-up under D.** Today a failed roll-up post
+   leaves the bootstrap session running until the idle backstop. Proposed:
+   the agent reports the failure in its final answer and still runs
+   `coga mark done bootstrap/<name>`, so the session ends promptly. The
+   alternative is "only mark done after a successful slack", which keeps
+   today's stall. Which?
+3. **Verb spelling.** `coga mark done bootstrap/<name>` (reuses the existing
+   session-ending verb; recommended) vs a new verb. A new verb would add
+   surface, against project-stage posture.
+4. **Audit-gate tightening.** Approve exit 75 + no completion when the
+   bootstrap completion's log line cannot be confirmed on control (Git
+   enabled), with local-append success when Git is disabled?
+5. **Help change.** Accept that `coga slack --message --help` now exits 2
+   (fail-closed help) instead of posting the literal `--help`?
