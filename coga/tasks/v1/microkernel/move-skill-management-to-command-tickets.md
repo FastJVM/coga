@@ -1,6 +1,6 @@
 ---
 title: Move skill management to command tickets
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -42,6 +42,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
