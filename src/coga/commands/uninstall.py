@@ -167,7 +167,7 @@ def _configured_contexts_root(coga_os: Path) -> tuple[Path | None, str | None]:
     try:
         shared = tomllib.loads((coga_os / "coga.toml").read_text(encoding="utf-8"))
         resolved = resolve_layout_contexts_path(shared.get("layout"), coga_os)
-    except (ConfigError, OSError, tomllib.TOMLDecodeError) as exc:
+    except (ConfigError, OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
         return None, (
             "could not safely resolve `[layout] contexts` from coga.toml "
             f"({exc}); any relocated contexts directory will be left in place"

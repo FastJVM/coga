@@ -517,8 +517,11 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
 def _read_toml(path: Path) -> dict:
     if not path.is_file():
         raise ConfigError(f"Missing config file: {path}")
-    with path.open("rb") as f:
-        return tomllib.load(f)
+    try:
+        with path.open("rb") as f:
+            return tomllib.load(f)
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+        raise ConfigError(f"Invalid TOML in {path}: {exc}") from exc
 
 
 def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> None:

@@ -619,7 +619,9 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
     assert where == pipx_venv.absolute()
 
 
-@pytest.mark.parametrize("broken", ["shared", "local", "alias", "absent"])
+@pytest.mark.parametrize(
+    "broken", ["shared", "local", "shared-bytes", "local-bytes", "alias", "absent"],
+)
 def test_main_uninstall_recovers_without_launch_or_publication(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str], broken: str,
@@ -631,6 +633,10 @@ def test_main_uninstall_recovers_without_launch_or_publication(
         (coga_os / "coga.toml").write_text("bad = [", encoding="utf-8")
     elif broken == "local":
         (coga_os / "coga.local.toml").write_text("bad = [", encoding="utf-8")
+    elif broken == "shared-bytes":
+        (coga_os / "coga.toml").write_bytes(b"version = 1\n# caf\xe9\n")
+    elif broken == "local-bytes":
+        (coga_os / "coga.local.toml").write_bytes(b'user = "caf\xe9"\n')
     elif broken == "alias":
         (coga_os / "coga.toml").write_text(
             'version = 1\n[aliases]\nbad = "nonexistent-command"\n', encoding="utf-8",

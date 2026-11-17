@@ -308,5 +308,33 @@ def test_secret_main_refuses_malformed_local_config_without_resolving(
     assert exc.value.code == 2
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert captured.err
+    assert "coga.local.toml" in captured.err
     assert "MUST_NOT_RESOLVE_SUPPORT07" not in captured.err
+
+
+def test_secret_main_names_non_utf8_shared_config_without_resolving(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from coga import cli
+
+    (repo / "coga.toml").write_bytes(b"version = 1\n# caf\xe9\n")
+    monkeypatch.setenv("FAKE_SUPPORT07", "MUST_NOT_RESOLVE_SUPPORT07")
+    monkeypatch.setattr("sys.argv", ["coga", "secret", "get", "env:FAKE_SUPPORT07"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Invalid TOML in" in captured.err
+    assert "coga.toml" in captured.err
+    assert "MUST_NOT_RESOLVE_SUPPORT07" not in captured.err
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["coga", "secret"], ["coga", "secret", "get", "env:X"], ["coga", "secret", "--help"]],
+)
+def test_secret_never_sweeps_coga_state(argv: list[str]) -> None:
+    from coga import cli
+
+    assert cli._should_sweep_coga_state(argv) is False

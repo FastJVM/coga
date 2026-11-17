@@ -13,11 +13,11 @@ other change. Git history remains the recovery source.
 ## Recovery admission
 
 This built-in runs before alias validation, including when shared or local
-TOML is malformed or local definitions are absent. `--yes` needs no operator
-name, configured agent or terminal. It does not launch a ticket or consult a
-repo-local replacement. After removal it performs no publication, checkout
-refresh or audit write. Without `--yes`, confirmation defaults to no; refusal
-leaves the footprint intact.
+TOML is malformed or not UTF-8, or local definitions are absent. `--yes`
+needs no operator name, configured agent or terminal. It does not launch a
+ticket or consult a repo-local replacement. After removal it performs no
+publication, checkout refresh or audit write. Without `--yes`, confirmation
+defaults to no; refusal leaves the footprint intact.
 
 ## What it removes
 
