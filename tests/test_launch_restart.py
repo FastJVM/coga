@@ -146,7 +146,7 @@ class _FakeAgent:
 
 def _patch_launch_env(monkeypatch: pytest.MonkeyPatch, fake: _FakeAgent) -> None:
     monkeypatch.setattr(
-        "coga.launch._interactive_stdio_has_tty", lambda: True
+        "coga.launch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -334,7 +334,7 @@ def test_launch_functionally_auto_restarts_through_three_steps(
     monkeypatch.setenv("COGA_FAKE_LOG", str(fake_log))
     # Only the TTY entry-gate is faked; the spawn itself is real.
     monkeypatch.setattr(
-        "coga.launch._interactive_stdio_has_tty", lambda: True
+        "coga.launch.interactive_stdio_has_tty", lambda: True
     )
 
     result = CliRunner().invoke(app, ["launch", slug])

@@ -59,8 +59,9 @@ The repo separates implementation from the OS it operates:
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
   (`COGA_TASK_*`), `repl_supervisor.py` with its native Windows backend
   and command planner `repl_supervisor_nt.py` (imported only on Windows by
-  the shared entry), `megalaunch.py` plus
-  `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`,
+  the shared entry), `claimed_session.py` (queue claim/release/admission),
+  `coga_edge/megalaunch.py` (editable queue policy) plus `service_order.py` (drain), `session_limits.py` (shared liveness parsing), `process_relay.py`
+  (foreground command/relay waits), `recurring_runner.py`, `recurring_autofix.py`,
   `recurring_clone.py`. `recurring.py` also owns the effective recurring
   catalog (`iter_template_sources`, `resolve_template_source`, `jobs.toml`
   selection); `recurring_state.py` classifies parent directories and owns

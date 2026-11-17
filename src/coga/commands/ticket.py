@@ -22,7 +22,7 @@ from coga.commands.create import _split_create_path, create_draft
 from coga.create import is_parked_dir
 from coga.launch import (
     LaunchBail,
-    _interactive_stdio_has_tty,
+    interactive_stdio_has_tty,
     missing_launch_file_message,
     require_representable_agent_command,
     spawn_agent_session,
@@ -93,7 +93,7 @@ def ticket(
         _bail("Pass --agent or --pick-agent, not both.")
     # Checked before any target is scaffolded, so a non-TTY `--pick-agent`
     # never leaves a fresh draft behind or blocks on a prompt.
-    if pick_agent and not _interactive_stdio_has_tty():
+    if pick_agent and not interactive_stdio_has_tty():
         _bail(TTY_REQUIRED_MESSAGE)
     try:
         cfg = load_config()
@@ -340,7 +340,7 @@ def _run_authoring_session(
     kickoff: str = AUTHORING_KICKOFF,
     bootstrap_title: str,
 ) -> None:
-    if not _interactive_stdio_has_tty():
+    if not interactive_stdio_has_tty():
         _bail(TTY_REQUIRED_MESSAGE)
 
     try:

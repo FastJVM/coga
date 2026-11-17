@@ -44,15 +44,14 @@ never executable launch plugins.
 
 ## Open command placements
 
-`megalaunch` is not the only in-package command whose permanent home is
-unsettled. The following command heads have no `runner.RECIPES` entry or
+The following command heads have no `runner.RECIPES` entry or
 ratified command-specific co-versioning proof. Their existing package
 residence is provisional; registration as a built-in, Python logic, side
 effects, or calling shared infrastructure does not settle their placement.
 
 | Command surface | Open decision | Cleanup ticket |
 | --- | --- | --- |
-| `megalaunch`, `slack` | Placement of queue orchestration and the user-facing notification head | `work-orchestration-commands-to-tickets` |
+| `slack` (retained core head) | Reviewed co-versioning proof below; any future migration must preserve matching-session completion | `move-slack-fyis-to-a-command-ticket` |
 | `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `residual-command-surfaces` |
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
@@ -99,6 +98,34 @@ all catalog presentation. Launch's prompt-report diagnostic also stays: it
 reports launch-selected composition/provenance, refuses script targets and
 refreshes the ignored skill view. The write-free compose API remains separate.
 These decisions do not claim that diagnostic rendering has two consumers.
+
+## Settled orchestration boundary
+
+Megalaunch is an editable bootstrap script and complete `coga_edge.megalaunch`
+module, reached through direct launch aliases. Core never imports its policy.
+`launch.run_claimed_agent_session` delegates to `claimed_session`: exact source
+bytes, generation construction, strict claim publication, final local/control
+proofs, held-child barrier, release, released witness and admission form one
+package-private transaction. Ordinary launch recovery consumes the same pending
+seal and generation machinery. A filesystem edge cannot choose the seal's sole
+pending-to-admitted exception safely. This bounded co-versioning proof covers
+those mechanics, not picker, ordering, budgets or stop classification.
+`mark.reblock_unresolved_resume` serves ordinary launch and queue cleanup;
+shared foreground waits serve stateless scripts and recurring control relays.
+`session_limits` shares env/config parsing between recurring and the queue;
+each caller supplies its own idle default. `authoring.invoke_ticket_authoring`
+uses public CLI argv and preserves its guarded finalization. Its narrow
+co-versioning obligation is mapping the CLI's withheld-sweep ContextVar to 75
+before CLI cleanup resets it; this is why the edge does not inspect a private
+CLI flag or copy an authoring executor. Sibling 08 still owns the authoring
+coordinator's eventual placement.
+
+Slack's retained head joins notification delivery, audit append and matching
+bootstrap-session completion through the CLI's deferred finalization. Script
+isolation deliberately clears the supervisor and expected identity, so a script
+cannot preserve this transaction without parent-owned completion support.
+The draft Slack sibling owns that support's design and audit-gate tightening;
+this migration neither implements it nor claims Slack forkability.
 
 ## The `ticket.py` script phase
 

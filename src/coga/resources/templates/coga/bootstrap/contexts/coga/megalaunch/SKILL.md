@@ -7,7 +7,8 @@ description: How `coga megalaunch` selects, orders, gates, and runs queued work 
 
 `coga megalaunch` runs launchable work one task at a time (flags and syntax:
 `coga megalaunch --help`). It is on-demand only: no recurring template ships
-for it. `pick` is the default alias for `megalaunch --pick`. For one task,
+for it. `megalaunch` expands to `launch bootstrap/megalaunch --`; `pick` expands
+directly to `launch bootstrap/megalaunch -- --pick`. For one task,
 `coga launch <slug>` ([launch](../launch/SKILL.md)) is the attended path.
 
 ## Sessions
@@ -137,3 +138,20 @@ skipped-human-gate, skipped-unresolved-blocker, skipped-unlaunchable, and
 failed, one row per task; one notification line follows. Any `failed` row
 exits 1; usage errors exit 2. Claims and recovery:
 [launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md).
+
+## Editable implementation
+
+The packaged `bootstrap/megalaunch/ticket.md` and sibling `ticket.py` select
+`coga_edge.megalaunch`. The complete module owns picker, persistence, filters,
+service-order selection, dependency policy, budgets, stop classification and
+summary. It is a stateless script invocation, creating no tracking task or
+agent for itself. Its child sessions are still agent-only.
+
+Shared launch owns exact claim publication, pre-spawn local/control proofs,
+held-child release and admission; changing queue policy cannot supply these
+proofs. Pending and released witnesses retain ordinary launch recovery.
+[Script tickets](../script-tickets/SKILL.md#stateless-command-help-and-interrupts)
+owns help, argv and parent interrupt handling; framing remains on stderr.
+Aliases that previously targeted the built-in `megalaunch` must instead target
+`launch bootstrap/megalaunch --` with their queue arguments appended.
+Full local forks and upgrade behavior: [edge code](../edge-code/SKILL.md).

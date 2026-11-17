@@ -778,7 +778,7 @@ def test_recurring_creates_silently(
 
     monkeypatch.setattr("requests.post", _capture)
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: True
     )
     # The bare scan launches due tasks sequentially; mark the stubbed launch
     # done so the recurring sweep sees a completed run.

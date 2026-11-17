@@ -32,8 +32,12 @@ from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterator, Mapping, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Callable, Iterator, Mapping, NamedTuple, TypeVar
+
 from uuid import UUID, uuid4
+
+if TYPE_CHECKING:
+    from coga.claimed_session import ClaimedSessionResult
 
 from typer import Exit as NotificationExit
 
@@ -329,6 +333,13 @@ def launch(
         except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
             _bail(str(exc))
         return LaunchResult(kind="script", exit_code=result.exit_code)
+    from coga.argv import help_requested
+    from coga.launch_script import run_bootstrap_script_help
+
+    if task.startswith("bootstrap/") and help_requested(args or ()):
+        code = run_bootstrap_script_help(task, args or ())
+        if code is not None:
+            return LaunchResult(exit_code=code)
     with ExitStack() as local_scope:
         if task == "bootstrap/orient" and not prompt_report:
             try:
@@ -1193,7 +1204,7 @@ class _LaunchInvocation:
                     alignment_is_human_assist
                     and alignment_ticket.status
                     in {"draft", "active", "in_progress", "paused", "blocked"}
-                    and not _interactive_stdio_has_tty()
+                    and not interactive_stdio_has_tty()
                 ):
                     _refuse_tty_launch(self.ref)
                 candidate_assist_branch = (
@@ -1383,7 +1394,7 @@ class _LaunchInvocation:
         # skipped-unresolved-blocker, and an explicit pick runs the same
         # activate-and-resume through the engine's own launch loop.
         if not self.is_bootstrap and isinstance(self.ref, TaskRef) and self.ticket.status == "blocked":
-            if _interactive_stdio_has_tty():
+            if interactive_stdio_has_tty():
                 if not open_blockers(self.ref.ticket_path):
                     _bail(
                         f"Cannot launch {self.ref.id_slug}: it is blocked but has no "
@@ -1763,7 +1774,7 @@ class _LaunchInvocation:
 
             _refuse_human_handoff_launch(self.cfg, self.ref, self.ticket, self.agent_override)
 
-            if not _interactive_stdio_has_tty():
+            if not interactive_stdio_has_tty():
                 _refuse_tty_launch(self.ref)
 
             self.launch_agent = self.agent_override or self.operator.name
@@ -2124,7 +2135,7 @@ class _LaunchInvocation:
                 if self.blocked_resume:
                     self.blocked_resume = False
                     bytes_before_reblock = _diagnostic_ticket_bytes(self.ref)
-                    _reblock_unresolved_resume(self.cfg, self.ref, step_agent or self.launch_agent)
+                    _park_unanswered_resume(self.cfg, self.ref, step_agent or self.launch_agent)
                     # A supervisor-owned reblock is not an agent's change; give up
                     # the diagnostic for this session rather than misattribute it.
                     supervisor_reblocked = (
@@ -2240,7 +2251,7 @@ class _LaunchInvocation:
             # exit here.  The helper is a no-op once the ask was resolved.
             if self.blocked_resume:
                 self.blocked_resume = False
-                _reblock_unresolved_resume(
+                _park_unanswered_resume(
                     self.cfg,
                     self.ref,
                     self.agent_override or self.launch_agent,
@@ -2523,7 +2534,7 @@ class _LaunchInvocation:
         if not self.blocked_resume:
             return False
         self.blocked_resume = False
-        return _reblock_unresolved_resume(
+        return _park_unanswered_resume(
             self.cfg,
             self.ref,
             self.agent_override or _operator_display(self.cfg, self.ref, self.ticket),
@@ -2553,7 +2564,7 @@ def _require_agent_after_script(
     """Fail loud when ``ticket.py`` left work open but no agent can take it."""
 
     step_label = _script_step_label(ticket)
-    if not _interactive_stdio_has_tty():
+    if not interactive_stdio_has_tty():
         _bail(
             f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
             "but its agent phase requires a TTY (stdin and stdout must both "
@@ -2919,97 +2930,21 @@ def _warn_unsignalled_advance(
         _report(warning, fg='yellow', err=True)
 
 
-def _reblock_unresolved_resume(
-    cfg: Config,
-    ref: TaskRef | BootstrapRef,
-    blocker: str | None,
-    *,
-    resume_step: str | None = None,
-    fallback_ticket_bytes: bytes | None = None,
+def _park_unanswered_resume(
+    cfg: Config, ref: TaskRef | BootstrapRef, blocker: str | None, *,
+    resume_step: str | None = None, fallback_ticket_bytes: bytes | None = None,
 ) -> bool:
-    """Return an unresolved blocked-ticket resume to the blocked queue.
+    from coga.mark import reblock_unresolved_resume
 
-    A resumed blocked launch is allowed to become `in_progress` so the same
-    session can discuss, run `coga unblock`, and continue to `coga bump`. If
-    that session exits before recording the answer, keep the unresolved ask
-    visible to `status --blocked`, `unblock --all`, and blocker reminders.
-
-    ``resume_step`` is supplied by the deterministic path.  A ticket script
-    can pause or close the ticket before launch regains control; an unanswered
-    ask still wins, so restore the original live step when the transition
-    cleared it and put the ticket back in the blocked queue.  Agent-session
-    callers omit it and retain the established in-progress-only cleanup.
-    Restoring a position restores the routing *inputs*; the operator is derived
-    from them, never copied from the session that ran.
-
-    Returns whether an open ask remains durably parked as ``blocked``.
-    """
-    if not isinstance(ref, TaskRef):
-        return False
-    current_bytes = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
-    restored_fallback = False
-    try:
-        if current_bytes is None:
-            raise TicketError("ticket.py removed ticket.md")
-        ticket = Ticket.parse(current_bytes.decode("utf-8"))
-        _, blackboard = split_body(ticket.body)
-        blockers = [
-            item
-            for item in parse_blockers_text(blackboard or "")
-            if not item.resolved
-        ]
-    except (OSError, UnicodeError, TaskFileError, TicketError):
-        if fallback_ticket_bytes is None:
-            return False
-        ticket = Ticket.parse(fallback_ticket_bytes.decode("utf-8"))
-        _, blackboard = split_body(ticket.body)
-        blockers = [
-            item
-            for item in parse_blockers_text(blackboard or "")
-            if not item.resolved
-        ]
-        # A failed deterministic child owns its invalid or missing ticket
-        # result. Fall back to the exact pre-resume ticket so the original ask
-        # stays queue-visible, then preserve the child's exit code upstream.
-        ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
-        git.write_ticket(cfg, ticket, ref.ticket_path)
-        restored_fallback = True
-    if not blockers:
-        return False
-    if ticket.status == "blocked" and not restored_fallback:
-        return True
-    if ticket.status != "in_progress" and resume_step is None:
-        return False
-    if resume_step is not None and ticket.step is None:
-        # A terminal deterministic transition can clear ``step``. Restore the
-        # original position and let routing be derived from it again: there is no
-        # copied assignment to restore, so an unresolved ask can no longer be
-        # attributed to whichever agent a later step would have used.
-        ticket.frontmatter["step"] = resume_step
-
-    owner = ticket.owner or cfg.current_user
-    detail = "; ".join(b.reason for b in blockers)
-    try:
-        mark_blocked(
-            cfg,
-            ref,
-            ticket,
-            actor="system",
-            log_message=(
-                "blocked: unresolved blocker still open after resumed launch exited"
-            ),
-            slack_text=(
-                f"🛑 {blocker or cfg.current_user} still blocked "
-                f"*{ref.id_slug}* \"{ticket.title}\": {detail}"
-            ),
-            echo=(
-                f"{ref.id_slug}: blocked (unresolved blocker still open; "
-                f"owner {owner} needs to answer)"
-            ),
-        )
-    except TaskValidationError as exc:
-        _bail(str(exc))
-    return True
+    result = reblock_unresolved_resume(
+        cfg, ref, slack_actor=blocker or cfg.current_user,
+        log_message="blocked: unresolved blocker still open after resumed launch exited",
+        echo_owner_text="owner {owner} needs to answer",
+        resume_step=resume_step, fallback_ticket_bytes=fallback_ticket_bytes,
+    )
+    if result.kind == "invalid":
+        _bail(result.detail)
+    return result.kind in {"reblocked", "already_blocked"}
 
 
 def _preflight_push_auth(
@@ -4607,7 +4542,7 @@ def _refuse_human_handoff_launch(
     )
 
 
-def _interactive_stdio_has_tty() -> bool:
+def interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
@@ -4665,3 +4600,18 @@ class LaunchBail(RuntimeError):
 
 def _bail(msg: str, *, exit_code: int = 2) -> None:
     raise LaunchBail(exit_code, msg)
+
+
+def run_claimed_agent_session(
+    cfg: Config, ref: TaskRef, *, source_bytes: bytes,
+    prospective_ticket: Ticket, agent_name: str,
+    activation: Ticket | None = None,
+    idle_timeout: float | None = None, max_session: float | None = None,
+) -> "ClaimedSessionResult":
+    """Run the co-versioned claim/release/admission transaction."""
+    from coga.claimed_session import run_claimed_agent_session as run
+    return run(
+        cfg, ref, source_bytes=source_bytes,
+        prospective_ticket=prospective_ticket, agent_name=agent_name,
+        activation=activation, idle_timeout=idle_timeout, max_session=max_session,
+    )

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from coga.argv import command_help_requested
+
 import importlib
 import os
 import shlex
@@ -51,7 +53,6 @@ _LAZY_COMMANDS: dict[str, tuple[str, str, dict[str, object]]] = {
     "create": ("coga.commands.create", "create", {}),
     "ticket": ("coga.commands.ticket", "ticket", {}),
     "launch": ("coga.commands.launch", "launch", {}),
-    "megalaunch": ("coga.commands.megalaunch", "megalaunch", {}),
     "bump": ("coga.commands.bump", "bump", {}),
     "block": ("coga.commands.block", "block", {}),
     "unblock": ("coga.commands.unblock", "unblock", {}),
@@ -151,7 +152,6 @@ _SWEEPING_COMMANDS = frozenset(
         "create",
         "ticket",
         "launch",
-        "megalaunch",
         "bump",
         "block",
         "unblock",
@@ -208,7 +208,7 @@ def _sweep_coga_state(cfg: Config | None) -> None:
         # reusing it here would sweep the old root and could commit the new
         # config without its destination. Reload at the publication boundary.
         live_cfg = load_config(cfg.repo_root, require_user=False)
-    except ConfigError as exc:
+    except (ConfigError, tomllib.TOMLDecodeError) as exc:
         typer.secho(
             f"[git] current config is invalid (state sweep skipped): {exc}",
             fg=typer.colors.YELLOW,
@@ -398,7 +398,7 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     args = argv[1:]
     if not args:
         return False
-    if "--help" in args or "-h" in args:
+    if command_help_requested(args):
         return False
     command = args[0]
     if command.startswith("-") or command in _NON_SWEEPING_COMMANDS:
@@ -461,7 +461,7 @@ def _needs_no_config(args: list[str]) -> bool:
     return (
         bool(args)
         and args[0] in _BUILTIN_COMMANDS
-        and any(arg in ("--help", "-h") for arg in args[1:])
+        and command_help_requested(args)
     )
 
 
@@ -503,7 +503,7 @@ def _restore_default_sigpipe() -> None:
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
-def main() -> None:
+def main(*, retained_state_exit: bool = False) -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
     if os.name == "nt":
         # Windows console I/O already supports Unicode, but pipes otherwise
@@ -539,7 +539,7 @@ def main() -> None:
     except (ConfigError, tomllib.TOMLDecodeError) as exc:
         msg = str(exc)
         if "No coga.toml found" in msg:
-            help_invoked = any(arg in ("--help", "-h") for arg in sys.argv[1:])
+            help_invoked = command_help_requested(sys.argv[1:])
             known_command = (
                 invoked_command in _BUILTIN_COMMANDS
                 or invoked_command in _DEFAULT_ALIASES
@@ -557,6 +557,8 @@ def main() -> None:
                     err=True,
                 )
                 sys.exit(2)
+            cfg = None
+        elif command_help_requested(sys.argv[1:]):
             cfg = None
         elif init_invoked or recurring_all_invoked:
             prefix = (
@@ -590,7 +592,7 @@ def main() -> None:
     aliases = {**_DEFAULT_ALIASES, **user_aliases}
     try:
         _validate_aliases(aliases)
-    except ConfigError as exc:
+    except (ConfigError, tomllib.TOMLDecodeError) as exc:
         if init_invoked or recurring_all_invoked:
             prefix = (
                 f"Note: ignoring config error so `{sys.argv[1]}` can run"
@@ -649,6 +651,8 @@ def main() -> None:
             # intentionally left dirty.
             if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
                 _sweep_coga_state(cfg)
+            if retained_state_exit and git.state_sweep_withheld.get():
+                raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
             raise
         except BaseException:
             _sweep_coga_state(cfg)

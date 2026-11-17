@@ -146,6 +146,8 @@ src/coga/resources/templates/coga/skills/_template/SKILL.md
 src/coga/resources/templates/coga/tasks/coga-build.md
 src/coga/resources/templates/coga/workflows/_template.md
 src/coga/resources/ticket.md
+src/coga/resources/templates/coga/bootstrap/megalaunch/ticket.md
+src/coga/resources/templates/coga/bootstrap/megalaunch/ticket.py
 src/coga/resources/templates/coga/bootstrap/show/ticket.md
 src/coga/resources/templates/coga/bootstrap/show/ticket.py
 src/coga/resources/templates/coga/bootstrap/status/ticket.md

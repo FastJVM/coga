@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -1446,3 +1447,48 @@ print("installed init and suppressed first snapshot passed")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "suppressed first snapshot passed" in result.stdout
     assert snapshot_tree() == before
+
+
+def test_installed_megalaunch_complete_fork_survives_wheel_reinstall(tmp_path: Path) -> None:
+    """A full local copy has no dependency on the wheel's queue policy."""
+    wheel = _build_wheel(tmp_path)
+    installed = tmp_path / "installed"
+    def install() -> None:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--no-deps", "--upgrade", "--target", str(installed), str(wheel)],
+            capture_output=True, check=True,
+        )
+    install()
+    host = tmp_path / "project"
+    coga_os = host / "coga"
+    coga_os.mkdir(parents=True)
+    (coga_os / "coga.toml").write_text('version = 1\n[git]\nenabled = false\n', encoding="utf-8")
+    (coga_os / "coga.local.toml").write_text('user = "tester"\n', encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": str(installed), "PYTHONDONTWRITEBYTECODE": "1", "TERM": "dumb"}
+    def run(*args: str):
+        return subprocess.run([sys.executable, "-m", "coga.cli", *args], cwd=host, env=env, capture_output=True, text=True, encoding="utf-8")
+    for name in ("megalaunch", "pick"):
+        result = run(name, "--help")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "oldest-first" in result.stdout
+    local = coga_os / "bootstrap/megalaunch"
+    local.mkdir(parents=True)
+    resources = installed / "coga/resources/templates/coga/bootstrap/megalaunch"
+    shutil.copyfile(resources / "ticket.md", local / "ticket.md")
+    implementation = (installed / "coga_edge/megalaunch.py").read_text(encoding="utf-8")
+    assert "from coga_edge" not in implementation and "import coga_edge" not in implementation
+    implementation = implementation.replace(
+        'def main(argv: list[str]) -> int:\n',
+        'def main(argv: list[str]) -> int:\n    if argv == ["--fork-proof"]:\n        print("local queue policy")\n        return 0\n',
+    )
+    (local / "ticket.py").write_text(implementation, encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in local.iterdir()}
+    assert run("megalaunch", "--fork-proof").stdout == "local queue policy\n"
+    install()
+    assert {p.name: p.read_bytes() for p in local.iterdir()} == before
+    assert run("megalaunch", "--fork-proof").stdout == "local queue policy\n"
+    # Restoring the stock shim rejoins the installed implementation immediately.
+    shutil.copyfile(resources / "ticket.py", local / "ticket.py")
+    assert run("megalaunch", "--fork-proof").returncode == 2
+    assert run("megalaunch", "--help").returncode == 0
+    assert not (coga_os / "tasks").exists()

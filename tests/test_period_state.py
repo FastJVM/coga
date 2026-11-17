@@ -211,7 +211,7 @@ def test_stale_keys_ignores_removed_parent(repo: Path) -> None:
 
 def _allow_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: True
     )
 
 

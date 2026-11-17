@@ -13,12 +13,14 @@ shape stays identical regardless of who triggered the transition.
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
+from typing import Literal
 from pathlib import Path
 
 import typer
 
 from coga import git
-from coga.blackboard import prelaunch_blackboard_synthesis_reason_text
+from coga.blackboard import parse_blockers_text, prelaunch_blackboard_synthesis_reason_text
 from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
@@ -31,11 +33,12 @@ from coga.period_state import (
     stale_keys,
 )
 from coga.notification import notify, post
-from coga.taskfile import split_body
-from coga.tasks import TaskRef
-from coga.ticket import Ticket
-from coga.validate import assert_task_valid
+from coga.taskfile import TaskFileError, split_body
+from coga.tasks import TaskRef, TargetRef
+from coga.ticket import Ticket, TicketError
+from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import Workflow, WorkflowError
+from coga.paths import RepoResourceUnreadable
 
 # Workflows with no push/PR step: finishing one with committed product code
 # strands that code off the control branch. Kept as a set so the guard can grow
@@ -742,6 +745,9 @@ def mark_paused(
 __all__ = [
     "mark_active",
     "prepare_active",
+    "reblock_unresolved_resume",
+    "ResumeReblockResult",
+    "PREPARE_ACTIVE_ERRORS",
     "mark_in_progress",
     "mark_blocked",
     "mark_paused",
@@ -754,3 +760,97 @@ __all__ = [
     "StrandedProductCode",
     "stranded_product_paths",
 ]
+
+
+@dataclass(frozen=True)
+class ResumeReblockResult:
+    kind: Literal["reblocked", "already_blocked", "noop", "invalid"]
+    detail: str = ""
+
+
+def reblock_unresolved_resume(
+    cfg: Config,
+    ref: TargetRef,
+    *,
+    slack_actor: str,
+    log_message: str,
+    echo_owner_text: str,
+    resume_step: str | None = None,
+    fallback_ticket_bytes: bytes | None = None,
+) -> ResumeReblockResult:
+    """Park unanswered resumes, preserving deterministic fallback and routing."""
+    if not isinstance(ref, TaskRef):
+        return ResumeReblockResult("noop")
+    restored_fallback = False
+    try:
+        current_bytes = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
+        if current_bytes is None:
+            raise TicketError("ticket.py removed ticket.md")
+        ticket = Ticket.parse(current_bytes.decode("utf-8"))
+        _, blackboard = split_body(ticket.body)
+        blockers = [
+            item
+            for item in parse_blockers_text(blackboard or "")
+            if not item.resolved
+        ]
+    except (OSError, UnicodeError, TaskFileError, TicketError):
+        if fallback_ticket_bytes is None:
+            return ResumeReblockResult("noop")
+        ticket = Ticket.parse(fallback_ticket_bytes.decode("utf-8"))
+        _, blackboard = split_body(ticket.body)
+        blockers = [
+            item
+            for item in parse_blockers_text(blackboard or "")
+            if not item.resolved
+        ]
+        # A failed deterministic child owns its invalid or missing ticket
+        # result. Fall back to the exact pre-resume ticket so the original ask
+        # stays queue-visible, then preserve the child's exit code upstream.
+        ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
+        git.write_ticket(cfg, ticket, ref.ticket_path)
+        restored_fallback = True
+    if not blockers:
+        return ResumeReblockResult("noop")
+    if ticket.status == "blocked" and not restored_fallback:
+        return ResumeReblockResult("already_blocked", "; ".join(b.reason for b in blockers))
+    if ticket.status != "in_progress" and resume_step is None:
+        return ResumeReblockResult("noop")
+    if resume_step is not None and ticket.step is None:
+        # A terminal deterministic transition can clear ``step``. Restore the
+        # original position and let routing be derived from it again: there is no
+        # copied assignment to restore, so an unresolved ask can no longer be
+        # attributed to whichever agent a later step would have used.
+        ticket.frontmatter["step"] = resume_step
+
+    owner = ticket.owner or cfg.current_user
+    detail = "; ".join(b.reason for b in blockers)
+    try:
+        mark_blocked(
+            cfg,
+            ref,
+            ticket,
+            actor="system",
+            log_message=log_message,
+            slack_text=(
+                f"🛑 {slack_actor} still blocked "
+                f"*{ref.id_slug}* \"{ticket.title}\": {detail}"
+            ),
+            echo=(
+                f"{ref.id_slug}: blocked (unresolved blocker still open; "
+                f"{echo_owner_text.format(owner=owner)})"
+            ),
+        )
+    except TaskValidationError as exc:
+        return ResumeReblockResult("invalid", str(exc))
+    return ResumeReblockResult("reblocked", detail)
+
+
+
+PREPARE_ACTIVE_ERRORS = (
+    WorkflowMissing,
+    WorkflowError,
+    RequiredExtensionMissing,
+    BlackboardNeedsSynthesis,
+    MainAgentUnavailable,
+    RepoResourceUnreadable,
+)
