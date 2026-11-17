@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 contexts:
 - coga-dev/microkernel/objectives
@@ -138,19 +138,19 @@ script completion semantics.
 
 ### Acceptance and verification
 
-- [ ] `runner._failure_root` has no job-name branches; the resolver hook is
+- [x] `runner._failure_root` has no job-name branches; the resolver hook is
       used by the existing callers with unchanged reports.
-- [ ] One publication helper serves `cli._sweep_coga_state` and edge
+- [x] One publication helper serves `cli._sweep_coga_state` and edge
       entrypoints; admission policy stays in the CLI.
-- [ ] Tests with a fixture edge worker cover report → publication →
+- [x] Tests with a fixture edge worker cover report → publication →
       successful-bump ordering and no inherited-task completion, inspecting
       control state after direct worker exit without a later lifecycle
       command; target-root isolation, parser refusal, unknown roots, report
       and publication failures, escaping exceptions, help, exit 75 and
       withheld state; phone-home/trim-log behavior unchanged.
-- [ ] `coga-dev/codebase` and `coga/state-publication` (package copy) describe
+- [x] `coga-dev/codebase` and `coga/state-publication` (package copy) describe
       the extracted helper if their current text names its old location.
-- [ ] Report production code before/after at named revisions as a table per
+- [x] Report production code before/after at named revisions as a table per
       file (core / edge / scripts, physical lines via `wc -l`), marking
       deleted branches separately from moved code. Run runner/launch/Git/
       recurring suites, packaging checks and the per-change Linux receipt in
@@ -198,6 +198,135 @@ part 1: shared reporting/publication infrastructure plus the registry record.
 Its cold evaluator review was folded into this body and into 04b–04e. Status,
 workflow and step are unchanged: it waits at `review-design` for owner
 approval, then `implement`. The pre-refresh design and evidence remain below.
+
+## Implement handoff — 2026-11-16
+
+Attended session (Claude Opus 5.5); the owner approved this plan in chat before
+any code was written. Commits `9a22c4fd3` (implementation) and `726ed66e2`
+(test isolation), pushed on the branch above.
+
+- **Reporting.** `runner.run_reported(..., *, root=None)` takes an optional
+  `task_env.RootResolver` `(cfg, argv) -> Path | None`; its four-argument form
+  is unchanged (phone-home/trim-log untouched). `_failure_root` and its
+  job-name branches are gone. `task_env.cwd_option_root(parser)` is the generic
+  quiet `--cwd` resolver. Each still-registered job owns its resolver as
+  `target_root` in its module (`skill_update`, `dream_validate_drift`,
+  `dream_cleanup_orphan_markers`); `runner.RECIPE_ROOTS` lists them beside
+  `RECIPES` and `run_recipe` passes them. **04b/04d: delete the matching
+  `RECIPE_ROOTS` entry with the registry entry and pass `root=target_root` to
+  `run_entry` instead.** Runner no longer imports any parser.
+- **Publication.** New `coga/state_sweep.py`: `sweep_suppressed()` (relay +
+  withheld with its warning) and `sweep_root(root)` (config reload +
+  `git.sync_coga_state`). `cli._sweep_coga_state` keeps admission
+  (argv rules, `cfg is None`, off-control `recurring --all` child), in the
+  same order and with the same output.
+- **Edge entry.** `runner.run_entry(name, worker, argv, *, root=None,
+  scheduled=False, cfg=None)`: `run_reported` → `_publish_after` (on return
+  and on escaping exceptions; skips `--help`/`-h`, exit 75, withheld/relay,
+  unknown or raising resolver — with a stderr note — and never falls back to
+  the invoking repo; publication errors only warn) → bump only when
+  `scheduled`, code 0, `COGA_SCRIPT_TASK` set and `is_script_task` on the
+  resolved `COGA_TASK_SLUG`. Slug without `COGA_SCRIPT_TASK` → no bump, 0;
+  `COGA_SCRIPT_TASK` naming another task or an unresolvable slug → exit 1.
+  The bump subprocess is `runner._bump(slug)` so tests can replace it.
+- **Decision (owner-approved tradeoff):** phone-home and trim-log stay on
+  their own `main()`; `run_entry` has no production caller until 04b–04d.
+  Known remaining gap for whoever migrates phone-home: it still bumps on an
+  inherited `COGA_TASK_SLUG` alone.
+- **Adjacent finding fixed in tests only:** `git.control_relay_started` leaked
+  between tests (set by `recurring_runner` relay paths / `test_cli.py`), so
+  the conftest withheld-scope fixture now scopes it too.
+- **Docs:** `coga-dev/codebase`, `coga-dev/internals/state-publication`,
+  package `coga/state-publication` and `coga/recurring/templates`.
+
+### Production line counts (`wc -l`, `53fd46b7e` → `726ed66e2`)
+
+| File | Layer | Before | After | Δ |
+| --- | --- | --- | --- | --- |
+| `src/coga/runner.py` | core | 263 | 364 | +101 (run_entry/publish/bump +~90; `_failure_root` branches −24 deleted, replaced by 3-line default + `RECIPE_ROOTS`) |
+| `src/coga/cli.py` | core | 654 | 635 | −19 (mechanism moved out) |
+| `src/coga/state_sweep.py` | core | 0 | 57 | +57 (moved from cli + docstrings) |
+| `src/coga/task_env.py` | core | 167 | 202 | +35 (`cwd_option_root`, moved from `_failure_root`) |
+| `src/coga/skill_update.py` | core (moves in 04b) | 434 | 438 | +4 |
+| `src/coga/dream_validate_drift.py` | core (moves in 04d) | 847 | 851 | +4 |
+| `src/coga/dream_cleanup_orphan_markers.py` | core (moves in 04d) | 336 | 344 | +8 |
+| `src/coga_edge/phone_home.py`, `trim_log.py` | edge | 340, 356 | 340, 356 | 0 |
+| recurring/Dream scripts | scripts | — | — | 0 |
+
+Net production +190 lines: new shared infra (`run_entry`), not a reduction;
+deletions of job-name branches are the simplification this part claims. Tests
++316 in `tests/test_runner.py`, +6 in `tests/conftest.py`; docs +24.
+
+## PR
+
+```yaml
+title: Share failure-root resolution and exit publication with edge entrypoints
+author: claude
+author_evidence: >-
+  Attended implement session ran on Claude Opus 5.5 (claude-opus-5-5); see
+  the implement handoff above.
+head: 726ed66e2f824d97c4065f4ba25ddca8bee0bee7
+base: 7b7a9e46365dc5346028f12b9127794adfffbcbf
+depth: deep
+rationale: >-
+  Changes the shared failure-report root selection, moves the CLI exit-sweep
+  mechanism, and adds a new publish-and-bump entry sequence; no independent
+  code review has run yet.
+implementation: >-
+  run_reported gains an optional root resolver and _failure_root loses its
+  job-name branches (jobs own target_root resolvers, listed in RECIPE_ROOTS
+  until they move). The sweep mechanism moves to state_sweep, shared by the
+  CLI (which keeps admission) and the new runner.run_entry report -> publish
+  -> bump sequence for edge entrypoints.
+deviations: >-
+  run_entry has no production caller yet; phone-home and trim-log keep their
+  own main() by owner decision so their behavior is unchanged.
+limitations: >-
+  phone-home still bumps on an inherited COGA_TASK_SLUG alone. Native
+  Windows/macOS receipts deferred to release per coga-dev/testing. Python
+  3.11 floor not exercised locally (3.12.12 used).
+files:
+  src/coga/runner.py: >-
+    Root resolver hook on run_reported, RECIPE_ROOTS, run_entry with its
+    publication and script-task bump.
+  src/coga/state_sweep.py: Extracted end-of-invocation sweep mechanism.
+  src/coga/cli.py: _sweep_coga_state keeps admission policy and calls state_sweep.
+  src/coga/task_env.py: RootResolver type and the generic cwd_option_root resolver.
+  src/coga/skill_update.py: Owns its target_root resolver.
+  src/coga/dream_validate_drift.py: Owns its target_root resolver.
+  src/coga/dream_cleanup_orphan_markers.py: Owns its environment-based target_root resolver.
+  tests/test_runner.py: >-
+    run_entry ordering, inherited-task refusal, failure/exception/help/75/
+    withheld/unknown-root/parser-refusal/publication-failure cases, cwd
+    spellings, and a real-git direct-worker publication check.
+  tests/conftest.py: Scope control_relay_started per test, like state_sweep_withheld.
+  docs/contexts/coga-dev/codebase/SKILL.md: Source map names run_entry and state_sweep.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Describe the extracted sweep mechanism and edge exit sweep.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Edge workers get the exit sweep over their operating root.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Document the root resolver and the run_entry sequence.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; code review belongs to later workflow steps.
+checks:
+  - command: TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 726ed66e2f824d97c4065f4ba25ddca8bee0bee7
+    base: 7b7a9e46365dc5346028f12b9127794adfffbcbf
+    detail: >-
+      4921 passed, 33 skipped in 761s; Pop!_OS 24.04, Python 3.12.12. An
+      earlier run at 114a64db9 failed 12 new run_entry tests from the leaked
+      relay flag, fixed in 726ed66e2.
+  - command: coga validate --json (disposable copy of tests/fixtures/seeded-repo, SLACK_WEBHOOK_URL unset)
+    status: passed
+    head: 726ed66e2f824d97c4065f4ba25ddca8bee0bee7
+    base: 7b7a9e46365dc5346028f12b9127794adfffbcbf
+    detail: 5 ok, no issues, no fixes.
+  - command: native Windows/macOS full suite
+    status: not-run
+    detail: Release-only per coga-dev/testing; deferred.
+```
 
 ## Superseded designs
 
