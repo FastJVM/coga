@@ -55,226 +55,230 @@ step: 3 (review-design)
 
 ## Description
 
-Move `megalaunch` queue policy and the `slack` FYI procedure into editable
-bootstrap command tickets and deterministic scripts, retaining shared launch,
-admission, lifecycle, notification and verified completion machinery in core.
-Keep `pick` and the existing command spellings through aliases where the
-reviewed invocation contract permits them. `retire` already moved and is out
-of scope. This ticket starts with design and cold evaluation, followed by the
-owner's design gate; preparing this draft does not approve implementation.
+Move the `megalaunch` queue procedure (picker, selection, ordering, dependency
+drain, budgets and summary) into the editable stateless bootstrap command ticket
+`bootstrap/megalaunch` and a complete wheel-owned edge implementation. Shared
+launch, admission, lifecycle, notification and publication machinery stays in
+core. `megalaunch` and `pick` stay as aliases over plain `coga launch`. `retire`
+already moved and is out of scope.
 
-Done means users can discover and fully fork each moved procedure, including
-wheel-delivered implementation, without editing core; queue behavior and FYI
-completion/failure guarantees remain intact; each remaining core operation has
-a concrete invariant and real consumers; and the implementation reports
-whole-system change and removed duplication at named revisions, with matching
-contract updates and verification. A head that cannot safely move needs an
-owner-reviewed co-versioning proof rather than a partial migration presented
-as complete. Design owns the detailed acceptance checklist.
+Owner gate, 2026-11-16: this ticket now covers **megalaunch only**, with one
+implementation branch and PR. `slack` keeps its core head under the recorded
+co-versioning proof below. The new draft sibling
+`v1/microkernel/move-slack-fyis-to-a-command-ticket` owns any future Slack
+move, including the choice of completion mechanism.
+
+Done means users can discover and fully fork the queue procedure, including
+its wheel-delivered implementation, without editing core. Queue behavior, the
+claim/admission invariants and exit/publication behavior stay intact. Each
+remaining core operation has a concrete invariant and real consumers. The
+implementation reports whole-system change and removed duplication at named
+revisions, with matching contract updates and Linux verification.
 
 ### Objectives and proposed boundary
 
-Hackability: users can change selection, ordering, dependency-drain policy and
-FYI formatting through ticket-owned files. Simplification: reuse the shared
-executor and remove genuinely duplicated preparation or re-blocking; moving
-code between directories alone is not a reduction.
+Hackability: users can change selection, ordering, dependency-drain policy,
+budgets and summary formatting through ticket-owned files. Simplification:
+reuse the shared executor, remove the duplicated unresolved-resume re-blocking,
+and delete the `megalaunch` command head and `coga.megalaunch` policy module.
+Moving code between directories alone is not a reduction.
 
-| Responsibility | Current source symbols | Proposed home |
+| Responsibility | Current source symbols | Home after this ticket |
 | --- | --- | --- |
-| Picker, saved selection, owner filters and summary presentation | `commands.megalaunch`, `megalaunch.launchable_candidates`, `save_selection`, `load_selection` | Bootstrap megalaunch ticket and its script/edge implementation |
-| Sweep, dependency drain, attempt budget, liveness defaults, stop classification | `megalaunch.run_megalaunch`, `_run_sweep`, `_drain_satisfied_blockers`, `_chain_stop_result` | Queue-owned deterministic policy |
-| Activation, re-blocking, prospective agent preparation | `megalaunch._activate_for_launch`, `_reblock_unresolved`, `_preflight_agent_launch`, `_launch_until_stop` | Reuse reviewed shared operations while preserving caller transactions |
-| Claims, held-child proof, release/admission and recovery | `megalaunch._revalidate_launch_claim_before_spawn`, `_admit_launch_claim_after_release`, shared launch reconciliation | Shared package invariant; expose only the operation needed by the queue |
-| FYI operands, formatting and destination choice | `commands.slack.slack` | Bootstrap slack ticket over shared notification/audit operations |
-| Successful bootstrap FYI releases the matching outer session | `commands.slack.slack`, `repl_supervisor.emit_done_marker` | Verified generic completion operation, subject to design review |
+| Picker, saved selection, owner filters and summary presentation | `commands.megalaunch`, `megalaunch.launchable_candidates`, `save_selection`, `load_selection` | `bootstrap/megalaunch` ticket and `src/coga_edge/megalaunch.py` |
+| Sweep, dependency drain, attempt budget, liveness defaults, stop classification | `megalaunch.run_megalaunch`, `_run_sweep`, `_drain_satisfied_blockers`, `_chain_stop_result` | Edge queue policy |
+| Activation, re-blocking, prospective agent preparation | `megalaunch._activate_for_launch`, `_reblock_unresolved`, `_preflight_agent_launch`, `_launch_until_stop` | Shared core operations below, preserving caller transactions |
+| Claims, held-child proof, release/admission and recovery | `megalaunch._revalidate_launch_claim_before_spawn`, `_admit_launch_claim_after_release`, shared launch reconciliation | Core, under the co-versioning proof below; exposed through one operation |
+| Interrupt delivery to a running command script | `launch_script.run_script_phase` (`subprocess.run`) | Generic launch rule (below) |
 
-Ship whole policy implementations, not wrappers importing the old core command.
-Core must not import edge or ticket implementations. Stateless command calls
-create no tracking task merely to invoke a procedure. Preserve trailing argv,
-cwd, streams, exits and publication behavior across the chosen alias boundary.
+Ship whole policy implementations, not wrappers that import the old core
+command. Core must not import edge or ticket implementations. Stateless command
+calls create no tracking task. Preserve trailing argv, cwd, streams, exits and
+publication behavior across the alias boundary.
 
 Megalaunch preserves refresh, saved selections, ordering, owner/human gates,
 explicit-pick preparation and activation, exact-byte claim revalidation,
 held-child admission, dependency resolution/rollback, attempt accounting,
 failure evidence, summary delivery and POSIX/Windows terminal behavior. Its
-current agent-only execution remains: adding a script/agent queue framework is
-out of scope. Customization must not bypass the shared safety invariants.
-
-Slack preserves ordinary-task non-terminal FYIs and bootstrap completion only
-after successful delivery and durable audit. The script phase clears the outer
-supervisor identity, so nesting a bootstrap invocation cannot currently replace
-the whole head safely. Design must prove a matching-session completion path,
-including mismatched targets and failed delivery/audit, before moving that head;
-never copy ambient completion authority into a child. Preserve disabled-channel,
-important-destination, failure/audit and output behavior too.
+current agent-only execution remains: a script/agent queue framework is out of
+scope. Customization must not bypass the shared safety invariants.
 
 ### Acceptance criteria
 
-These criteria describe the proposed two-command program. At the owner gate,
-restrict this ticket's implementation checklist to the approved single-command
-scope and transfer the other command's criteria to its approved sibling. The
-unmigrated command remains an explicit open placement until its own review.
-
-- [ ] Owner approves the implementation split below, names primitive owners,
-  and leaves this ticket with one implementation/PR scope (or explicitly
-  approves a combined PR). No implementation follows from design completion.
-- [ ] `megalaunch` policy, picker, selection persistence, dependency selection,
+- [ ] Queue policy, picker, selection persistence, dependency selection,
   budgets, liveness defaults, stop classification and summary formatting live
-  in `bootstrap/megalaunch` and its complete wheel-owned edge implementation.
-  Core imports neither that implementation nor a ticket attachment. Delete
-  the old command head and policy module after migrating their consumers.
-- [ ] `slack` operands, FYI formatting and route selection live in
-  `bootstrap/slack` and its complete edge implementation, only after the
-  completion dependency below is implemented and reviewed. Otherwise retain
-  the entire existing head and record the owner-reviewed co-versioning proof;
-  moving ordinary FYIs alone does not complete this command's migration.
-- [ ] Both commands run without creating a tracking task or invoking an agent
-  for the command itself. `megalaunch` still launches agent sessions for queued
-  work; it never starts a queued ticket's deterministic phase.
-- [ ] Aliases preserve all existing operands, option collisions, cwd, streams,
-  help, exits, publication deadlines and terminal behavior. `pick` works with
-  the current one-level alias validator. Neither command abuses `--read-only`
-  to suppress writes. An unavailable required generic invocation contract
-  blocks the affected move, rather than shipping a special-name bypass.
-- [ ] Every megalaunch section in `coga/megalaunch` has parity coverage: refresh
-  before selection; owner and human gates; bare versus explicit selection;
-  saved selections and missing tasks; draft interview/check/deferred activation;
+  in the packaged `bootstrap/megalaunch` ticket (exact sibling `ticket.py`
+  shim) and the complete edge module `src/coga_edge/megalaunch.py`
+  (`main(argv) -> int`). Core imports neither. `src/coga/commands/megalaunch.py`
+  and `src/coga/megalaunch.py` are deleted after their consumers migrate; the
+  shim imports neither.
+- [ ] `DEFAULT_ALIASES` maps `megalaunch = "launch bootstrap/megalaunch --"` and
+  `pick = "launch bootstrap/megalaunch -- --pick"`. `megalaunch` leaves
+  `BUILTIN_COMMANDS`, `cli._LAZY_COMMANDS` and related inventories. No new
+  launch flag, no special-name branch and no recursive alias dispatch.
+  `--read-only` is not used to suppress writes.
+- [ ] Generic stateless-script launch rules for every stateless bootstrap
+  target (see Proposed shape): (a) no agent fallback: a target given trailing
+  script arguments without a regular `ticket.py`, or whose `ticket.py`
+  vanishes before the child starts, refuses with exit 2 before any effect;
+  (b) a help request (the exact token `--help` among the trailing arguments
+  before any script-level `--`, matching the Typer parser `retire` already
+  uses) runs the script without a configured user, agent or secrets and
+  without refresh, audit, publication or sweep, including outside a
+  configured repo through the packaged definition, so `coga megalaunch --help`
+  and `coga pick --help` print the command's help; (c) the interrupt rule.
+  `coga retire` gains the same rules and its existing tests still pass.
+- [ ] Interrupt rule: while a stateless bootstrap `ticket.py` runs, the parent
+  launch never kills or terminates the child on its own interrupt. It ignores
+  SIGINT, forwards a parent-only SIGTERM once and, on native Windows, ignores
+  Ctrl+C/Ctrl+Break. It waits for the child and exits with the child's status
+  unchanged (for example 130 or `128+n`); exit 75 still withholds sweep and
+  refresh. Tests cover Ctrl+C at the picker, between picks and inside a claim
+  window through the alias, and assert retained claim evidence and exit
+  status. Native Windows evidence is deferred to release.
+- [ ] The command runs without creating a tracking task or starting an agent
+  for itself. It still launches agent sessions for queued work and never
+  starts a queued ticket's deterministic phase. Each queued agent's
+  environment is re-minted: `COGA_SCRIPT_TASK` and the empty script sentinel
+  are cleared through `TASK_ENV_KEYS`, supervised witnesses are fresh, and
+  lifecycle commands inside a queued session credit the agent, not `system`.
+- [ ] Aliases preserve operands, option collisions, cwd (including subdirectory
+  invocation), streams, help, exits 0/1/2/75/130, publication deadlines and
+  terminal behavior. No new success text or usage record reaches stdout.
+- [ ] Every section of `coga/megalaunch` has parity coverage: refresh before
+  selection; owner and human gates; bare versus explicit selection; saved
+  selections and missing tasks; draft interview/check/deferred activation;
   service order; dependency drain and exact rollback; attempt counting and
   first-step override; eight-step bound, timeouts and no-progress failure;
-  summary delivery after stdout. Skipped work and unreached picks stay untouched.
+  summary delivery after stdout. Skipped work and unreached picks stay
+  untouched.
 - [ ] The queue cannot bypass exact-byte claim publication, final local/control
-  proofs, held-child release/admission, or `pending:`/`released:` recovery by
+  proofs, held-child release/admission or `pending:`/`released:` recovery by
   changing selection or instructions. Publication failure distinguishes a
   definite refusal from an uncertain result and never overwrites a later edit.
-  Queue admission keeps its existing separate publication deadlines.
-- [ ] Consolidate unresolved agent-resume re-blocking for ordinary launch and
-  megalaunch in one shared operation, migrating both real callers together.
-  Keep deterministic resume's restoration behavior explicit. Readiness
-  consolidation belongs to sibling 03 and is not counted again here.
-- [ ] Ordinary FYIs never complete a task or enclosing session. A bootstrap FYI
-  completes only the matching live bootstrap session, after successful channel
-  handling, durable audit and command finalization. Mismatched root, identity,
-  stale invocation, nonzero child, delivery failure, audit failure, or uncertain
-  publication never signals completion. No outer sentinel, assist or expected
-  step authority reaches `ticket.py`; stdout is never a completion channel.
-- [ ] Preserve disabled-channel handling (diagnostic, audit and `posted`),
-  important-route refusal rather than flow fallback, actor resolution, message
-  validation, sanitized errors and one send attempt. A delivery followed by an
-  audit failure reports the delivered-but-unrecorded state without automatic
-  resend. Git-disabled completion requires successful local audit, not a claim
-  of remote durability. Explicitly document the stricter audit gate below.
-- [ ] Through sibling 05's discover/copy mechanism, fresh wheel users can find
-  each effective command, obtain its ticket plus all implementation files, edit
-  policy/formatting locally, and run the fork. Prove no import of its installed
-  edge implementation remains; upgrading the wheel keeps the fork unchanged.
-  Restoring stock files rejoins updates. Test a multi-file fork if used.
-- [ ] Update contract owners and dependent links in the same command PR:
-  package `coga/megalaunch`, `coga/notifications` and `producers`, `coga/cli`,
-  `coga/edge-code`, `coga/script-tickets`, `coga/state-publication` and
-  `launch-boundaries` where affected; local `coga-dev/microkernel` and launch
-  claim/spawn internals. Preserve one package owner and pin packaged resources.
+  Queue admission keeps its separate publication deadlines and its current
+  failed-row/exit-1 contract.
+- [ ] One shared `mark.reblock_unresolved_resume` replaces
+  `launch._reblock_unresolved_resume`'s agent path and
+  `megalaunch._reblock_unresolved`, with the parity table in Proposed shape.
+  Deterministic resume keeps its explicit step/fallback-byte restoration at
+  the launch caller.
+- [ ] Through sibling 05's discover/copy mechanism, a fresh wheel user can find
+  the effective `megalaunch` command, copy its ticket and the full edge
+  implementation, edit policy locally and run the fork. The fork imports no
+  installed edge module; upgrading the wheel leaves it unchanged; restoring
+  stock files rejoins updates. If 05 is not merged at implementation entry,
+  prove the same with a manual full copy and record the gap.
+- [ ] Update contract owners and dependent links in the same PR: package
+  `coga/megalaunch`, `coga/cli`, `coga/launch`, `coga/edge-code`,
+  `coga/script-tickets` (separator rules, interrupt rule, no agent fallback),
+  `coga/state-publication` and `launch-boundaries` where affected; local
+  `coga-dev/microkernel` (megalaunch placement settled; slack row records the
+  retained-head proof and the sibling). Preserve one package owner and pin
+  the packaged resources in `tests/required_package_resources.txt`.
 - [ ] Record physical Python lines at named before/after revisions across core,
-  edge and ticket/skill scripts, including any new primitive/transport code.
-  Use `len(bytes.splitlines())` consistently, with blanks/comments included;
-  list the file set and removed entrypoints/import paths. Separate relocation,
-  actual deletion/deduplication, tests, docs and resource wrappers. A larger
-  completion mechanism cannot be hidden as launch-sibling savings.
+  edge and ticket scripts, including new shared operations, using
+  `len(bytes.splitlines())` with blanks/comments. List the file set and removed
+  entrypoints/import paths. Report relocation, actual deletion/deduplication,
+  tests, docs and resource wrappers separately.
 - [ ] Extend existing tests and run the full Linux suite and scoped validation
   with exact receipts. Native Windows/macOS evidence is deferred to release;
   report the actual Python version and any missing 3.11-floor evidence.
 
 ### Proposed shape
 
-#### Implementation split and order — proposal for the owner gate
+#### Owner decisions — 2026-11-16
 
-1. Leave this ticket responsible for **megalaunch only** after owner approval.
-   Its PR owns queue policy extraction, the bounded claim-operation extraction,
-   and re-block deduplication. Consume merged readiness from sibling
-   `03-launch-decomposition`; coordinate its admission API with that owner.
-2. Propose a new sibling **Move Slack FYIs to a command ticket**. Do not create,
-   activate or launch it during this design step. It owns the FYI move and its
-   publication/completion integration after the generic completion prerequisite.
-3. Sibling 03 owns the generic script invocation and parent-side completion
-   transport. Sibling `10-lifecycle-verbs-to-ticket-operations` reviews verified
-   identity and the shared completion finalizer. Their handoff must accept the
-   contracts below before the Slack implementation begins. Sibling 05 owns
-   effective-source discovery and complete forks for both moves. Depend on
-   these specific operations, not completion of those siblings in full.
-4. The owner may instead approve a combined PR, or retain Slack's small head
-   with the proof below. Do not silently split the frozen workflow, repeat
-   implementation cycles, or change CLI-owned frontmatter to enact this plan.
+1. **Scope.** This ticket implements megalaunch only. The Slack sibling exists
+   as a draft; it is not activated or launched by this ticket.
+2. **Invocation.** The design-time `--command` flag is dropped: no ticket owns
+   it, and plain `launch bootstrap/<x> --` already provides most of the
+   needed effect policy (see the deltas below). This ticket's PR implements
+   the three narrow generic rules itself.
+3. **Interrupts.** The parent never kills a running stateless command script
+   on its own interrupt; this ticket implements and tests it as a generic
+   launch rule.
+
+#### Prerequisites at implementation entry
+
+- Sibling 03 (`03-launch-decomposition`, PR #1233) was in review and unmerged on
+  2026-11-16. Before writing code, check what merged. If
+  `launch.prepare_agent_launch` (or its reviewed successor) is on main, consume
+  it for queue readiness. If 03 is still unmerged, implement against current
+  main, keep readiness inside the shared queue operation, and record the
+  overlap for whichever PR merges second. Never duplicate 03's readiness
+  reduction in the line-count report.
+- Sibling 05 supplies complete-fork discovery; see the fallback in Acceptance
+  criteria.
+- Sibling 08 owns `_author_draft`'s authoring dependency (below).
+- Sibling 04 is restructuring `recurring_runner`; coordinate the
+  `session_limits.py` home with 04 (below) before moving the parser.
 
 #### Editable command boundary
 
-Package `templates/coga/bootstrap/{megalaunch,slack}/ticket.md` and exact sibling
-`ticket.py`; use `src/coga_edge/megalaunch.py` and `src/coga_edge/slack.py` for
-complete implementations with `main(argv) -> int`. A small private package of
-edge-only helpers is acceptable only if sibling 05 copies its complete import
-closure. Prefer one self-contained policy module per command to make forks
-simple. The shim selects the implementation and propagates its exit once.
-It must not import the old `coga.commands.*` head or `coga.megalaunch` policy.
+Package `templates/coga/bootstrap/megalaunch/ticket.md` and exact sibling
+`ticket.py`, mirroring `bootstrap/retire`. The shim imports
+`coga_edge.megalaunch` and calls `sys.exit(main(sys.argv[1:]))` exactly once.
+Prefer one self-contained policy module so forks stay simple; a private
+edge-only helper package is acceptable only if sibling 05 copies its complete
+import closure. The module must not import `coga.commands.*` or
+`coga.megalaunch`.
 
-Proposed defaults in `src/coga/aliases.py`, `DEFAULT_ALIASES`:
-`megalaunch = "launch --command bootstrap/megalaunch --"`,
-`pick = "launch --command bootstrap/megalaunch -- --pick"`, and
-`slack = "launch --command bootstrap/slack --"`. `--command` is a proposed
-generic invocation policy owned by sibling 03, not an existing flag.
-Remove migrated names from
-`BUILTIN_COMMANDS` and `src/coga/cli.py`, `_LAZY_COMMANDS` and related inventories.
-`validate_aliases` requires a built-in first token: `pick = "megalaunch --pick"`
-would become invalid. Never solve this with recursive alias dispatch.
+The edge parser owns the existing usage errors, `--agent`, `--pick` and
+`--help`. Inherited terminal streams stay attached, and script framing stays on
+stderr. Scripts run from `task_env.host_repo_root`; characterize subdirectory
+invocations before moving relative-path parsing. Configuration discovery and
+reloads stay rooted in the invoking repository. The queue performs its own
+refresh before reading tickets, then reloads config, keeping its
+feature/detached behavior.
 
-The `--` keeps queue `--agent` and FYI `--task`/`--message` in script argv.
-The edge parser owns the existing usage errors and `--help`; inherited terminal
-streams remain attached and script framing stays on stderr. No new success
-text or usage record may pollute stdout. Scripts currently run from
-`task_env.host_repo_root`; characterize subdirectory invocations before moving
-relative-path parsing. Keep configuration discovery and reloads rooted in the
-invoking repository. The queue performs its own refresh before reading tickets,
-then reloads config, retaining feature/detached behavior. The proposed
-`--command` policy supplies the missing write-dispatch contract:
+Plain launch already gives a stateless bootstrap script this policy (verified
+by the evaluator against `launch_script.run_script_phase` and
+`coga/checkouts/launch-boundary`): no checkout preparation or return for
+non-orient bootstrap targets; no activation, launch/exit audit, push probe,
+skill refresh or agent lookup; no configured agent required; one outer sweep;
+exit 75 withholds sweep and refresh. The deltas this ticket adds, as generic
+launch rules for any stateless bootstrap target:
 
-- Only stateless bootstrap targets with a regular exact `ticket.py` qualify;
-  a missing/disappeared script, stateful target, read-only mode, agent override,
-  prompt report or REPL option refuses with exit 2 before effects. This mode
-  cannot fall through to an agent and does not change ordinary launch's
-  classifier or stateful script chaining.
-- For non-help execution, load writer config with the configured user,
-  including reloads;
-  require no configured agent for dispatch. Forward argv verbatim and inherit
-  terminal streams. The script owns any agent/readiness requirement of its work.
-- No launcher-owned activation, launch/exit audit, usage capture, skill-view
-  refresh, push probe, checkout normalization, refresh or return. The procedure
-  performs its existing refresh if needed. This preserves FYIs on dirty or
-  feature checkouts and the queue's fetch-only behavior there.
-- The outer CLI retains the original writer's one end-of-command sweep and
-  retained-log diagnostics. Nonzero ordinary failures still sweep; exit 75 or
-  a retained-state result withholds sweep and refresh. Scripts use the shared
-  subprocess body, environment isolation and declared-secret resolution.
-- `--help` after the script separator selects the edge parser's help without
-  user/agent/secret requirements, refresh, audit or publication, matching the
-  old built-in help. Help outside a configured repo must remain available from
-  the packaged definition; local overrides win inside a valid repo. This is a
-  required sibling-03 help-dispatch contract, not functionality proved here.
-  It must distinguish parsed help from an operand equal to `--help` (for example
-  the FYI message); never use an unqualified token scan to suppress publication.
-  Require direct/alias help tests, including absent user/repo, before cutover.
-  Do not reinterpret other operands after the separator as launcher options.
+1. **No agent fallback.** A target given trailing script arguments must
+   have a regular `ticket.py`; otherwise launch exits 2 before any effect. A
+   target classified as a script whose `ticket.py` vanishes before the child
+   starts also exits 2 instead of reclassifying to an agent. A bare
+   `launch bootstrap/<x>` with no trailing arguments and no `ticket.py` keeps
+   today's agent classification; stateful script chaining is unchanged.
+2. **Script help.** Launch recognizes help exactly as the script's Typer
+   parser does: the exact token `--help` anywhere in the trailing arguments before a
+   script-level `--`. Command scripts using this rule parse with Typer's
+   default help (as `retire` does): no `-h` and no abbreviations, so launch
+   and the script can never disagree. A help request skips
+   user/agent/secret requirements, refresh, audit, publication and the sweep,
+   then runs the script with unchanged argv. Outside a configured repo it
+   resolves the packaged definition; inside a valid repo local overrides win.
+   Tokens after a script-level `--` are ordinary operands. Add direct and alias
+   help tests (`megalaunch --help`, `pick --help`, `retire --help`) with no
+   user and no repo, and a test that a help request makes no Git call.
+3. **Interrupt rule.** While the stateless child runs, the parent ignores
+   SIGINT, which the terminal already delivers to the child in the same
+   foreground process group, and forwards a SIGTERM aimed at the parent to the
+   child once, then keeps waiting. On native Windows the parent ignores
+   Ctrl+C/Ctrl+Break console events, which the console delivers to the child
+   too. The parent never kills or terminates the child on its own; it
+   propagates the child's exit status unchanged and restores its handlers
+   afterwards. Use the existing subprocess body and environment isolation; no
+   second executor. This replaces the `subprocess.run` interrupt behavior the
+   evaluator identified (about 0.25 s wait, then kill), which bypasses the
+   picker's quit handling and `repl_supervisor`'s deferred-signal windows.
 
-This is cooperative command dispatch, not an arbitrary-code sandbox. It adds
-one generic policy rather than a command-name exemption; require explicit owner
-acceptance and sibling 03 implementation before alias cutover. Avoid adding
-per-command switches or a second subprocess executor. The Slack parent-owned
-operation below is an additional reviewed capability of this invocation; it
-is never inferred from the bootstrap name.
+This is cooperative command dispatch, not an arbitrary-code sandbox. Owner
+acceptance is recorded above.
 
 #### Queue/core API and transaction boundary
 
-Proposed stable operation in `src/coga/launch.py`:
+Stable operation in `src/coga/launch.py` (spelling approved as below):
 `run_claimed_agent_session(cfg, ref, *, source_bytes, prospective_ticket,
 agent_name, activation=None, blocker_answers=None, idle_timeout=None,
-max_session=None)`. Exact spelling may
-follow sibling 03's reviewed API; the required semantic boundary is fixed:
+max_session=None)`. If sibling 03 has merged a reviewed readiness API by
+implementation entry, adapt the spelling to it; the semantic boundary is fixed:
 
 - Input binds exact source bytes, prospective ticket and selected agent. Core
   constructs the generation and uses shared readiness to compose the exact
@@ -323,16 +327,28 @@ consumer of the same generation/proof machinery, not a pretend queue caller.
 Record this bounded proof in the microkernel owner; it does not justify keeping
 picker, ordering, budgets or all of `_launch_until_stop` in core.
 
-For concrete deduplication, propose
-`src/coga/mark.py`, `reblock_unresolved_resume`: a shared operation that
-rereads the current ticket/blockers, applies the existing in-progress-only
-agent rule, and returns a structured reblocked/no-op/error result. Migrate
-`src/coga/launch.py`, `_reblock_unresolved_resume`, and
-`src/coga/megalaunch.py`, `_reblock_unresolved`, together. Caller-specific audit
-wording and presentation remain parameters at the edge. Deterministic callers
-must retain their explicit resume-step/fallback-byte restoration; do not make
-an agent queue restore a terminal ticket. Reuse `mark_blocked` for validated
-write/audit/notification/publication rather than duplicate it.
+For concrete deduplication, add `src/coga/mark.py`,
+`reblock_unresolved_resume(cfg, ref, *, actor_text, log_message)`. It rereads
+the current ticket bytes, parses open asks with `parse_blockers_text`, applies
+the in-progress-only agent rule, and calls `mark_blocked` (reusing its
+validated write, audit, notification and publication). It returns a structured
+result: `reblocked(detail)`, `already_blocked(detail)`, `noop` or
+`invalid(error)`. Migrate `launch._reblock_unresolved_resume`'s agent path and
+`megalaunch._reblock_unresolved` together. Parity target, per caller:
+
+| Divergence today | Ordinary launch keeps | Queue keeps |
+| --- | --- | --- |
+| Ticket source | Reread current bytes (unchanged) | Reread current bytes instead of the passed `after`; `after` was read just before, so the reread is equal or fresher. Test a concurrent edit between the two reads. |
+| Blocker parser | `parse_blockers_text` on the reread blackboard | Same parser; drop `blackboard.open_blockers` here. Test identical results on resolved and unresolved asks. |
+| Already `blocked` | `already_blocked` → `True` (ask stays parked) | `already_blocked` → no row; `_chain_stop_result` still reports `blocked` |
+| Validation failure | `invalid` → `_bail` (exit 2) | `invalid` → `failed` row |
+| Slack actor text | `blocker or cfg.current_user` | `cfg.current_user` |
+| Audit wording | `...after resumed launch exited` | `...after resumed megalaunch pick exited` |
+
+Deterministic resume keeps its `resume_step`/`fallback_ticket_bytes`
+restoration in `launch.py`: it restores the fallback ticket and step first,
+then calls the shared operation. An agent queue never restores a terminal
+ticket.
 
 Retained shared operations and real consumers: `prepare_active` and
 `mark_active` serve mark/launch/queue; `mark_in_progress` serves launch/queue;
@@ -356,6 +372,9 @@ of already-shared code, not deduplication. Native console restrictions remain
 in the shared process machinery. Likewise use a reviewed public TTY predicate
 rather than retaining the queue's import of `launch._interactive_stdio_has_tty`.
 Coordinate names with sibling 03 instead of adding compatibility re-exports.
+Sibling 04 is restructuring `recurring_runner`; confirm the
+`session_limits.py` home with 04's owner before moving the parser, so it is
+not moved twice. If 04 has already relocated these helpers, consume its home.
 
 `src/coga/megalaunch.py`, `_author_draft`, imports
 `src/coga/commands/ticket.py`, `_authoring_ticket`, `_run_authoring_session` and
@@ -371,81 +390,34 @@ checking. Coordinate retained-state exit 75 separately with sibling 08's
 reviewed contract so it is not swallowed or swept as an ordinary draft miss.
 Do not count sibling 08's coordinator deletion as savings in this ticket.
 
-#### Slack completion dependency — proposed parent-owned protocol
 
-Do not give the script the caller's sentinel or expected-task/assist variables.
-Do not treat successful exit from `bootstrap/slack` as proof that a different
-bootstrap session finished. Proposed minimal handoff to siblings 03 and 10:
+#### Slack: retained head and its co-versioning proof
 
-- The invoking parent captures and validates the existing live outer-session
-  identity before script isolation: repository identity, bootstrap slug and
-  session generation/channel. Repository identity must permit a verified
-  same-repository command from a separate checkout/clone, as existing slug
-  completion does; an absolute checkout-path equality test is insufficient. With no verified outer session, ordinary FYIs
-  still work but cannot end one. A matching string supplied by the child is
-  insufficient. Existing supervisor identity checks must gain generation-bound
-  verification where needed; no ambient-only new completion credential.
-- Provide one fixed, invocation-scoped **audited notification operation**, not
-  arbitrary RPC/plugin callbacks. The parent services a structured request
-  carrying resolved target, formatted text, requested destination and audit
-  message. It resolves target/root and actor itself, uses `notification.post`
-  once, appends the audit and confirms required log publication with existing
-  `git.sync_log`/strict publication semantics. Return a typed success/failure
-  receipt bound to this invocation and target. The edge owns operands and
-  formatting, and prints `posted` only after successful acknowledgement.
-- Only the parent holds completion authority. For a successful request naming
-  the exact captured bootstrap target in the same repository/generation, it
-  records a deferred completion intent. Finish only after child exit zero,
-  successful audit confirmation and final publication/retained-log checks.
-  Use `repl_supervisor.deferred_done_marker`/`emit_done_marker` after those
-  checks; do not request a marker merely because a notification was attempted.
-- Ordinary task targets and different bootstrap targets may receive valid FYIs
-  but never release the outer session. No replay across child invocations,
-  nested unrelated scripts, roots or supervisor generations. A child crash,
-  stale/duplicate receipt, broken request channel or parent interruption cannot
-  authorize completion. Consume/close the one-invocation channel at teardown.
-- Disabled notifications keep existing successful no-channel handling; delivery
-  failures remain exit 1, invalid operands/config/target/agent remain exit 2.
-  A new audit-publication refusal retains the delivered FYI and log, exits 75,
-  suppresses sweep/refresh and gives strict-publication recovery. Recovery must
-  not resend or replay a completion/transition. Log recovery alone never
-  terminates a later session; any new explicit FYI is a new send.
+`src/coga/commands/slack.py`, `slack` (94 physical lines) stays a core command
+head. Proof: it joins delivery (`notification.post`), audit (`append_log`) and
+matching-session completion (`repl_supervisor.emit_done_marker` through
+`deferred_done_marker`) inside the CLI's deferred finalization. The script
+phase deliberately clears `COGA_SUPERVISED`, the sentinel and the expected
+identity, so an edge script cannot preserve that transaction without a new
+parent-owned completion mechanism. Moving ordinary FYIs alone would not
+complete the migration. This ticket records the proof in the
+`coga-dev/microkernel` open-placement row and names the sibling; it does not
+claim Slack forkability.
 
-The transport must work on POSIX and native Windows without terminal parsing,
-inherit no completion capability into grandchildren, and contain no knowledge
-of the Slack alias or command-ticket name. Lifecycle sibling 10 must consume
-or explicitly accept the generic verified finalizer; do not count hypothetical
-callers as two real consumers. Notification/audit operations retain their
-co-versioning proof independently of whether that finalizer gains a second
-caller. Add no queue, retry service, durable message spool or general RPC host.
-
-**Tradeoff for owner decision:** this parent operation adds transport and
-verification code to move a 94-line head. It is a proposed dependency, not an
-existing safe API or an approved implementation. If siblings 03/10 cannot
-supply this small bounded operation economically, retain `commands.slack.slack`
-under an explicit reviewed proof: it joins delivery, audit and matching-session
-completion inside the CLI's deferred finalization, and the script boundary
-currently destroys the authority needed to preserve that transaction. Keep
-its placement open until the owner accepts that proof; do not claim full Slack
-forkability or a completed move. The preferred migration waits for the shared
-operation rather than introducing a command-specific completion exception.
-
-There is also a deliberate correctness tightening to approve: today the head
-requests completion after local `append_log`, while `deferred_done_marker`
-waits for the best-effort sweep but does not inspect whether publication
-succeeded. The new durable-audit criterion must reject failed confirmation.
-Do not describe this as existing exact remote-durability parity; update
-`coga/state-publication`, `coga/script-tickets` and notification owners with
-this behavior if approved.
+The draft sibling `v1/microkernel/move-slack-fyis-to-a-command-ticket` holds
+the full Slack design carried over from this ticket: the parent-owned
+audited-notification protocol, the cheaper post-exit audit-line alternative
+with its threat-model question, the durable-audit tightening, the failure
+matrix and the test map. This ticket does not activate, launch or implement it.
 
 ### Out of scope
 
-No retire work, recurring scheduling/admission migration, recipe inventory
-change, script-aware queue, new queue executor, generic plugin framework,
-prompt-assembly redesign, notification retry/digest policy, task creation per
-command invocation or native-host allocation. Do not create the proposed split,
-implement shared primitives or change shipped contracts during this design
-step. All API names above are proposals until their named owners review them.
+Slack migration and its completion mechanism (sibling above). No retire work,
+recurring scheduling/admission migration, recipe inventory change,
+script-aware queue, new queue executor, generic plugin framework, new launch
+flag, prompt-assembly redesign, notification retry/digest policy, task creation
+per command invocation or native-host allocation. Do not change the queue's
+exit/sweep contract; any such change needs a separate owner decision.
 
 ## Context
 
@@ -500,24 +472,15 @@ activation and partial dependency resolution. Preserve picker tests in that
 file, including native-console mocks; actual native execution remains a
 release check.
 
-Extend `tests/test_commands.py`,
-`test_slack_accepts_and_completes_stateless_bootstrap_target` and
-`test_slack_on_durable_task_does_not_complete_session`, plus
-`tests/test_notification_messages.py`, `test_slack_fyi_includes_title`, and
-`tests/test_done_marker_emission.py`. Current ambient-sentinel fixtures are
-insufficient proof of the proposed verified parent boundary: add real nested
-script subprocess tests using fake agent seams, with matching/mismatching
-slug, repository and generation, absent/stale identity, ordinary targets,
-disabled channel, send/audit/publish failures, already-published audit,
-child crash, duplicate request and channel loss. Assert no outer completion
-variables or assist authority in the child's environment and no completion
-on failure. Pair successful completion with an assertion that finalization
-finished before the sentinel write. No real Slack or agent process is needed.
+The Slack test map moved to the Slack sibling with its design (owner gate,
+2026-11-16). Existing `tests/test_commands.py` Slack tests must still pass
+unchanged here.
 
 Use `tests/test_launch_script.py`, `tests/test_aliases.py`,
 `tests/test_commands.py` and `tests/test_packaging.py` for direct/alias parity,
 wheel invocation, ordered argv with whitespace and option-like operands,
-subdirectory cwd, help, non-TTY refusal, stderr/stdout separation, exit 1/2/75,
+subdirectory cwd, help with no user or repo, interrupt propagation, no agent
+fallback, non-TTY refusal, stderr/stdout separation, exit 1/2/75/130,
 script-only behavior with no configured agent, and complete local fork after a
 wheel upgrade. Spy on refresh/publication to detect extra script-wrapper
 boundaries. Required package resources belong in
@@ -561,6 +524,8 @@ review-design. Do not create or activate that split during authoring. Before
 advancing to implement, the owner must approve the split and leave this ticket
 with one bounded implementation/PR scope, or explicitly accept a single-PR
 combined migration. Do not invent repeated workflow cycles under this ticket.
+Settled at the owner gate on 2026-11-16: megalaunch only here; Slack retained
+under its proof, with the draft sibling `move-slack-fyis-to-a-command-ticket`.
 
 ### Contract reading and updates
 
@@ -578,7 +543,8 @@ Package-owned paths below are relative to
   When a post fails, No retry; `coga/notifications/producers`,
   `notifications/producers/SKILL.md`: Live surface and Silent. Explicit sends
   fail loud; a failed send must not emit completion; transitions and FYIs
-  remain distinct, with no new retry/digest policy.
+  remain distinct, with no new retry/digest policy. Here only the queue
+  summary's post is in scope; the Slack head is retained.
 - `coga/launch`, `launch/SKILL.md`: Phases and routing, Options and exits;
   `coga/checkouts`, `checkouts/SKILL.md`: Start, work, end and invocation rules.
   Reuse process/checkout machinery without changing queue transport or admission.
@@ -668,21 +634,15 @@ until the owner gate; no sibling ticket was created or activated.
 
 ## Open Questions
 
-1. Approve megalaunch as this ticket's one implementation/PR scope and create a
-   Slack sibling at the owner gate, or explicitly approve a combined migration?
-2. Accept the proposed parent-owned audited-notification/completion operation
-   and its cost, with siblings 03/10 accepting ownership, or retain the Slack
-   head under the explicit co-versioning proof? A retained head does not meet
-   full Slack forkability; record that exception rather than call it migrated.
-3. Approve the durable-audit tightening: publication failure after delivery
-   retains evidence, exits 75 and withholds completion, instead of the current
-   best-effort sweep followed by a marker. Disabled Git still uses local audit.
-4. Sibling 03 must ratify the bounded queue admission API and the
-   proposed `--command` invocation/help policy; sibling 05 must deliver complete-fork support.
-   Which reviewed merged revisions satisfy these prerequisites at implementation
-   entry? Current sibling implementation notes are not evidence of merged APIs.
+All four design questions were answered at the owner gate on 2026-11-16 (see
+"Owner gate — 2026-11-16" below). None remain open for implementation.
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+1. Scope: megalaunch only in this ticket; Slack sibling created as a draft.
+2. Slack: head retained under the co-versioning proof; the sibling decides
+   between the parent-owned operation and the cheaper audit-line check.
+3. Durable-audit tightening: moved to the Slack sibling, still unapproved.
+4. Prerequisites: no sibling API is required to merge first. Implementation
+   checks 03/04/05/08 at entry and uses the fallbacks in Proposed shape.
 
 ## Evaluator review
 
@@ -833,6 +793,34 @@ at review-design without a redesign.
 
 None of these needs change. No ticket body, code, branch or PR was produced
 by this review.
+
+## Owner gate — 2026-11-16
+
+Attended review-design session with the owner. Decisions: megalaunch-only
+scope; drop `--command` and use plain `launch bootstrap/megalaunch --` plus
+three generic rules implemented here (no agent fallback, help without
+user/repo, interrupt rule); Slack retained with a draft sibling. Ticket
+Description rewritten accordingly.
+
+Evaluator dispositions:
+
+1. `--command` ownership/necessity (must-fix): resolved. Flag dropped; exact
+   deltas from plain launch listed in "Editable command boundary"; this
+   ticket's PR owns them. Help is recognized as Typer does (exact `--help`
+   before a script-level `--`), so `pick --help` works and no unqualified token
+   scan exists.
+2. Interrupt semantics (must-fix): resolved. Generic interrupt rule and tests
+   added to Acceptance criteria and Proposed shape.
+3. Slack cheaper verification: transferred to the Slack sibling with the
+   threat-model question.
+4. Re-block parity: accepted; per-caller parity table added.
+5. Queue environment re-minting: accepted; criterion added.
+6. Session-limit coordination with sibling 04: accepted; note added.
+7. Criteria finality: accepted; Slack criteria removed from this ticket and
+   carried by the sibling.
+
+Sibling 03 (PR #1233) was unmerged at this gate; implementation checks it at
+entry (see Prerequisites).
 
 ## Superseded designs
 
