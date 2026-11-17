@@ -387,6 +387,11 @@ choices at owner review. None requires reading superseded archive material.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-microkernel-08-residual-command-surfaces-c6e747
+
+
 ## Design handoff — 2026-11-14
 
 Investigated clean, fetched main at `eccd3b31f199525707e1292f1517dc082ba5b511`.
