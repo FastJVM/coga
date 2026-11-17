@@ -49,7 +49,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -390,7 +390,29 @@ the fallback. Investigation notes are under `### Codebase facts` in Context.
 - Sibling 10 (`lifecycle-verbs-to-ticket-operations`, at design) should know
   `mark done` gains a bootstrap case; 03 is not needed under Option D.
 
+## Owner decisions (implement step, 2026-11-17, attended)
+
+The owner answered in session:
+
+- **Dependencies:** stack this branch on PR #1244's branch
+  (`coga/v1-microkernel-09-work-orchestration-commands-to-b46008`) rather than
+  block; 05 (PR #1239) is still open too. Rebase when they merge.
+- **Accepted every design recommendation:** Option D; the agent runs
+  `coga mark done bootstrap/<name>` even after a failed roll-up FYI (reporting
+  the failure in its final answer); reuse `mark done` (no new verb); exit 75
+  with no completion when the audit line cannot be confirmed (Git enabled),
+  local append suffices with Git disabled; `coga slack --message --help`
+  exits 2; `mark done` rejects `--message`/`--force` on a bootstrap ref
+  (exit 2 before any effect); FYI-style attribution
+  (`bump.resolve_main_agent`), documented as a lifecycle exception.
+- Evaluator must-resolve items 1-3 are adopted as written (both alias
+  inventories, direct edge-unit plus real `cli.main` alias integration tests,
+  option refusal).
+
 ## Open Questions
+
+(Answered: see Owner decisions above.)
+
 
 1. **Choose D vs C (vs A/B).** D drops single-command atomicity of
    "roll-up posted ⇒ session ends" in exchange for no new protocol and a
@@ -489,3 +511,141 @@ edited; production code and tests match the named revision. Scoped validation:
 → 1 OK, no issues. `git diff --check` passed. Final fetch found no relevant
 main drift. Native Windows/macOS checks are deferred to release; Python 3.11
 floor was not exercised here.
+
+## Implement handoff (2026-11-17)
+
+Branch is **stacked on PR #1244 (09)**: its two commits (`08256389f`,
+`79255ea81`, 09's rebased onto main `ca88ec1ae`) sit under this ticket's two
+commits (`4edddccbc` implementation, `75fcaa98d` test pins). Merge #1244 first,
+then rebase onto main (git drops 09's patch-equivalent commits) and refresh
+`## PR` head/base and receipts. Until then a PR against main would also show
+09's diff. #1239 (05) is not a dependency of this code.
+
+What changed:
+
+- `coga slack` → default alias `launch bootstrap/slack --` (added to
+  `aliases.DEFAULT_ALIASES`, removed from `BUILTIN_COMMANDS` and the CLI
+  command table). An alias still targeting `slack` gets the replacement
+  expansion message (`aliases._RETIRED_BUILTINS`, generalized from 09's
+  megalaunch special case). The shipped `coga.toml` was not changed: 09's
+  `megalaunch`/`retire` precedent keeps defaults only in `DEFAULT_ALIASES`.
+- `src/coga_edge/slack.py` (`slack`, `main`): the former head minus
+  `emit_done_marker`, plus the `COGA_SCRIPT_HELP` refusal. Packaged
+  `bootstrap/slack/{ticket.md,ticket.py}`, with the shim at mode 100644 and no
+  shebang (megalaunch precedent).
+- `commands/mark.py::_finish_stateless_command`: `mark done bootstrap/<name>`
+  rejects `--message`/`--force` (exit 2) → resolves actor via
+  `resolve_main_agent` → appends `done (stateless command)` → with Git enabled
+  requires `git.sync_log` not `None` (otherwise it withholds the sweep and
+  exits 75 with the `publish-state` recovery) → `emit_done_marker(ref.id_slug)`.
+  The other verbs on a bootstrap ref still exit 2 (`resolve_task` refuses).
+- Callers: the two bootstrap tickets and `prompt-queue.md` now say to post the
+  roll-up FYI, then `coga mark done bootstrap/<name>` even after a failed FYI.
+- Docs: `coga/cli` (new "Stateless command completion" section, the owner of
+  the contract), `coga/notifications`, `producers`, `edge-code` (fork route),
+  `launch`, `script-tickets`, `state-publication`, and dev topics
+  `microkernel` (row removed, settled paragraph), `codebase`, and the
+  `internals/{agent-spawn,notifications,state-publication/log-writers}`.
+- `reminders.py` still shells `python -m coga.cli slack`; that now runs a
+  nested stateless launch. It is covered by
+  `test_slack_alias_works_from_inside_a_running_script_phase`.
+
+Line counts (`wc -l`, production `src/` only, base `79255ea81` → `75fcaa98d`):
+core removed `commands/slack.py` 94 and `cli.py` −2, and added `aliases.py`
++6 net and `mark.py` +72 net (the new completion branch and gate), so core
+is −18 net. Edge added `coga_edge/slack.py` 109 and the shim 8 (+117).
+Whole system +99. The FYI body is a **relocation** (94 → 109, mostly the help
+check and `main`), not a deletion. The +72 is new behavior (the audit-confirmed
+completion gate), not parity. The deletion is of a special case: no
+notification head holds supervisor authority any more.
+
+Adjacent note (not fixed): `docs/contexts/coga-dev/internals/agent-spawn`
+still records the known gap that `coga slack` attributes the routed/default
+agent, not `COGA_EXPECTED_AGENT`. That is unchanged, and script isolation
+clears that variable anyway, so a fix would need ticket-metadata-free
+evidence.
+
+## PR
+
+```yaml
+title: Move Slack FYIs to an editable command ticket; end stateless commands with mark done
+author: claude
+author_evidence: >-
+  Implement session ran in Claude Code (claude-opus-5-5), launch 557cf03b-23dd-459f-8e3f-ca9b4f0e9b2d.
+head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
+base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
+depth: deep
+rationale: >-
+  Changes session-completion semantics for stateless bootstrap commands
+  (new audit gate and exit 75) and removes a core command head; reviewers
+  should read the mark.py branch and the caller instructions.
+implementation: >-
+  coga slack becomes the bootstrap/slack script ticket over coga_edge.slack via
+  a default alias and never completes a session. coga mark done bootstrap/<name>
+  appends one audit line and requests the done marker only after the line is
+  confirmed on control (local append with Git disabled), otherwise exit 75.
+deviations: >-
+  The shipped coga.toml gets no slack alias line, following 09's precedent of
+  keeping defaults in DEFAULT_ALIASES. The retired-builtin alias hint was
+  generalized to cover slack. Stacked on PR 1244 per the owner.
+limitations: >-
+  Stacked on unmerged PR 1244, so head/base must be refreshed after it merges
+  and this branch is rebased. Native Windows/macOS deferred to release. Python
+  3.11 floor not exercised. Base OID is main; the diff to main includes 09's commits.
+files:
+  src/coga/commands/slack.py: Removed core head (renamed into the edge module).
+  src/coga_edge/slack.py: Edge FYI implementation with the help-marker refusal and no completion.
+  src/coga/resources/templates/coga/bootstrap/slack/ticket.md: Stateless command ticket describing the FYI and how to fork it.
+  src/coga/resources/templates/coga/bootstrap/slack/ticket.py: Thin shim importing coga_edge.slack.
+  src/coga/aliases.py: Default slack alias, builtin removal, retired-builtin hint.
+  src/coga/cli.py: Drop slack from the lazy command table and sweeping set.
+  src/coga/commands/mark.py: mark done bootstrap/<name> stateless completion with audit gate.
+  src/coga/resources/prompt-queue.md: Queue conduct names mark done as stateless completion.
+  src/coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md: Roll-up FYI then mark done.
+  src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md: Roll-up FYI then mark done.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Owns the stateless completion contract and help change.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Slack fork route.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Bootstrap session end pointer.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md: FYI is an editable script, never terminal.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md: Producer rows updated.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Script children cannot complete outer sessions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Completion audit gate and exit 75.
+  docs/contexts/coga-dev/microkernel/SKILL.md: Remove slack placement row; settled boundary.
+  docs/contexts/coga-dev/codebase/SKILL.md: Source map entry.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Stateless completion is mark done.
+  docs/contexts/coga-dev/internals/notifications/SKILL.md: Producer path rename.
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: Log writer rows for the edge FYI and completion.
+  tests/required_package_resources.txt: Require the new packaged ticket files.
+  tests/test_aliases.py: Default alias, dispatch without aliases section, old-target hint.
+  tests/test_commands.py: Direct edge-unit FYI tests including no completion and help refusal.
+  tests/test_done_marker_emission.py: Stateless mark done boundary, miss, git-disabled, refusals, scoping.
+  tests/test_launch_script.py: Real alias subprocess, nested script FYI, help paths.
+  tests/test_notification_messages.py: FYI format via the edge module.
+  tests/test_compose.py: Queue conduct clause pins.
+  tests/test_launch.py: Queue conduct clause pins.
+  tests/test_smoke.py: Smoke FYI via the edge module.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Peer review is the next workflow step; design evaluation is not code review.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/coga-test-slack/full2
+    status: passed
+    head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
+    base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
+    detail: >-
+      4979 passed, 33 skipped in 783s; Pop!_OS 24.04 LTS, Python 3.12.12. An
+      earlier run at 4edddccbc had 3 failures (stale prompt and smoke pins),
+      fixed in 75fcaa98d.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/move-slack-fyis-to-a-command-ticket --json
+    status: passed
+    head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
+    base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
+    detail: 1 OK, no issues.
+  - command: git diff --check HEAD~2 HEAD
+    status: passed
+    head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
+    base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
+    detail: No whitespace errors.
+```
