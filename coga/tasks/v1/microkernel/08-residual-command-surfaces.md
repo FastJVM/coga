@@ -57,7 +57,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (implement)
+step: 5 (peer-review)
 ---
 
 ## Description
@@ -68,7 +68,24 @@ kernel should supply execution, validation, task IO and guarded publication;
 the command ticket should own the procedure users want to change. This is a
 proposal for cold evaluation and owner scope review, not a settled placement.
 
-### Objectives and implementation scope
+### Approved implementation scope — 2026-11-17
+
+The owner directed this step to ship promotion first under
+`coga promote-recurring`. Promotion's guarded publication failures now
+return 75 (previously a warning could exit zero). The remaining increments
+have separate draft execution tickets:
+
+- `v1/microkernel/move-ticket-authoring-to-a-command-ticket` owns authoring,
+  including the migration of existing `bootstrap/ticket` overrides.
+- `v1/microkernel/move-skill-management-to-command-tickets` owns the full
+  skill family, including the status spelling and read-only dispatch decision.
+
+Both follow-ups depend on `v1/microkernel/03-launch-decomposition` as described
+below. The design and acceptance criteria for those increments remain
+reference material for their owners. This implementation reviews the
+promotion-specific criteria and the shared packaging and verification criteria.
+
+### Original objectives and proposed implementation scope
 
 Advance editable behavior and ticket ownership by putting the complete
 procedure beside a stateless command ticket. Advance simplification by deleting
@@ -546,6 +563,120 @@ execution tickets and whether the command spellings use top-level aliases or
 preserve nested dispatch. The authoring override migration and promotion's
 publication-failure exit code also need explicit treatment before their
 respective implementations. Implementation is awaiting owner direction.
+
+## Promotion implementation handoff — 2026-11-17
+
+`coga promote-recurring` now dispatches through `bootstrap/recurring-promote`.
+It verifies the destination before removing the source, then guards the
+source deletion, destination files and promotion audit as one publication.
+Exit 75 preserves local state on partial failure or publication refusal.
+The two follow-up drafts in the approved scope above are on control.
+
+At base `b252b9cfbaa4971b147d46c26e885a5ec314708d` and feature head `e9d717c1addec249ba49cb3c53d3c229eed79325`, physical lines
+(`bytes.splitlines()` across changed paths, including blanks/comments) went from
+5,326 to 5,020 in core Python and 0 to 398 in ticket Python. No `coga_edge`
+files changed. Combined production scope increased by 92 lines. Most of the
+procedure moved, the nested Typer adapter and core procedure ownership were
+removed, and failure reporting and guarded publication checks were added.
+Documentation (including the packaged command contract) went from 893 to
+922 lines. Tests and the package manifest went from 16,451 to 16,570 lines.
+There is one packaged procedure owner and no checked-in local duplicate.
+
+## PR
+
+```yaml
+title: Move recurring promotion to a command ticket
+author: codex
+author_evidence: "Codex implemented the change in the attended implementation session."
+head: e9d717c1addec249ba49cb3c53d3c229eed79325
+base: b252b9cfbaa4971b147d46c26e885a5ec314708d
+depth: deep
+rationale: "Review the changed command dispatch and retained-state behavior around\
+  \ Git publication."
+implementation: "The default alias launches the packaged procedure. Promotion verifies\
+  \ the template before removing the source and requires the source deletion, destination\
+  \ files and audit in one guarded publication."
+deviations: "The promoted spelling is coga promote-recurring. The procedure rejects\
+  \ occupied effective names, including bundled definitions, and returns 75 on publication\
+  \ refusal or failure."
+limitations: "Authoring and skill management have their own execution tickets. Native\
+  \ Windows and macOS verification is deferred to release. The implementation checks\
+  \ used Python 3.12.12."
+files:
+  docs/contexts/coga-dev/codebase/SKILL.md: "Point contributors to the promotion ticket's\
+    \ implementation."
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: "Name the\
+    \ relocated promotion audit writer."
+  docs/contexts/coga-dev/microkernel/SKILL.md: "Close the promotion placement and\
+    \ point remaining rows to their execution tickets."
+  src/coga/aliases.py: "Route the new top-level spelling through the generic launch\
+    \ command."
+  src/coga/commands/recurring.py: "Remove the replaced recurring promote adapter."
+  src/coga/recurring.py: "Retain shared schedule and template-name checks and remove\
+    \ the promotion procedure."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: "Index the\
+    \ new default alias."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: "Use\
+    \ the current promotion spelling."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: "Link\
+    \ the promotion procedure and recovery to its command ticket."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/promotion.py: "Own\
+    \ the template transformation, validation, attachments, removal and audit."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/ticket.md: "Own the\
+    \ command contract, local customization and recovery."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/ticket.py: "Parse\
+    \ promotion arguments and publish the complete move through the shared Git guard."
+  src/coga/validate.py: "Use the shared schedule check under its public name."
+  tests/conftest.py: "Update the publication-stub comment for subprocess dispatch."
+  tests/required_package_resources.txt: "Pin all three command-ticket resources."
+  tests/test_packaging.py: "Exercise the alias through a read-only installed wheel\
+    \ and an edited local copy."
+  tests/test_recurring.py: "Carry forward promotion cases and cover retained failures\
+    \ and one Git publication."
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: "Review follows the implementation step."
+checks:
+- command: .venv/bin/python -m pytest -q tests/test_recurring.py -k promot
+  status: passed
+  head: e9d717c1addec249ba49cb3c53d3c229eed79325
+  base: b252b9cfbaa4971b147d46c26e885a5ec314708d
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12.\
+    \ 17 passed, 526 deselected in 5.61s."
+- command: .venv/bin/python -m pytest -q tests/test_packaging.py -k 'installed_wheel
+    or context_navigation or wheel_includes'
+  status: passed
+  head: e9d717c1addec249ba49cb3c53d3c229eed79325
+  base: b252b9cfbaa4971b147d46c26e885a5ec314708d
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12.\
+    \ 3 passed, 37 deselected in 6.02s."
+- command: .venv/bin/python -m coga.cli validate --task v1/microkernel/08-residual-command-surfaces
+    --json
+  status: passed
+  head: e9d717c1addec249ba49cb3c53d3c229eed79325
+  base: b252b9cfbaa4971b147d46c26e885a5ec314708d
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12.\
+    \ One valid ticket, zero issues."
+- command: .venv/bin/python -m coga.cli --help | rg 'promote-recurring'
+  status: passed
+  head: e9d717c1addec249ba49cb3c53d3c229eed79325
+  base: b252b9cfbaa4971b147d46c26e885a5ec314708d
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12.\
+    \ The alias appeared with the expected target."
+- command: git diff --check origin/main HEAD
+  status: passed
+  head: e9d717c1addec249ba49cb3c53d3c229eed79325
+  base: b252b9cfbaa4971b147d46c26e885a5ec314708d
+  detail: "Passed."
+- command: .venv/bin/python -m pytest -q
+  status: passed
+  head: e9d717c1addec249ba49cb3c53d3c229eed79325
+  base: b252b9cfbaa4971b147d46c26e885a5ec314708d
+  detail: "Pop!_OS 24.04 LTS, Linux x86_64 7.2.15-76070215-generic, Python 3.12.12.\
+    \ 4906 passed, 33 skipped in 834.90s."
+```
 
 ## Superseded designs
 
