@@ -55,7 +55,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 6 (open-pr)
+step: 7 (review)
 ---
 
 ## Description
@@ -606,3 +606,20 @@ Recorded: 2026-11-17T07:58:53+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: author must be a compact identity (1–32 letters, digits, ./_-).
+
+## Open PR handoff
+
+Opened https://github.com/FastJVM/coga/pull/1246 from clean control via
+`coga open-pr v1/microkernel/07-support-commands-boundary`; verified open,
+non-draft, recorded under Dev, at reviewed/tested final head
+`44bd81d0fa993c2110a791f90c36ab0065105352`. Fresh fetch confirmed only
+non-overlapping ticket/log drift since the recorded base. All acceptance
+items are checked; native and Python 3.11 checks remain release obligations
+under testing policy, with no new task-specific outstanding work.
+
+Publication initially refused the noncompact author field. Normalized it to
+`codex`, retaining Claude fix authorship in author_evidence, and encoded the
+returned review with findings as a historical failed receipt at its actual
+reviewed head/base. Deep recommendation and disclosure that subsequent fixes
+were self-reviewed remain visible; no new test or review receipt was claimed.
+Ready for the owner review gate; no merge performed.
