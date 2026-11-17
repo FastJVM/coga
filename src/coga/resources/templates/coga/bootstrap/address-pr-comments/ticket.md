@@ -275,7 +275,6 @@ stateless target is what tells the launch supervisor the command is complete.
 
 A Slack failure is a command failure and must be surfaced: state it in your
 final report, then still run `coga mark done` so the session ends promptly.
-If `mark done` exits 75, report its retained log line; the session then ends
-through its idle backstop. The Slack line is
+If `mark done` exits 75, report its retained log line. The Slack line is
 the only cross-run record: do not persist the per-PR lines or roll-up in this
 command ticket or in any other task file.

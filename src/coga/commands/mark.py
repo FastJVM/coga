@@ -293,7 +293,7 @@ def _finish_stateless_command(task: str, *, message: str | None, force: bool) ->
     only the completion boundary `bump`/`block` give ordinary tickets. The
     marker is requested only once the audit line is confirmed on control (or
     appended locally with Git disabled); a publication miss keeps the line,
-    exits 75, and leaves the session to its idle/max-session backstops.
+    exits 75, and leaves the session open.
     """
     from coga.bump import OperatorResolutionError, resolve_main_agent
     from coga.logfile import append_log
@@ -340,8 +340,8 @@ def _finish_stateless_command(task: str, *, message: str | None, force: bool) ->
             _bail(
                 f"{ref.id_slug}: completion not signalled — its audit line is "
                 "not confirmed on control and was kept locally. Publish it "
-                f"with `{recovery}`; the session "
-                "ends through its idle backstop.",
+                f"with `{recovery}`. The session can still exit normally "
+                "or reach a configured timeout.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
     typer.echo(f"{ref.id_slug}: done")

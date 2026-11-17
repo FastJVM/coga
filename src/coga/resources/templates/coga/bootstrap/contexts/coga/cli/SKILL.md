@@ -68,8 +68,9 @@ the configured default (the FYI rule; a lifecycle exception, since no
 supervised task identity exists to verify). With Git enabled the line must be
 confirmed on control before the done marker is requested; otherwise the line
 is kept, the sweep is withheld, the command exits 75 with the
-`coga run publish-state <log>` recovery, and the session ends through its
-idle or max-session backstop. With Git disabled the local append suffices.
+`coga run publish-state <log>` recovery. The session can still exit normally
+or reach a configured idle or max-session limit. With Git disabled the local
+append suffices.
 `--message` and `--force` exit 2 before any effect, as do the other `mark`
 verbs on a bootstrap ref.
 
