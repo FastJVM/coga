@@ -55,7 +55,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 5 (peer-review)
+step: 6 (open-pr)
 ---
 
 ## Description
@@ -453,98 +453,98 @@ review in implement; peer-review is the next workflow step. No PR opened.
 ## PR
 
 ```yaml
-"title": "Retain secret authentication and uninstall recovery boundaries"
-"author": "codex"
-"author_evidence": "Attended Codex implement session, launch 5a54a5db-2fb1-47fb-8682-4d2482f9c8fa; no\
-  \ agent override used."
-"head": "10679e3b828985da6bca982d0a05803e110046a2"
-"base": "db9f9a5643e6851c0c99a858a6dafea2de280313"
-"depth": "deep"
-"rationale": "Owner-approved boundary change and malformed-config recovery fix; independent code review\
-  \ is pending the next workflow step."
-"implementation": "Retain secret get in the CLI parent and uninstall before alias validation; move uninstall-only\
-  \ helpers, accept malformed TOML through recovery admission, and document/test the invariants. Scoped\
-  \ core physical lines 1550 to 1547; 66 moved lines are relocation, not deletion."
-"deviations": "Owner confirmed retaining secret get after evaluation showed ticket children scrub required\
-  \ OP authentication. No secret bootstrap or alias is added; launch-decomposition is not a dependency\
-  \ for this revised scope. Preserve existing bare-group usage on stdout with exit 2."
-"limitations": "No real credentials, live-repo removal or real package purge exercised. Native Windows/macOS\
-  \ and Python 3.11 floor checks defer to release. No new packaged resources, manifests or seeded-fixture\
-  \ changes; dedicated disposable fixtures cover retained behavior."
-"files":
-  "docs/contexts/coga-dev/microkernel/SKILL.md": "Settle only the two support heads with parent-auth and\
-    \ early-recovery proofs; retain shared launch checks."
-  "docs/contexts/coga-dev/testing/SKILL.md": "Remove a promise of installed/source skew warnings that\
-    \ have no implementation."
-  "src/coga/cli.py": "Admit TOML parse errors through existing config recovery and remove redundant secret\
-    \ false-return branch."
-  "src/coga/commands/uninstall.py": "Own the three sole-consumer definitions formerly imported from update;\
-    \ preserve recovery mechanics."
-  "src/coga/commands/update.py": "Remove uninstall-only helpers and package constant without forwarding\
-    \ exports."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md": "Index the retained built-in\
-    \ support heads."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md": "Link retained\
-    \ secret/auth and recovery boundaries when choosing extensions."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md": "Point broken-config removal\
-    \ guidance at uninstall recovery admission."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md": "Document parent authentication,\
-    \ exact stream/help behavior and no-publication query contract."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md": "Own malformed-config\
-    \ recovery admission and no-publication teardown contract."
-  "tests/test_init.py": "Move installer-detection tests to their actual consumer and drop empty installer\
-    \ headings."
-  "tests/test_secret.py": "Prove fake operator auth, separate pipes, dirty-state preservation, refusal\
-    \ behavior and absence of launch/publication effects."
-  "tests/test_uninstall.py": "Move installer tests and exercise recovery admission, refusal/order/containment,\
-    \ purge failures and managed-block cleanup in fixtures."
-"review":
-  "reviewer": "none"
-  "kind": "none"
-  "status": "not-run"
-  "detail": "Implement step completed without independent code review; peer-review is the next workflow\
-    \ step. Owner scope confirmation is not code review."
-"checks":
-- "command": "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_secret.py tests/test_uninstall.py\
-    \ tests/test_init.py tests/test_cli.py tests/test_aliases.py tests/test_launch.py tests/test_launch_script.py\
-    \ tests/test_packaging.py -q --basetemp=/home/n/Code/coga-pytest-support-07-finalfocused"
-  "status": "passed"
-  "detail": "Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. 673 passed, 1 skipped,\
-    \ 0 failed in 61.83s. The skip requires native Windows PowerShell; no additional exclusions. Output:\
-    \ /tmp/coga-support-07-finalfocused.log."
-  "head": "10679e3b828985da6bca982d0a05803e110046a2"
-  "base": "db9f9a5643e6851c0c99a858a6dafea2de280313"
-- "command": "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-pytest-support-07-full"
-  "status": "passed"
-  "detail": "Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. 4930 passed, 33 skipped,\
-    \ 0 failed in 813.50s (13m33s), exit 0. No command-line exclusions. Output: /tmp/coga-support-07-full.log.\
-    \ Committed implementation, tests and docs unchanged throughout; only projected task state is dirty."
-  "head": "10679e3b828985da6bca982d0a05803e110046a2"
-  "base": "db9f9a5643e6851c0c99a858a6dafea2de280313"
-- "command": "TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/07-support-commands-boundary\
-    \ --json"
-  "status": "passed"
-  "detail": "Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. 1 valid task, no issues\
-    \ or fixes, exit 0 in approximately 0.19s."
-  "head": "10679e3b828985da6bca982d0a05803e110046a2"
-  "base": "db9f9a5643e6851c0c99a858a6dafea2de280313"
-- "command": "env -u SLACK_WEBHOOK_URL TERM=dumb PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python\
-    \ -m coga.cli validate --json"
-  "status": "passed"
-  "detail": "Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. Run from tests/fixtures/seeded-repo/coga:\
-    \ 5 valid tasks, no issues or fixes, exit 0 in approximately 0.15s."
-  "head": "10679e3b828985da6bca982d0a05803e110046a2"
-  "base": "db9f9a5643e6851c0c99a858a6dafea2de280313"
-- "command": "git diff --check"
-  "status": "passed"
-  "detail": "Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. No whitespace errors, exit\
-    \ 0."
-  "head": "10679e3b828985da6bca982d0a05803e110046a2"
-  "base": "db9f9a5643e6851c0c99a858a6dafea2de280313"
-- "command": "Native Windows/macOS full suites and Python 3.11 floor verification"
-  "status": "not-run"
-  "detail": "Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. Deferred to release per\
-    \ testing policy; this receipt is Linux/Python 3.12 only."
+title: Retain secret authentication and uninstall recovery boundaries
+author: codex, with peer-review fixes by claude
+author_evidence: 'Implementation: attended Codex implement session, launch 5a54a5db-2fb1-47fb-8682-4d2482f9c8fa;
+  no agent override used. Two fix commits (5e3774d77, 44bd81d0f) authored by Claude in attended peer-review
+  launch 3f5a362a-afaf-4a64-8c25-fa7a6c02ef8b, approved by the owner in session.'
+head: 44bd81d0fa993c2110a791f90c36ab0065105352
+base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+depth: deep
+rationale: Owner-approved boundary change plus a config-parse error contract change touching every load_config
+  caller; deep review is warranted.
+implementation: Retain secret get in the CLI parent and uninstall before alias validation; move uninstall-only
+  helpers. config._read_toml now raises ConfigParseError (a ConfigError subclass naming the file) for
+  TOML syntax or non-UTF-8 bytes, so recovery admission, secret refusal and every load_config caller get
+  a file-naming ConfigError; recurring --all still dispatches malformed config to the child instead of
+  skipping it as unconfigured. Scoped core physical lines (cli, config, recurring_runner, secret, uninstall,
+  update) 9259 to 9266 at db9f9a564..44bd81d0f; 66 moved lines are relocation, not deletion.
+deviations: Owner confirmed retaining secret get after evaluation showed ticket children scrub required
+  OP authentication. No secret bootstrap or alias is added; launch-decomposition is not a dependency for
+  this revised scope. Preserve existing bare-group usage on stdout with exit 2. Peer review replaced the
+  implement step's cli.main-only TOMLDecodeError catch with the config-level ConfigParseError so non-UTF-8
+  config is also admitted and errors name the file.
+limitations: No real credentials, live-repo removal or real package purge exercised. Native Windows/macOS
+  and Python 3.11 floor checks defer to release. No new packaged resources, manifests or seeded-fixture
+  changes; dedicated disposable fixtures cover retained behavior.
+files:
+  docs/contexts/coga-dev/microkernel/SKILL.md: Settle only the two support heads with parent-auth and
+    early-recovery proofs; retain shared launch checks.
+  docs/contexts/coga-dev/testing/SKILL.md: Remove a promise of installed/source skew warnings that have
+    no implementation.
+  src/coga/cli.py: Remove the redundant secret false-return sweep branch; parse failures now arrive as
+    ConfigError.
+  src/coga/commands/uninstall.py: Own the three sole-consumer definitions formerly imported from update;
+    preserve recovery mechanics. Also tolerate non-UTF-8 coga.toml when resolving a relocated contexts
+    root.
+  src/coga/commands/update.py: Remove uninstall-only helpers and package constant without forwarding exports.
+  src/coga/config.py: Add ConfigParseError and raise it from _read_toml for TOML syntax or non-UTF-8 config,
+    naming the file.
+  src/coga/recurring_runner.py: Keep malformed config dispatched to the authoritative child under recurring
+    --all rather than skipped as unconfigured.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Index the retained built-in
+    support heads.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Link retained secret/auth
+    and recovery boundaries when choosing extensions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Point broken-config removal
+    guidance at uninstall recovery admission.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: Document parent authentication,
+    exact stream/help behavior and no-publication query contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Own malformed or non-UTF-8
+    config recovery admission and the no-publication teardown contract.
+  tests/test_init.py: Move installer-detection tests to their actual consumer and drop empty installer
+    headings.
+  tests/test_recurring.py: Pin malformed and non-UTF-8 config as dispatched failures under recurring --all.
+  tests/test_secret.py: Prove fake operator auth, separate pipes, dirty-state preservation, refusal behavior
+    and absence of launch/publication effects. Pin file-naming parse errors and that secret never sweeps.
+  tests/test_uninstall.py: Move installer tests and exercise recovery admission, refusal/order/containment,
+    purge failures and managed-block cleanup in fixtures. Cover non-UTF-8 shared/local config admission.
+review:
+  reviewer: claude
+  kind: independent
+  status: returned
+  detail: 'Claude /code-review (default effort) returned on head 6156d1681 (implementation rebased onto
+    base 4b4b6b12e), 8 findings. Applied: non-UTF-8 config escaping recovery admission, parse errors not
+    naming the file, cli-only catch altitude, unpinned secret no-sweep. Declined as nits/out of scope:
+    module-attribute seam patches, alias-placeholder stub (subprocess test covers real path), pre-existing
+    init/tomlkit import. The two fix commits on top were authored by the reviewer and are self-reviewed
+    only; the full suite caught and drove the recurring regression fix.'
+checks:
+- command: TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/coga-pytest-support-07-peerfull2
+  status: passed
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. 4937 passed, 33 skipped, 0
+    failed in 756.59s, exit 0. No exclusions. The previous run at 5e3774d77 failed 1 (test_recurring_all_isolates_malformed_config_during_remote_grouping),
+    fixed in 44bd81d0f.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+- command: TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/07-support-commands-boundary
+    --json
+  status: passed
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. 1 valid task, no issues or
+    fixes.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+- command: git diff --check 4b4b6b12e...HEAD
+  status: passed
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. No whitespace errors.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+- command: Native Windows/macOS full suites and Python 3.11 floor verification
+  status: not-run
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. Deferred to release per testing
+    policy; Linux/Python 3.12 only.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
 ```
 
 
@@ -564,3 +564,32 @@ limitations and Linux receipts are above, and structured PR preparation covers
 every diff path. Native checks remain release-only. This projected ticket was
 never staged or committed; all other paths are clean. Ready for one bump to
 peer-review; launch owns publication and checkout return.
+
+## Peer review — 2026-11-17
+
+Reviewer: Claude (attended launch 3f5a362a-afaf-4a64-8c25-fa7a6c02ef8b),
+independent of the Codex implementation. Rebased onto origin/main
+`4b4b6b12e` (ticket/log commits only; projected ticket preserved
+byte-for-byte), then ran `/code-review` (default effort) on `6156d1681`; it
+**returned** with 8 findings.
+
+Applied with owner approval: `config._read_toml` raises `ConfigParseError`
+(a `ConfigError` subclass naming the file) for TOML syntax or non-UTF-8
+bytes, replacing the `cli.main`-only `TOMLDecodeError` catch. This makes
+non-UTF-8 config reach uninstall recovery, which previously crashed, and
+names the broken file for secret and every other command. Uninstall's
+contexts-root probe also tolerates `UnicodeError`. Pinned `secret` as
+non-sweeping. The first full run caught a regression: `recurring --all`
+classified the new ConfigError as "unconfigured" and silently skipped it, so
+it now treats `ConfigParseError` as a child-reported failure. Both cases are
+pinned in tests. The other launch/sweep `except ConfigError` sites now warn
+instead of tracebacking on malformed config.
+
+Declined: module-attribute seam patches miss `from` imports (subprocess
+dirty-state tests cover it); alias-placeholder stub (subprocess test covers
+the real path); `uninstall` importing `init`/`tomlkit` (pre-existing,
+declared dependency).
+
+Final head `44bd81d0fa993c2110a791f90c36ab0065105352`, pushed; the fix
+commits are self-reviewed only. Full suite 4937 passed, 33 skipped. Ready for
+open-pr.
