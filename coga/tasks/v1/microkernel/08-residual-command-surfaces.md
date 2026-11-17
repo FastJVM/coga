@@ -535,6 +535,18 @@ moved code:
 Default aliases have no `ticket`, `skill-status` or `promote-recurring`
 collision once the built-ins are removed.
 
+## Implementation intake — 2026-11-17
+
+The projected ticket matches fetched main at `09a2451a4`. The feature
+branch has no unique commits and no associated PR. The transition to
+`implement` did not record answers to the design evaluator's scope and
+dispatch questions. Launch decomposition and read/report are both still in
+review. Asked the owner to decide whether promotion goes first with separate
+execution tickets and whether the command spellings use top-level aliases or
+preserve nested dispatch. The authoring override migration and promotion's
+publication-failure exit code also need explicit treatment before their
+respective implementations. Implementation is awaiting owner direction.
+
 ## Superseded designs
 
 ### 2026-11-12 — Design before the current-main refresh
