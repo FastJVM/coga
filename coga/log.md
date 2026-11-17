@@ -11290,3 +11290,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-16 22:17 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-16 22:17 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-16 22:17 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [megalaunch] launched via coga megalaunch
+2026-11-16 22:18 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [agent:claude] blocked: Waiting on v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co: its PR #1245 (runner.run_entry, RECIPE_ROOTS, state_sweep) is not merged, and this migration must start from main after that merge.

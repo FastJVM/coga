@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 2: move blocker-reminders and skill-update to the edge'
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -31,7 +31,6 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
-launch_generation: 62706fa2-4b82-4b74-a135-0ea1b2b0d5bf
 ---
 
 ## Description
@@ -215,3 +214,19 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implement attempt — 2026-11-16 (not started)
+
+Precondition unmet: the body requires `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co`
+merged first. Its PR https://github.com/FastJVM/coga/pull/1245 is still OPEN and
+`origin/main` (5e1e4b129) lacks `runner.run_entry`, `runner.RECIPE_ROOTS`,
+`state_sweep` and the per-job `target_root` resolvers this migration builds on.
+No branch created, no code changed. Resume from current main once #1245 merges
+(04's handoff: delete the `RECIPE_ROOTS` entry with the registry entry and pass
+`root=target_root` to `run_entry`).
+
+---
+
+## Blockers
+
+- [ ] [2026-11-16 22:18] [agent:claude] id=20261116T221808 Waiting on v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co: its PR #1245 (runner.run_entry, RECIPE_ROOTS, state_sweep) is not merged, and this migration must start from main after that merge.
