@@ -16,7 +16,7 @@ import sys
 
 import typer
 
-from coga import git, pr_assist
+from coga import git, oscompat, pr_assist
 from coga.commands.common import (
     bail_ticket_changed,
     completion_identity,
@@ -334,10 +334,13 @@ def _finish_stateless_command(task: str, *, message: str | None, force: bool) ->
         published = git.sync_log(cfg, message=f"Log: {ref.id_slug}")
         if published is None:
             git.state_sweep_withheld.set(True)
+            recovery = oscompat.shell_command(
+                ["coga", "run", "publish-state", str(log_path(cfg))]
+            )
             _bail(
                 f"{ref.id_slug}: completion not signalled — its audit line is "
                 "not confirmed on control and was kept locally. Publish it "
-                f"with `coga run publish-state {log_path(cfg)}`; the session "
+                f"with `{recovery}`; the session "
                 "ends through its idle backstop.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )

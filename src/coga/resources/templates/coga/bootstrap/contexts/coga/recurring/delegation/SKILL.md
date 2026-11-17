@@ -48,8 +48,9 @@ alternatives are recorded in
   `unbounded-delegated-workflow`. Multi-step, reviewed or gated jobs use
   ordinary recurring execution; role-aware delegation is out of scope.
 - **Completion is the target's sentinel.** The period reaches `done` only when
-  the bootstrap target emits its done sentinel (for example its `coga slack`
-  roll-up line in `coga/log.md`). A natural or crashed exit leaves the period
+  the bootstrap target signals completion with
+  [`coga mark done bootstrap/<name>`](../../cli/SKILL.md#stateless-command-completion).
+  A natural or crashed exit leaves the period
   retryable. A watchdog timeout in a multi-task sweep is paused and the sweep
   continues only once that pause is verified on control; a named launch leaves
   it `in_progress` for retry.

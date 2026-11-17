@@ -27,9 +27,9 @@ the period ticket, so sweeps, named retries, and direct
 dispatch. The runner marks the period task `in_progress`, launches
 `bootstrap/resolve-conflicts` in-process (honouring the sweep's `--agent`
 override and selected queue session conduct), and marks the period task
-`done` only after the
-delegated command's final `coga slack` roll-up emits its bootstrap done
-sentinel. Launch preflights before the start transition, then reloads and
+`done` after the delegated command signals completion with
+`coga mark done bootstrap/resolve-conflicts`. Launch preflights before the
+start transition, then reloads and
 recomposes after that publication. Before bootstrap work, it also checks push
 access for the materialized period task; the stateless bootstrap target would
 otherwise skip that gate. Start publication, final spawn, and post-child
