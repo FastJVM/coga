@@ -49,7 +49,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -593,7 +593,7 @@ completion publication.
 
 The branch is pushed. PR #1244 remains open, so this branch still contains
 its two commits. The configured PR-opening step targets main and would
-include the dependency diff. The workflow stays at peer review while PR #1244 is open so the mechanical PR-opening step can publish the Slack-only diff after reconciliation.
+include the dependency diff. The owner approved advancing with the stacked diff while PR #1244 is open.
 
 The Linux full-suite receipt and Python 3.11 focused receipt are below. Using physical line counts from `git diff --numstat --no-renames`, the Slack diff against `d68562ea8` removes 16 net core Python lines and adds 117 edge Python lines including the shim, for 101 net production Python lines. The old 94-line Slack head is relocated and the audit gate adds lifecycle behavior. Markdown and resource inventory account for 146 additions and 52 deletions outside tests. Test changes account for 391 additions and 61 deletions.
 
