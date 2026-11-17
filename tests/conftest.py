@@ -377,7 +377,7 @@ def _stub_git(monkeypatch, request):
     if {"git_repo", "real_git"} & set(request.fixturenames):
         return
     # Every publishing entry point is stubbed: `publish` (the one primitive:
-    # `coga ticket` authoring, delete, recurring promote, megalaunch admission
+    # `coga ticket` authoring, delete, megalaunch admission
     # call it directly), `sync_task_state` (mark / bump / create / block),
     # `sync_log` (a bootstrap-ticket launch), and the catch-all
     # `sync_coga_state` sweep fired from the CLI dispatch boundary. Stubbing

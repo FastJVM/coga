@@ -33,6 +33,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `owner` | [coga/tickets](../tickets/SKILL.md#owner-and-relationships) |
 | `mark`, `bump`, `block`, `unblock` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete` | [coga/checkout-cleanup](../checkout-cleanup/SKILL.md) |
+| `promote-recurring` → `launch bootstrap/recurring-promote --` | packaged `bootstrap/recurring-promote/ticket.md` |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
 | `open-pr` → `run open-pr` | [coga/pr-publication](../pr-publication/SKILL.md) |
 | `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [coga/checkouts](../checkouts/SKILL.md) |

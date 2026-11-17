@@ -157,7 +157,7 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
   [bootstrap/recurring-list](../../../../recurring-list/ticket.md) report through
   read-only launch. The fixed adapter preserves the two-word spelling;
   selection and presentation live beside the ticket.
-  `coga recurring promote` is in [templates](../templates/SKILL.md#promotion).
+  `coga promote-recurring` is in [templates](../templates/SKILL.md#promotion).
 
 Every launching entry point runs from the control branch and honors the
 committed `owner = "<name>"` gate: a policy gate against two operators racing,
