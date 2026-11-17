@@ -11300,3 +11300,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-16 22:18 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-16 22:19 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-16 22:19 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [megalaunch] launched via coga megalaunch
+2026-11-16 22:19 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [agent:claude] blocked: Prerequisite not merged: v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245, open, step review) must merge first. This ticket must start from main after that merge and use its shared report->publish->bump entry sequence and run_reported root-resolver support, which are absent from main at 77e263258.

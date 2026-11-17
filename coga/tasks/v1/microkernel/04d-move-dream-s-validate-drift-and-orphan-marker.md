@@ -1,7 +1,7 @@
 ---
 title: 'Recipe migration, part 4: move Dream''s validate-drift and orphan-marker workers
   to the edge'
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -32,7 +32,6 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
-launch_generation: 0191129e-736f-415e-a727-0e230ccf190a
 ---
 
 ## Description
@@ -224,3 +223,9 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-16 22:19] [agent:claude] id=20261116T221924 Prerequisite not merged: v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245, open, step review) must merge first. This ticket must start from main after that merge and use its shared report->publish->bump entry sequence and run_reported root-resolver support, which are absent from main at 77e263258.
