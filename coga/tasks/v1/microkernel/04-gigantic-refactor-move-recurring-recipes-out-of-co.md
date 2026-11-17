@@ -186,6 +186,11 @@ support renames and schedule/policy redesign.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-microkernel-04-gigantic-refactor-move-recurri-779f80
+
+
 ## Split handoff — 2026-11-16
 
 The owner split this ticket into five siblings (see the body). This file is now
