@@ -34,9 +34,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 5a43a6ea-2bc4-41d7-b1c4-0933aeb0a020
 ---
 
 ## Description
@@ -307,3 +306,63 @@ The blackboard is a notepad to be written to often as the human and agent works 
    (`bootstrap/ticket`'s `agent:`) as a local-override hook, or drop it now
    that the packaged ticket never sets it? Spec keeps it (zero-cost, and
    `[authoring] agent` already covers the machine-local case).
+
+## Evaluator review
+
+Verdict: ready for owner review; no must-fix implementation blockers found.
+Cold review against main `90a853053`; checkout clean on main and equal to
+origin/main after fetch. No feature branch or PR is recorded for this ticket.
+Only this blackboard is changed by the evaluation; no implementation tests
+were run because this step changes no behavior.
+
+### Must resolve before implementation
+
+None. The Description contains the acceptance criteria, proposed shape and
+out-of-scope subsections at the correct heading depth. The proposed changes
+form one coherent PR and retain existing routing and activation invariants.
+
+### Owner decision
+
+Confirm the explicitly proposed draft onboarding lifecycle, including the
+status-list and megalaunch draft-authoring consequences recorded in Open
+Questions. This is a product tradeoff, not a missing implementation mechanism.
+Keeping the local bootstrap agent override is compatible with the proposal.
+
+### Recommendations
+
+1. Correct the opening diagnosis for `coga ticket`: unlike ordinary launch,
+   authoring already accepts `--agent codex` ahead of an undeclared packaged
+   pin. Evidence: `src/coga/authoring.py::resolve_authoring_agent` checks
+   `agent_override` first and returns the first valid candidate; the existing
+   `coga/configuration` limitation paragraph explicitly distinguishes it from
+   chat. Removing the pin still fixes the no-override default path. Avoid
+   claiming in the PR that ticket's override was broken.
+2. Qualify the replacement documentation as packaged defaults: build freezes
+   its agent at first activation, and repo-local bootstrap pins and an existing
+   target ticket's agent still outrank the default. Evidence:
+   `mark.py::_select_main_agent` and
+   `authoring.py::resolve_authoring_agent` terms 4–6. Also update
+   `coga/tickets/authoring` (package context, Authoring agent bullet), whose
+   term 5 still calls the bootstrap pin the "install-level default", together
+   with the docstring already named in the proposal.
+
+### Verified implementation claims
+
+- `launch.py::_target_operator` uses prospective default resolution for
+  bootstrap targets; `bump.py::resolve_main_agent` rejects explicit unknown
+  names. Removing packaged pins needs no new resolver.
+- `launch.py::_prepare_auto_activate` delegates to `mark.py::prepare_active`,
+  which freezes a workflow ref, selects the main agent and seeds activation.
+  The packaged `build/onboarding` workflow starts with agent-held
+  `gather-and-spec`, matching the requested first-launch outcome.
+- `validate.py::_check_main_agent` permits an absent agent on a draft and
+  requires one on live tickets. None-found init may still report
+  `unresolvable-operator` through `_check_operator`; the acceptance criterion
+  correctly excludes only unknown-agent/missing-main-agent, not all findings.
+- The shipped onboarding blackboard has no authoring headings and is below
+  the 600-character gate in
+  `blackboard.py::prelaunch_blackboard_synthesis_reason_text`.
+- Init's stamping helper, active creation audit, build-agent fallback and
+  tests asserting the active template and stamped agent all exist at the
+  named paths. The clean-install harness hand-writes its active fixture,
+  consistent with the proposed exception.
