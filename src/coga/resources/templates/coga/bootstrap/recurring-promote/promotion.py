@@ -124,11 +124,17 @@ def promote_task(
     source = resolve_template_source(cfg, template_name)
     if source.error:
         raise RecurringError(source.error)
-    if dest.exists() or dest.is_symlink() or source.definition_dir is not None:
+    if dest.exists() or dest.is_symlink():
         raise RecurringError(
             f"`coga/recurring/{template_name}/` already exists — refusing to "
             f"overwrite it. Pass `--name` to pick another template name, or "
             f"remove the existing template first."
+        )
+    if source.definition_dir is not None:
+        raise RecurringError(
+            f"recurring template name {template_name!r} is already used by the "
+            f"definition at {source.definition_dir} — refusing to shadow it. "
+            "Pass `--name` to pick another template name."
         )
 
     frontmatter, dropped_skills = _template_frontmatter(ticket, schedule)

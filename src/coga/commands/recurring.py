@@ -9,12 +9,8 @@ import typer
 
 from coga import git
 from coga.config import ConfigError, load_config
-from coga.recurring import (
-    RecurringError,
-)
 from coga.recurring_runner import run_recurring_all_repos, run_recurring_named
 from coga.runner import run_recipe
-from coga.ticket import TicketError
 
 
 app = typer.Typer(

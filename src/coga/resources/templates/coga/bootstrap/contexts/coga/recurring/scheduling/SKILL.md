@@ -161,8 +161,8 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
 
 Every launching entry point runs from the control branch and honors the
 committed `owner = "<name>"` gate: a policy gate against two operators racing,
-not a lock, with no override flag. `coga recurring list` and `promote` are
-ungated.
+not a lock, with no override flag. `coga recurring list` and
+`coga promote-recurring` are ungated.
 
 A single-repo sweep or named launch started off control relays to an existing
 control worktree of the same repo. If none exists, it refuses and names the

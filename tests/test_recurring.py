@@ -10613,8 +10613,70 @@ def test_promote_keeps_source_and_reports_partial_failures(
     )
 
 
-@pytest.mark.parametrize("symlink", [False, True])
-def test_promote_publishes_the_whole_move_or_retains_it(git_repo, symlink: bool) -> None:
+@pytest.mark.parametrize("extra", [None, "ignored"])
+def test_promote_publishes_the_whole_move(git_repo, extra: str | None) -> None:
+    """One publication carries the source deletion, template and audit. A
+    gitignored attachment is copied locally but never required to publish."""
+    source = git_repo.coga_os / "tasks" / "sample-promotion"
+    _write(
+        source / "ticket.md",
+        """
+        ---
+        title: Sample promotion
+        status: draft
+        ---
+
+        ## Description
+
+        Promote this task.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    _write(source / "attachment", "supporting material")
+    _write(git_repo.coga_os / "log.md", "")
+    if extra == "ignored":
+        gitignore = git_repo.root / ".gitignore"
+        with gitignore.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write("__pycache__/\n")
+        git_repo.git("add", ".gitignore")
+    git_repo.git("add", "coga/tasks", "coga/log.md")
+    git_repo.git("commit", "-m", "Seed task")
+    git_repo.git("push", "origin", "main")
+    if extra == "ignored":
+        _write(source / "__pycache__" / "helper.cpython-311.pyc", "bytecode")
+
+    result = _run_promote(
+        git_repo.coga_os, ["sample-promotion", "--schedule", "0 9 * * 1"],
+        git_enabled=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    published = "coga/recurring/sample-promotion"
+    original = "coga/tasks/sample-promotion/ticket.md"
+    dest = git_repo.root / published
+    log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert not source.exists()
+    assert (dest / "attachment").is_file()
+    assert not git_repo.origin_tracks(original)
+    assert git_repo.origin_tracks(f"{published}/ticket.md")
+    assert "[sample-promotion] [human] promoted to recurring template" in log
+    changes = git_repo.git(
+        "show", "--format=", "--name-status", "--no-renames", "main",
+        cwd=git_repo.origin,
+    )
+    assert f"D\t{original}" in changes
+    assert f"A\t{published}/attachment" in changes
+    assert f"A\t{published}/ticket.md" in changes
+    assert "M\tcoga/log.md" in changes
+    if extra == "ignored":
+        assert (dest / "__pycache__" / "helper.cpython-311.pyc").is_file()
+        assert "__pycache__" not in changes
+
+
+def test_promote_refuses_symlink_attachments_before_moving(git_repo) -> None:
+    """Guarded publication refuses symlinks, so a Git-enabled promotion
+    refuses them up front and leaves the task untouched."""
     source = git_repo.coga_os / "tasks" / "sample-promotion"
     _write(
         source / "ticket.md",
@@ -10636,39 +10698,53 @@ def test_promote_publishes_the_whole_move_or_retains_it(git_repo, symlink: bool)
     git_repo.git("add", "coga/tasks", "coga/log.md")
     git_repo.git("commit", "-m", "Seed task")
     git_repo.git("push", "origin", "main")
-    if symlink:
-        (source / "local-link").symlink_to("attachment")
+    (source / "local-link").symlink_to("attachment")
+    head = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
 
     result = _run_promote(
         git_repo.coga_os, ["sample-promotion", "--schedule", "0 9 * * 1"],
         git_enabled=True,
     )
 
-    published = "coga/recurring/sample-promotion"
-    original = "coga/tasks/sample-promotion/ticket.md"
-    dest = git_repo.root / published
-    log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    assert not source.exists()
-    assert (dest / "attachment").is_file()
-    assert git_repo.origin_tracks(original) is symlink
-    assert git_repo.origin_tracks(f"{published}/ticket.md") is not symlink
-    if symlink:
-        assert result.returncode == 75, result.stdout + result.stderr
-        assert "Cannot publish symlink" in result.stderr
-        assert "Promoted sample-promotion" not in result.stdout
-        assert (dest / "local-link").is_symlink()
-        assert "promoted to recurring template" not in log
-    else:
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert "[sample-promotion] [human] promoted to recurring template" in log
-        changes = git_repo.git(
-            "show", "--format=", "--name-status", "--no-renames", "main",
-            cwd=git_repo.origin,
-        )
-        assert f"D\t{original}" in changes
-        assert f"A\t{published}/attachment" in changes
-        assert f"A\t{published}/ticket.md" in changes
-        assert "M\tcoga/log.md" in changes
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "symlink attachments" in result.stderr
+    assert "Nothing moved" in result.stderr
+    assert (source / "ticket.md").is_file()
+    assert (source / "local-link").is_symlink()
+    assert not (git_repo.coga_os / "recurring" / "sample-promotion").exists()
+    assert "promoted to recurring template" not in (
+        git_repo.coga_os / "log.md"
+    ).read_text(encoding="utf-8")
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == head
+
+
+def test_promote_names_a_shadowed_bundled_definition(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A name taken only by a bundled job names that definition rather than
+    claiming a local directory exists."""
+    monkeypatch.chdir(repo)
+    _write(
+        repo / "tasks" / "dream-notes" / "ticket.md",
+        """
+        ---
+        title: Dream notes
+        status: draft
+        ---
+
+        ## Description
+
+        Notes.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+
+    result = _run_promote(repo, ["dream-notes", "--name", "dream", "--schedule", "0 9 * * 1"])
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "already used by the definition at" in result.stderr
+    assert "already exists" not in result.stderr
+    assert (repo / "tasks" / "dream-notes" / "ticket.md").is_file()
+    assert not (repo / "recurring" / "dream").exists()
 
 
 # --- the ledger is the log ----------------------------------------------------

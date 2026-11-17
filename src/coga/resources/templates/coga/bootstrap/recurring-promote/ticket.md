@@ -25,9 +25,13 @@ definition. It records a promotion audit after removing the source and
 publishes the source deletion, template and audit together. With Git sync
 disabled, the move and audit are local.
 
+With Git sync enabled, a directory-form task with a symlink anywhere in it is
+refused with exit 2 before anything moves, because guarded publication refuses
+symlinks. Gitignored attachments are copied but are not required to publish.
+
 Exit 75 means local changes need reconciliation. A cleanup or deletion
-failure names the affected paths. A publication refusal, including a symlink
-attachment rejected by guarded publication, keeps the local move for recovery.
+failure names the affected paths. A publication refusal keeps the local move
+for recovery.
 Inspect the named paths and audit log before retrying publication. See
 [state publication](context:coga/state-publication).
 
