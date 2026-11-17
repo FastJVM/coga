@@ -175,6 +175,7 @@ and blanks: `commands/secret.py` 75, `commands/uninstall.py` 413,
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1246
 branch: coga/v1-microkernel-07-support-commands-boundary-b684a3
 
 
@@ -454,7 +455,7 @@ review in implement; peer-review is the next workflow step. No PR opened.
 
 ```yaml
 title: Retain secret authentication and uninstall recovery boundaries
-author: codex, with peer-review fixes by claude
+author: codex
 author_evidence: 'Implementation: attended Codex implement session, launch 5a54a5db-2fb1-47fb-8682-4d2482f9c8fa;
   no agent override used. Two fix commits (5e3774d77, 44bd81d0f) authored by Claude in attended peer-review
   launch 3f5a362a-afaf-4a64-8c25-fa7a6c02ef8b, approved by the owner in session.'
@@ -512,7 +513,9 @@ files:
 review:
   reviewer: claude
   kind: independent
-  status: returned
+  status: failed
+  head: 6156d16818018b54a1d094cea9c1bd9923c6f7b5
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
   detail: 'Claude /code-review (default effort) returned on head 6156d1681 (implementation rebased onto
     base 4b4b6b12e), 8 findings. Applied: non-UTF-8 config escaping recovery admission, parse errors not
     naming the file, cli-only catch altitude, unpinned secret no-sweep. Declined as nits/out of scope:
