@@ -565,87 +565,254 @@ agent, not `COGA_EXPECTED_AGENT`. That is unchanged, and script isolation
 clears that variable anyway, so a fix would need ticket-metadata-free
 evidence.
 
+## Peer review
+
+Codex completed direct review of Claude's Slack implementation and reread the
+fixes through `40b285cede717bc4b818834f007b8daa6646be3d`, using PR #1244's
+`d68562ea8174d9825c550e1d28025a2ccd334381` as the Slack diff base.
+
+- Updated both recurring wrappers to describe scoped sentinel completion and
+  the delegation contract to name `mark done` as the completion command.
+  Initial review edits named the verb in the wrapper itself, which tripped
+  two packaging checks. The command syntax now lives with the delegated
+  command and its contract.
+- Restricted the prompt-report sweep exemption to launch options. A literal
+  `--prompt-report` Slack message now posts and publishes its audit line.
+- Used the shared shell quoting helper for the completion recovery command.
+  With an unavailable Git remote, the command retained the audit line,
+  exited 75 and left the sentinel unset.
+- Clarified that after an unconfirmed publish a session can exit normally
+  or reach a configured timeout.
+
+An 80×24 PTY and loopback HTTP catcher verified the FYI payload, flow and
+important routing, a fatal HTTP 503, and help refusal. An actual PTY supervisor
+with a test agent stayed alive after the Slack FYI and exited upon the
+matching `mark done` sentinel. A disposable Git remote confirmed the audit
+line for a literal `--prompt-report` message and success/failure cases for
+completion publication.
+
+The branch is pushed. PR #1244 remains open, so this branch still contains
+its two commits. The configured PR-opening step targets main and would
+include the dependency diff. The workflow stays at peer review while PR #1244 is open so the mechanical PR-opening step can publish the Slack-only diff after reconciliation.
+
+The Linux full-suite receipt and Python 3.11 focused receipt are below. Using physical line counts from `git diff --numstat --no-renames`, the Slack diff against `d68562ea8` removes 16 net core Python lines and adds 117 edge Python lines including the shim, for 101 net production Python lines. The old 94-line Slack head is relocated and the audit gate adds lifecycle behavior. Markdown and resource inventory account for 146 additions and 52 deletions outside tests. Test changes account for 391 additions and 61 deletions.
+
 ## PR
 
 ```yaml
-title: Move Slack FYIs to an editable command ticket; end stateless commands with mark done
-author: claude
-author_evidence: >-
-  Implement session ran in Claude Code (claude-opus-5-5), launch 557cf03b-23dd-459f-8e3f-ca9b4f0e9b2d.
-head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
-base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
-depth: deep
-rationale: >-
-  Changes session-completion semantics for stateless bootstrap commands
-  (new audit gate and exit 75) and removes a core command head; reviewers
-  should read the mark.py branch and the caller instructions.
-implementation: >-
-  coga slack becomes the bootstrap/slack script ticket over coga_edge.slack via
-  a default alias and never completes a session. coga mark done bootstrap/<name>
-  appends one audit line and requests the done marker only after the line is
-  confirmed on control (local append with Git disabled), otherwise exit 75.
-deviations: >-
-  The shipped coga.toml gets no slack alias line, following 09's precedent of
-  keeping defaults in DEFAULT_ALIASES. The retired-builtin alias hint was
-  generalized to cover slack. Stacked on PR 1244 per the owner.
-limitations: >-
-  Stacked on unmerged PR 1244, so head/base must be refreshed after it merges
-  and this branch is rebased. Native Windows/macOS deferred to release. Python
-  3.11 floor not exercised. Base OID is main; the diff to main includes 09's commits.
-files:
-  src/coga/commands/slack.py: Removed core head (renamed into the edge module).
-  src/coga_edge/slack.py: Edge FYI implementation with the help-marker refusal and no completion.
-  src/coga/resources/templates/coga/bootstrap/slack/ticket.md: Stateless command ticket describing the FYI and how to fork it.
-  src/coga/resources/templates/coga/bootstrap/slack/ticket.py: Thin shim importing coga_edge.slack.
-  src/coga/aliases.py: Default slack alias, builtin removal, retired-builtin hint.
-  src/coga/cli.py: Drop slack from the lazy command table and sweeping set.
-  src/coga/commands/mark.py: mark done bootstrap/<name> stateless completion with audit gate.
-  src/coga/resources/prompt-queue.md: Queue conduct names mark done as stateless completion.
-  src/coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md: Roll-up FYI then mark done.
-  src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md: Roll-up FYI then mark done.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Owns the stateless completion contract and help change.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Slack fork route.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Bootstrap session end pointer.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md: FYI is an editable script, never terminal.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md: Producer rows updated.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Script children cannot complete outer sessions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Completion audit gate and exit 75.
-  docs/contexts/coga-dev/microkernel/SKILL.md: Remove slack placement row; settled boundary.
-  docs/contexts/coga-dev/codebase/SKILL.md: Source map entry.
-  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Stateless completion is mark done.
-  docs/contexts/coga-dev/internals/notifications/SKILL.md: Producer path rename.
-  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: Log writer rows for the edge FYI and completion.
-  tests/required_package_resources.txt: Require the new packaged ticket files.
-  tests/test_aliases.py: Default alias, dispatch without aliases section, old-target hint.
-  tests/test_commands.py: Direct edge-unit FYI tests including no completion and help refusal.
-  tests/test_done_marker_emission.py: Stateless mark done boundary, miss, git-disabled, refusals, scoping.
-  tests/test_launch_script.py: Real alias subprocess, nested script FYI, help paths.
-  tests/test_notification_messages.py: FYI format via the edge module.
-  tests/test_compose.py: Queue conduct clause pins.
-  tests/test_launch.py: Queue conduct clause pins.
-  tests/test_smoke.py: Smoke FYI via the edge module.
-review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Peer review is the next workflow step; design evaluation is not code review.
-checks:
-  - command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/coga-test-slack/full2
-    status: passed
-    head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
-    base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
-    detail: >-
-      4979 passed, 33 skipped in 783s; Pop!_OS 24.04 LTS, Python 3.12.12. An
-      earlier run at 4edddccbc had 3 failures (stale prompt and smoke pins),
-      fixed in 75fcaa98d.
-  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/move-slack-fyis-to-a-command-ticket --json
-    status: passed
-    head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
-    base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
-    detail: 1 OK, no issues.
-  - command: git diff --check HEAD~2 HEAD
-    status: passed
-    head: 75fcaa98dffc17aee22a69774a78f9b61fb968b9
-    base: ca88ec1ae26c23ebd3170c2be0caee6edea091b3
-    detail: No whitespace errors.
+"title": "Move Slack FYIs to an editable command ticket; end stateless commands with mark done"
+"author": "claude"
+"author_evidence": "Implement session ran in Claude Code (claude-opus-5-5), launch 557cf03b-23dd-459f-8e3f-ca9b4f0e9b2d.\
+  \ Codex authored the fixes during peer review in launch 41cc2e4c-6fd9-4bff-bfd1-fa92987f2033."
+"head": "40b285cede717bc4b818834f007b8daa6646be3d"
+"base": "657d6f5d65dd66e06800d86943a45660258552a4"
+"depth": "deep"
+"rationale": "Changes stateless completion and its publication gate, reroutes an externally visible command,\
+  \ and is stacked on the megalaunch extraction."
+"implementation": "A default alias runs the editable Slack command ticket and edge implementation. Stateless\
+  \ mark done requires a confirmed audit line before signalling completion. Peer review fixed the literal\
+  \ --prompt-report sweep case, quoted the recovery command and updated delegated recurring instructions."
+"deviations": "Default alias lives in DEFAULT_ALIASES following PR #1244. The branch sits on the current\
+  \ head of PR #1244, per the owner's stacking instruction."
+"limitations": "The main-based diff includes the open dependency PR #1244. This review covers the Slack\
+  \ changes with the dependency as base. Native Windows and macOS suites are deferred to release. Python\
+  \ 3.11 evidence is focused."
+"files":
+  "coga/coga.toml": "Stacked PR #1244. Apply the owner-approved one-line pick alias migration in this\
+    \ repository."
+  "docs/contexts/coga-dev/codebase/SKILL.md": "Source map entry. Stacked PR #1244. Update the source map\
+    \ for edge policy and shared claim, session-limit and foreground-wait modules."
+  "docs/contexts/coga-dev/internals/agent-spawn/SKILL.md": "Stateless completion is mark done."
+  "docs/contexts/coga-dev/internals/notifications/SKILL.md": "Producer path rename."
+  "docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md": "Log writer rows for the\
+    \ edge FYI and completion."
+  "docs/contexts/coga-dev/microkernel/SKILL.md": "Remove slack placement row; settled boundary. Stacked\
+    \ PR #1244. Settle queue placement and document the bounded claim/authoring/Slack co-versioning proofs\
+    \ and sibling ownership. Records the two authoring-adapter seams."
+  "src/coga/aliases.py": "Default slack alias, builtin removal, retired-builtin hint. Stacked PR #1244.\
+    \ Replace the megalaunch built-in and pick target with direct launch aliases; explain migration of\
+    \ user aliases."
+  "src/coga/argv.py": "Stacked PR #1244. Share exact separator-aware help recognition between dispatch\
+    \ and publication."
+  "src/coga/authoring.py": "Stacked PR #1244. Invoke the public ticket CLI with selected agent, isolated\
+    \ identity, retained-finalization exit mapping and existing-target-only seams."
+  "src/coga/claimed_session.py": "Stacked PR #1244. Own exact activation and claim transactions, readiness,\
+    \ held-child release/admission and guarded rollback. Return refused activation errors for caller classification."
+  "src/coga/cli.py": "Remove the builtin Slack dispatch and keep launch script operands from suppressing\
+    \ the audit sweep. Stacked PR #1244. Remove the queue head; preserve help exclusions and expose Python-only\
+    \ retained-finalization mapping and existing-target-only seams before context reset."
+  "src/coga/commands/mark.py": "Add scoped, audit-gated stateless completion with a shell-quoted recovery\
+    \ command."
+  "src/coga/commands/megalaunch.py": "Stacked PR #1244. Delete the old built-in queue/picker command head."
+  "src/coga/commands/slack.py": "Removed core head (renamed into the edge module)."
+  "src/coga/commands/ticket.py": "Stacked PR #1244. Consume the renamed public TTY predicate; mark retained\
+    \ finalization and refuse creation under the queue adapter's existing-target-only seam."
+  "src/coga/config.py": "Stacked PR #1244. Point shared limit resolution commentary at its new owner."
+  "src/coga/launch.py": "Stacked PR #1244. Expose the bounded claimed-session operation, public TTY predicate,\
+    \ early script help and shared re-block result adapter."
+  "src/coga/launch_script.py": "Stacked PR #1244. Add stateless no-fallback, help isolation, foreground\
+    \ relay and exact exit propagation. Unknown or broken bootstrap help falls through to ordinary reporting."
+  "src/coga/mark.py": "Stacked PR #1244. Own the shared unresolved-resume operation, typed outcomes and\
+    \ activation refusal tuple. Documents the prepare-half refusal tuple."
+  "src/coga/megalaunch.py": "Stacked PR #1244. Old side of the rename into src/coga_edge/megalaunch.py;\
+    \ removes the former core queue-policy import path."
+  "src/coga/process_relay.py": "Stacked PR #1244. Share interrupt-safe foreground waiting and one-shot\
+    \ SIGTERM forwarding with recurring."
+  "src/coga/recurring_runner.py": "Stacked PR #1244. Migrate existing relay and limit-parser consumers\
+    \ while preserving recurring-specific contracts."
+  "src/coga/resources/prompt-queue.md": "Queue conduct names mark done as stateless completion."
+  "src/coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md": "Roll-up FYI then mark\
+    \ done."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md": "Owns the stateless completion\
+    \ contract and help change. Stacked PR #1244. Update this contract owner for editable queue dispatch,\
+    \ script help/interrupts, full forks or publication/authoring boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md": "Slack fork route. Stacked\
+    \ PR #1244. Update this contract owner for editable queue dispatch, script help/interrupts, full forks\
+    \ or publication/authoring boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md": "Bootstrap session end\
+    \ pointer. Stacked PR #1244. Update this contract owner for editable queue dispatch, script help/interrupts,\
+    \ full forks or publication/authoring boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md": "Stacked PR #1244.\
+    \ Update this contract owner for editable queue dispatch, script help/interrupts, full forks or publication/authoring\
+    \ boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md": "FYI is an editable\
+    \ script, never terminal."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md": "Producer\
+    \ rows updated."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md": "Point delegated\
+    \ period completion at the stateless mark-done contract."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md": "Script children\
+    \ cannot complete outer sessions. Stacked PR #1244. Update this contract owner for editable queue\
+    \ dispatch, script help/interrupts, full forks or publication/authoring boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md": "Completion\
+    \ audit gate and exit 75. Stacked PR #1244. Update this contract owner for editable queue dispatch,\
+    \ script help/interrupts, full forks or publication/authoring boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md": "Stacked\
+    \ PR #1244. Update this contract owner for editable queue dispatch, script help/interrupts, full forks\
+    \ or publication/authoring boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md": "Stacked PR\
+    \ #1244. Specify the queue authoring adapter: retained finalization maps to 75, pre-write refusals\
+    \ continue, vanished picks are refused."
+  "src/coga/resources/templates/coga/bootstrap/megalaunch/ticket.md": "Stacked PR #1244. Ship the editable\
+    \ stateless command definition and links to its contract owners."
+  "src/coga/resources/templates/coga/bootstrap/megalaunch/ticket.py": "Stacked PR #1244. Select the complete\
+    \ installed edge policy through the reserved script entry."
+  "src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md": "Roll-up FYI then mark done."
+  "src/coga/resources/templates/coga/bootstrap/retire/ticket.md": "Stacked PR #1244. Update help behavior\
+    \ to the generic setup-free stateless-script contract."
+  "src/coga/resources/templates/coga/bootstrap/retire/ticket.py": "Stacked PR #1244. Fail closed when\
+    \ a help token was consumed as a value."
+  "src/coga/resources/templates/coga/bootstrap/slack/ticket.md": "Stateless command ticket describing\
+    \ the FYI and how to fork it."
+  "src/coga/resources/templates/coga/bootstrap/slack/ticket.py": "Thin shim importing coga_edge.slack."
+  "src/coga/resources/templates/coga/coga.toml": "Stacked PR #1244. Seed the new direct pick alias in\
+    \ fresh repositories."
+  "src/coga/resources/templates/coga/recurring/address-pr-comments/ticket.md": "Name the mark-done completion\
+    \ signal for the delegated period."
+  "src/coga/resources/templates/coga/recurring/resolve-conflicts/ticket.md": "Name the mark-done completion\
+    \ signal for the delegated period."
+  "src/coga/session_limits.py": "Stacked PR #1244. Relocate existing env/config liveness parsing with\
+    \ caller-owned idle defaults."
+  "src/coga/task_env.py": "Stacked PR #1244. Clear inherited script-help identity with all other launch-owned\
+    \ task metadata."
+  "src/coga_edge/megalaunch.py": "Stacked PR #1244. Provide the complete independently copyable queue\
+    \ policy, parser and picker; consume shared core operations. Classify claimed activation refusals\
+    \ as before; queue-owned idle default."
+  "src/coga_edge/slack.py": "Edge FYI implementation with the help-marker refusal and no completion."
+  "tests/fixtures/authoring_cancellation.py": "Stacked PR #1244. Migrate existing fixtures and mocks to\
+    \ the public TTY predicate; preserve the existing behavior assertions."
+  "tests/required_package_resources.txt": "Require the new packaged ticket files. Stacked PR #1244. Pin\
+    \ both new bootstrap command resource owners."
+  "tests/test_aliases.py": "Default alias, dispatch without aliases section, old-target hint. Stacked\
+    \ PR #1244. Test direct aliases, old-target migration errors and separator-consistent sweep recognition."
+  "tests/test_authoring.py": "Stacked PR #1244. Exercise the public invocation adapter, identity isolation,\
+    \ real CLI dispatch with pre-write and finalization refusals, and refusal of a vanished pick without\
+    \ creating a draft."
+  "tests/test_checkouts.py": "Stacked PR #1244. Migrate existing fixtures and mocks to the public TTY\
+    \ predicate; preserve the existing behavior assertions."
+  "tests/test_cli.py": "Verify a literal Slack --prompt-report message does not bypass the state sweep.\
+    \ Stacked PR #1244. Update pick expansion and test that only retained authoring finalization maps\
+    \ to 75."
+  "tests/test_commands.py": "Direct edge-unit FYI tests including no completion and help refusal."
+  "tests/test_compose.py": "Queue conduct clause pins."
+  "tests/test_create.py": "Stacked PR #1244. Migrate existing fixtures and mocks to the public TTY predicate;\
+    \ preserve the existing behavior assertions."
+  "tests/test_done_marker_emission.py": "Stateless mark done boundary, miss, git-disabled, refusals, scoping."
+  "tests/test_git.py": "Stacked PR #1244. Migrate existing fixtures and mocks to the public TTY predicate;\
+    \ preserve the existing behavior assertions."
+  "tests/test_launch.py": "Queue conduct clause pins. Stacked PR #1244. Migrate existing fixtures and\
+    \ mocks to the public TTY predicate; preserve the existing behavior assertions."
+  "tests/test_launch_restart.py": "Stacked PR #1244. Migrate existing fixtures and mocks to the public\
+    \ TTY predicate; preserve the existing behavior assertions."
+  "tests/test_launch_script.py": "Real alias subprocess, nested script FYI, help paths. Stacked PR #1244.\
+    \ Cover generic help, argv/cwd/streams/status, no-fallback and real alias interrupt/claim retention,\
+    \ plus public TTY seams. Unknown bootstrap help reports without a traceback."
+  "tests/test_megalaunch.py": "Stacked PR #1244. Migrate policy/transaction seams and preserve queue coverage;\
+    \ add guarded rollback, routing, identity and authoring-exit regressions. Claimed activation refusal\
+    \ keeps skipped-unlaunchable."
+  "tests/test_notification_messages.py": "FYI format via the edge module."
+  "tests/test_packaging.py": "Stacked PR #1244. Test isolated installed command execution, a complete\
+    \ local fork, wheel reinstall and stock-shim restoration."
+  "tests/test_period_state.py": "Stacked PR #1244. Migrate existing fixtures and mocks to the public TTY\
+    \ predicate; preserve the existing behavior assertions."
+  "tests/test_recurring.py": "Stacked PR #1244. Migrate TTY seams and parser tests to their shared owners\
+    \ with explicit caller defaults."
+  "tests/test_smoke.py": "Smoke FYI via the edge module."
+  "tests/test_ticket.py": "Stacked PR #1244. Migrate existing fixtures and mocks to the public TTY predicate;\
+    \ preserve the existing behavior assertions."
+"review":
+  "reviewer": "codex"
+  "kind": "independent"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "d68562ea8174d9825c550e1d28025a2ccd334381"
+  "detail": "Codex completed direct review of the Claude-authored Slack diff and reread its own review\
+    \ fixes on this head. Dependency PR #1244 has a separate Claude review on its own recorded pre-fix\
+    \ revision."
+"checks":
+- "command": "PYTHONPATH=/home/n/Code/coga/src:/tmp/coga-slack-peer-xdist TERM=dumb .venv/bin/python -m\
+    \ pytest -q -p no:cacheprovider -n 6 --dist loadfile --basetemp=/home/n/Code/coga-test-slack-peer-40b285ced"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12, pytest 9.1.1 and pytest-xdist\
+    \ 3.8.0. 4980 passed, 33 skipped, 26 fork deprecation warnings in 234.35s. Exit 0."
+- "command": "PYTHONPATH=/home/n/Code/coga/src TERM=dumb /tmp/coga-slack-peer-py311.4AiqY2/env/bin/python\
+    \ -m pytest -q -p no:cacheprovider tests/test_aliases.py tests/test_cli.py tests/test_commands.py\
+    \ tests/test_done_marker_emission.py tests/test_launch_script.py tests/test_notification_messages.py\
+    \ tests/test_packaging.py -k 'slack or bootstrap or prompt_report or recurring_wrapper' --basetemp=/home/n/Code/coga-test-slack-peer-py311-final"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.11.15. 66 passed, 363 deselected in 10.98s."
+- "command": "PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python /tmp/coga-slack-peer-smoke.py"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.12.12. 80×24 PTY and local HTTP catcher verified two successful\
+    \ routes, one fatal HTTP 503, help refusal and separate completion."
+- "command": "PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python /tmp/coga-slack-peer-git.py"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.12.12. Local Git remote verified audit publication, marker scoping,\
+    \ exit 75, retained line and recovery quoting."
+- "command": "PYTHONPATH=/home/n/Code/coga/src TERM=dumb script -qefc 'stty rows 24 cols 80 && /home/n/Code/coga/.venv/bin/python\
+    \ /tmp/coga-slack-peer-supervisor.py' /dev/null"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.12.12. Real PTY supervisor observed the matching completion sentinel\
+    \ after the test agent stayed alive through the FYI."
+- "command": "PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/move-slack-fyis-to-a-command-ticket\
+    \ --json"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "1 OK, zero issues."
+- "command": "git diff --check origin/main...HEAD"
+  "status": "passed"
+  "head": "40b285cede717bc4b818834f007b8daa6646be3d"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "No whitespace errors."
 ```
