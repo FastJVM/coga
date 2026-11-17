@@ -34,10 +34,10 @@ AUTHORING_AGENT_ENV = "COGA_AUTHORING_AGENT"
 
 # Python-only seams for the queue's command adapter (`invoke_ticket_authoring`),
 # set by `cli.main` and never by a CLI flag. `existing_target_only` makes
-# `coga ticket <ref>` refuse instead of scaffolding a draft when the picked
-# ref no longer resolves. `authored_state_retained` marks the one retained
-# state an interview leaves: a refused guarded finalization. Pre-write
-# refusals that merely withhold the sweep do not set it.
+# `coga ticket <ref>` require the exact qualified slug of a picked draft.
+# `authored_state_retained` marks a refused guarded finalization, the one
+# retained state an interview leaves. Pre-write refusals that merely withhold
+# the sweep do not set it.
 existing_target_only: ContextVar[bool] = ContextVar(
     "authoring_existing_target_only", default=False
 )

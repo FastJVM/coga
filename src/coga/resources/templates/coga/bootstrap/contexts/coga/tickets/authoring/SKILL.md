@@ -56,6 +56,7 @@ retains, returns 75 to the queue before CLI context cleanup; the queue
 propagates that retained-state exit without refreshing or sweeping it. A
 pre-write refusal that only withholds the sweep (for example an
 unrepresentable agent command) and other ordinary interview failures exit
-non-zero and leave the draft for the queue's validation phase. A picked ref
-that no longer resolves is refused, never scaffolded as a new draft. The
+non-zero and leave the draft for the queue's validation phase. The adapter
+requires an exact match for the picked ticket's qualified slug. A missing
+slug ends the interview attempt before any draft is opened or created. The
 adapter adds no alternate authoring executor or public flag.

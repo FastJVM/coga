@@ -265,6 +265,12 @@ def _resolve_or_create_target(
     knows; it flows into the authoring kickoff token so the skill greets off it
     instead of guessing from body-emptiness.
     """
+    if existing_target_only.get():
+        for picked in list_tasks(cfg):
+            if picked.id_slug == target:
+                return _resolve_existing(picked)
+        _bail(f"No exact match for picked ticket {target!r}.")
+
     try:
         ref = resolve_task(cfg, target)
     except TaskNotFoundError as exc:
@@ -287,10 +293,6 @@ def _resolve_or_create_target(
                 f"Ambiguous task ref {target!r}: matches {slugs}. "
                 "Re-run with the qualified `<dir>/<slug>` to disambiguate."
             )
-        if existing_target_only.get():
-            # The queue's adapter names a picked ticket; a miss means it moved
-            # or vanished since the pick, never a request for a new draft.
-            _bail(f"{msg}; not creating a draft for a picked ticket.")
         directory, _ = _split_create_path(target)
         if is_parked_dir(directory):
             # Discovery skips parked directories, so the draft could not be
