@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 5 (parked): move branch-sweep and autofix replay adapters'
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -45,7 +45,6 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
-launch_generation: 5251b28b-6625-4c9b-b2de-84612c8dfaf9
 ---
 
 ## Description
@@ -170,3 +169,25 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design step status (2026-11-16)
+
+Not started: the ticket's own activation condition is unmet at main 299e14222.
+
+- Parts 1–4: `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co`
+  is at step 6 (review), PR #1245 open; it introduces `runner.run_entry`,
+  `RECIPE_ROOTS` and `state_sweep`, which this migration would build on.
+  `04b`, `04c`, `04d` are all blocked waiting on that merge.
+- Publication contract: `v1/microkernel/06-read-report-commands-as-ticket-workflows`
+  is at step 7 (review), PR #1240 open; not yet on main.
+
+Designing against unmerged PR heads would cite symbols that may change, so the
+spec waits. When both merge: confirm 06 delivered the generic stateless
+publication contract, update the Description's activation paragraph, then write
+the spec against main.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-16 22:20] [agent:claude] id=20261116T222004 Activation condition unmet: design needs v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245; 04b-04d also wait on it) and v1/microkernel/06-read-report-commands-as-ticket-workflows (PR #1240, stateless publication contract) merged to main first. Unblock once both merge, or tell me to design against the open PR heads instead.
