@@ -50,7 +50,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 6 (open-pr)
+step: 7 (review)
 ---
 
 ## Description
@@ -1350,3 +1350,8 @@ and Python 3.11 floor evidence is not claimed.
 
 All requested implementation work and handoff preparation are complete. The
 next command is the one workflow bump, after which this session stops.
+
+
+## Open-PR handoff — 2026-11-16
+
+Ran `coga open-pr v1/microkernel/09-work-orchestration-commands-to-tickets` from clean control; exit 0. PR https://github.com/FastJVM/coga/pull/1244 is open, ready for review, targets main, and holds exact tested head `d68562ea8174d9825c550e1d28025a2ccd334381`. The command recorded `pr:` under Dev and published it. Required peer review returned and its must-fix findings were applied; no review remains in flight. All acceptance items are checked; deferred work has named sibling owners (03/05/08 and the draft Slack ticket), with native/floor verification left to the established release procedure. No new code or test changes were made and no new suite receipt is claimed. Fresh fetch before handoff confirmed only safe generated ticket/log drift from the feature branch; the publication command accepted that drift. Owner review is next; launch owns checkout settlement.
