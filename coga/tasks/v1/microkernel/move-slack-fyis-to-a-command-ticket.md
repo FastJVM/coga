@@ -369,6 +369,11 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-microkernel-move-slack-fyis-to-a-command-tick-d8c446
+
+
 ## Design status (design step, 2026-11-16)
 
 Spec written above recommending Option D (completion via
