@@ -224,6 +224,11 @@ and blanks: `commands/secret.py` 75, `commands/uninstall.py` 413,
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-microkernel-07-support-commands-boundary-b684a3
+
+
 ## Design handoff — 2026-11-14
 
 Traced production callers at the baseline above. Proposed secret migration
