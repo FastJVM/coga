@@ -593,3 +593,13 @@ declared dependency).
 Final head `44bd81d0fa993c2110a791f90c36ab0065105352`, pushed; the fix
 commits are self-reviewed only. Full suite 4937 passed, 33 skipped. Ready for
 open-pr.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/microkernel/07-support-commands-boundary`
+Recorded: 2026-11-17T07:58:53+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: author must be a compact identity (1–32 letters, digits, ./_-).
