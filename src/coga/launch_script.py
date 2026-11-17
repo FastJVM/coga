@@ -677,7 +677,12 @@ def run_bootstrap_script_help(task: str, args: Sequence[str]) -> int | None:
         except (ConfigError, tomllib.TOMLDecodeError):
             ref = BootstrapRef(name, packaged_template_path("bootstrap", name))
         else:
-            ref = resolve_bootstrap(cfg, name)
+            try:
+                ref = resolve_bootstrap(cfg, name)
+            except TaskNotFoundError:
+                # Unknown target or broken override (`BootstrapOverrideError`):
+                # ordinary launch reports it with its usual message.
+                return None
     else:
         ref = BootstrapRef(name, packaged_template_path("bootstrap", name))
     entry = script_entry_point(ref)

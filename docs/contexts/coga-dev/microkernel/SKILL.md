@@ -115,9 +115,12 @@ shared foreground waits serve stateless scripts and recurring control relays.
 `session_limits` shares env/config parsing between recurring and the queue;
 each caller supplies its own idle default. `authoring.invoke_ticket_authoring`
 uses public CLI argv and preserves its guarded finalization. Its narrow
-co-versioning obligation is mapping the CLI's withheld-sweep ContextVar to 75
-before CLI cleanup resets it; this is why the edge does not inspect a private
-CLI flag or copy an authoring executor. Sibling 08 still owns the authoring
+co-versioning obligation is two Python-only `cli.main` seams: mapping a
+retained authoring finalization (`authoring.authored_state_retained`, not the
+broader withheld-sweep flag) to 75 before CLI cleanup resets it, and refusing
+rather than scaffolding a picked ref that no longer resolves
+(`authoring.existing_target_only`). This is why the edge does not inspect a
+private CLI flag or copy an authoring executor. Sibling 08 still owns the authoring
 coordinator's eventual placement.
 
 Slack's retained head joins notification delivery, audit append and matching

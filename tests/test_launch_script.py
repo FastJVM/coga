@@ -2345,6 +2345,16 @@ def test_command_script_help_consumed_as_value_fails_closed(tmp_path: Path, argv
     assert not list(tmp_path.iterdir())
 
 
+def test_script_help_for_unknown_bootstrap_reports_without_traceback(script_repo: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "launch", "bootstrap/no-such-target", "--", "--help"],
+        cwd=script_repo, capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+    assert "no-such-target" in result.stdout + result.stderr
+
+
 def test_script_help_has_no_launch_identity_or_git_calls(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from coga.task_env import TASK_ENV_KEYS
 

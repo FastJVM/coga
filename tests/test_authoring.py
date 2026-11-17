@@ -838,7 +838,7 @@ def test_public_authoring_invocation_keeps_cli_argv_and_isolates_outer_session(r
     monkeypatch.setenv("COGA_SUPERVISED", "1")
     monkeypatch.setenv("COGA_DONE_SENTINEL", "outer")
     def run(argv, *, cwd, env, defer_interrupt):
-        assert argv == [sys.executable, "-c", "from coga.cli import main; main(retained_state_exit=True)", "ticket", ref.id_slug, "--agent", "claude"]
+        assert argv == [sys.executable, "-c", "from coga.cli import main; main(retained_state_exit=True, existing_target_only=True)", "ticket", ref.id_slug, "--agent", "claude"]
         assert cwd == repo.parent and defer_interrupt
         assert not any(key in env for key in TASK_ENV_KEYS)
         assert "COGA_SUPERVISED" not in env and "COGA_DONE_SENTINEL" not in env
@@ -847,8 +847,10 @@ def test_public_authoring_invocation_keeps_cli_argv_and_isolates_outer_session(r
     assert invoke_ticket_authoring(cfg, ref, agent_name="claude") == 75
 
 
-@pytest.mark.parametrize("refused,expected", [(False, 0), (True, 75)])
-def test_authoring_invocation_uses_real_cli_dispatch_and_sweep_boundary(repo: Path, monkeypatch: pytest.MonkeyPatch, refused: bool, expected: int) -> None:
+@pytest.mark.parametrize(
+    "refused,expected", [(None, 0), ("prewrite", 2), ("finalize", 75)],
+)
+def test_authoring_invocation_uses_real_cli_dispatch_and_sweep_boundary(repo: Path, monkeypatch: pytest.MonkeyPatch, refused: str | None, expected: int) -> None:
     from coga.authoring import invoke_ticket_authoring
     from coga.process_relay import run_foreground_child as real_run
     import json
@@ -867,6 +869,9 @@ def session(**kwargs):
     seen.append(["session", kwargs["ref"].id_slug, kwargs["launch_agent"]])
     if {refused!r}:
         git.state_sweep_withheld.set(True)
+        if {refused!r} == "finalize":
+            from coga.authoring import authored_state_retained
+            authored_state_retained.set(True)
         raise SystemExit(2)
 author._run_authoring_session = session
 original_sweep = cli._sweep_coga_state
@@ -887,5 +892,21 @@ finally:
     monkeypatch.setattr("coga.process_relay.run_foreground_child", child)
     assert invoke_ticket_authoring(cfg, ref, agent_name="claude") == expected
     assert json.loads(trace.read_text(encoding="utf-8")) == [
-        ["session", ref.id_slug, "claude"], ["sweep", refused],
+        ["session", ref.id_slug, "claude"], ["sweep", refused is not None],
     ]
+
+
+def test_authoring_invocation_refuses_a_vanished_pick_without_creating(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The queue's adapter never scaffolds a draft for a ref that moved away."""
+    from coga.authoring import invoke_ticket_authoring
+    from coga.tasks import list_tasks
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Vanishing pick", workflow_name="direct/body", contexts=[], owner="marc", agent="claude", status="draft")
+    ref = resolve_task(cfg, created["slug"])
+    ref.ticket_path.unlink()
+    before = sorted(t.id_slug for t in list_tasks(cfg))
+    monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src"))
+    assert invoke_ticket_authoring(cfg, ref, agent_name="claude") == 2
+    assert sorted(t.id_slug for t in list_tasks(load_config(repo))) == before
+    assert not ref.ticket_path.exists()

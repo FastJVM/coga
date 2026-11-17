@@ -503,7 +503,16 @@ def _restore_default_sigpipe() -> None:
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
-def main(*, retained_state_exit: bool = False) -> None:
+def _authored_state_retained() -> bool:
+    """Whether `coga ticket` retained a refused authoring finalization."""
+    from coga.authoring import authored_state_retained
+
+    return authored_state_retained.get()
+
+
+def main(
+    *, retained_state_exit: bool = False, existing_target_only: bool = False,
+) -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
     if os.name == "nt":
         # Windows console I/O already supports Unicode, but pipes otherwise
@@ -640,6 +649,18 @@ def main(*, retained_state_exit: bool = False) -> None:
     with checkout_guard_scope(), deferred_done_marker():
         relay_token = git.control_relay_started.set(False)
         withheld_token = git.state_sweep_withheld.set(False)
+        adapter_tokens = []
+        if retained_state_exit or existing_target_only:
+            # Python-only seams of the queue's authoring adapter; ordinary
+            # dispatch never imports authoring here.
+            from coga import authoring
+
+            adapter_tokens = [
+                (authoring.authored_state_retained,
+                 authoring.authored_state_retained.set(False)),
+                (authoring.existing_target_only,
+                 authoring.existing_target_only.set(existing_target_only)),
+            ]
         log_mark = _log_mark(cfg)
         try:
             app()
@@ -651,7 +672,7 @@ def main(*, retained_state_exit: bool = False) -> None:
             # intentionally left dirty.
             if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
                 _sweep_coga_state(cfg)
-            if retained_state_exit and git.state_sweep_withheld.get():
+            if retained_state_exit and _authored_state_retained():
                 raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
             raise
         except BaseException:
@@ -668,6 +689,8 @@ def main(*, retained_state_exit: bool = False) -> None:
             try:
                 _warn_unpublished_log_lines(cfg, log_mark)
             finally:
+                for var, token in reversed(adapter_tokens):
+                    var.reset(token)
                 git.state_sweep_withheld.reset(withheld_token)
                 git.control_relay_started.reset(relay_token)
 

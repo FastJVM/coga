@@ -121,6 +121,10 @@ from rich.table import Table
 from rich.text import Text
 
 
+# Queue-owned idle backstop for spawned REPLs; recurring owns its own.
+QUEUE_IDLE_TIMEOUT_SECONDS = 900.0
+
+
 class MegalaunchError(Exception):
     """Megalaunch cannot run at all — e.g. no TTY for the interactive REPLs."""
 
@@ -247,10 +251,10 @@ def run_megalaunch(
         )
     started_at = datetime.now(timezone.utc)
     # Liveness backstops for the spawned REPLs, resolved once per sweep with
-    # the same precedence recurring uses (env override > [launch] config >
-    # default). Human keystrokes count as activity, so an attended session
-    # is only torn down when it is genuinely idle.
-    idle_timeout = resolve_idle_timeout(cfg, default=900.0)
+    # the shared precedence (env override > [launch] config) over the queue's
+    # own idle default. Human keystrokes count as activity, so an attended
+    # session is only torn down when it is genuinely idle.
+    idle_timeout = resolve_idle_timeout(cfg, default=QUEUE_IDLE_TIMEOUT_SECONDS)
     max_session = resolve_max_session(cfg)
 
     # Validates the directory up front (fail loud on a typo) and narrows the
@@ -1383,6 +1387,10 @@ def _launch_until_stop(
             idle_timeout=idle_timeout, max_session=max_session,
         )
         activate = False
+        if transaction.activation_error is not None:
+            return _activation_refusal(
+                cfg, ref, preflight_view, ticket.status, transaction.activation_error
+            )
         if transaction.refusal is not None:
             return _result(ref, "failed", transaction.refusal, launch_agent, launched=launched)
         before, session = transaction.before, transaction.session
@@ -1451,11 +1459,6 @@ def _launch_until_stop(
                 launched=True,
             )
         ticket = after
-
-
-# The refusals `prepare_active` raises before `mark_active` writes anything.
-# `TaskValidationError` is deliberately not one of them: it comes from the
-# post-write `assert_task_valid`, so it belongs to the commit half alone.
 
 
 def _activation_refusal(

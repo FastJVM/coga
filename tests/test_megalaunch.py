@@ -4787,6 +4787,39 @@ def test_megalaunch_selection_logs_activation_before_start(
     assert activated < started
 
 
+def test_megalaunch_claimed_activation_refusal_keeps_unlaunchable_classification(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A commit-half activation refusal reads as the prepare half's does."""
+    from coga.claimed_session import ClaimedSessionResult
+    from coga.mark import MainAgentUnavailable
+
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Agent vanished at commit",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    error = MainAgentUnavailable("claude is no longer configured")
+    monkeypatch.setattr(
+        "coga_edge.megalaunch.run_claimed_agent_session",
+        lambda *args, **kwargs: ClaimedSessionResult(
+            refusal=str(error), activation_error=error
+        ),
+    )
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]])
+
+    (result,) = run.results
+    assert result.outcome == "skipped-unlaunchable"
+    assert "main agent unavailable" in result.detail
+    assert run.counts.get("failed", 0) == 0
+
+
 def test_megalaunch_selection_authors_drafts_before_any_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
