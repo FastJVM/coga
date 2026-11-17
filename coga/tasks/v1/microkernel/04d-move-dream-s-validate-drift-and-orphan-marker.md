@@ -1,9 +1,10 @@
 ---
-title: "Recipe migration, part 4: move Dream's validate-drift and orphan-marker workers to the edge"
-status: draft
+title: 'Recipe migration, part 4: move Dream''s validate-drift and orphan-marker workers
+  to the edge'
+status: active
 owner: nicktoper
 contexts:
-  - coga-dev/microkernel/objectives
+- coga-dev/microkernel/objectives
 workflow:
   name: code/with-review
   steps:
@@ -30,6 +31,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
