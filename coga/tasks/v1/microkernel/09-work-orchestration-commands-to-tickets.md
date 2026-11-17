@@ -50,7 +50,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (review-design)
+step: 4 (implement)
 ---
 
 ## Description
@@ -118,24 +118,29 @@ scope. Customization must not bypass the shared safety invariants.
   launch flag, no special-name branch and no recursive alias dispatch.
   `--read-only` is not used to suppress writes.
 - [ ] Generic stateless-script launch rules for every stateless bootstrap
-  target (see Proposed shape): (a) no agent fallback: a target given trailing
-  script arguments without a regular `ticket.py`, or whose `ticket.py`
-  vanishes before the child starts, refuses with exit 2 before any effect;
-  (b) a help request (the exact token `--help` among the trailing arguments
-  before any script-level `--`, matching the Typer parser `retire` already
-  uses) runs the script without a configured user, agent or secrets and
-  without refresh, audit, publication or sweep, including outside a
-  configured repo through the packaged definition, so `coga megalaunch --help`
-  and `coga pick --help` print the command's help; (c) the interrupt rule.
-  `coga retire` gains the same rules and its existing tests still pass.
+  target (see Proposed shape): (a) a target classified as a script whose
+  `ticket.py` vanishes before the child starts exits 2 instead of handing off
+  to an agent; agent-only bootstrap targets (`resolve-conflicts`,
+  `address-pr-comments`) keep their `## Launch arguments` behavior; (b) a help
+  request (exact `--help` before any script-level `--`) is detected before
+  config loading, runs the script without user, agent, secrets, refresh,
+  audit, publication or sweep, works outside a repo through the packaged
+  definition, and fails closed: under `COGA_SCRIPT_HELP=1` a script whose parse
+  reaches its command body exits 2 without effects; (c) the interrupt rule.
+  `coga retire` gains the same rules; `retire 1 --agent --help` and
+  `megalaunch --agent --help` exit 2 with no effect, and existing retire
+  tests still pass.
 - [ ] Interrupt rule: while a stateless bootstrap `ticket.py` runs, the parent
-  launch never kills or terminates the child on its own interrupt. It ignores
-  SIGINT, forwards a parent-only SIGTERM once and, on native Windows, ignores
-  Ctrl+C/Ctrl+Break. It waits for the child and exits with the child's status
-  unchanged (for example 130 or `128+n`); exit 75 still withholds sweep and
-  refresh. Tests cover Ctrl+C at the picker, between picks and inside a claim
-  window through the alias, and assert retained claim evidence and exit
-  status. Native Windows evidence is deferred to release.
+  launch never kills or terminates the child on its own interrupt. It installs
+  a no-op Python SIGINT handler (and SIGBREAK on Windows), never `SIG_IGN` or a
+  NULL console handler, forwards SIGTERM to the child once, and waits. A
+  negative return code maps to `128 - code`; otherwise the child's status is
+  returned unchanged; exit 75 still withholds sweep and refresh. A test proves
+  the child's SIGINT disposition is default. Tests cover Ctrl+C between picks
+  and inside a claim window through the alias. On POSIX the picker runs in raw
+  mode, where Ctrl+C is the byte `\x03`, so picker-quit tests are the existing
+  mocks and the Windows `_WindowsKeys` path; native Windows evidence is
+  deferred to release.
 - [ ] The command runs without creating a tracking task or starting an agent
   for itself. It still launches agent sessions for queued work and never
   starts a queued ticket's deterministic phase. Each queued agent's
@@ -144,7 +149,11 @@ scope. Customization must not bypass the shared safety invariants.
   lifecycle commands inside a queued session credit the agent, not `system`.
 - [ ] Aliases preserve operands, option collisions, cwd (including subdirectory
   invocation), streams, help, exits 0/1/2/75/130, publication deadlines and
-  terminal behavior. No new success text or usage record reaches stdout.
+  terminal behavior. No new success text or usage record reaches stdout. The
+  new stderr framing (alias `→ coga …`, `Launch: task bootstrap/megalaunch`,
+  `Script exited with N.`) is expected. `megalaunch` leaves
+  `_SWEEPING_COMMANDS`; a user `[aliases]` entry expanding to `megalaunch …`
+  fails `validate_aliases` with a message naming the new expansion (tested).
 - [ ] Every section of `coga/megalaunch` has parity coverage: refresh before
   selection; owner and human gates; bare versus explicit selection; saved
   selections and missing tasks; draft interview/check/deferred activation;
@@ -159,10 +168,11 @@ scope. Customization must not bypass the shared safety invariants.
   Queue admission keeps its separate publication deadlines and its current
   failed-row/exit-1 contract.
 - [ ] One shared `mark.reblock_unresolved_resume` replaces
-  `launch._reblock_unresolved_resume`'s agent path and
+  `launch._reblock_unresolved_resume` (all three call sites) and
   `megalaunch._reblock_unresolved`, with the parity table in Proposed shape.
-  Deterministic resume keeps its explicit step/fallback-byte restoration at
-  the launch caller.
+  The deterministic `resume_step`/`fallback_ticket_bytes` behavior moves into
+  the shared operation unchanged: the fallback `write_ticket`, then one
+  `mark_blocked` write.
 - [ ] Through sibling 05's discover/copy mechanism, a fresh wheel user can find
   the effective `megalaunch` command, copy its ticket and the full edge
   implementation, edit policy locally and run the fork. The fork imports no
@@ -207,7 +217,12 @@ scope. Customization must not bypass the shared safety invariants.
   it for queue readiness. If 03 is still unmerged, implement against current
   main, keep readiness inside the shared queue operation, and record the
   overlap for whichever PR merges second. Never duplicate 03's readiness
-  reduction in the line-count report.
+  reduction in the line-count report. 03's branch
+  (`coga/v1-microkernel-03-launch-decomposition-6852fc`, `0bf44d2a1`) also
+  changes `run_script_phase` (read-only vanish raises `FileNotFoundError`,
+  close to rule 1) and `cli.py`'s sweep predicate (`--`-aware slicing,
+  `TOMLDecodeError`). Reuse those if merged; otherwise expect merge conflicts
+  there.
 - Sibling 05 supplies complete-fork discovery; see the fallback in Acceptance
   criteria.
 - Sibling 08 owns `_author_draft`'s authoring dependency (below).
@@ -240,34 +255,54 @@ skill refresh or agent lookup; no configured agent required; one outer sweep;
 exit 75 withholds sweep and refresh. The deltas this ticket adds, as generic
 launch rules for any stateless bootstrap target:
 
-1. **No agent fallback.** A target given trailing script arguments must
-   have a regular `ticket.py`; otherwise launch exits 2 before any effect. A
-   target classified as a script whose `ticket.py` vanishes before the child
-   starts also exits 2 instead of reclassifying to an agent. A bare
-   `launch bootstrap/<x>` with no trailing arguments and no `ticket.py` keeps
-   today's agent classification; stateful script chaining is unchanged.
-2. **Script help.** Launch recognizes help exactly as the script's Typer
-   parser does: the exact token `--help` anywhere in the trailing arguments before a
-   script-level `--`. Command scripts using this rule parse with Typer's
-   default help (as `retire` does): no `-h` and no abbreviations, so launch
-   and the script can never disagree. A help request skips
-   user/agent/secret requirements, refresh, audit, publication and the sweep,
-   then runs the script with unchanged argv. Outside a configured repo it
-   resolves the packaged definition; inside a valid repo local overrides win.
-   Tokens after a script-level `--` are ordinary operands. Add direct and alias
-   help tests (`megalaunch --help`, `pick --help`, `retire --help`) with no
-   user and no repo, and a test that a help request makes no Git call.
-3. **Interrupt rule.** While the stateless child runs, the parent ignores
-   SIGINT, which the terminal already delivers to the child in the same
-   foreground process group, and forwards a SIGTERM aimed at the parent to the
-   child once, then keeps waiting. On native Windows the parent ignores
-   Ctrl+C/Ctrl+Break console events, which the console delivers to the child
-   too. The parent never kills or terminates the child on its own; it
-   propagates the child's exit status unchanged and restores its handlers
-   afterwards. Use the existing subprocess body and environment isolation; no
-   second executor. This replaces the `subprocess.run` interrupt behavior the
-   evaluator identified (about 0.25 s wait, then kill), which bypasses the
-   picker's quit handling and `repl_supervisor`'s deferred-signal windows.
+1. **No agent fallback after script classification.** A target that
+   `_align_and_classify` classified as a script (`entry is not None`) and whose
+   `ticket.py` is gone by `run_script_phase` (today `ran=False`, which hands off
+   to an agent; `launch_script.py` around 124-136 and 200-226) exits 2 before
+   the child starts. Bootstrap targets without `ticket.py` are unchanged:
+   launch cannot see whether the user typed `--` (Click consumes it), and the
+   agent-only command tickets rely on trailing arguments becoming the
+   `## Launch arguments` prompt block. Stateful chaining is unchanged.
+2. **Script help, fail closed.** Help is the exact token `--help` among the
+   launch's trailing arguments before a script-level `--` (Typer has no `-h`
+   and no abbreviations). Detect it in `launch()` from raw argv before
+   `load_config`, using one separator-aware predicate shared with
+   `cli._should_sweep_coga_state` (today `cli.py:393` scans every token) and
+   `main()`'s `help_invoked`. Resolve the bootstrap target with
+   `require_user=False` inside a valid repo (local overrides win) or from the
+   packaged definition outside one. Run it through the factored spawn helper
+   (rule 3) with cwd = host repo root when a repo exists, else the invocation
+   cwd; env = inherited, with `TASK_ENV_KEYS`, supervisor, sentinel and
+   expected identity cleared, no secrets, plus `COGA_SCRIPT_HELP=1`. No refresh,
+   audit, publication or sweep. Because Typer binds a value-taking option to
+   `--help` (`--agent --help` sets `agent='--help'` and runs the body), help mode
+   fails closed: each command script following this rule checks
+   `COGA_SCRIPT_HELP` at its command body and exits 2 without effects. A repo
+   with an invalid `coga.toml` must still print `coga megalaunch --help`
+   (today `_needs_no_config` covers the built-in): `cli.main`'s
+   non-"No coga.toml" branch resolves the alias from `DEFAULT_ALIASES` and the
+   packaged definition for a help request; test it. The normal script phase
+   pops any inherited `COGA_SCRIPT_HELP`. Tests:
+   `megalaunch --help`, `pick --help`, `retire --help` with no user and no
+   repo; `retire 1 --agent --help` and `megalaunch --agent --help` exit 2 with
+   no effect; a help request makes no Git call.
+3. **Interrupt rule.** Factor one spawn/wait/relay helper used by the normal
+   script phase and help mode, reusing (or replacing) the relay in
+   `recurring_runner.py` around 392-420 rather than adding a third. Share
+   only the forwarding and code-mapping pieces; recurring keeps its return
+   contract (`128+SIGTERM` whenever terminated, re-raised `KeyboardInterrupt`
+   after waiting), and sibling 04 owns that file's restructuring. It uses
+   `Popen`/`wait`. While the child runs, the parent installs a no-op Python
+   SIGINT handler (SIGBREAK too on Windows). It never uses `SIG_IGN` or
+   `SetConsoleCtrlHandler(NULL, TRUE)`, which children inherit and which would
+   disable Ctrl+C in the queue. The terminal or console delivers Ctrl+C to the
+   child directly. SIGTERM is forwarded to the child once; a group-wide SIGTERM
+   arrives twice, and the duplicates are harmless or coalesce. The parent never
+   kills the child on its own, maps a negative return code to `128 - code`
+   (`oscompat.process_exit_status` passes negatives through today), and
+   restores its handlers afterwards. This replaces the `subprocess.run`
+   behavior (about 0.25 s wait, then kill) that bypasses the picker's quit
+   handling and `repl_supervisor`'s deferred-signal windows.
 
 This is cooperative command dispatch, not an arbitrary-code sandbox. Owner
 acceptance is recorded above.
@@ -328,13 +363,14 @@ Record this bounded proof in the microkernel owner; it does not justify keeping
 picker, ordering, budgets or all of `_launch_until_stop` in core.
 
 For concrete deduplication, add `src/coga/mark.py`,
-`reblock_unresolved_resume(cfg, ref, *, actor_text, log_message)`. It rereads
+`reblock_unresolved_resume(cfg, ref, *, slack_actor, log_message, echo_owner_text,
+resume_step=None, fallback_ticket_bytes=None)` (callers supply all texts). It rereads
 the current ticket bytes, parses open asks with `parse_blockers_text`, applies
 the in-progress-only agent rule, and calls `mark_blocked` (reusing its
 validated write, audit, notification and publication). It returns a structured
 result: `reblocked(detail)`, `already_blocked(detail)`, `noop` or
-`invalid(error)`. Migrate `launch._reblock_unresolved_resume`'s agent path and
-`megalaunch._reblock_unresolved` together. Parity target, per caller:
+`invalid(error)`. Migrate all three `launch._reblock_unresolved_resume` call
+sites and `megalaunch._reblock_unresolved` together. Parity target, per caller:
 
 | Divergence today | Ordinary launch keeps | Queue keeps |
 | --- | --- | --- |
@@ -344,11 +380,9 @@ result: `reblocked(detail)`, `already_blocked(detail)`, `noop` or
 | Validation failure | `invalid` → `_bail` (exit 2) | `invalid` → `failed` row |
 | Slack actor text | `blocker or cfg.current_user` | `cfg.current_user` |
 | Audit wording | `...after resumed launch exited` | `...after resumed megalaunch pick exited` |
+| Deterministic resume (`resume_step` given) | Today's behavior moved unchanged: on unreadable/missing bytes restore `fallback_ticket_bytes`; skip the `already_blocked` return after a fallback restore; re-block a ticket the script left paused or terminal; restore `step` in memory; keep the fallback `git.write_ticket`, then one `mark_blocked` write | n/a: the queue never passes `resume_step`, so an agent queue never restores a terminal ticket |
 
-Deterministic resume keeps its `resume_step`/`fallback_ticket_bytes`
-restoration in `launch.py`: it restores the fallback ticket and step first,
-then calls the shared operation. An agent queue never restores a terminal
-ticket.
+The queue maps results to rows with `launched=True` metadata as today.
 
 Retained shared operations and real consumers: `prepare_active` and
 `mark_active` serve mark/launch/queue; `mark_in_progress` serves launch/queue;
@@ -412,9 +446,10 @@ matrix and the test map. This ticket does not activate, launch or implement it.
 
 ### Out of scope
 
-Slack migration and its completion mechanism (sibling above). No retire work,
-recurring scheduling/admission migration, recipe inventory change,
-script-aware queue, new queue executor, generic plugin framework, new launch
+Slack migration and its completion mechanism (sibling above). No retire work
+beyond adopting the generic launch rules (its `ticket.py` checks
+`COGA_SCRIPT_HELP`), and no recurring scheduling/admission migration, recipe
+inventory change, script-aware queue, new queue executor, generic plugin framework, new launch
 flag, prompt-assembly redesign, notification retry/digest policy, task creation
 per command invocation or native-host allocation. Do not change the queue's
 exit/sweep contract; any such change needs a separate owner decision.
@@ -818,6 +853,28 @@ Evaluator dispositions:
 6. Session-limit coordination with sibling 04: accepted; note added.
 7. Criteria finality: accepted; Slack criteria removed from this ticket and
    carried by the sibling.
+
+Second cold evaluation (2026-11-16, subagent, read-only) returned not ready
+with five must-fix items; all were fixed in the Description the same day:
+
+- M1: no-fallback rule narrowed to the classified-then-vanished race;
+  agent-only bootstrap targets keep launch arguments.
+- M2: help made separator-aware in one predicate shared with the CLI sweep,
+  and fail-closed through `COGA_SCRIPT_HELP` (Typer binds `--agent --help`).
+- M3: help path detected before `load_config`, with cwd/env specified;
+  invalid-config help covered.
+- M4: no-op handlers instead of `SIG_IGN` (inherited), `Popen`/`wait`,
+  negative-code mapping, one shared relay with `recurring_runner`.
+- M5: deterministic `resume_step`/fallback behavior moved into the shared
+  operation, with its own parity row.
+
+Re-check of the fixes by the same evaluator: ready for implementation, no new
+must-fix. Its three wording recommendations (fallback write order, recurring
+relay contract, invalid-config help and retire scope) were applied.
+
+Recommendations also adopted: sibling 03 branch overlap points, user-alias
+migration and `_SWEEPING_COMMANDS`, picker raw-mode test scope, full re-block
+signature, expected stderr framing.
 
 Sibling 03 (PR #1233) was unmerged at this gate; implementation checks it at
 entry (see Prerequisites).
