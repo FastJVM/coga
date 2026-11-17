@@ -1,6 +1,6 @@
 ---
 title: Move Slack FYIs to a command ticket
-status: draft
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -50,6 +50,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
