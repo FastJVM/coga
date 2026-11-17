@@ -371,6 +371,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1247
 branch: coga/v1-microkernel-move-slack-fyis-to-a-command-tick-d8c446
 
 
