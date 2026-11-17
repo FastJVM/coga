@@ -11262,3 +11262,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-16 21:03 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [human:nicktoper] created (status=draft)
 2026-11-16 21:03 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [human:nicktoper] created (status=draft)
 2026-11-16 21:03 v1 [v1/microkernel/04e-second-pass-move-branch-sweep-and-autofix-repl] [human:nicktoper] created (status=draft)
+2026-11-16 21:11 v1 [v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co] [human:nicktoper] advanced to step 4 (implement) → claude — Owner approved split scope (part 1 of 5)

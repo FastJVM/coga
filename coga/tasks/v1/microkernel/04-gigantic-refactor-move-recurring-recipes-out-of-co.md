@@ -30,11 +30,11 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 contexts:
-  - coga-dev/microkernel/objectives
-  - coga-dev/principles
+- coga-dev/microkernel/objectives
+- coga-dev/principles
 ---
 
 ## Description
@@ -50,13 +50,13 @@ history stays attached. This ticket owns two things:
 
 Siblings (all depend on this ticket's merge):
 
-- `v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the-edg` —
+- `v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the` —
   blocker-reminders and skill-update.
 - `v1/microkernel/04c-move-autoclose-to-the-edge` — autoclose, with the
   per-symbol shared-helper audit.
-- `v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker-worke` —
+- `v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker` —
   Dream's validate-drift and cleanup-orphan-markers workers.
-- `v1/microkernel/04e-second-pass-move-branch-sweep-and-autofix-replay-ad`
+- `v1/microkernel/04e-second-pass-move-branch-sweep-and-autofix-repl`
   — parked second pass over the branch-sweep and autofix-analyze adapters.
 
 Owner decisions (2026-11-16) that bind the siblings: edge modules live in
@@ -186,65 +186,13 @@ support renames and schedule/policy redesign.
 
 <!-- coga:blackboard -->
 
-## Refresh handoff — 2026-11-12
+## Split handoff — 2026-11-16
 
-The body now carries the current-main inventory and proposed boundary.
-The parent refresh owns scope approval; this ticket's existing role,
-status and workflow step are unchanged. No implementation was resumed.
-The earlier design and review evidence remain below for deliberate reading.
-
-## Evaluator review
-
-Cold evaluator, 2026-11-16, against `db39c6007`. Items 2–4 and 10 below were
-applied to the body in the same session; the remaining items await the owner.
-
-**Verdict:** The facts in the ticket mostly check out and the boundary rules are carefully written. It is still not ready for `implement` as one brief. It bundles at least four PRs of work, leaves a pass-two decision for the implementer to guess, and has one claim that contradicts current policy.
-
-### Claims checked against the tree
-- **Accurate:** `runner.RECIPES` has 12 entries with the given names. Module sizes match exactly: `autoclose.py` 1842, `blocker_reminders.py` 244, `skill_update.py` 434, `dream_validate_drift.py` 847, `dream_cleanup_orphan_markers.py` 336. `runner.run_reported` exists, and both `coga_edge.phone_home` and `coga_edge.trim_log` call its four-argument form. `runner._failure_root` holds name branches for validate-drift, skill-update and cleanup-orphan-markers, and uses their parsers. `cli._sweep_coga_state` exists, with the control-relay, withheld-sweep, help/argv and `recurring --all` exclusions. `src/coga_edge/` contains only phone_home and trim_log. `coga/edge-code/SKILL.md`, `edge-code-upgrades.md` and all the cited user topics exist. Dream's packaged `ticket.md` invokes `coga run validate-drift` and `cleanup-orphan-markers`. Unknown recipes exit 2 in `commands/run.py`. Production importers of autoclose symbols: `launch`, `open_pr`, `checkout_disposal`, `step_gate`, `commands/bump`, `branchsweep`, `branchcleanup`, `retire_worklist`, `checkouts`, `git`, `pr_assist` and `bootstrap/retire/ticket.py`. That confirms the per-symbol audit is real work.
-- **Wrong or stale:** (1) The acceptance list asks for "full Linux/native Windows receipts". `coga-dev/testing` ("Native checks are release-only", owner decision 2026-11-12) does not require native receipts for implementation, review or merge; they should be recorded as deferred to release. (2) The table says the autoclose shim "calls `run_autoclose_recipe`". All three recurring shims actually call `runner.run_recipe(cfg, "<name>", [])` and then run `bump` as a subprocess, so removing a registry name breaks these shims directly. (3) The snapshot `49b34b229` is 539 commits behind HEAD. The numbers still hold, but the ticket should say they were re-verified.
-- **Missing from the inventory:** skills that document the old recipe spellings and need rewriting (`bootstrap/skill-update`, `coga/blockers/remind`, `coga/autoclose/sweep`, `bootstrap/dream/tasks/validate-drift`, `bootstrap/dream/tasks/cleanup-orphan-markers`); `coga-dev/microkernel`, which names these core files; the AGENTS.md text on `runner.RECIPES`; the `coga/cli` recipe index; the `coga-dev/codebase` source map. `coga-dev/microkernel` also names three identical private `append_report` copies (skill_update, validate_drift, orphan_markers). The ticket's "duplicate publication wrappers" is vague: it should say whether these are consolidated onto `blackboard.append_blackboard_report` or simply move with their jobs.
-
-### Clarity and definition of done
-Someone with no prior context can follow the intent. Done is fuzzy in three places:
-- **Second pass.** It is "proposed", the owner "may split", and it depends on a "generic stateless publication contract selected with launch/read-report work". No ticket or topic is named for that contract, so the implementer cannot tell whether removing branch-sweep and autofix-analyze is in scope.
-- **Old-caller migration.** "Deliver concrete old/new invocation passages and fixtures" does not say whether running the migration on this repo is in scope, or only shipping the procedure. "Record adoption before a contracting rollout" has no named owner or location.
-- **Code-size report.** No format is given for the baseline/final report, so a reviewer cannot check it mechanically.
-
-### Workflow fit
-`design-then-implement` fits, but this is the owner's gate. Settle scope here rather than in a single implement step. One implement plus open-pr step for 5 job moves, a reporting refactor, a publication extraction and migration fixtures will produce an unreviewable PR.
-
-### Contexts
-`coga-dev/microkernel/objectives` and `coga-dev/principles` are relevant and cost about 2.8k tokens together. The parent `coga-dev/microkernel` is only cited, but implement depends on its rules about counting callers of one symbol, keeping shared helpers in core, and the edge import ban: attach it, or quote those three rules in `## Context`. `coga/edge-code` is load-bearing for the shim/fork mechanics, but it is user-audience and the ticket names the exact procedure, so citing it is fine. No layer exceeds 40% of the prompt; task_description is about 32%, acceptable, though the history paragraphs inflate it.
-
-### Scope: recommend splitting
-Plain sibling tickets under `v1/microkernel/`, no parent ticket:
-1. **Shared reporting/publication infra.** Add a root-resolver hook to `run_reported` and remove the name branches from `_failure_root`; extract the publication helper out of `cli._sweep_coga_state` so the CLI and edge entrypoints both consume it. Tests: ordering, exclusions, failures.
-2. **Small recurring jobs.** Move blocker-reminders and skill-update to `coga_edge` with shims and migration fixtures.
-3. **Autoclose.** Move it with the per-symbol shared-helper audit; 1842 lines and 13 importers justify its own PR.
-4. **Dream workers.** Move validate-drift and cleanup-orphan-markers, update Dream phase passages and dream task skills, migrate frozen/customized Dream copies.
-5. **Second pass.** Move the branch-sweep and autofix-analyze replay adapters; park until the stateless publication contract exists.
-
-Tickets 2–4 depend on 1. Give each its own acceptance subset.
-
-### Assumptions and open owner decisions
-- **Dream worker invocation:** `python -m coga_edge.<worker>` or a named attachment shim? How does a local fork's phase text switch over?
-- **`append_report` duplicates:** consolidate or not?
-- **Second pass:** in this ticket or not? Which ticket owns the publication contract?
-- **Rollout:** does migrating this repo's own frozen periods and parked Dream copies happen in the implementation PR or as a separate rollout?
-- **Module naming:** `coga_edge.autoclose` (job name) or `coga_edge.autoclose_merged` (template name)?
-
-### Recommended edits, in priority order
-1. Owner decides the split (recommended: the five siblings above; at minimum move pass two out).
-2. Replace "native Windows receipts" with the release-deferred note. *(applied)*
-3. Fix the shim description. *(applied)*
-4. Add the five skills, `coga-dev/microkernel`, `coga-dev/codebase`, the `coga/cli` index and the AGENTS.md text to the update list. *(applied)*
-5. Decide Dream's worker invocation form and how local forks retarget it.
-6. Decide what happens to the `append_report` triplicate.
-7. Name the ticket or contract the second pass depends on, or delete the dependency sentence.
-8. Attach `coga-dev/microkernel`, or quote its caller-count and shared-helper rules in `## Context`.
-9. Define the code-size report format; say whether migrating this repo's own callers is in scope.
-10. Cut the history in "Premise check" items 3–4 to a single pointer. *(applied)*
+The owner split this ticket into five siblings (see the body). This file is now
+part 1: shared reporting/publication infrastructure plus the registry record.
+Its cold evaluator review was folded into this body and into 04b–04e. Status,
+workflow and step are unchanged: it waits at `review-design` for owner
+approval, then `implement`. The pre-refresh design and evidence remain below.
 
 ## Superseded designs
 
