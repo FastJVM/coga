@@ -1636,13 +1636,15 @@ def test_recurring_all_prefers_configured_duplicate_checkout(
     }
 
 
+@pytest.mark.parametrize("malformed", [b"version = [\n", b"version = 1\n# caf\xe9\n"])
 def test_recurring_all_isolates_malformed_config_during_remote_grouping(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, malformed: bytes
 ) -> None:
     root = tmp_path / "workspaces"
     first = root / "alpha" / "coga"
     second = root / "beta" / "coga"
-    _write(first / "coga.toml", "version = [\n")
+    first.mkdir(parents=True)
+    (first / "coga.toml").write_bytes(malformed)
     _write(second / "coga.toml", "version = 1\n")
     _write(second / "coga.local.toml", 'user = "marc"\n')
     seen: list[Path] = []
