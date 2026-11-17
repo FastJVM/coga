@@ -49,9 +49,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 6173fca9-7903-483b-a644-6775d2569258
 ---
 
 ## Description
@@ -405,3 +404,83 @@ the fallback. Investigation notes are under `### Codebase facts` in Context.
    enabled), with local-append success when Git is disabled?
 5. **Help change.** Accept that `coga slack --message --help` now exits 2
    (fail-closed help) instead of posting the literal `--help`?
+
+
+## Evaluator review
+
+Cold review at `36b0c8ecfaf3679c4d65a021e0f0914424b327d5` (2026-11-16).
+**Not ready for implementation until the findings below and the existing owner
+questions are resolved.** Option D is a coherent boundary: retain session
+completion in lifecycle machinery and make FYIs editable edge behavior. No new
+completion protocol is needed. Description/Context heading placement and the
+frozen design-review workflow are correct. No implementation or spec edits
+were made during evaluation.
+
+### Must resolve before implementation
+
+1. **Complete the alias migration for existing installations.** Proposed
+   shape only adds the alias to shipped `coga.toml` and removes the CLI table
+   entry. `src/coga/aliases.py::BUILTIN_COMMANDS` independently reserves
+   `slack`; leaving it there rejects the new alias. Add the expansion to
+   `DEFAULT_ALIASES` as well, so upgrading an existing repo without a local
+   slack alias preserves the command. `coga/cli`, “Aliases and recipes”,
+   specifies this default behavior; `tests/test_aliases.py` verifies the
+   builtin inventory and dispatch without an aliases section. Require tests
+   for both inventories and an existing config with no slack alias.
+
+2. **Correct the alias/subprocess verification plan.**
+   `runner.invoke(app, ["slack", ...])` does not exercise argv rewriting:
+   `src/coga/cli.py::_register_alias_placeholder` explicitly raises if called;
+   rewriting happens in `cli.main`. Also, `launch_script.run_script_phase`
+   executes a fresh interpreter, so patching `coga_edge.slack.post` in pytest
+   cannot intercept delivery through the alias. Specify direct edge-unit
+   tests with notification mocks, plus actual `cli.main`/CLI alias integration
+   tests with a safe subprocess-visible fixture (e.g. notifications disabled
+   for real script execution). Cover fatal delivery/configuration exits at
+   the direct seam and verify status propagation through launch. This avoids
+   failing placeholders or accidentally attempting real webhook delivery.
+
+3. **Define existing `mark done` options for bootstrap targets.**
+   `src/coga/commands/mark.py::done` accepts `--message` and `--force`.
+   The new branch requires a fixed audit message and no notification, but
+   says neither whether these flags are rejected nor how they are consumed.
+   Decide explicitly (rejecting unsupported options is sufficient), including
+   empty `--message`, and test refusal before append/publication/signalling.
+   Otherwise implementers must invent public behavior or silently drop input.
+
+### Recommendations and owner decisions
+
+- Resolve the five existing Open Questions in durable intent before handing
+  implementation over, especially completing after a failed FYI and the audit
+  publication gate. They are decisions for the next owner step, not blockers
+  for this evaluation.
+- Reconcile completion attribution with the lifecycle contract:
+  `commands/common.py::completion_identity` and `coga/script-tickets`,
+  “Completion attribution”, distinguish evidence that an agent ran from task
+  metadata. The proposed bootstrap case deliberately copies FYI attribution
+  instead. Either document this lifecycle exception or choose completion
+  attribution consistent with the shared rule, with supervised/manual/script
+  tests. The current spec is explicit enough to implement its chosen rule,
+  but its audit meaning should be an owner decision.
+- PR #1239 and PR #1244 were both confirmed OPEN with no merge commit.
+  Their absence does not block design review; implementation must recheck
+  both dependencies and use exact task slugs if blocked. The current plan
+  only spells out the terminal dependency action for 09.
+
+### Verification
+
+Source inspection checked `commands/slack.py::slack`, `commands/mark.py::done`
+and `_load`, `commands/common.py`, `tasks.resolve_target`, `git.sync_log`,
+`notification.post`, `repl_supervisor.emit_done_marker` and
+`deferred_done_marker`, alias dispatch, existing command/sentinel tests,
+packaged workflow, edge-code and CLI contracts, and 09's help subprocess path.
+Fresh fetch found no relevant drift from the reviewed main revision.
+Linux baseline receipt: `36b0c8ecfaf3679c4d65a021e0f0914424b327d5`,
+Pop!_OS 24.04 LTS, Python 3.12.12,
+`PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-test-slack-design`
+→ **4900 passed, 33 skipped in 840.25s**. Only this ticket's blackboard was
+edited; production code and tests match the named revision. Scoped validation:
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/move-slack-fyis-to-a-command-ticket --json`
+→ 1 OK, no issues. `git diff --check` passed. Final fetch found no relevant
+main drift. Native Windows/macOS checks are deferred to release; Python 3.11
+floor was not exercised here.
