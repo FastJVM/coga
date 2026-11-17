@@ -1,6 +1,6 @@
 ---
 title: Move Slack FYIs to a command ticket
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -51,6 +51,7 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
+launch_generation: pending:c0c35033-4fbc-4112-b3f1-c04fbbc5e6ce
 ---
 
 ## Description
