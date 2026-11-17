@@ -17,9 +17,9 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | Command | Owner |
 | --- | --- |
 | `init` | [coga/init](../init/SKILL.md) (install first: [Get started](https://github.com/FastJVM/coga/blob/main/README.md#get-started)) |
-| `uninstall` | [coga/uninstall](../uninstall/SKILL.md) |
+| `uninstall` (built-in recovery) | [coga/uninstall](../uninstall/SKILL.md) |
 | `build` → `launch coga-build` | [coga/init](../init/SKILL.md) |
-| `secret get` | [coga/secrets](../secrets/SKILL.md) |
+| `secret get` (built-in parent query) | [coga/secrets](../secrets/SKILL.md) |
 | `validate` | [coga/first-task](../first-task/SKILL.md) |
 | `--version` | The installed package version (`unknown` without package metadata); one CLI serves every repo, so there is no per-repo version |
 

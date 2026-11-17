@@ -10,6 +10,15 @@ Coga is reversible. It removes files from
 the working tree and commits nothing; commit or discard the removal like any
 other change. Git history remains the recovery source.
 
+## Recovery admission
+
+This built-in runs before alias validation, including when shared or local
+TOML is malformed or local definitions are absent. `--yes` needs no operator
+name, configured agent or terminal. It does not launch a ticket or consult a
+repo-local replacement. After removal it performs no publication, checkout
+refresh or audit write. Without `--yes`, confirmation defaults to no; refusal
+leaves the footprint intact.
+
 ## What it removes
 
 The plan is gathered read-only first and printed:

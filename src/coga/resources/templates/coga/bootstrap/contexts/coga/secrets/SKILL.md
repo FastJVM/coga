@@ -29,8 +29,20 @@ variable. Messages name the Coga secret and reference, never the value.
 
 A human-facing query: resolve one `op://…` or `env:VAR` ref through the same
 launch path and print the value to stdout, never logged or posted. It needs
-no `user`. A raw literal, unset variable, or `op` failure exits 2 without
-printing a value. Agents do not call it.
+no `user`, configured agent, or terminal, but requires a discoverable repo
+with valid config. It remains a built-in: resolution runs in the CLI parent,
+so `op read` inherits the operator's service-account, Connect or session auth.
+A task child receives the scrubbed environment described below; a read-only
+script would not preserve that authentication. This query has no repo-local
+bootstrap override.
+
+A raw literal, unset variable, missing `op`, or failed `op read` exits 2
+without printing a value to stdout. Argument failures also exit 2 on stderr.
+Bare `coga secret` prints usage on stdout and exits 2; explicit `--help`
+prints help on stdout and exits 0. Success prints only the resolved value
+and the usual trailing newline. The query never publishes existing dirty
+state, composes a prompt, writes usage or audit, or sends notifications.
+Agents do not call it.
 
 ## Vault policy: one service account, one automation vault
 

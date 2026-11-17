@@ -130,8 +130,6 @@ is their hand-run counterpart: a first-time user installs on a fresh
   venv or prepending its `bin/` would put the branch install on both sides.
   Confirm with `command -v coga` from the session, and read the results with
   that split in mind (seen in the 2026-10-15 Codex SIGINT reproduction).
-- Installed-versus-source skew warnings from `launch`/`validate` are owned by
-  [coga/launch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md).
 
 ## Test-writing rules
 

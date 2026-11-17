@@ -29,10 +29,8 @@ import typer
 from coga.commands.init import AGENT_GUIDE_TEMPLATE, _AGENT_GUIDE_FILES
 from coga.commands.update import (
     HOST_GITIGNORE_BEGIN,
-    COGA_PIPX_PACKAGE,
+    HOST_GITIGNORE_END,
     COGA_REPO_URL,
-    remove_host_gitignore,
-    running_cli_location,
 )
 from coga.config import ConfigError, find_repo_root, resolve_layout_contexts_path
 
@@ -273,6 +271,72 @@ def _remove_skill_link(link: Path) -> None:
                 d.rmdir()
         except OSError:
             break
+
+
+def remove_host_gitignore(target: Path) -> bool:
+    """Strip the coga-managed block from `<target>/.gitignore`. Inverse of
+    `ensure_host_gitignore`.
+
+    Removes only the marker-fenced region (and a single trailing blank line left
+    behind), leaving every user-authored line intact. Idempotent: returns False
+    when there's no `.gitignore` or no managed block to remove.
+    """
+    gi = target / ".gitignore"
+    if not gi.is_file():
+        return False
+    existing = gi.read_text(encoding="utf-8")
+
+    begin = existing.find(HOST_GITIGNORE_BEGIN)
+    if begin == -1:
+        return False
+    end = existing.find(HOST_GITIGNORE_END, begin)
+    if end == -1:
+        # Truncated block (no end marker) — drop from the begin marker on.
+        new = existing[:begin]
+    else:
+        end += len(HOST_GITIGNORE_END)
+        if end < len(existing) and existing[end] == "\n":
+            end += 1
+        new = existing[:begin] + existing[end:]
+
+    # Collapse the blank-line gap `ensure_host_gitignore` inserted before the
+    # block so removing it doesn't leave a trailing run of newlines.
+    new = new.rstrip("\n")
+    if new:
+        new += "\n"
+
+    if new == existing:
+        return False
+    gi.write_text(new, encoding="utf-8", newline="\n")
+    return True
+
+
+COGA_PIPX_PACKAGE = "coga"
+
+
+def running_cli_location() -> tuple[str, Path]:
+    """Identify which install of `coga` is currently executing.
+
+    Returns `(kind, venv_root)`:
+      - `("pipx", <pipx-venv>)` — installed via pipx; purge must use pipx.
+      - `("uv", <uv-tool-venv>)` — installed via `uv tool install`, marked by
+        the `uv-receipt.toml` uv writes into the tool's venv root. Such a venv
+        normally has no pip, so callers must go through `uv tool`.
+      - `("other", <venv_root>)` — pip / system python; the caller should
+        purge through that interpreter's pip.
+
+    Detection uses the *unresolved* `sys.executable` parent venv. A pipx or
+    uv tool venv's `bin/python` is a symlink to the host Python (Homebrew,
+    pyenv, system, uv-managed). Resolving the symlink lands in the host's
+    framework dir and misses the marker that lives in the venv root, which
+    would collapse pipx, uv, and other onto the same directory.
+    """
+    venv = Path(sys.executable).absolute().parent.parent
+    if (venv / "pipx_metadata.json").is_file():
+        return ("pipx", venv)
+    if (venv / "uv-receipt.toml").is_file():
+        return ("uv", venv)
+    return ("other", venv)
 
 
 def _handle_package(purge: bool, coga_os: Path) -> None:

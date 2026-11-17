@@ -446,8 +446,6 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
             return False
         subcommand = args[1] if len(args) > 1 else None
         return subcommand is None or subcommand.startswith("-") or subcommand == "launch"
-    if command == "secret":
-        return False
     return False
 
 
