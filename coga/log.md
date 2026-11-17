@@ -11343,3 +11343,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 14:18 v1 [v1/microkernel/move-skill-management-to-command-tickets] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-17 14:18 v1 [v1/microkernel/move-skill-management-to-command-tickets] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-17 14:18 v1 [v1/microkernel/move-skill-management-to-command-tickets] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-17 15:09 v1 [v1/microkernel/move-skill-management-to-command-tickets] [agent:claude] advanced to step 2 (evaluate-design) → codex
