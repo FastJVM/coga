@@ -50,7 +50,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 ---
 
 ## Description
@@ -683,6 +683,156 @@ until the owner gate; no sibling ticket was created or activated.
    entry? Current sibling implementation notes are not evidence of merged APIs.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+Cold review, 2026-11-16, by claude (other-agent) at control `ef81e5ccc`. There is
+no `src/` or `tests/` drift since the design base `5edb1f9`. Ticket structure is
+sound: Acceptance criteria, Proposed shape and Out of scope are `###` sections
+under `## Description`, and the design notes are under `## Context`. The cited
+symbols exist with the stated roles (`megalaunch._launch_until_stop`,
+`_revalidate_launch_claim_before_spawn`, `_admit_launch_claim_after_release`,
+`_activate_for_launch`, `_reblock_unresolved`, `_preflight_agent_launch`,
+`_author_draft`; `launch._reblock_unresolved_resume`, `spawn_agent_session`,
+`_interactive_stdio_has_tty`; `recurring_runner._recurring_idle_timeout` and
+`_recurring_max_session`; `repl_supervisor.emit_done_marker`,
+`deferred_done_marker`, `_admit_held_child`; `git.sync_log -> bool | None`).
+The line counts match (641 / 2,407 / 94), and so do the `aliases.validate_aliases`
+first-token rule and the named regression tests. `launch.prepare_agent_launch`
+is still absent from main because sibling 03's PR #1233 has not merged. The
+queue transaction boundary, re-block deduplication, Slack completion analysis
+and tightened audit gate are careful and implementable.
+
+**Verdict: not ready for implementation as written.** Two must-fix items
+affect the alias cutover that both moves depend on. The owner can settle both
+at review-design without a redesign.
+
+### Must resolve before implementation
+
+1. **`--command` has no owner that accepted it, and its necessity is not
+   shown against plain launch.**
+   - *Ownership.* The design makes the `--command` flag (and its help
+     dispatch) "a required sibling-03 contract", and Open Question 4 says
+     sibling 03 must ratify it. Sibling 03's reviewed contract ("Draft
+     stateless invocation contract") defines only `--read-only`. For writers
+     it explicitly keeps "Ordinary launch / write dispatch" unchanged. That
+     ticket is now at step 5 (review), its PR is implemented, and its
+     handoff says no further implementation obligation is deferred. Nothing
+     there will deliver `--command`.
+   - *Necessity.* The `retire` alias (`launch bootstrap/retire --`) shows
+     that plain launch already gives a stateless bootstrap script most of the
+     listed effect policy:
+     - `checkouts/launch-boundary` exempts bootstrap targets other than
+       `bootstrap/orient` from checkout preparation and return.
+     - `launch_script.run_script_phase` writes no activation and no launch or
+       exit audit when `stateless=True`.
+     - The script phase skips the push probe, skill refresh and agent lookup.
+     - A script-only bootstrap needs no configured agent.
+     - The CLI keeps one sweep, and exit 75 withholds it.
+
+     The real gaps appear to be: (a) a disappeared or missing `ticket.py`
+     can fall through to an agent; (b) `--help` needs a configured user and
+     repo; (c) the Slack parent-owned completion channel.
+   - *Decision needed.* The owner should require the spec to list the exact
+     deltas from plain `launch bootstrap/<x> --`, then either drop `--command`
+     (using plain launch plus a narrow no-fallback and help rule) or keep it
+     with that minimal scope. Either way, assign it to an owner that will
+     actually implement it: this ticket's megalaunch PR, a new sibling, or a
+     reopened 03 follow-up. As written, the alias cutover depends on a
+     prerequisite that no ticket will deliver.
+
+2. **Interrupt and termination semantics across the new parent/child
+   boundary are not specified, and the obvious implementation breaks
+   megalaunch.**
+   - *What breaks.* Today `coga megalaunch` is one process. Its picker
+     handles Ctrl+C itself (`commands.megalaunch._WindowsKeys` installs a
+     flag-only SIGINT handler that treats Ctrl+C as `q`). The
+     `repl_supervisor` claim, release and admission windows defer
+     SIGINT/SIGTERM so retained evidence stays consistent. Under the alias,
+     the queue runs as a child of `coga launch` through
+     `launch_script.run_script_phase`, which calls a plain
+     `subprocess.run([sys.executable, ticket.py, ...])`. A terminal Ctrl+C
+     (POSIX foreground process group, or a Windows console control event)
+     also reaches the parent. CPython's `subprocess.run` then waits about
+     0.25 s and SIGKILLs or terminates the child. That bypasses the picker's
+     quit handling, the deferred-signal windows and megalaunch's
+     rollback/retention cleanup, so it can leave a pending claim or held
+     child unsettled. The ordinary launch supervisor's `_on_signal` handler
+     is installed only on the agent-chain path, not around this script
+     phase. Short scripts such as `retire` never exposed this.
+   - *What to add.* An acceptance criterion and design text: while a
+     command script runs, the parent ignores or forwards SIGINT/SIGTERM
+     (and Windows Ctrl+C/Ctrl+Break) and never kills the child on its own
+     interrupt. It then propagates the child's exit status (130/`128+n`)
+     unchanged. This is a generic launch rule, not a megalaunch special
+     case.
+   - *Tests.* Interrupt at the picker, between picks, and inside a claim
+     window, each through the alias, asserting retained claim evidence and
+     exit status. Native Windows evidence stays deferred to release.
+
+### Recommendations (optional, ordered by impact)
+
+3. **Slack completion: weigh a cheaper verification before building a
+   transport.** The proposed invocation-scoped request/receipt channel is,
+   in effect, a new bidirectional IPC transport on POSIX and Windows, built
+   to move about 20 lines of operand and formatting policy (the parent would
+   own posting, audit and publication). Before siblings 03 and 10 commit to
+   it, the owner may want a sketch of the transport (fd or handle
+   inheritance, framing, Windows equivalent) and its line cost.
+   - One cheaper alternative: the parent captures the session identity
+     before isolation, runs the child, and after exit 0 confirms on control
+     (or locally when Git is disabled) a new `slack:` audit line for the
+     captured bootstrap slug written during this invocation. Only then does
+     it request the marker.
+   - That alternative trusts cooperative child output, which the spec
+     rejects ("a matching string supplied by the child is insufficient").
+     But the spec also says `--command` is cooperative dispatch, not a
+     sandbox. Make the threat model explicit (accidental versus adversarial
+     completion) so the owner can choose. Retaining the 94-line head under
+     the co-versioning proof remains a reasonable outcome.
+4. **Spell out the re-block parity differences.** `reblock_unresolved_resume`
+   must reconcile real divergences:
+   - Megalaunch acts on the passed `after` ticket and uses
+     `blackboard.open_blockers`, while launch rereads the bytes and parses
+     with `parse_blockers_text`.
+   - Launch returns `True` for an already-`blocked` ticket; megalaunch
+     returns no row.
+   - Launch `_bail`s (exit 2) on `TaskValidationError`; megalaunch returns a
+     `failed` row.
+   - Slack text uses `blocker or current_user` versus `current_user`.
+
+   Name which behavior each caller keeps, so the deduplication has a
+   checkable parity target.
+5. **Environment inheritance through the queue script.** The queue child runs
+   with `COGA_SCRIPT_TASK=<bootstrap/megalaunch path>`, an empty sentinel and
+   no `COGA_SUPERVISED`. Add a test that each queued agent's environment is
+   re-minted (marker cleared through `TASK_ENV_KEYS`, fresh supervised
+   witnesses) and that queued lifecycle commands credit the agent, not
+   `system`.
+6. **Session-limit helper coordination.** `_recurring_idle_timeout` and
+   `_recurring_max_session` live in `recurring_runner`, which sibling 04 is
+   restructuring. Name sibling 04 alongside 03 when choosing the home of
+   `session_limits.py`, so the shared parser is not moved twice.
+7. **Acceptance-criteria finality.** The checklist is written for the
+   two-command program, with a note that the owner narrows it. That is
+   acceptable for this gate. At review-design, physically move the Slack
+   criteria (and the completion and audit-gate items) to the sibling, or
+   mark them retained-head, so implement does not inherit criteria it cannot
+   meet.
+
+### Ready elements
+
+- Queue/core split: policy goes to the edge; claim, held-child and admission
+  stay in core under a stated co-versioning proof with ordinary-launch
+  recovery as a real consumer.
+- Exit and sweep preservation for megalaunch rows.
+- Exact-byte compare-and-set versus three-way lifecycle merge.
+- `_author_draft` handoff to sibling 08.
+- Slack mismatch and failure matrix and the honest audit-gate tightening.
+- Line-count method and test map.
+
+None of these needs change. No ticket body, code, branch or PR was produced
+by this review.
 
 ## Superseded designs
 
