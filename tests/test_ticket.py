@@ -841,6 +841,35 @@ def test_ticket_existing_draft_greets_as_edit_not_create(
     assert captured["cmd"][-1] == "Begin (editing existing ticket)"
 
 
+@pytest.mark.parametrize(
+    ("title", "directory"), [("Retry followup", None), ("Retry", "marketing")]
+)
+def test_picked_ticket_requires_exact_slug(
+    repo: Path, capsys: pytest.CaptureFixture[str], title: str, directory: str | None,
+) -> None:
+    from coga.authoring import existing_target_only
+    from coga.commands.ticket import _resolve_or_create_target
+
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title=title, workflow_name="direct/body", contexts=[],
+        owner="marc", agent="claude", status="draft", directory=directory,
+    )
+
+    token = existing_target_only.set(True)
+    try:
+        with pytest.raises(SystemExit) as exc:
+            _resolve_or_create_target(cfg, "retry")
+        assert exc.value.code == 2
+        assert "No exact match for picked ticket 'retry'" in capsys.readouterr().err
+
+        ref, _, scaffolded = _resolve_or_create_target(cfg, created["slug"])
+        assert ref.id_slug == created["slug"]
+        assert not scaffolded
+    finally:
+        existing_target_only.reset(token)
+
+
 def test_ticket_nested_bare_leaf_edits_existing_not_duplicate(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
