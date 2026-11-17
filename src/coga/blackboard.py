@@ -243,6 +243,23 @@ def _section_headings(text: str) -> list[str]:
     return headings
 
 
+def _stock_templates(cfg: Config | None) -> tuple[str, str | None]:
+    """The stripped packaged stub and, with `cfg`, the projected override.
+
+    The one candidate set behind both readiness (`_is_stock_blackboard`) and
+    the prompt projection (`without_stock_placeholder`). The override is
+    projected without archived designs because readiness compares the live
+    region; `read_resource` returns the packaged text when no override exists.
+    """
+    packaged = read_packaged_resource("blackboard.md").strip()
+    if cfg is None:
+        return packaged, None
+    override = _without_superseded_designs(
+        read_resource(cfg, "blackboard.md")
+    ).strip()
+    return packaged, override
+
+
 def _is_stock_blackboard(text: str, *, cfg: Config | None = None) -> bool:
     """Whether a blackboard region is an untouched stock placeholder.
 
@@ -253,15 +270,11 @@ def _is_stock_blackboard(text: str, *, cfg: Config | None = None) -> bool:
     by matching the override's text around each `{task_title}` placeholder.
     """
     stripped = text.strip()
-    if stripped in {"", read_packaged_resource("blackboard.md").strip()}:
+    packaged, override = _stock_templates(cfg)
+    if stripped in {"", packaged}:
         return True
-    if cfg is None:
+    if override is None:
         return False
-    # Readiness compares the live region, with archived designs excluded.
-    # Apply the same projection to the template so untouched stubs still match.
-    override = _without_superseded_designs(
-        read_resource(cfg, "blackboard.md")
-    ).strip()
     if stripped == override:
         return True
     if "{task_title}" not in override:
@@ -274,6 +287,64 @@ def _is_stock_blackboard(text: str, *, cfg: Config | None = None) -> bool:
         return False
     titles = set(match.groups())
     return len(titles) == 1 and all("\n" not in title for title in titles)
+
+
+def without_stock_placeholder(
+    text: str, *, cfg: Config | None, task_title: str
+) -> str:
+    """Drop the stock blackboard placeholder wherever it stands as a block.
+
+    A prompt projection, never a write. The candidates are `_stock_templates`
+    (packaged stub, override) plus the override rendered with `task_title`.
+    A match must be whole lines outside code fences, with a blank line or the
+    region edge on both sides, so the placeholder is removed even after a
+    launch-inserted `## Dev` section, while prose that merely quotes it stays.
+    One blank line after a removed block goes with it.
+    """
+    packaged, override = _stock_templates(cfg)
+    candidates = {packaged}
+    if override is not None:
+        candidates.add(override)
+        candidates.add(override.replace("{task_title}", task_title))
+    needles = sorted(
+        (
+            [line.rstrip() for line in candidate.splitlines()]
+            for candidate in candidates
+            if candidate
+        ),
+        key=len,
+        reverse=True,
+    )
+    lines = text.splitlines(keepends=True)
+    for needle in needles:
+        while True:
+            flagged = list(markdown_lines("".join(lines)))
+            start = _standalone_block(flagged, needle)
+            if start is None:
+                break
+            end = start + len(needle)
+            if end < len(lines) and not lines[end].strip():
+                end += 1
+            del lines[start:end]
+    return "".join(lines)
+
+
+def _standalone_block(
+    flagged: list[tuple[str, bool]], needle: list[str]
+) -> int | None:
+    size = len(needle)
+    for start in range(len(flagged) - size + 1):
+        window = flagged[start:start + size]
+        if any(fenced for _, fenced in window):
+            continue
+        if [line.rstrip() for line, _ in window] != needle:
+            continue
+        before_ok = start == 0 or not flagged[start - 1][0].strip()
+        after = start + size
+        after_ok = after == len(flagged) or not flagged[after][0].strip()
+        if before_ok and after_ok:
+            return start
+    return None
 
 
 def _is_prelaunch_authoring_heading(heading: str) -> bool:
@@ -450,25 +521,56 @@ def parse_blockers_text(text: str) -> list[Blocker]:
     fences keep their EOF behavior. In the remaining live text, unmatched
     openers are ordinary text, as in the shared Markdown line reader.
     """
-    blockers: list[Blocker] = []
+    return [blocker for blocker, _ in _scan_blockers(text)]
+
+
+def without_open_blockers(text: str, pointer: str) -> str:
+    """Replace the entries `parse_blockers_text` reports open with `pointer`.
+
+    A prompt projection for when the blocker preamble already lists the open
+    asks. The removed set is the parser's final state: an unchecked entry with
+    a later `resolved:` line is resolved and stays, with its history. The
+    pointer goes once where the first open entry was.
+    """
+    open_lines = {index for blocker, index in _scan_blockers(text) if not blocker.resolved}
+    if not open_lines:
+        return text
+    out: list[str] = []
+    for index, line in enumerate(text.splitlines(keepends=True)):
+        if index not in open_lines:
+            out.append(line)
+        elif index == min(open_lines):
+            out.append(pointer.rstrip("\n") + "\n")
+    return "".join(out)
+
+
+def _scan_blockers(text: str) -> list[tuple[Blocker, int]]:
+    """Each parsed blocker with the line index of its entry in `text`.
+
+    The archive projection keeps blank lines in place of archived ones, so
+    indexes map onto `text` itself.
+    """
+    blockers: list[tuple[Blocker, int]] = []
     pending_index: int | None = None
     legacy_counter = 0
-    for line, fenced in markdown_lines(_without_superseded_designs(text)):
+    live = _without_superseded_designs(text, keep_lines=True)
+    for index, (line, fenced) in enumerate(markdown_lines(live)):
         if fenced:
             continue
         line = line.rstrip("\r\n")
         checkbox = _CHECKBOX_BLOCKER_RE.match(line)
         if checkbox:
             created_at = _parse_ts(checkbox.group("ts"))
-            blockers.append(
+            blockers.append((
                 Blocker(
                     id=checkbox.group("id"),
                     created_at=created_at,
                     actor=checkbox.group("actor"),
                     reason=checkbox.group("reason").strip(),
                     resolved=checkbox.group("mark").lower() == "x",
-                )
-            )
+                ),
+                index,
+            ))
             pending_index = len(blockers) - 1
             continue
 
@@ -476,29 +578,33 @@ def parse_blockers_text(text: str) -> list[Blocker]:
         if legacy:
             legacy_counter += 1
             created_at = _parse_ts(legacy.group("ts"))
-            blockers.append(
+            blockers.append((
                 Blocker(
                     id=f"legacy-{legacy_counter}",
                     created_at=created_at,
                     actor=legacy.group("actor"),
                     reason=legacy.group("reason").strip(),
                     resolved=False,
-                )
-            )
+                ),
+                index,
+            ))
             pending_index = len(blockers) - 1
             continue
 
         resolved = _RESOLVED_LINE_RE.match(line)
         if resolved and pending_index is not None:
-            blocker = blockers[pending_index]
-            blockers[pending_index] = Blocker(
-                id=blocker.id,
-                created_at=blocker.created_at,
-                actor=blocker.actor,
-                reason=blocker.reason,
-                resolved=True,
-                resolved_at=_parse_ts(resolved.group("ts")),
-                answer=resolved.group("answer").strip(),
+            blocker, entry_index = blockers[pending_index]
+            blockers[pending_index] = (
+                Blocker(
+                    id=blocker.id,
+                    created_at=blocker.created_at,
+                    actor=blocker.actor,
+                    reason=blocker.reason,
+                    resolved=True,
+                    resolved_at=_parse_ts(resolved.group("ts")),
+                    answer=resolved.group("answer").strip(),
+                ),
+                entry_index,
             )
     return blockers
 
@@ -657,6 +763,8 @@ __all__ = [
     "prelaunch_blackboard_synthesis_reason",
     "append_blocker",
     "parse_blockers_text",
+    "without_open_blockers",
+    "without_stock_placeholder",
     "read_blockers",
     "open_blockers",
     "resolve_open_blockers",

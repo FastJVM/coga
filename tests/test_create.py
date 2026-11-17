@@ -1402,7 +1402,9 @@ def test_created_ticket_carries_guide_through_rewrite_and_composition(
     ticket.write(path)
     assert guide in path.read_text(encoding="utf-8")
     task = resolve_task(cfg, result["slug"])
-    assert compose_prompt(cfg, task, Ticket.read(path)).count(guide) == 1
+    # The guide is for editors of the file; launch prompts omit HTML comments.
+    assert "<!-- Ticket guide" not in compose_prompt(cfg, task, Ticket.read(path))
+    assert guide in path.read_text(encoding="utf-8")
     issues = validate_task(cfg, result["slug"]).issues
     assert any(issue.kind == "empty-description" for issue in issues)
     assert not any(

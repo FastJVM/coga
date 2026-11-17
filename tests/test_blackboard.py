@@ -18,6 +18,8 @@ from coga.blackboard import (
     read_blockers,
     render_blackboard,
     resolve_blockers_text,
+    without_open_blockers,
+    without_stock_placeholder,
 )
 from coga.config import Config, load_config
 
@@ -417,3 +419,92 @@ def test_stock_override_projects_archived_designs_on_both_sides(tmp_path: Path) 
         assert prelaunch_blackboard_synthesis_reason_text(text, cfg=cfg) is None
     edited = rendered.replace('For Work', 'New authoring notes')
     assert prelaunch_blackboard_synthesis_reason_text(edited, cfg=cfg) is not None
+
+
+_POINTER = "- Open asks are listed above."
+
+
+def test_without_open_blockers_follows_the_parsers_final_state() -> None:
+    """Exactly the entries the parser reports open are replaced, once."""
+    text = dedent(
+        """\
+        ## Blockers
+
+        - [ ] [2026-09-18 12:00] [agent:claude] id=a First open ask
+        - [x] [2026-09-18 12:01] [agent:claude] id=b Answered ask
+          resolved: [2026-09-18 13:00] [human:marc] Yes.
+        - [ ] [2026-09-18 12:02] [agent:claude] id=c Unchecked but answered
+
+        Interleaved prose.
+
+        ```text
+        fenced line
+        ```
+          resolved: [2026-09-18 14:00] [human:marc] Answered later.
+        - [2026-09-18 12:03] [agent:claude] Legacy open ask
+        ```text
+        - [ ] [2026-09-18 12:04] [agent:claude] id=d Fenced example
+        ```
+        - [ ] [2026-09-18 12:05] [agent:claude] id=e Second open ask
+        """
+    )
+
+    projected = without_open_blockers(text, _POINTER)
+
+    assert [b.reason for b in parse_blockers_text(text) if not b.resolved] == [
+        "First open ask", "Legacy open ask", "Second open ask",
+    ]
+    for gone in ("First open ask", "Legacy open ask", "Second open ask"):
+        assert gone not in projected
+    for kept in (
+        "id=b Answered ask",
+        "resolved: [2026-09-18 13:00] [human:marc] Yes.",
+        "id=c Unchecked but answered",
+        "resolved: [2026-09-18 14:00] [human:marc] Answered later.",
+        "Interleaved prose.",
+        "id=d Fenced example",
+    ):
+        assert kept in projected
+    assert projected.count(_POINTER) == 1
+    assert projected.startswith("## Blockers\n\n" + _POINTER + "\n- [x]")
+    assert [b for b in parse_blockers_text(projected) if not b.resolved] == []
+
+
+def test_without_open_blockers_leaves_text_without_open_asks() -> None:
+    text = (
+        "- [x] [2026-09-18 12:01] [agent:claude] id=b Answered ask\n"
+        "  resolved: [2026-09-18 13:00] [human:marc] Yes.\n"
+    )
+    assert without_open_blockers(text, _POINTER) == text
+
+
+def test_without_stock_placeholder_removes_standalone_packaged_stub() -> None:
+    stub = render_blackboard("Work").strip()
+
+    assert without_stock_placeholder(stub + "\n", cfg=None, task_title="Work") == ""
+    after_dev = f"## Dev\n\nbranch: feature\n\n\n{stub}\n\n## Notes\n\nLive.\n"
+    assert without_stock_placeholder(after_dev, cfg=None, task_title="Work") == (
+        "## Dev\n\nbranch: feature\n\n\n## Notes\n\nLive.\n"
+    )
+    # Quoted inside prose, a fence, or glued to another line, it stays.
+    for kept in (
+        f"Notes: {stub}\n",
+        f"```text\n{stub}\n```\n",
+        f"Lead-in line.\n{stub}\n",
+    ):
+        assert without_stock_placeholder(kept, cfg=None, task_title="Work") == kept
+
+
+def test_without_stock_placeholder_removes_override_forms(tmp_path: Path) -> None:
+    template = "## Working notes for {task_title}\n\nRepo stub.\n"
+    cfg = _cfg_with_blackboard_override(tmp_path, template)
+    rendered = render_blackboard("Work", cfg=cfg)
+
+    for text in (template, rendered, render_blackboard("Work")):
+        assert without_stock_placeholder(text, cfg=cfg, task_title="Work").strip() == ""
+    assert without_stock_placeholder(
+        rendered + "\n## Notes\n\nLive.\n", cfg=cfg, task_title="Work"
+    ) == "## Notes\n\nLive.\n"
+    # A different title is not this ticket's rendering.
+    other = render_blackboard("Other", cfg=cfg)
+    assert without_stock_placeholder(other, cfg=cfg, task_title="Work") == other
