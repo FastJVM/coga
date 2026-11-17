@@ -41,7 +41,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 contexts:
 - coga-dev/microkernel
@@ -469,3 +469,67 @@ For evaluate-design / review-design:
 2. Owner to reconcile `04b`'s "keep the public skill updater in core"
    sentence with this move. They are compatible because the job calls the
    public CLI, but the wording is now stale.
+
+## Evaluator review
+
+**Verdict:** Revise before implementation. The shared manager and local-first
+fork fit the microkernel boundary. The specified launch behavior cannot
+satisfy the dispatch and audit criteria as written. Reviewed on main
+`e0e2a20fc8d1cb26e8f653d082a6cd4eaf43891f` and the open #1233 head
+`0bf44d2a1ff5e5e846f29007f707c6d461cdee9e`.
+
+### Must resolve before implementation
+
+1. **Give the status entry a distinguishable route and settle refusal
+   effects.** `cli.main` expands the two aliases before dispatch and
+   `launch_script.run_script_phase` invokes the same child with the same
+   `status` argv and script metadata. The child cannot accept one spelling
+   and refuse the other with the proposed aliases. Even a child-side exit 2
+   leaves the ordinary launch exit sweep eligible to publish pre-existing
+   dirt (`cli._sweep_coga_state` and the nonzero exit branch in `cli.main`).
+   Specify where the old spelling is refused and how the no-write guarantee
+   is achieved, including in a dirty Git-enabled repo. A distinct reader
+   operand could differentiate the two public argv paths, but would not
+   establish the child's launch policy. Settle explicit invocation behavior
+   as well. #1233's `coga/launch` “Read-only command dispatch” says a read-only
+   entry rejects write operands, while Proposed Shape 5 deliberately allows
+   an explicit read-only install to write locally.
+2. **Align audit requirements with stateless launch.** On main and #1233,
+   `launch_script.run_script_phase` wraps both script lifecycle audit lines
+   and the initial `git.sync_log` in `if not stateless`. A nested
+   `bootstrap/skill-manage` therefore emits neither line. Revise Deliberate
+   Difference 2 and the recurring acceptance test to reflect existing
+   behavior, or explicitly scope and justify an audit change and define its
+   interaction with exit 75. Keep the stateful period's own audit distinct
+   from the inner bootstrap invocation.
+3. **Specify the publication guarantee for writers.** `cli._sweep_coga_state`
+   is best effort and `git._publishes_from_feature` holds skills for merge
+   off control (see `coga/state-publication`). The writer publication test
+   should name a Git-enabled control checkout with a reachable test remote
+   and verify the expected remote diff. Document that the ordinary sweep
+   also considers other eligible dirt and that feature-branch skill edits
+   stay local. The updater's dedicated `--pr` path has its own publication
+   contract.
+
+### Confirmed and follow-up
+
+- Keep inner 75 as a recipe failure. `skill_update.run_update_json` raises
+  for any nonzero result and `skill_update.run_skill_update_recipe`'s failure path writes the
+  report and returns 2. The recurring `skill-update/ticket.py` returns that
+  failure before bumping. The refusal protects the inner invocation from
+  sweeping. The outer period still uses its ordinary publication policy.
+  The owner should specify whether any pre-existing dirt must remain
+  unpublished across the *outer* invocation as well. Verify the report on
+  control through the actual period failure path, since a parser-only test
+  cannot establish its publication.
+- The library extractions match the production callers. The test migration
+  also needs `test_init.py`'s obsolete installer monkeypatches and
+  `test_packaging.py::_context_navigation_sources`'s
+  `gh_skill_repo` import. The latter must still work in tests executed
+  against the control tree's imports.
+- Reconcile the job's “keep ... in core” instruction in 04b with the agreed
+  public CLI dependency. Clarify that the old-spelling cleanup covers
+  current guidance, with exceptions for the migration/refusal test and
+  retained history such as the audit log. The frozen workflow routes this
+  review to the owner next, and the implementation criteria are under the
+  composed Description and Context sections.
