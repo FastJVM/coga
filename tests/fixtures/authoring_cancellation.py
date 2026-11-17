@@ -95,7 +95,7 @@ elif role == "outer":
     command = importlib.import_module("coga.commands.ticket")
     # Match test_repl_supervisor's forced-PTY harness: proxy to captured stdout
     # and /dev/null stdin, but exercise the real pty.fork and process-group stop.
-    command._interactive_stdio_has_tty = lambda: True
+    command.interactive_stdio_has_tty = lambda: True
     sys.stdout.isatty = lambda: True
     signals_done = repl_supervisor._sentinel_signals_done
 

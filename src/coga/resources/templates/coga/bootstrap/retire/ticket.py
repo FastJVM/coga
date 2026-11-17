@@ -8,6 +8,7 @@ the alias's trailing argv; `ticket.md` beside it describes the job.
 from __future__ import annotations
 
 import sys
+import os
 
 import typer
 
@@ -91,6 +92,8 @@ def retire(
     branch. (This deliberately overrides the former punt that branch hygiene
     was a Dream concern — that punt is why branches and worktrees piled up.)
     """
+    if os.environ.get("COGA_SCRIPT_HELP") == "1":
+        raise typer.Exit(2)
     try:
         cfg = load_config()
     except ConfigError as exc:

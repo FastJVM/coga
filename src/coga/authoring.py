@@ -350,3 +350,29 @@ def finalize_authored(
             "[ticket] Published these knowledge edits with the authored tickets:\n"
             + "".join(f"  {path}\n" for path in support)
         )
+
+
+def invoke_ticket_authoring(cfg: Config, ref: TaskRef, *, agent_name: str) -> int:
+    """Invoke the public authoring CLI with a preselected interviewer.
+
+    Keep its guarded finalization and exit sweep. The Python entry adapter
+    requests retained-state exit mapping before CLI context cleanup; it adds
+    no user-facing flag or second authoring executor. Streams stay attached.
+    """
+    from coga.process_relay import run_foreground_child
+    from coga.task_env import TASK_ENV_KEYS, host_repo_root
+    from coga.repl_supervisor import (
+        SENTINEL_ENV, EXPECTED_TASK_ENV, EXPECTED_STEP_ENV, EXPECTED_AGENT_ENV,
+    )
+
+    env = os.environ.copy()
+    for key in (*TASK_ENV_KEYS, "COGA_SUPERVISED", SENTINEL_ENV,
+                EXPECTED_TASK_ENV, EXPECTED_STEP_ENV, EXPECTED_AGENT_ENV):
+        env.pop(key, None)
+    code, _ = run_foreground_child(
+        [sys.executable, "-c",
+         "from coga.cli import main; main(retained_state_exit=True)",
+         "ticket", ref.id_slug, "--agent", agent_name],
+        cwd=host_repo_root(cfg), env=env, defer_interrupt=True,
+    )
+    return code

@@ -64,7 +64,9 @@ reviewed PR.
   checkout it publishes routine state only and reports the files it
   [holds for merge](#held-for-merge-on-feature-checkouts). Read-only commands
   (`status`, `show`, `validate`, `usage`, `--help`, `launch --prompt-report`)
-  never sweep, and neither do `init` and `uninstall`. The sweep is best-effort: a failed push is
+  never sweep, and neither do `init` and `uninstall`. Stateless command-script
+  help follows the same exclusion, including aliases and invalid config; a
+  script-level operand separator ends help recognition. The sweep is best-effort: a failed push is
   reported on stderr, the files stay as written, and the next command retries.
   A command that deliberately leaves retryable state dirty, or a launch whose
   checkout preparation or return refused, withholds its sweep so that state

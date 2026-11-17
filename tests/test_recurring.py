@@ -367,7 +367,7 @@ def _seed_period_task_context(company: Path) -> None:
 
 def _allow_interactive_recurring(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: True
     )
 
 
@@ -5114,7 +5114,7 @@ def test_headless_sweep_repeatedly_escalates_refused_watchdog_resume(
                 repo / "recurring/later-check/ticket.py",
                 "# Deterministic phase; the mocked launch below completes it.\n",
             )
-    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr(recurring_cmd, "interactive_stdio_has_tty", lambda: False)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
     launched: list[str] = []
     records: list[recurring_cmd.RunRecord] = []
@@ -5369,7 +5369,7 @@ def test_headless_entry_refuses_agent_backed_sweep_pause_resume(
     """A non-forced resume goes through the same no-TTY refusal as `--force`."""
     cfg, ref = _parked_period(repo)
     parked = ref.ticket_path.read_bytes()
-    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr(recurring_cmd, "interactive_stdio_has_tty", lambda: False)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10))
     launched = _finish_launches(monkeypatch, repo, ref)
     capsys.readouterr()
@@ -5711,7 +5711,7 @@ def test_watchdog_reminders_ping_the_ticket_owner(
         return Response()
 
     monkeypatch.setattr("requests.post", capture)
-    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr(recurring_cmd, "interactive_stdio_has_tty", lambda: False)
     monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: None)
 
     for _ in range(2):
@@ -6448,7 +6448,7 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr("coga.recurring_runner.notify", lambda *a, **k: None)
     _patch_recurring_command_launch(
@@ -6747,7 +6747,7 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     launch_calls: list[tuple[object, ...]] = []
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: True
     )
     _patch_recurring_command_launch(
         monkeypatch, coga_os, lambda *a, **k: launch_calls.append(a)
@@ -8800,7 +8800,7 @@ def test_recurring_force_skips_interactive_template_without_tty(
 ) -> None:
     launched: list[str] = []
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: False
     )
     _patch_recurring_command_launch(
         monkeypatch, repo, lambda slug, **k: launched.append(slug)
@@ -8833,7 +8833,7 @@ def test_recurring_force_refuses_canceled_agent_period_without_tty(
 
     launched: list[str] = []
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: False
     )
     _patch_recurring_command_launch(
         monkeypatch, repo, lambda slug, **kwargs: launched.append(slug)
@@ -9246,7 +9246,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     _write_recurring_script(repo, "z-script-check")
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: False
     )
     launched: list[str] = []
     slack_msgs: list[str] = []
@@ -9478,7 +9478,7 @@ def test_bare_recurring_refuses_to_pause_replacement_after_ticket_script_exit(
     _write_recurring_script(repo, "script-check")
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: False
     )
 
     def replace_during_script(task: str, **kwargs):  # type: ignore[no-untyped-def]
@@ -9804,10 +9804,10 @@ def test_recurring_idle_timeout_env_override(
 ) -> None:
     """`COGA_REPL_IDLE_TIMEOUT` overrides the default window; a `<= 0`,
     non-finite, or unparseable value disarms the backstop."""
-    from coga.recurring_runner import (
-        _RECURRING_IDLE_TIMEOUT_SECONDS,
-        _recurring_idle_timeout,
-    )
+    from functools import partial
+    from coga.recurring_runner import _RECURRING_IDLE_TIMEOUT_SECONDS
+    from coga.session_limits import resolve_idle_timeout
+    _recurring_idle_timeout = partial(resolve_idle_timeout, default=_RECURRING_IDLE_TIMEOUT_SECONDS)
 
     cfg = _timeout_cfg()
     monkeypatch.delenv("COGA_REPL_IDLE_TIMEOUT", raising=False)
@@ -9826,10 +9826,10 @@ def test_recurring_idle_timeout_config_precedence(
 ) -> None:
     """Precedence is env > `[launch].idle_timeout` > the built-in default; an
     env override wins even to disarm a committed config value."""
-    from coga.recurring_runner import (
-        _RECURRING_IDLE_TIMEOUT_SECONDS,
-        _recurring_idle_timeout,
-    )
+    from functools import partial
+    from coga.recurring_runner import _RECURRING_IDLE_TIMEOUT_SECONDS
+    from coga.session_limits import resolve_idle_timeout
+    _recurring_idle_timeout = partial(resolve_idle_timeout, default=_RECURRING_IDLE_TIMEOUT_SECONDS)
 
     monkeypatch.delenv("COGA_REPL_IDLE_TIMEOUT", raising=False)
     # Config value used when no env override is set.
@@ -9857,7 +9857,7 @@ def test_recurring_max_session_resolution(
 ) -> None:
     """Max-session has no built-in default — None unless config or env sets it.
     Precedence mirrors idle-timeout: env > `[launch].max_session` > None."""
-    from coga.recurring_runner import _recurring_max_session
+    from coga.session_limits import resolve_max_session as _recurring_max_session
 
     monkeypatch.delenv("COGA_REPL_MAX_SESSION", raising=False)
     assert _recurring_max_session(_timeout_cfg()) is None
@@ -12805,7 +12805,7 @@ def test_control_worktree_run_names_agent_templates_and_the_real_reason(
         coga_os, "agent-check", schedule="* * * * *", title="Agent check"
     )
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: True
     )
     records: list[recurring_cmd.RunRecord] = []
     monkeypatch.setattr(
@@ -12885,10 +12885,10 @@ def test_control_worktree_parks_hybrid_before_its_agent_handoff(
     git_repo.git("commit", "-m", "seed hybrid recurring template")
     git_repo.git("push", "origin", "main")
     monkeypatch.setattr(
-        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.launch._interactive_stdio_has_tty", lambda: True
+        "coga.launch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
         "coga.launch._refresh_agent_skills_for_launch",
@@ -13990,7 +13990,7 @@ def test_inactivity_override_launches(repo: Path, monkeypatch: pytest.MonkeyPatc
                 pytest.fail("override consulted activity")
             return RepoActivity(date(2026, 9, 4), True)
         monkeypatch.setattr(recurring_cmd, "check_activity", activity)
-    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(recurring_cmd, "interactive_stdio_has_tty", lambda: True)
     launched = []
     records = []
 
@@ -14045,7 +14045,7 @@ def test_activity_failure_prints_one_note_and_runs(repo: Path, monkeypatch: pyte
     from coga.recurring_activity import RepoActivity
 
     monkeypatch.setattr(recurring_cmd, "check_activity", lambda *a: RepoActivity(error="git failed"))
-    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(recurring_cmd, "interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: None)
     launched = []
 

@@ -47,3 +47,12 @@ syntax authority for every flag.
 The interview preserves the ticket's guide comment and supplies only the
 authoring process and its metadata-edit exception; readers need no separate
 editing skill.
+
+Megalaunch invokes the same public `ticket <ref> --agent <name>` command with
+inherited streams and a preselected interviewer. Its command adapter clears
+outer task/supervisor identity and preserves ordinary CLI finalization and
+publication. A finalization refusal that withholds the sweep returns 75 to the
+queue before CLI context cleanup; the queue propagates that retained-state
+exit without refreshing or sweeping it. Ordinary interview failures leave the
+draft for the queue's validation phase. The adapter adds no alternate authoring
+executor or public flag.

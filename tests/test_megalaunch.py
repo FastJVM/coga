@@ -14,12 +14,23 @@ import pytest
 
 
 from conftest import append_test_usage, hold_by_agent, hold_by_owner, windows_skip
-from coga.cli import app
+import typer
+from coga.cli import app as cli_app
+from coga_edge.megalaunch import megalaunch
+
+# Exercise the policy parser directly; alias subprocess coverage lives in
+# test_launch_script and test_cli.
+app = typer.Typer()
+app.command()(megalaunch)
+@app.callback()
+def _queue_group() -> None:
+    pass
+
 from coga.launch import AgentSessionResult
 from coga.compose import compose_prompt
 from coga.config import load_config
 from coga.create import create_task
-from coga.megalaunch import (
+from coga_edge.megalaunch import (
     render_run_summary,
     run_megalaunch,
     save_selection,
@@ -78,7 +89,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # The engine refuses to run without a TTY (it spawns interactive REPLs);
     # pytest has none, so stub the check for the launch-path tests.
     monkeypatch.setattr(
-        "coga.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     return company
 
@@ -116,10 +127,20 @@ def test_megalaunch_keeps_claim_and_admission_publications(
     ticket.write(path)
     git_module.sync_task_state(cfg, path, message="Seed queue task")
     start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.megalaunch._resolve_selection", lambda *a, **k: [created["slug"]])
-    monkeypatch.setattr("coga.commands.megalaunch._confirm_author_drafts", lambda *a: False)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch._resolve_selection", lambda *a, **k: [created["slug"]])
+    monkeypatch.setattr("coga_edge.megalaunch._confirm_author_drafts", lambda *a: False)
+    def run_queue(argv, *, cwd, env, **kwargs):
+        from coga_edge.megalaunch import main
+        with monkeypatch.context() as child:
+            for key in list(os.environ):
+                if key not in env:
+                    child.delenv(key, raising=False)
+            for key, value in env.items():
+                child.setenv(key, value)
+            return main(list(argv)[2:]), False
+    monkeypatch.setattr("coga.launch_script.run_foreground_child", run_queue)
     monkeypatch.setattr("coga.launch.usage_tracking.capture_session", append_test_usage)
 
     def control() -> Ticket:
@@ -206,10 +227,10 @@ def _no_spawn(monkeypatch: pytest.MonkeyPatch) -> None:
     def refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("megalaunch launched work control had already moved on")
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", refuse)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.megalaunch.notification.post", lambda cfg, msg: None)
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", refuse)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.notification.post", lambda cfg, msg: None)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
 
 
 def test_megalaunch_pick_offers_control_state_not_stale_checkout(
@@ -221,14 +242,14 @@ def test_megalaunch_pick_offers_control_state_not_stale_checkout(
     cfg = load_config(git_repo.coga_os)
     created = _peer_advances_control_behind_local(git_repo, cfg)
     _no_spawn(monkeypatch)
-    monkeypatch.setattr("coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     offered: list[tuple[str, str, str | None]] = []
 
     def capture(candidates):  # type: ignore[no-untyped-def]
         offered.extend((ref.id_slug, t.status, t.step) for ref, t in candidates)
         return []
 
-    monkeypatch.setattr("coga.commands.megalaunch._pick_selection", capture)
+    monkeypatch.setattr("coga_edge.megalaunch._pick_selection", capture)
 
     result = CliRunner().invoke(app, ["megalaunch", "--pick"])
 
@@ -245,7 +266,8 @@ def test_megalaunch_queue_reflects_control_state_not_stale_checkout(
 ) -> None:  # type: ignore[no-untyped-def]
     """Sweep and --relaunch queue from refreshed control, so nothing fails stale."""
     from typer.testing import CliRunner
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
     cfg = load_config(git_repo.coga_os)
     created = _peer_advances_control_behind_local(git_repo, cfg)
@@ -260,7 +282,7 @@ def test_megalaunch_queue_reflects_control_state_not_stale_checkout(
         runs.append(real_run(*args, **kwargs))
         return runs[-1]
 
-    monkeypatch.setattr("coga.commands.megalaunch.run_megalaunch", capture_run)
+    monkeypatch.setattr("coga_edge.megalaunch.run_megalaunch", capture_run)
 
     argv = ["megalaunch"] + (["--relaunch"] if mode == "relaunch" else [])
     result = CliRunner().invoke(app, argv)
@@ -280,13 +302,13 @@ def test_megalaunch_stops_when_refresh_cannot_level_control(
     """A failed refresh exits nonzero before any selection or ticket read."""
     from typer.testing import CliRunner
 
-    monkeypatch.setattr("coga.commands.megalaunch.git.refresh", lambda cfg: False)
+    monkeypatch.setattr("coga_edge.megalaunch.git.refresh", lambda cfg: False)
 
     def unreachable(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("megalaunch read the stale checkout")
 
-    monkeypatch.setattr("coga.commands.megalaunch._resolve_selection", unreachable)
-    monkeypatch.setattr("coga.commands.megalaunch.run_megalaunch", unreachable)
+    monkeypatch.setattr("coga_edge.megalaunch._resolve_selection", unreachable)
+    monkeypatch.setattr("coga_edge.megalaunch.run_megalaunch", unreachable)
 
     result = CliRunner().invoke(app, ["megalaunch", "--pick"])
 
@@ -309,7 +331,7 @@ def test_megalaunch_runs_active_agent_task(
     )
 
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -326,7 +348,7 @@ def test_megalaunch_runs_active_agent_task(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -372,7 +394,7 @@ def test_megalaunch_warns_when_ticket_changes_without_done_signal(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     def fake_spawn(  # type: ignore[no-untyped-def]
@@ -384,7 +406,7 @@ def test_megalaunch_warns_when_ticket_changes_without_done_signal(
         updated.write(ref_obj.ticket_path)
         return AgentSessionResult(exit_code, kind, None, done_signalled)
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -413,10 +435,10 @@ def test_megalaunch_does_not_warn_when_ticket_is_unchanged(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     monkeypatch.setattr(
-        "coga.megalaunch.spawn_agent_session",
+        "coga.claimed_session.spawn_agent_session",
         lambda *args, **kwargs: AgentSessionResult(0, "natural"),
     )
 
@@ -441,7 +463,7 @@ def test_megalaunch_spawns_with_materialized_preflight_inputs(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     calls = {"prompt": 0, "env": 0}
 
@@ -473,9 +495,9 @@ def test_megalaunch_spawns_with_materialized_preflight_inputs(
         completed.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.compose_prompt", compose_once)
-    monkeypatch.setattr("coga.megalaunch.build_launch_env", env_once)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.compose_prompt", compose_once)
+    monkeypatch.setattr("coga.claimed_session.build_launch_env", env_once)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -509,7 +531,7 @@ def test_megalaunch_resolves_op_secret_and_scrubs_1password_auth(
     ticket.frontmatter["secrets"] = [{"STRIPE_KEY": "op://vault/stripe/key"}]
     ticket.write(ref["path"])
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     real_run = subprocess.run
@@ -538,7 +560,7 @@ def test_megalaunch_resolves_op_secret_and_scrubs_1password_auth(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -568,7 +590,7 @@ def test_megalaunch_step_env_pins_expected_task_and_step(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -586,7 +608,7 @@ def test_megalaunch_step_env_pins_expected_task_and_step(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -615,7 +637,7 @@ def test_megalaunch_step_env_refuses_stale_step_bump(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -634,14 +656,14 @@ def test_megalaunch_step_env_refuses_stale_step_bump(
         advanced.frontmatter["step"] = "2 (review)"
         advanced.write(ref_obj.ticket_path)
         result = CliRunner().invoke(
-            app,
+            cli_app,
             ["bump", ref_obj.id_slug],
             env=captured_env,
         )
         bump_results.append(result)
         return _Session(result.exit_code)
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -670,7 +692,7 @@ def test_megalaunch_records_cancellation_as_distinct_outcome(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -687,7 +709,7 @@ def test_megalaunch_records_cancellation_as_distinct_outcome(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -726,7 +748,7 @@ def test_megalaunch_skips_task_deleted_mid_sweep(
     )
 
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -748,7 +770,7 @@ def test_megalaunch_skips_task_deleted_mid_sweep(
             doomed_path.parent.rmdir()
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -792,7 +814,7 @@ def test_megalaunch_chains_agent_owned_steps(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -817,7 +839,7 @@ def test_megalaunch_chains_agent_owned_steps(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -853,7 +875,7 @@ def test_megalaunch_agent_override_launches_regardless_of_assignee(
     )
 
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -874,7 +896,7 @@ def test_megalaunch_agent_override_launches_regardless_of_assignee(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg, agent_override="codex")
 
@@ -916,7 +938,7 @@ def test_megalaunch_only_sweeps_current_users_tickets(
     )
 
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -934,7 +956,7 @@ def test_megalaunch_only_sweeps_current_users_tickets(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -983,7 +1005,7 @@ def test_megalaunch_agent_override_applies_to_first_step_only(
         agent="claude",
         status="active",
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     class _Session:
         exit_code = 0
@@ -1004,7 +1026,7 @@ def test_megalaunch_agent_override_applies_to_first_step_only(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg, agent_override="codex")
 
@@ -1031,9 +1053,9 @@ def test_megalaunch_cli_accepts_agent_override(
         status="active",
     )
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
 
     class _Session:
@@ -1053,7 +1075,7 @@ def test_megalaunch_cli_accepts_agent_override(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     result = CliRunner().invoke(app, ["megalaunch", "--agent", "codex"])
 
@@ -1085,8 +1107,8 @@ def test_megalaunch_agent_override_keeps_human_gate(
     def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("override must not launch a human-assigned ticket")
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     run = run_megalaunch(cfg, agent_override="codex")
 
@@ -1120,7 +1142,7 @@ def test_megalaunch_directory_scopes_the_sweep(
         status="active",
     )
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     class _Session:
         exit_code = 0
@@ -1136,7 +1158,7 @@ def test_megalaunch_directory_scopes_the_sweep(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg, directory="marketing")
 
@@ -1182,9 +1204,9 @@ def test_megalaunch_cli_accepts_directory(
         status="active",
     )
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
 
     class _Session:
@@ -1201,7 +1223,7 @@ def test_megalaunch_cli_accepts_directory(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     result = CliRunner().invoke(app, ["megalaunch", "marketing"])
 
@@ -1219,10 +1241,10 @@ def test_megalaunch_requires_tty(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Headless runs fail loud — the interactive REPLs need a real terminal."""
-    from coga.megalaunch import MegalaunchError
+    from coga_edge.megalaunch import MegalaunchError
 
     monkeypatch.setattr(
-        "coga.megalaunch._interactive_stdio_has_tty", lambda: False
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: False
     )
     cfg = load_config(repo)
 
@@ -1244,7 +1266,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
         agent="claude",
         status="active",
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     class _Session:
         exit_code = 0
@@ -1266,7 +1288,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -1315,7 +1337,7 @@ def test_megalaunch_timeout_teardown_names_exact_limit(
         agent="claude",
         status="active",
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     class _Session:
         exit_code = 124
@@ -1326,7 +1348,7 @@ def test_megalaunch_timeout_teardown_names_exact_limit(
             self.termination_reason = reason
 
     monkeypatch.setattr(
-        "coga.megalaunch.spawn_agent_session",
+        "coga.claimed_session.spawn_agent_session",
         lambda *args, **kwargs: _Session(termination_reason),
     )
 
@@ -1352,7 +1374,7 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
         status="active",
     )
     result = CliRunner().invoke(
-        app,
+        cli_app,
         ["block", "--task", ref["slug"], "--reason", "need owner answer"],
     )
     assert result.exit_code == 0, result.output
@@ -1386,7 +1408,7 @@ def test_megalaunch_ignores_blocker_examples(
     if live_ask:
         text += "- [ ] [2026-09-18 12:00] [human:marc] id=live Real ask\n"
     replace_blackboard(Path(ref["path"]), "\n" + text)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     prompts: list[str] = []
 
     def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
@@ -1396,7 +1418,7 @@ def test_megalaunch_ignores_blocker_examples(
         ticket.write(ref_obj.ticket_path)
         return AgentSessionResult(exit_code=0, termination_kind="done", done_signalled=True)
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -1431,7 +1453,8 @@ def test_megalaunch_reapplies_sweep_gates_to_exact_ticket_bytes(
     expected_detail: str,
 ) -> None:
     """A queue candidate cannot outrun a later owner/blocker/step edit."""
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
     from coga.blackboard import append_blocker
 
     cfg = load_config(repo)
@@ -1481,11 +1504,11 @@ def test_megalaunch_reapplies_sweep_gates_to_exact_ticket_bytes(
         raise AssertionError("an exact-ticket gate refusal must not spawn")
 
     monkeypatch.setattr(
-        "coga.megalaunch._candidate_result", candidate_then_peer_edit
+        "coga_edge.megalaunch._candidate_result", candidate_then_peer_edit
     )
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     run = run_megalaunch(cfg)
@@ -1501,7 +1524,8 @@ def test_megalaunch_late_park_does_not_consume_attempt_budget(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A candidate paused before exact reread leaves max-tasks for real work."""
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
     cfg = load_config(repo)
     first = create_task(
@@ -1538,7 +1562,7 @@ def test_megalaunch_late_park_does_not_consume_attempt_budget(
             peer.write(first["path"])
         return result
 
-    monkeypatch.setattr("coga.megalaunch._candidate_result", park_after_queue_check)
+    monkeypatch.setattr("coga_edge.megalaunch._candidate_result", park_after_queue_check)
     launched = _done_on_spawn(monkeypatch)
 
     run = run_megalaunch(cfg, max_tasks=1)
@@ -1555,7 +1579,8 @@ def test_megalaunch_drains_blocker_after_dependency_finishes(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A blocker skipped early in the sweep relaunches after its dependency."""
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
     from coga.blackboard import append_blocker, open_blockers, read_blockers
 
     cfg = load_config(repo)
@@ -1588,13 +1613,13 @@ def test_megalaunch_drains_blocker_after_dependency_finishes(
 
     launched = _done_on_spawn(monkeypatch)
     unresolved_at_launch: dict[str, int] = {}
-    original_spawn = megalaunch_module.spawn_agent_session
+    original_spawn = claimed_module.spawn_agent_session
 
     def record_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         unresolved_at_launch[ref_obj.id_slug] = len(open_blockers(ref_obj.ticket_path))
         return original_spawn(cfg_, ref_obj, ticket_, agent, **kwargs)
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", record_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", record_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -1685,7 +1710,8 @@ def test_megalaunch_drain_reconsiders_partial_progress_after_another_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch, combined: bool
 ) -> None:
     """Partial resolutions do not prevent the same run reaching a fixed point."""
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
     from coga.blackboard import append_blocker, open_blockers, read_blockers
 
     cfg = load_config(repo)
@@ -1717,7 +1743,7 @@ def test_megalaunch_drain_reconsiders_partial_progress_after_another_launch(
         ticket.frontmatter["status"] = "blocked"
         ticket.write(task["path"])
     launched = _done_on_spawn(monkeypatch)
-    original_spawn = megalaunch_module.spawn_agent_session
+    original_spawn = claimed_module.spawn_agent_session
 
     def record_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         if ref_obj.id_slug == middle["slug"]:
@@ -1727,7 +1753,7 @@ def test_megalaunch_drain_reconsiders_partial_progress_after_another_launch(
         assert open_blockers(ref_obj.ticket_path) == []
         return original_spawn(cfg_, ref_obj, ticket_, agent, **kwargs)
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", record_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", record_spawn)
 
     run = run_megalaunch(cfg, max_tasks=2)
 
@@ -1824,7 +1850,7 @@ def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
         agent="claude",
         status="active",
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -1849,7 +1875,7 @@ def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -1886,7 +1912,7 @@ def test_megalaunch_drain_preserves_prior_launch_on_pre_spawn_retry_skip(
         agent="claude",
         status="active",
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -1914,7 +1940,7 @@ def test_megalaunch_drain_preserves_prior_launch_on_pre_spawn_retry_skip(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -2025,7 +2051,7 @@ def test_megalaunch_drain_treats_dependency_deleted_mid_sweep_as_finished(
     ticket.frontmatter["status"] = "blocked"
     ticket.write(blocked["path"])
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -2046,7 +2072,7 @@ def test_megalaunch_drain_treats_dependency_deleted_mid_sweep_as_finished(
                 dependency_path.parent.rmdir()
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -2072,7 +2098,7 @@ def test_megalaunch_drain_relists_blocked_tickets_created_mid_run(
         agent="claude",
         status="active",
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
     created: dict[str, str] = {}
 
@@ -2108,7 +2134,7 @@ def test_megalaunch_drain_relists_blocked_tickets_created_mid_run(
             late_ticket.write(late["path"])
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -2165,7 +2191,8 @@ def test_megalaunch_drain_late_park_does_not_consume_attempt_budget(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A late gate skip in the drain leaves its budget for another dependency."""
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
     from coga.blackboard import append_blocker
 
     cfg = load_config(repo)
@@ -2225,7 +2252,7 @@ def test_megalaunch_drain_late_park_does_not_consume_attempt_budget(
         return result
 
     monkeypatch.setattr(
-        "coga.megalaunch._candidate_result", park_after_dependency_activation
+        "coga_edge.megalaunch._candidate_result", park_after_dependency_activation
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -2282,8 +2309,8 @@ def test_megalaunch_drain_matches_complete_task_slug_not_substring(
     def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("a slug substring must not trigger a drain")
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     run = run_megalaunch(cfg)
 
@@ -2343,8 +2370,8 @@ def test_megalaunch_drain_does_not_match_short_slug_inside_dotted_ref(
     def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("unfinished dotted dependency must not trigger a drain")
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     run = run_megalaunch(cfg)
 
@@ -2481,7 +2508,7 @@ def test_megalaunch_drain_never_relaunches_same_ticket_twice(
     ticket = Ticket.read(blocked["path"])
     ticket.frontmatter["status"] = "blocked"
     ticket.write(blocked["path"])
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -2501,7 +2528,7 @@ def test_megalaunch_drain_never_relaunches_same_ticket_twice(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -2543,8 +2570,8 @@ def test_megalaunch_ignores_non_active_tickets(
     def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("megalaunch must not launch a non-active ticket")
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     run = run_megalaunch(cfg)
 
@@ -2602,8 +2629,8 @@ def test_megalaunch_human_assignee_is_human_gate(
     def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("megalaunch must not launch a human-assigned ticket")
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     run = run_megalaunch(cfg)
 
@@ -2641,7 +2668,7 @@ def test_megalaunch_services_tasks_oldest_first(
         encoding="utf-8", newline="\n",
     )
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     class _Session:
         exit_code = 0
@@ -2655,7 +2682,7 @@ def test_megalaunch_services_tasks_oldest_first(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -2704,7 +2731,7 @@ def test_megalaunch_services_numbered_subdir_in_number_order(
         encoding="utf-8", newline="\n",
     )
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     class _Session:
         exit_code = 0
@@ -2718,7 +2745,7 @@ def test_megalaunch_services_numbered_subdir_in_number_order(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -2763,7 +2790,7 @@ older
 
 def _done_on_spawn(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Stub spawn that marks each launched ticket done; returns launch order."""
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -2779,7 +2806,7 @@ def _done_on_spawn(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
     return launched
 
 
@@ -2979,7 +3006,7 @@ def test_megalaunch_selection_routes_from_the_prepared_step_one_role(
     ticket.write(ticket_path)
     before = ticket_path.read_bytes()
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     calls: list[tuple[str, str | None]] = []
 
@@ -2997,7 +3024,7 @@ def test_megalaunch_selection_routes_from_the_prepared_step_one_role(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(
         cfg, selection=[draft["slug"]], agent_override=agent_override
@@ -3087,7 +3114,7 @@ def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
         status="draft",
     )
     before = Path(draft["path"]).read_bytes()
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name: None)
 
     run = run_megalaunch(cfg, selection=[draft["slug"]])
 
@@ -3118,9 +3145,10 @@ def test_megalaunch_selection_preserves_peer_edit_during_preflight(
     launched = _done_on_spawn(monkeypatch)
     peer_bytes: bytes | None = None
 
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
-    original_preflight = megalaunch_module._preflight_agent_launch
+    original_preflight = claimed_module._preflight_agent_launch
 
     def racing_preflight(*args, **kwargs):  # type: ignore[no-untyped-def]
         nonlocal peer_bytes
@@ -3133,7 +3161,7 @@ def test_megalaunch_selection_preserves_peer_edit_during_preflight(
         return original_preflight(*args, **kwargs)
 
     monkeypatch.setattr(
-        "coga.megalaunch._preflight_agent_launch", racing_preflight
+        "coga.claimed_session._preflight_agent_launch", racing_preflight
     )
 
     run = run_megalaunch(cfg, selection=[draft["slug"]])
@@ -3166,9 +3194,10 @@ def test_megalaunch_selection_commits_the_preflighted_workflow_snapshot(
     ticket.frontmatter.pop("step", None)
     ticket.write(draft["path"])
 
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
-    original_preflight = megalaunch_module._preflight_agent_launch
+    original_preflight = claimed_module._preflight_agent_launch
 
     def changing_preflight(*args, **kwargs):  # type: ignore[no-untyped-def]
         _write(
@@ -3207,10 +3236,10 @@ def test_megalaunch_selection_commits_the_preflighted_workflow_snapshot(
         return _Session()
 
     monkeypatch.setattr(
-        "coga.megalaunch._preflight_agent_launch", changing_preflight
+        "coga.claimed_session._preflight_agent_launch", changing_preflight
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg, selection=[draft["slug"]])
 
@@ -3238,7 +3267,7 @@ def test_megalaunch_selection_preserves_peer_edit_during_activation_sync(
         status="draft",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     peer_bytes: bytes | None = None
     sync_calls = 0
@@ -3260,7 +3289,7 @@ def test_megalaunch_selection_preserves_peer_edit_during_activation_sync(
         raise AssertionError("a peer-changed ticket must not spawn")
 
     monkeypatch.setattr("coga.mark.git.publish", racing_sync)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[draft["slug"]])
 
@@ -3287,7 +3316,7 @@ def test_megalaunch_refuses_peer_edit_during_start_sync(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     peer_bytes: bytes | None = None
 
@@ -3305,7 +3334,7 @@ def test_megalaunch_refuses_peer_edit_during_start_sync(
         raise AssertionError("a ticket changed during start sync must not spawn")
 
     monkeypatch.setattr("coga.mark.git.publish", racing_sync)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
@@ -3336,7 +3365,7 @@ def test_megalaunch_does_not_compensate_over_an_ordinary_resume(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     sync_calls = 0
     claimed_generation: str | None = None
@@ -3364,7 +3393,7 @@ def test_megalaunch_does_not_compensate_over_an_ordinary_resume(
         raise AssertionError("a ticket changed during start sync must not spawn")
 
     monkeypatch.setattr("coga.mark.git.publish", racing_sync)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
@@ -3407,7 +3436,7 @@ def test_megalaunch_resumes_over_an_earlier_admitted_claim(
     stale.frontmatter["launch_generation"] = stale_generation
     stale.write(active["path"])
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     spawned_generations: list[str | None] = []
 
@@ -3427,7 +3456,7 @@ def test_megalaunch_resumes_over_an_earlier_admitted_claim(
         finished.write(active["path"])
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
@@ -3497,10 +3526,10 @@ def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
         message="Seed blocked dependent",
     )
     monkeypatch.setattr(
-        "coga.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     ticket_rel = Path(blocked["path"]).relative_to(git_repo.root).as_posix()
     spawned: list[str] = []
@@ -3532,7 +3561,7 @@ def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
         finished.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
@@ -3584,7 +3613,7 @@ def test_megalaunch_partial_dependency_resolution_publication(
     git_module.sync_task_state(cfg, path, message="Seed blocked dependent")
     before = path.read_bytes()
     ticket_rel = path.relative_to(git_repo.root).as_posix()
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     launched = _done_on_spawn(monkeypatch)
     real_sync = git_module.sync_task_state
     attempted = False
@@ -3663,9 +3692,9 @@ def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
         agent="claude",
         status="draft",
     )
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     from coga import git as git_module
@@ -3696,7 +3725,7 @@ def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
         raise AssertionError("a launch with a lost activation lease must not spawn")
 
     monkeypatch.setattr(git_module, "sync_task_state", racing_sync)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[draft["slug"]])
 
@@ -3746,9 +3775,9 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
     , newline="\n")
     peer_cfg = load_config(peer_root / "coga")
 
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     real_publish = git_module.publish
@@ -3780,7 +3809,7 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
         return real_publish(*args, **kwargs)
 
     monkeypatch.setattr(git_module, "publish", racing_publish)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", one_peer_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", one_peer_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
@@ -3805,7 +3834,8 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
 ) -> None:
     """A claim rotated after prompt setup cannot reach the PTY supervisor."""
     from coga import git as git_module
-    import coga.megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
     cfg = load_config(git_repo.coga_os)
     active = create_task(
@@ -3820,16 +3850,16 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
     git_module.sync_task_state(
         cfg, Path(active["path"]), message="Seed final spawn claim"
     )
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     ticket_path = Path(active["path"])
     ticket_rel = ticket_path.relative_to(git_repo.root).as_posix()
     outer_generation: str | None = None
     peer_generation = "peer-final-spawn-claim"
     reached_spawn_boundary = False
-    real_spawn = megalaunch_module.spawn_agent_session
+    real_spawn = claimed_module.spawn_agent_session
 
     def hold_child_for_final_guard(
         _cmd, _env, *, after_spawn, **_kwargs
@@ -3880,7 +3910,7 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
         )
 
     monkeypatch.setattr(
-        "coga.megalaunch.spawn_agent_session", rotate_before_pty
+        "coga.claimed_session.spawn_agent_session", rotate_before_pty
     )
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
@@ -3928,9 +3958,9 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
     git_module.sync_task_state(
         cfg, ticket_path, message="Seed committed-audit race"
     )
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     peer_mutated = threading.Event()
     peer_called_sync = threading.Event()
@@ -4076,9 +4106,9 @@ def test_megalaunch_revalidates_after_the_deferred_audit_append(
     git_module.sync_task_state(
         cfg, ticket_path, message="Seed post-audit claim race"
     )
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     child_released = False
     audit_changed_ticket = False
@@ -4159,9 +4189,9 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
         'user = "marc"\n', encoding="utf-8"
     , newline="\n")
     peer_cfg = load_config(peer_root / "coga")
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     outer_generation: str | None = None
     peer_result = None
@@ -4203,7 +4233,7 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
         return _Session()
 
     monkeypatch.setattr(
-        "coga.megalaunch.spawn_agent_session", spawn_after_peer_attempt
+        "coga.claimed_session.spawn_agent_session", spawn_after_peer_attempt
     )
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
@@ -4258,9 +4288,9 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
     peer_cfg = load_config(peer_root / "coga")
     peer_ticket_path = peer_root / ticket_rel
 
-    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     pending_at_gate: str | None = None
@@ -4353,7 +4383,8 @@ def test_failed_post_release_admission_retains_released_recovery_witness(
 ) -> None:
     """A definite admission push failure cannot restore an unrecoverable hold."""
     from coga import git as git_module
-    import coga.megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
     from coga.tasks import TaskRef, resolve_target
 
     cfg = load_config(git_repo.coga_os)
@@ -4386,8 +4417,8 @@ def test_failed_post_release_admission_retains_released_recovery_witness(
 
     monkeypatch.setattr(git_module, "publish", fail_admission_publication)
 
-    with pytest.raises(megalaunch_module._LaunchClaimRefused) as excinfo:
-        megalaunch_module._admit_launch_claim_after_release(
+    with pytest.raises(claimed_module._LaunchClaimRefused) as excinfo:
+        claimed_module._admit_launch_claim_after_release(
             cfg,
             ref,
             expected_started_bytes=expected_pending,
@@ -4426,7 +4457,7 @@ def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_la
         agent="claude",
         status="draft",
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -4447,7 +4478,7 @@ def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_la
         completed.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(
         cfg,
@@ -4488,7 +4519,7 @@ def test_megalaunch_selection_recomputes_blocked_resume_after_earlier_launch(
     ticket = Ticket.read(newly_blocked["path"])
     ticket.frontmatter["status"] = "paused"
     ticket.write(newly_blocked["path"])
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -4513,7 +4544,7 @@ def test_megalaunch_selection_recomputes_blocked_resume_after_earlier_launch(
             completed.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(
         cfg,
@@ -4570,10 +4601,10 @@ def test_megalaunch_selection_reclassifies_captured_blocker_state(
         raise AssertionError("an ask-less blocked ticket must not spawn")
 
     monkeypatch.setattr(
-        "coga.megalaunch.open_blockers",
+        "coga_edge.megalaunch.open_blockers",
         resolve_after_phase_three_classification,
     )
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[blocked["slug"]])
 
@@ -4665,7 +4696,8 @@ def test_megalaunch_selection_late_gate_does_not_consume_attempt_budget(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An exact-reread selection skip leaves max-tasks for the next pick."""
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
     cfg = load_config(repo)
     first = create_task(
@@ -4704,7 +4736,7 @@ def test_megalaunch_selection_late_gate_does_not_consume_attempt_budget(
         return result
 
     monkeypatch.setattr(
-        "coga.megalaunch._candidate_result", remove_step_after_selection_check
+        "coga_edge.megalaunch._candidate_result", remove_step_after_selection_check
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -4797,8 +4829,8 @@ def test_megalaunch_selection_authors_drafts_before_any_launch(
         t.frontmatter["workflow"] = "code"
         t.write(ref.ticket_path)
 
-    monkeypatch.setattr("coga.megalaunch._author_draft", fake_author)
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch._author_draft", fake_author)
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     class _Session:
         exit_code = 0
@@ -4813,7 +4845,7 @@ def test_megalaunch_selection_authors_drafts_before_any_launch(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(
         cfg,
@@ -4853,7 +4885,7 @@ def test_megalaunch_selection_without_opt_in_skips_authoring(
     ):
         raise AssertionError("authoring must not run without opt-in")
 
-    monkeypatch.setattr("coga.megalaunch._author_draft", boom)
+    monkeypatch.setattr("coga_edge.megalaunch._author_draft", boom)
     launched = _done_on_spawn(monkeypatch)
 
     run = run_megalaunch(cfg, selection=[draft["slug"]])  # author_drafts defaults off
@@ -4884,7 +4916,7 @@ def test_megalaunch_selection_draft_unready_after_authoring_is_reported(
 
     # The interview runs but the human leaves without adding a workflow.
     monkeypatch.setattr(
-        "coga.megalaunch._author_draft",
+        "coga_edge.megalaunch._author_draft",
         lambda cfg_, ref, ticket, *, agent_override=None: None,
     )
     launched = _done_on_spawn(monkeypatch)
@@ -4899,7 +4931,7 @@ def test_megalaunch_selection_draft_unready_after_authoring_is_reported(
 def test_author_draft_without_bootstrap_is_noop(repo: Path) -> None:
     """`_author_draft` returns quietly when there is no bootstrap/ticket to
     run — the draft is left untouched for the activate phase to judge."""
-    from coga.megalaunch import _author_draft
+    from coga_edge.megalaunch import _author_draft
     from coga.tasks import resolve_task
 
     cfg = load_config(repo)
@@ -4925,7 +4957,7 @@ def test_author_draft_prefers_megalaunch_agent_override(
 ) -> None:
     """The megalaunch override also selects the picked draft's authoring
     assistant, without changing the ticket's persisted assignee."""
-    from coga.megalaunch import _author_draft
+    from coga_edge.megalaunch import _author_draft
     from coga.tasks import resolve_task
 
     cfg = load_config(repo)
@@ -4944,11 +4976,11 @@ def test_author_draft_prefers_megalaunch_agent_override(
     # Reusing the draft as the bootstrap ref gives the fallback path a Claude
     # main agent. The explicit Codex override must still win.
     monkeypatch.setattr(
-        "coga.megalaunch.resolve_bootstrap", lambda cfg_, name: ref
+        "coga_edge.megalaunch.resolve_bootstrap", lambda cfg_, name: ref
     )
     monkeypatch.setattr(
-        "coga.commands.ticket._run_authoring_session",
-        lambda **kwargs: captured.update(kwargs),
+        "coga_edge.megalaunch.invoke_ticket_authoring",
+        lambda cfg, ref, *, agent_name: captured.update(launch_agent=agent_name) or 0,
     )
 
     _author_draft(
@@ -4972,8 +5004,8 @@ def _capture_author_draft(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
 
     monkeypatch.setattr("typer.prompt", no_prompt)
     monkeypatch.setattr(
-        "coga.commands.ticket._run_authoring_session",
-        lambda **kwargs: captured.update(kwargs),
+        "coga_edge.megalaunch.invoke_ticket_authoring",
+        lambda cfg, ref, *, agent_name: captured.update(launch_agent=agent_name) or 0,
     )
     return captured
 
@@ -4983,7 +5015,7 @@ def test_author_draft_prefers_draft_agent_over_bootstrap(
 ) -> None:
     """The picked draft's own `agent:` beats the packaged bootstrap/ticket's
     `agent: claude`."""
-    from coga.megalaunch import _author_draft
+    from coga_edge.megalaunch import _author_draft
     from coga.tasks import resolve_task
 
     cfg = load_config(repo)
@@ -5006,7 +5038,7 @@ def test_author_draft_prefers_draft_agent_over_bootstrap(
 def test_author_draft_honors_authoring_agent_env(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from coga.megalaunch import _author_draft
+    from coga_edge.megalaunch import _author_draft
     from coga.tasks import resolve_task
 
     cfg = load_config(repo)
@@ -5056,8 +5088,8 @@ def test_megalaunch_authoring_reports_unknown_agent_and_continues(
     monkeypatch.setenv("COGA_AUTHORING_AGENT", "ghost")
     _capture_author_draft(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.ticket._run_authoring_session",
-        lambda **kwargs: pytest.fail("no interview may spawn"),
+        "coga_edge.megalaunch.invoke_ticket_authoring",
+        lambda *args, **kwargs: pytest.fail("no interview may spawn"),
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -5098,7 +5130,7 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     ticket.frontmatter["status"] = "blocked"
     ticket.write(ref["path"])
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
     prompts: list[str] = []
 
@@ -5119,7 +5151,7 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
         )
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg, selection=[ref["slug"]])
 
@@ -5158,7 +5190,7 @@ def test_megalaunch_selection_blocked_resume_resolves_and_completes(
     ticket.frontmatter["status"] = "blocked"
     ticket.write(ref["path"])
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     launched: list[str] = []
 
     class _Session:
@@ -5176,7 +5208,7 @@ def test_megalaunch_selection_blocked_resume_resolves_and_completes(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg, selection=[ref["slug"]])
 
@@ -5186,7 +5218,7 @@ def test_megalaunch_selection_blocked_resume_resolves_and_completes(
 
 
 def test_megalaunch_selection_unknown_slug_fails_loud(repo: Path) -> None:
-    from coga.megalaunch import MegalaunchError
+    from coga_edge.megalaunch import MegalaunchError
 
     cfg = load_config(repo)
 
@@ -5198,7 +5230,7 @@ def test_launchable_candidates_all_owners_offers_any_non_terminal_status(
     repo: Path,
 ) -> None:
     """With --all-owners the picker offers every explicitly launchable task."""
-    from coga.megalaunch import launchable_candidates
+    from coga_edge.megalaunch import launchable_candidates
 
     cfg = load_config(repo)
     active = create_task(
@@ -5334,7 +5366,7 @@ def test_launchable_candidates_blocked_needs_open_asks(repo: Path) -> None:
     `skipped-unlaunchable` rather than hiding it from the operator.
     """
     from coga.blackboard import append_blocker
-    from coga.megalaunch import launchable_candidates
+    from coga_edge.megalaunch import launchable_candidates
 
     cfg = load_config(repo)
     with_ask = create_task(
@@ -5377,7 +5409,7 @@ def test_launchable_candidates_ordered_like_status_updated_first(
     activity in a trailing bucket — not drain order. Display only: the engine
     re-derives the launch queue in drain order from the confirmed set.
     """
-    from coga.megalaunch import launchable_candidates
+    from coga_edge.megalaunch import launchable_candidates
     from coga.paths import log_path
 
     cfg = load_config(repo)
@@ -5411,7 +5443,7 @@ def test_launchable_candidates_ordered_like_status_updated_first(
 
 
 def test_save_and_load_selection_roundtrip(repo: Path) -> None:
-    from coga.megalaunch import MegalaunchError, load_selection, save_selection
+    from coga_edge.megalaunch import MegalaunchError, load_selection, save_selection
 
     cfg = load_config(repo)
 
@@ -5425,7 +5457,7 @@ def test_save_and_load_selection_roundtrip(repo: Path) -> None:
 
 
 def test_decode_key() -> None:
-    from coga.commands.megalaunch import _decode_key
+    from coga_edge.megalaunch import _decode_key
 
     assert _decode_key(b"\x1b[A") == "up"
     assert _decode_key(b"k") == "up"
@@ -5444,7 +5476,7 @@ def test_decode_key() -> None:
 
 def test_picker_window_keeps_cursor_visible() -> None:
     """Long lists window to a viewport that always contains the cursor."""
-    from coga.commands.megalaunch import _picker_window
+    from coga_edge.megalaunch import _picker_window
 
     # Short list: no windowing, everything is shown.
     assert _picker_window(total=5, cursor=0, rows=10) == (0, 5)
@@ -5475,7 +5507,7 @@ def test_picker_view_fits_the_terminal_at_every_size() -> None:
     """
     from rich.console import Console
 
-    from coga.commands.megalaunch import _picker_view
+    from coga_edge.megalaunch import _picker_view
     from coga.tasks import TaskRef
 
     def candidate(
@@ -5588,7 +5620,7 @@ def test_read_key_resize_beats_pending_keypress(
     import tty
     import types
 
-    from coga.commands.megalaunch import _read_key
+    from coga_edge.megalaunch import _read_key
 
     master, slave = pty.openpty()
     resize_read, resize_write = os.pipe()
@@ -5612,7 +5644,7 @@ def _feed_keys(monkeypatch: pytest.MonkeyPatch, keys: list[str]) -> None:
     pending = iter(keys)
     for source in ("_PosixKeys", "_WindowsKeys"):
         monkeypatch.setattr(
-            f"coga.commands.megalaunch.{source}.read", lambda self: next(pending)
+            f"coga_edge.megalaunch.{source}.read", lambda self: next(pending)
         )
 
 
@@ -5643,10 +5675,10 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     )
 
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -5659,7 +5691,7 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     assert Ticket.read(first["path"]).status == "done"
     assert Ticket.read(second["path"]).status == "active"
     # The confirmed selection is saved for --relaunch.
-    from coga.megalaunch import load_selection
+    from coga_edge.megalaunch import load_selection
 
     assert load_selection(cfg) == [first["slug"]]
 
@@ -5674,10 +5706,10 @@ def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
     cfg = load_config(repo)
 
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
 
     for answer, expect_authored in (("y", True), ("n", False)):
@@ -5692,7 +5724,7 @@ def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
         )
         authored: list[str] = []
         monkeypatch.setattr(
-            "coga.megalaunch._author_draft",
+            "coga_edge.megalaunch._author_draft",
             lambda cfg_, ref, ticket, *, agent_override=None, _a=authored: (
                 _a.append(ref.id_slug)
             ),
@@ -5725,10 +5757,10 @@ def test_megalaunch_cli_pick_ready_work_is_not_prompted(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
     _done_on_spawn(monkeypatch)
 
@@ -5768,10 +5800,10 @@ def test_megalaunch_cli_picker_moves_and_toggles(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -5807,10 +5839,10 @@ def test_megalaunch_cli_picker_resize_keeps_state(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
     launched = _done_on_spawn(monkeypatch)
     handler_before = signal.getsignal(picker_signal)
@@ -5839,7 +5871,7 @@ def test_megalaunch_cli_quit_launches_nothing(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -5879,10 +5911,10 @@ def test_megalaunch_cli_pick_scopes_to_directory(
         status="active",
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -5900,7 +5932,7 @@ def test_megalaunch_cli_relaunch_replays_saved_selection(
 ) -> None:
     from typer.testing import CliRunner
 
-    from coga.megalaunch import save_selection
+    from coga_edge.megalaunch import save_selection
 
     cfg = load_config(repo)
     saved = create_task(
@@ -5923,7 +5955,7 @@ def test_megalaunch_cli_relaunch_replays_saved_selection(
     )
     save_selection(cfg, [saved["slug"], "since-deleted-task"])
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
     launched = _done_on_spawn(monkeypatch)
 
@@ -5993,7 +6025,7 @@ def _owner_tickets(cfg, *, ownerless: bool = False) -> dict[str, dict]:  # type:
 def test_launchable_candidates_filters_by_ticket_owner(repo: Path) -> None:
     """The picker defaults to the operator's tickets; --owner retargets it,
     --all-owners lists everyone's (owner-less included)."""
-    from coga.megalaunch import MegalaunchError, launchable_candidates
+    from coga_edge.megalaunch import MegalaunchError, launchable_candidates
 
     cfg = load_config(repo)
     created = _owner_tickets(cfg, ownerless=True)
@@ -6062,7 +6094,7 @@ def test_megalaunch_owner_sweep_unknown_owner_is_empty(
     created = _owner_tickets(cfg)
     launched = _done_on_spawn(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
 
     result = CliRunner().invoke(app, ["megalaunch", "--owner", "unknown-person"])
@@ -6077,7 +6109,8 @@ def test_megalaunch_owner_sweep_reread_skips_other_owners(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The launch reread compares against the same target owner as the scan."""
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
     cfg = load_config(repo)
     created = create_task(
@@ -6103,10 +6136,10 @@ def test_megalaunch_owner_sweep_reread_skips_other_owners(
     def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("a ticket outside the owner filter must not spawn")
 
-    monkeypatch.setattr("coga.megalaunch._candidate_result", candidate_then_reassign)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga_edge.megalaunch._candidate_result", candidate_then_reassign)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fail_spawn)
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     run = run_megalaunch(cfg, owner="zach")
@@ -6166,7 +6199,7 @@ def test_megalaunch_owner_sweep_drains_that_owners_blockers(
 
 
 def test_megalaunch_owner_flags_refused_with_explicit_selection(repo: Path) -> None:
-    from coga.megalaunch import MegalaunchError
+    from coga_edge.megalaunch import MegalaunchError
 
     cfg = load_config(repo)
     with pytest.raises(MegalaunchError, match="explicit selection"):
@@ -6196,10 +6229,10 @@ def test_megalaunch_cli_picker_offers_owner_filtered_list(
     cfg = load_config(repo)
     created = _owner_tickets(cfg)
     monkeypatch.setattr(
-        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+        "coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+        "coga_edge.megalaunch.notification.post", lambda cfg, msg: None
     )
     offered: list[str] = []
 
@@ -6207,7 +6240,7 @@ def test_megalaunch_cli_picker_offers_owner_filtered_list(
         offered.extend(ref.id_slug for ref, _ in candidates)
         return list(offered)
 
-    monkeypatch.setattr("coga.commands.megalaunch._pick_selection", pick_everything)
+    monkeypatch.setattr("coga_edge.megalaunch._pick_selection", pick_everything)
     launched = _done_on_spawn(monkeypatch)
 
     result = CliRunner().invoke(app, ["megalaunch", "--pick", *flags])
@@ -6218,10 +6251,11 @@ def test_megalaunch_cli_picker_offers_owner_filtered_list(
     assert set(launched) == expected
 
 
-def test_megalaunch_cli_picker_requires_tty(repo: Path) -> None:
+def test_megalaunch_cli_picker_requires_tty(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--pick without a terminal fails loud instead of hanging on the prompt."""
     from typer.testing import CliRunner
 
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: False)
     result = CliRunner().invoke(app, ["megalaunch", "--pick"])
 
     assert result.exit_code == 2
@@ -6254,7 +6288,8 @@ def test_megalaunch_disappeared_activation_ticket_fails_only_its_task(
         status="active",
     )
     first_path = Path(first["path"])
-    from coga import megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
     real_capture = megalaunch_module._ticket_bytes
     disappeared = False
@@ -6284,7 +6319,8 @@ def test_megalaunch_disappeared_prompt_layer_fails_only_its_task(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A raw preflight file race becomes one failed row, not a sweep crash."""
-    import coga.megalaunch as megalaunch_module
+    import coga_edge.megalaunch as megalaunch_module
+    import coga.claimed_session as claimed_module
 
     cfg = load_config(repo)
     first = create_task(
@@ -6306,14 +6342,14 @@ def test_megalaunch_disappeared_prompt_layer_fails_only_its_task(
         status="active",
     )
     missing = str(repo / "contexts" / "vanished" / "SKILL.md")
-    real_compose = megalaunch_module.compose_prompt
+    real_compose = claimed_module.compose_prompt
 
     def flaky_compose(cfg_, ref_obj, ticket, *args, **kwargs):
         if ref_obj.id_slug == first["slug"]:
             raise FileNotFoundError(2, "No such file or directory", missing)
         return real_compose(cfg_, ref_obj, ticket, *args, **kwargs)
 
-    monkeypatch.setattr(megalaunch_module, "compose_prompt", flaky_compose)
+    monkeypatch.setattr(claimed_module, "compose_prompt", flaky_compose)
     launched = _done_on_spawn(monkeypatch)
 
     run = run_megalaunch(cfg)
@@ -6374,7 +6410,7 @@ def test_megalaunch_missing_packaged_prompt_fails_task_not_sweep(
         )
 
     monkeypatch.setattr(
-        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+        "coga_edge.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     class _Session:
@@ -6389,7 +6425,7 @@ def test_megalaunch_missing_packaged_prompt_fails_task_not_sweep(
         updated.write(ref_obj.ticket_path)
         return _Session()
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", fake_spawn)
     monkeypatch.setattr("coga.paths.files", lambda package: _Shim(real_files(package)))
 
     run = run_megalaunch(cfg)
@@ -6430,7 +6466,7 @@ def _windows_picker(monkeypatch: pytest.MonkeyPatch, msvcrt, sleep=None):
     import sys
     import types
 
-    from coga.commands import megalaunch as command
+    import coga_edge.megalaunch as command
 
     modes: list[str] = []
 
@@ -6453,7 +6489,7 @@ def _windows_picker(monkeypatch: pytest.MonkeyPatch, msvcrt, sleep=None):
 
 
 def test_windows_keys_resize_and_extended_keys(monkeypatch: pytest.MonkeyPatch) -> None:
-    from coga.commands import megalaunch as command
+    import coga_edge.megalaunch as command
 
     msvcrt = _FakeMsvcrt(["\xe0", "H", "\xe0", "P", "\x00", "P", " ", "j", "k",
                           "a", "n", "\r", "\x1b", "q", "\x03", "\xe0", "M"])
@@ -6489,7 +6525,7 @@ def test_windows_picker_restores_handler_and_modes(
 ) -> None:
     import signal
 
-    from coga.commands.megalaunch import _pick_selection
+    from coga_edge.megalaunch import _pick_selection
 
     modes = _windows_picker(monkeypatch, _FakeMsvcrt(chars))
     previous = signal.getsignal(signal.SIGINT)
@@ -6503,7 +6539,7 @@ def test_windows_picker_restores_after_a_render_failure(
 ) -> None:
     import signal
 
-    from coga.commands import megalaunch as command
+    import coga_edge.megalaunch as command
 
     modes = _windows_picker(monkeypatch, _FakeMsvcrt([]))
     previous = signal.getsignal(signal.SIGINT)
@@ -6538,8 +6574,8 @@ def test_windows_ctrl_c_signal_quits_the_picker_without_launching(
     """A processed Ctrl+C is a SIGINT, not a key: it cancels at any moment."""
     from typer.testing import CliRunner
 
-    from coga.commands import megalaunch as command
-    from coga.megalaunch import MegalaunchError, load_selection
+    import coga_edge.megalaunch as command
+    from coga_edge.megalaunch import MegalaunchError, load_selection
 
     candidates = _picker_candidates(repo)
     fire = _interrupt_once()
@@ -6563,7 +6599,7 @@ def test_windows_ctrl_c_signal_quits_the_picker_without_launching(
         _windows_picker(monkeypatch, _FakeMsvcrt([" ", "\r"], on_read=lambda m: (
             fire() if m.chars == ["\r"] else None
         )))
-    monkeypatch.setattr(command, "_interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(command, "interactive_stdio_has_tty", lambda: True)
     launched = _done_on_spawn(monkeypatch)
 
     result = CliRunner().invoke(app, ["megalaunch", "--pick"])
@@ -6575,3 +6611,112 @@ def test_windows_ctrl_c_signal_quits_the_picker_without_launching(
     with pytest.raises(MegalaunchError):
         load_selection(load_config(repo))
     assert all(Ticket.read(ref.ticket_path).status == "active" for ref, _ in candidates)
+
+
+@pytest.mark.parametrize("edit", ["replace", "delete"])
+def test_activation_refusal_preserves_concurrent_local_postimage(repo: Path, monkeypatch: pytest.MonkeyPatch, edit: str) -> None:
+    from dataclasses import replace
+    from coga import git
+    from coga.tasks import resolve_task
+    from coga_edge.megalaunch import _activate_for_launch, _prepare_for_launch
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Guard activation rollback", workflow_name="code", contexts=[], owner="marc", agent="claude", status="paused")
+    ref = resolve_task(cfg, created["slug"])
+    ticket = Ticket.read(ref.ticket_path)
+    source = ref.ticket_path.read_bytes()
+    prospective = _prepare_for_launch(cfg, ref, ticket)
+    assert isinstance(prospective, Ticket)
+    peer = source + b"\nConcurrent peer note.\n"
+    def refuse(*args, **kwargs):
+        if edit == "delete":
+            ref.ticket_path.unlink()
+        else:
+            ref.ticket_path.write_bytes(peer)
+        raise git.GitError("publication refused")
+    monkeypatch.setattr(git, "sync_task_state", refuse)
+    result = _activate_for_launch(replace(cfg, git_enabled=True), ref, ticket, prepared=prospective, source_bytes=source)
+    assert result.outcome == "failed"
+    assert "state retained for reconciliation" in result.detail
+    assert (not ref.ticket_path.exists()) if edit == "delete" else ref.ticket_path.read_bytes() == peer
+
+
+def test_claim_operation_rejects_forged_prospective_routing(repo: Path) -> None:
+    from coga.launch import run_claimed_agent_session
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Core owns routing proof", workflow_name="code", contexts=[], owner="marc", agent="claude", status="active")
+    ref = resolve_task(cfg, created["slug"])
+    source = ref.ticket_path.read_bytes()
+    forged = Ticket.read(ref.ticket_path)
+    forged.frontmatter["step"] = "2 (review)"
+    result = run_claimed_agent_session(cfg, ref, source_bytes=source, prospective_ticket=forged, agent_name="claude")
+    assert result.refusal == "prospective ticket does not match source routing"
+    assert not result.released
+    assert ref.ticket_path.read_bytes() == source
+
+
+def test_queue_clears_outer_script_identity_before_minting_agent_env(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from coga.repl_supervisor import SENTINEL_ENV, EXPECTED_TASK_ENV, EXPECTED_AGENT_ENV
+    from coga.task_env import SCRIPT_TASK_ENV
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Fresh queue child", workflow_name="code", contexts=[], owner="marc", agent="claude", status="active")
+    monkeypatch.setenv(SCRIPT_TASK_ENV, "bootstrap/megalaunch")
+    monkeypatch.setenv("COGA_SCRIPT_HELP", "1")
+    monkeypatch.setenv(SENTINEL_ENV, "outer-sentinel")
+    monkeypatch.setenv(EXPECTED_TASK_ENV, "outer-task")
+    seen = {}
+    def spawn(cfg, ref, ticket, agent, **kwargs):
+        seen.update(kwargs["env"])
+        ticket.frontmatter["status"] = "done"
+        ticket.frontmatter.pop("step", None)
+        ticket.write(ref.ticket_path)
+        return AgentSessionResult(0, "natural", done_signalled=True)
+    monkeypatch.setattr("coga.claimed_session.spawn_agent_session", spawn)
+    monkeypatch.setattr("coga.claimed_session.shutil.which", lambda name: name)
+    run = run_megalaunch(cfg)
+    assert run.results[0].outcome == "completed"
+    assert SCRIPT_TASK_ENV not in seen and "COGA_SCRIPT_HELP" not in seen
+    assert SENTINEL_ENV not in seen
+    assert seen[EXPECTED_TASK_ENV] == str(Path(created["path"]).resolve())
+    assert seen[EXPECTED_AGENT_ENV] == "claude"
+
+
+def test_queue_reblock_rereads_current_ticket_instead_of_passed_view(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from coga.blackboard import append_blocker
+    from coga.tasks import resolve_task
+    from coga_edge.megalaunch import _reblock_unresolved
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Reblock current ask", workflow_name="code", contexts=[], owner="marc", agent="claude", status="active")
+    ref = resolve_task(cfg, created["slug"])
+    stale = Ticket.read(ref.ticket_path)
+    current = Ticket.read(ref.ticket_path)
+    current.frontmatter["status"] = "in_progress"
+    current.write(ref.ticket_path)
+    append_blocker(ref.ticket_path, "marc", "New current ask")
+    result = _reblock_unresolved(cfg, ref, stale)
+    assert result.outcome == "blocked" and "New current ask" in result.detail
+    assert Ticket.read(ref.ticket_path).status == "blocked"
+    assert _reblock_unresolved(cfg, ref, stale) is None
+
+
+@pytest.mark.parametrize("code", [0, 2, 75])
+def test_queue_authoring_propagates_retained_state_only(repo: Path, monkeypatch: pytest.MonkeyPatch, code: int) -> None:
+    from coga.tasks import resolve_task
+    from coga_edge.megalaunch import _author_draft
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Authoring stop policy", workflow_name="code", contexts=[], owner="marc", agent="claude", status="draft")
+    ref = resolve_task(cfg, created["slug"])
+    before = ref.ticket_path.read_bytes()
+    monkeypatch.setattr("coga_edge.megalaunch.invoke_ticket_authoring", lambda *a, **kw: code)
+    if code == 75:
+        with pytest.raises(SystemExit) as result:
+            _author_draft(cfg, ref, Ticket.read(ref.ticket_path))
+        assert result.value.code == 75
+    else:
+        _author_draft(cfg, ref, Ticket.read(ref.ticket_path))
+    assert ref.ticket_path.read_bytes() == before

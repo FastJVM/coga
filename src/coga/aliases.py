@@ -16,7 +16,6 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "uninstall",
         "create",
         "launch",
-        "megalaunch",
         "status",
         "show",
         "bump",
@@ -69,7 +68,8 @@ DEFAULT_ALIASES: dict[str, str] = {
     "build": f"launch {ONBOARDING_TASK}",
     "skill-update": "recurring launch skill-update",
     "autoclose": "recurring launch autoclose-merged --rerun",
-    "pick": "megalaunch --pick",
+    "megalaunch": "launch bootstrap/megalaunch --",
+    "pick": "launch bootstrap/megalaunch -- --pick",
     "open-pr": "run open-pr",
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",
     "address-pr-comments": "launch bootstrap/address-pr-comments",
@@ -88,6 +88,11 @@ def validate_aliases(aliases: dict[str, str]) -> None:
         if not tokens:
             raise ConfigError(f"alias {name!r} expands to empty command")
         target = tokens[0]
+        if target == "megalaunch":
+            raise ConfigError(
+                f"alias {name!r} targets retired built-in megalaunch; "
+                "use launch bootstrap/megalaunch -- followed by its arguments"
+            )
         if target not in BUILTIN_COMMANDS:
             raise ConfigError(
                 f"alias {name!r} expands to unknown command {target!r} "

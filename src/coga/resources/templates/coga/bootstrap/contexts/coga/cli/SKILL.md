@@ -41,7 +41,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | --- | --- |
 | `launch` | [coga/launch](../launch/SKILL.md); script phase: [coga/script-tickets](../script-tickets/SKILL.md) |
 | `chat` → `launch bootstrap/orient` | [coga/launch](../launch/SKILL.md) |
-| `megalaunch`, `pick` → `megalaunch --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
+| `megalaunch` → `launch bootstrap/megalaunch --`; `pick` → `launch bootstrap/megalaunch -- --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
 | `recurring` (`--force`, `--all`, `launch`, `promote`, `list`) | [coga/recurring](../recurring/SKILL.md) and its children |
 | `dream` → `recurring launch dream` | [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) |
 | `autoclose` → `recurring launch autoclose-merged --rerun` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |

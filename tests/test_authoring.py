@@ -804,7 +804,7 @@ def test_ticket_authoring_on_a_feature_checkout_refuses_held_knowledge(
         _write(context, "---\nname: team\ndescription: Team.\n---\nBranch knowledge.\n")
         return _Result()
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", author)
     monkeypatch.setattr("coga.git.sync_log", lambda cfg, *, message: None)
@@ -823,3 +823,69 @@ def test_ticket_authoring_on_a_feature_checkout_refuses_held_knowledge(
     assert git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip() == tip
     assert "Authored detail." in target.ticket_path.read_text(encoding="utf-8")
     assert context.is_file()
+
+
+def test_public_authoring_invocation_keeps_cli_argv_and_isolates_outer_session(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from coga.authoring import invoke_ticket_authoring
+    from coga.task_env import TASK_ENV_KEYS
+    import sys
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Invocation boundary", workflow_name="direct/body", contexts=[], owner="marc", agent="claude", status="draft")
+    ref = resolve_task(cfg, created["slug"])
+    for key in TASK_ENV_KEYS:
+        monkeypatch.setenv(key, "outer")
+    monkeypatch.setenv("COGA_SUPERVISED", "1")
+    monkeypatch.setenv("COGA_DONE_SENTINEL", "outer")
+    def run(argv, *, cwd, env, defer_interrupt):
+        assert argv == [sys.executable, "-c", "from coga.cli import main; main(retained_state_exit=True)", "ticket", ref.id_slug, "--agent", "claude"]
+        assert cwd == repo.parent and defer_interrupt
+        assert not any(key in env for key in TASK_ENV_KEYS)
+        assert "COGA_SUPERVISED" not in env and "COGA_DONE_SENTINEL" not in env
+        return 75, False
+    monkeypatch.setattr("coga.process_relay.run_foreground_child", run)
+    assert invoke_ticket_authoring(cfg, ref, agent_name="claude") == 75
+
+
+@pytest.mark.parametrize("refused,expected", [(False, 0), (True, 75)])
+def test_authoring_invocation_uses_real_cli_dispatch_and_sweep_boundary(repo: Path, monkeypatch: pytest.MonkeyPatch, refused: bool, expected: int) -> None:
+    from coga.authoring import invoke_ticket_authoring
+    from coga.process_relay import run_foreground_child as real_run
+    import json
+
+    cfg = load_config(repo)
+    created = create_task(cfg=cfg, title="Real adapter dispatch", workflow_name="direct/body", contexts=[], owner="marc", agent="claude", status="draft")
+    ref = resolve_task(cfg, created["slug"])
+    trace = repo.parent / "adapter-trace.json"
+    prefix = f'''
+import json
+from pathlib import Path
+from coga import git, cli
+from coga.commands import ticket as author
+seen = []
+def session(**kwargs):
+    seen.append(["session", kwargs["ref"].id_slug, kwargs["launch_agent"]])
+    if {refused!r}:
+        git.state_sweep_withheld.set(True)
+        raise SystemExit(2)
+author._run_authoring_session = session
+original_sweep = cli._sweep_coga_state
+def sweep(cfg):
+    seen.append(["sweep", git.state_sweep_withheld.get()])
+    original_sweep(cfg)
+cli._sweep_coga_state = sweep
+'''
+    suffix = f'''\ntry:
+    main(retained_state_exit=True)
+finally:
+    Path({str(trace)!r}).write_text(json.dumps(seen), encoding="utf-8")
+'''
+    def child(argv, **kwargs):
+        argv = list(argv)
+        argv[2] = prefix + "\nfrom coga.cli import main\n" + suffix
+        return real_run(argv, **kwargs)
+    monkeypatch.setattr("coga.process_relay.run_foreground_child", child)
+    assert invoke_ticket_authoring(cfg, ref, agent_name="claude") == expected
+    assert json.loads(trace.read_text(encoding="utf-8")) == [
+        ["session", ref.id_slug, "claude"], ["sweep", refused],
+    ]

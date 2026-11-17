@@ -11,7 +11,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from conftest import derived_operator, hold_by_agent, hold_by_owner, seed_direct_body_workflow
+from conftest import windows_skip, derived_operator, hold_by_agent, hold_by_owner, seed_direct_body_workflow
 from coga import compose as compose_module, git
 from coga.blackboard import append_blocker
 from coga.cli import app
@@ -238,7 +238,7 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
     monkeypatch.setenv("PATH", "/agents-absent")
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: False,
     )
     monkeypatch.setattr(launch_module, "compose_prompt", _fail("prompt composed"))
@@ -404,7 +404,7 @@ def test_script_block_returns_internal_script_stop_kind(
     )
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: False,
     )
     monkeypatch.setattr(
@@ -446,7 +446,7 @@ def test_nonzero_script_exit_halts_and_notifies_once(
     )
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: False,
     )
 
@@ -778,7 +778,7 @@ def test_recorded_assist_aligns_before_running_ticket_script(
     monkeypatch.setattr(launch_module, "run_script_chain", fake_script_chain)
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -876,7 +876,7 @@ def test_blocked_script_termination_reblocks_unresolved_ask(
 
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -932,7 +932,7 @@ def test_blocked_script_agent_preflight_failure_reblocks_unresolved_ask(
 
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -1045,7 +1045,7 @@ def test_resolved_blocker_does_not_stop_advanced_agent_step(
     monkeypatch.setattr(launch_module, "spawn_agent_session", fake_spawn)
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -1102,7 +1102,7 @@ def test_human_assist_override_expires_at_agent_owned_step(
     monkeypatch.setattr(launch_module, "spawn_agent_session", fake_spawn)
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -1148,7 +1148,7 @@ def test_reblock_restores_the_original_position_not_an_assignment(
     ticket.frontmatter["step"] = None
     ticket.write(ref.ticket_path)
 
-    reblocked = launch_module._reblock_unresolved_resume(
+    reblocked = launch_module._park_unanswered_resume(
         load_config(script_repo),
         ref,
         "claude",
@@ -1194,7 +1194,7 @@ def test_agent_handoff_uses_configuration_reloaded_after_script(
     monkeypatch.setattr(launch_module, "spawn_agent_session", fake_spawn)
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -1247,7 +1247,7 @@ def test_chained_agent_env_uses_fresh_ticket_secrets(
     monkeypatch.setattr(launch_module, "spawn_agent_session", fake_spawn)
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -1301,7 +1301,7 @@ def test_zero_exit_hands_blackboard_to_agent_on_the_same_step(
     monkeypatch.setattr(launch_module, "run_with_done_marker", fake_repl)
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -1400,7 +1400,7 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
 
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: blocked_resume,
     )
     monkeypatch.setattr(
@@ -1485,7 +1485,7 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
     )
     monkeypatch.setattr(
         launch_module,
-        "_interactive_stdio_has_tty",
+        "interactive_stdio_has_tty",
         lambda: unavailable != "tty",
     )
     monkeypatch.setattr(
@@ -1796,7 +1796,7 @@ def test_stateful_script_target_refuses_launch_args_before_any_effect(
         ticket.frontmatter["status"] = "in_progress"
         hold_by_owner(ticket)
         launch_argv += ["--agent", "codex"]
-        monkeypatch.setattr(launch_module, "_interactive_stdio_has_tty", lambda: True)
+        monkeypatch.setattr(launch_module, "interactive_stdio_has_tty", lambda: True)
     elif status != "active":
         ticket.frontmatter["status"] = status
     ticket.write(ref.ticket_path)
@@ -1978,3 +1978,182 @@ def test_stateful_pending_audit_exit_75_skips_between_phase_settlement(script_re
     outcome = run_script_chain(cfg, ref, Ticket.read(ref.ticket_path), set(),
                                between_phases=lambda *args: pytest.fail("settled pending deletion"))
     assert outcome.exit_code == 75
+
+
+@pytest.mark.parametrize("command", ["megalaunch", "pick", "retire"])
+@pytest.mark.parametrize("workspace", ["absent", "no-user", "invalid-config"])
+def test_command_script_help_without_setup(tmp_path: Path, command: str, workspace: str) -> None:
+    cwd = tmp_path / "help"
+    cwd.mkdir()
+    if workspace != "absent":
+        _write(cwd / "coga.toml", 'version = 1\n[git]\nenabled = false\n' if workspace == "no-user" else 'not valid toml = [')
+    before = {p.name: p.read_bytes() for p in cwd.iterdir()}
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", command, "--help"],
+        cwd=cwd, capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Usage:" in result.stdout
+    assert {p.name: p.read_bytes() for p in cwd.iterdir()} == before
+
+
+@pytest.mark.parametrize("argv", [["megalaunch", "--agent", "--help"], ["retire", "1", "--agent", "--help"]])
+def test_command_script_help_consumed_as_value_fails_closed(tmp_path: Path, argv: list[str]) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", *argv], cwd=tmp_path,
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert not list(tmp_path.iterdir())
+
+
+def test_script_help_has_no_launch_identity_or_git_calls(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from coga.task_env import TASK_ENV_KEYS
+
+    seen = {}
+    def forbidden(*args, **kwargs):
+        raise AssertionError("help touched Git")
+    def child(argv, *, cwd, env, **kwargs):
+        seen.update(env)
+        assert cwd == script_repo.parent
+        assert argv[-1] == "--help"
+        return 0, False
+    for name in ("refresh", "sync_task_state", "sync_log", "sync_coga_state", "toplevel"):
+        monkeypatch.setattr(git, name, forbidden)
+    for key in (*TASK_ENV_KEYS, "COGA_SUPERVISED", "COGA_DONE_SENTINEL", "COGA_EXPECTED_TASK", "COGA_EXPECTED_STEP", "COGA_EXPECTED_AGENT"):
+        monkeypatch.setenv(key, "outer")
+    monkeypatch.setattr("coga.launch_script.run_foreground_child", child)
+    assert launch_module.launch("bootstrap/megalaunch", args=["--help"]).exit_code == 0
+    assert seen["COGA_SCRIPT_HELP"] == "1"
+    assert all(key not in seen for key in TASK_ENV_KEYS if key != "COGA_SCRIPT_HELP")
+    assert "COGA_SUPERVISED" not in seen
+    assert "COGA_DONE_SENTINEL" not in seen
+
+
+@pytest.mark.parametrize("code", [0, 1, 2, 75, 130])
+def test_queue_alias_preserves_local_script_argv_streams_and_status(script_repo: Path, code: int) -> None:
+    bootstrap = script_repo / "bootstrap/megalaunch"
+    _write(bootstrap / "ticket.md", '---\ntitle: Local queue\n---\n')
+    _write(bootstrap / "ticket.py", f'''
+        import json, os, sys
+        print(json.dumps([sys.argv[1:], os.getcwd(), os.environ.get("COGA_SCRIPT_HELP")]))
+        print("local stderr", file=sys.stderr)
+        raise SystemExit({code})
+    ''')
+    nested = script_repo.parent / "nested"
+    nested.mkdir()
+    argv = ["word with spaces", "--agent", "option-like", "--", "--help"]
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "megalaunch", *argv], cwd=nested,
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    assert result.returncode == code, result.stdout + result.stderr
+    assert json.loads(result.stdout) == [argv, str(script_repo.parent), None]
+    assert "local stderr" in result.stderr
+    assert "Launch:" not in result.stdout
+    assert not (script_repo / "tasks").exists()
+
+
+def test_classified_bootstrap_script_vanishes_without_agent_fallback(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = load_config(script_repo)
+    ref = resolve_bootstrap(cfg, "retire")
+    monkeypatch.setattr("coga.launch_script.script_entry_point", lambda ref: None)
+    with pytest.raises(FileNotFoundError, match="Classified bootstrap script disappeared"):
+        run_script_phase(cfg, ref, Ticket.read(ref.ticket_path), stateless=True)
+
+
+@pytest.mark.parametrize("code,expected", [(-2, 130), (-15, 143), (75, 75), (130, 130)])
+def test_foreground_script_wait_restores_handlers_and_forwards_once(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, code: int, expected: int) -> None:
+    import signal
+    from coga.process_relay import run_foreground_child
+
+    before = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+    forwarded = []
+    class Child:
+        def send_signal(self, signum):
+            forwarded.append(signum)
+        def wait(self):
+            for _ in range(2):
+                signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+            assert callable(signal.getsignal(signal.SIGINT))
+            return code
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: Child())
+    result, terminated = run_foreground_child(["child"], cwd=tmp_path, env={}, defer_interrupt=True)
+    assert result == expected and terminated
+    assert forwarded == [signal.SIGTERM]
+    assert (signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)) == before
+
+
+@windows_skip("POSIX foreground-group SIGINT delivery; native Windows picker quit mocks remain in test_megalaunch")
+@pytest.mark.parametrize("claim_window", [False, True], ids=["between-picks", "pending-claim"])
+def test_queue_alias_interrupt_waits_for_cleanup_and_retains_claim(git_repo, claim_window: bool) -> None:
+    import signal
+
+    cfg = load_config(git_repo.coga_os)
+    ref = _create_script_task(git_repo.coga_os, "raise AssertionError('queue must never run task script')")
+    # A local queue command stands in for the pause between picks, or pauses
+    # the actual queue immediately after its strict pending-claim publication.
+    command = git_repo.coga_os / "bootstrap/megalaunch"
+    _write(command / "ticket.md", '---\ntitle: Interrupt queue\n---\n')
+    prefix = '''
+import signal, sys
+assert signal.getsignal(signal.SIGINT) == signal.default_int_handler
+def wait_for_interrupt():
+    print("READY", flush=True)
+    try:
+        signal.pause()
+    except KeyboardInterrupt:
+        print("SETTLING", flush=True)
+        # Parent must keep waiting, including while cleanup needs more time.
+        assert sys.stdin.readline().strip() == "finish"
+        print("SETTLED", flush=True)
+        raise SystemExit(130)
+'''
+    if claim_window:
+        prefix += '''
+import shutil
+from coga import claimed_session as claims
+from coga_edge.megalaunch import main
+import coga_edge.megalaunch as queue
+queue.interactive_stdio_has_tty = lambda: True
+real_which = shutil.which
+shutil.which = lambda name, **kwargs: sys.executable if name == "claude" else real_which(name, **kwargs)
+original = claims.mark_in_progress
+def claim(*args, **kwargs):
+    original(*args, **kwargs)
+    wait_for_interrupt()
+claims.mark_in_progress = claim
+raise SystemExit(main([]))
+'''
+    else:
+        prefix += "wait_for_interrupt()\n"
+    _write(command / "ticket.py", prefix)
+    process = subprocess.Popen(
+        [sys.executable, "-m", "coga.cli", "megalaunch"], cwd=git_repo.root,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", start_new_session=True,
+    )
+    try:
+        output = []
+        for _ in range(50):
+            line = process.stdout.readline()
+            output.append(line)
+            if line.strip() == "READY" or not line:
+                break
+        assert output[-1].strip() == "READY", "".join(output) + process.stderr.read()
+        if claim_window:
+            assert Ticket.read(ref.ticket_path).launch_generation.startswith("pending:")
+        os.killpg(process.pid, signal.SIGINT)
+        assert process.stdout.readline().strip() == "SETTLING"
+        stdout, stderr = process.communicate("finish\n", timeout=20)
+        assert process.returncode == 130, stderr
+        assert "SETTLED" in stdout
+        if claim_window:
+            assert Ticket.read(ref.ticket_path).launch_generation.startswith("pending:")
+            rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
+            remote = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+            assert remote.launch_generation.startswith("pending:")
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=10)
