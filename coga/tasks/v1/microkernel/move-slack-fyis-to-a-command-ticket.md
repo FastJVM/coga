@@ -2,6 +2,14 @@
 title: Move Slack FYIs to a command ticket
 status: draft
 owner: nicktoper
+contexts:
+- coga-dev/microkernel/objectives
+- coga-dev/principles
+- coga-dev/testing
+- coga-dev/project-stage
+- coga/script-tickets
+- coga/state-publication
+- coga/notifications
 workflow:
   name: code/design-then-implement
   steps:
@@ -47,6 +55,152 @@ step: 1 (design)
 ## Description
 
 Move the `slack` FYI procedure (operands, formatting, route selection) into an editable bootstrap command ticket and complete edge implementation, only with a verified matching-session completion path. Split from v1/microkernel/09-work-orchestration-commands-to-tickets at its owner gate on 2026-11-16; the carried-over design is below.
+
+### Carried-over scope and objectives
+
+Hackability: users can change FYI operands, formatting and route selection
+through ticket-owned files. The current head is `src/coga/commands/slack.py`,
+`slack` (94 physical lines). It calls `notification.post`, then
+`logfile.append_log`, then `repl_supervisor.emit_done_marker` for a bootstrap
+ref, through `deferred_done_marker`, which defers the request to command exit
+but does not check whether `git.sync_log` succeeded (`True`/`False` confirmed,
+`None` miss; truthiness would wrongly reject an already-landed log).
+
+Ticket 09 retained this head under a co-versioning proof: the script phase
+clears `COGA_SUPERVISED`, the sentinel and the expected identity, so an edge
+script cannot preserve delivery + audit + matching-session completion without
+a new parent-owned mechanism. This ticket decides whether that mechanism is
+worth its cost, or records the retained head as the settled placement.
+
+Invocation uses 09's plain-launch rules (`slack = "launch bootstrap/slack --"`,
+no agent fallback, Typer help recognition, interrupt rule). Verify they merged
+before designing on them. Under 09's fail-closed help rule, `--message --help`
+is detected as help, and the script must exit 2 when its parse reaches the
+command body under `COGA_SCRIPT_HELP=1`; today's head would post the literal
+message. Design must decide whether that change is acceptable or require
+`-- --help` quoting.
+
+### Carried-over acceptance criteria (from 09, to be refined at design)
+
+- [ ] `slack` operands, FYI formatting and route selection live in
+  `bootstrap/slack` and its complete edge implementation, only after the
+  completion mechanism below is implemented and reviewed. Otherwise retain the
+  entire head and record the owner-reviewed proof; moving ordinary FYIs alone
+  does not complete the migration.
+- [ ] Ordinary FYIs never complete a task or enclosing session. A bootstrap FYI
+  completes only the matching live bootstrap session, after successful channel
+  handling, durable audit and command finalization. Mismatched root, identity,
+  stale invocation, nonzero child, delivery failure, audit failure, or
+  uncertain publication never signals completion. No outer sentinel, assist or
+  expected-step authority reaches `ticket.py`; stdout is never a completion
+  channel.
+- [ ] Preserve disabled-channel handling (diagnostic, audit and `posted`),
+  important-route refusal rather than flow fallback, actor resolution, message
+  validation, sanitized errors and one send attempt. A delivery followed by an
+  audit failure reports the delivered-but-unrecorded state without automatic
+  resend. Git-disabled completion requires successful local audit, not a claim
+  of remote durability. Explicitly document the stricter audit gate below.
+- [ ] Complete local fork through sibling 05; contract owners
+  (`coga/notifications`, `producers`, `coga/cli`, `coga/edge-code`,
+  `coga/script-tickets`, `coga/state-publication`, `coga-dev/microkernel`)
+  updated in the same PR; line counts and Linux receipts as in 09.
+
+### Completion mechanism — options for design
+
+#### Option A — parent-owned audited-notification protocol (carried from 09)
+
+Do not give the script the caller's sentinel or expected-task/assist variables.
+Do not treat successful exit from `bootstrap/slack` as proof that a different
+bootstrap session finished. Proposed minimal handoff to siblings 03 and 10:
+
+- The invoking parent captures and validates the existing live outer-session
+  identity before script isolation: repository identity, bootstrap slug and
+  session generation/channel. Repository identity must permit a verified
+  same-repository command from a separate checkout/clone, as existing slug
+  completion does; an absolute checkout-path equality test is insufficient. With no verified outer session, ordinary FYIs
+  still work but cannot end one. A matching string supplied by the child is
+  insufficient. Existing supervisor identity checks must gain generation-bound
+  verification where needed; no ambient-only new completion credential.
+- Provide one fixed, invocation-scoped **audited notification operation**, not
+  arbitrary RPC/plugin callbacks. The parent services a structured request
+  carrying resolved target, formatted text, requested destination and audit
+  message. It resolves target/root and actor itself, uses `notification.post`
+  once, appends the audit and confirms required log publication with existing
+  `git.sync_log`/strict publication semantics. Return a typed success/failure
+  receipt bound to this invocation and target. The edge owns operands and
+  formatting, and prints `posted` only after successful acknowledgement.
+- Only the parent holds completion authority. For a successful request naming
+  the exact captured bootstrap target in the same repository/generation, it
+  records a deferred completion intent. Finish only after child exit zero,
+  successful audit confirmation and final publication/retained-log checks.
+  Use `repl_supervisor.deferred_done_marker`/`emit_done_marker` after those
+  checks; do not request a marker merely because a notification was attempted.
+- Ordinary task targets and different bootstrap targets may receive valid FYIs
+  but never release the outer session. No replay across child invocations,
+  nested unrelated scripts, roots or supervisor generations. A child crash,
+  stale/duplicate receipt, broken request channel or parent interruption cannot
+  authorize completion. Consume/close the one-invocation channel at teardown.
+- Disabled notifications keep existing successful no-channel handling; delivery
+  failures remain exit 1, invalid operands/config/target/agent remain exit 2.
+  A new audit-publication refusal retains the delivered FYI and log, exits 75,
+  suppresses sweep/refresh and gives strict-publication recovery. Recovery must
+  not resend or replay a completion/transition. Log recovery alone never
+  terminates a later session; any new explicit FYI is a new send.
+
+The transport must work on POSIX and native Windows without terminal parsing,
+inherit no completion capability into grandchildren, and contain no knowledge
+of the Slack alias or command-ticket name. Lifecycle sibling 10 must consume
+or explicitly accept the generic verified finalizer; do not count hypothetical
+callers as two real consumers. Notification/audit operations retain their
+co-versioning proof independently of whether that finalizer gains a second
+caller. Add no queue, retry service, durable message spool or general RPC host.
+
+**Tradeoff for owner decision:** this parent operation adds transport and
+verification code to move a 94-line head. It is a proposed dependency, not an
+existing safe API or an approved implementation. If siblings 03/10 cannot
+supply this small bounded operation economically, retain `commands.slack.slack`
+under an explicit reviewed proof: it joins delivery, audit and matching-session
+completion inside the CLI's deferred finalization, and the script boundary
+currently destroys the authority needed to preserve that transaction. Keep
+its placement open until the owner accepts that proof; do not claim full Slack
+forkability or a completed move. The preferred migration waits for the shared
+operation rather than introducing a command-specific completion exception.
+
+There is also a deliberate correctness tightening to approve: today the head
+requests completion after local `append_log`, while `deferred_done_marker`
+waits for the best-effort sweep but does not inspect whether publication
+succeeded. The new durable-audit criterion must reject failed confirmation.
+Do not describe this as existing exact remote-durability parity; update
+`coga/state-publication`, `coga/script-tickets` and notification owners with
+this behavior if approved.
+
+
+#### Option B — post-exit audit-line check (evaluator recommendation, 09)
+
+The parent captures the session identity before isolation, runs the child,
+and after exit 0 confirms on control (or locally when Git is disabled) a new
+`slack:` audit line for the captured bootstrap slug written during this
+invocation; only then does it request the marker. This trusts cooperative
+child output, which Option A rejects. Make the threat model explicit
+(accidental versus adversarial completion) so the owner can choose. Option C
+is to keep the 94-line head under the proof.
+
+### Test map carried from 09
+
+Extend `tests/test_commands.py`,
+`test_slack_accepts_and_completes_stateless_bootstrap_target` and
+`test_slack_on_durable_task_does_not_complete_session`, plus
+`tests/test_notification_messages.py`, `test_slack_fyi_includes_title`, and
+`tests/test_done_marker_emission.py`. Current ambient-sentinel fixtures are
+insufficient proof of the proposed verified parent boundary: add real nested
+script subprocess tests using fake agent seams, with matching/mismatching
+slug, repository and generation, absent/stale identity, ordinary targets,
+disabled channel, send/audit/publish failures, already-published audit,
+child crash, duplicate request and channel loss. Assert no outer completion
+variables or assist authority in the child's environment and no completion
+on failure. Pair successful completion with an assertion that finalization
+finished before the sentinel write. No real Slack or agent process is needed.
+
 
 ## Context
 

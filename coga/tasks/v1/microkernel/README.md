@@ -88,7 +88,8 @@ Use those criteria for each child's design and implementation evidence.
 | [Read/report commands](06-read-report-commands-as-ticket-workflows.md) | Rendering partly shared already. Move report policy only after a generic stateless path preserves read-only behavior | All three |
 | [Support commands](07-support-commands-boundary.md) | Secret inspection is an edge candidate; uninstall needs a bounded recovery proof before an ordinary alias can replace it | Ticket ownership, hackability, fewer redundant wrappers |
 | [Residual commands](08-residual-command-surfaces.md) | Guided authoring and skill tooling remain; assign the previously unowned `recurring promote` row here | All three |
-| [Work orchestration](09-work-orchestration-commands-to-tickets.md) | Retire already moved. Remaining queue/FYI policy must use shared admission and completion primitives | All three |
+| [Work orchestration](09-work-orchestration-commands-to-tickets.md) | Retire already moved. Owner gate 2026-11-16: megalaunch only, over plain launch plus generic no-fallback/help/interrupt rules and shared admission | All three |
+| [Slack FYIs](move-slack-fyis-to-a-command-ticket.md) | Draft split from 09. Head retained under a co-versioning proof until a verified completion mechanism is chosen | Hackability, ticket ownership |
 | [Lifecycle operations](10-lifecycle-verbs-to-ticket-operations.md) | Prepared writes partly delivered. Retain proven transition/completion operations; separate bulk/procedure policy where useful | Smaller kernel responsibility, editable procedure, less duplicate state handling |
 
 The refresh parent accounts for this whole table and its own handoff; the new
