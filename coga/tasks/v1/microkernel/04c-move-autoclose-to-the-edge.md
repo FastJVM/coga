@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 3: move autoclose to the edge'
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -31,6 +31,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:922b6573-93eb-4c20-87ef-ceb2c35aa052
 ---
 
 ## Description
