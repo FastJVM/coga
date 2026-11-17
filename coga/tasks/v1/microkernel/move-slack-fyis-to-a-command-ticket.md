@@ -49,7 +49,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
