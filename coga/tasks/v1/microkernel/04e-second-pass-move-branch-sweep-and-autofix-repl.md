@@ -1,9 +1,9 @@
 ---
 title: 'Recipe migration, part 5 (parked): move branch-sweep and autofix replay adapters'
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga-dev/microkernel/objectives
+- coga-dev/microkernel/objectives
 workflow:
   name: code/design-then-implement
   steps:
@@ -44,6 +44,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
