@@ -1,7 +1,9 @@
 ---
-title: '04e Second pass: move branch-sweep and autofix replay adapters'
+title: 'Recipe migration, part 5 (parked): move branch-sweep and autofix replay adapters'
 status: draft
 owner: nicktoper
+contexts:
+  - coga-dev/microkernel/objectives
 workflow:
   name: code/design-then-implement
   steps:
@@ -46,9 +48,37 @@ step: 1 (design)
 
 ## Description
 
-Placeholder; filled in this session.
+Part 5 of the recipe migration, **parked**. Remove the `branch-sweep` and
+`autofix-analyze` entries from `runner.RECIPES`, leaving five, by moving each
+thin adapter to a command or script ticket while the shared implementations
+stay in core:
+
+- `branch-sweep`: the recurring branch-sweep job calls the recipe wrapper,
+  while `checkout_disposal._sweep_owned_branches` calls `sweep_branches`
+  with an owned-branch restriction and skill-management reuses patch-ID
+  support. Keep those shared primitives.
+- `autofix-analyze`: recurring scans and named runs use live analysis; this
+  recipe independently replays saved records. Keep the shared analysis and
+  ticketing; move only the replay adapter.
+
+**Activation condition.** This ticket stays a draft until a generic stateless
+publication contract for ticket-run commands exists (expected from
+`v1/microkernel/06-read-report-commands-as-ticket-workflows` or its
+successor). Before activating, confirm which ticket delivered it, and update
+this description. Also requires parts 1–4 (`04`–`04d`) to have merged.
+
+Done when both adapters run from tickets with unchanged behavior, both names
+exit 2, and the design step's acceptance criteria hold.
 
 ## Context
+
+Rules from `coga-dev/microkernel` (cited, not attached): core keeps shared
+infra with at least two real consumers or a reviewed co-versioned command
+contract; production `src/coga/` never imports `coga_edge`; count callers of
+one symbol, not copies of one body. Read its "Edge packaging invariants"
+section, plus `coga-dev/packaging`, `coga-dev/testing` and the package-owned
+`coga/edge-code`, `coga/script-tickets` and `coga/state-publication` under
+`src/coga/resources/templates/coga/bootstrap/contexts/`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
