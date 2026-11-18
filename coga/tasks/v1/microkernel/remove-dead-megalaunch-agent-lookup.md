@@ -192,4 +192,8 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: remove-dead-megalaunch-agent-lookup
+
+## Plan
+Remove the unused early `cfg.agent_type` lookup in `megalaunch._preflight_agent_launch`, narrow `launch_agent` to `str`, add a direct unconfigured-agent refusal test.
