@@ -44,98 +44,138 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 ---
 
 ## Description
 
-Separate lifecycle policy and user interaction from the smallest shared
-transition operations that preserve ticket state, publication and supervised
-completion. Reassess `block`, `unblock` and `owner` against the clarified
-objectives; inspect `mark`/`bump` as their kernel dependency, not as a blanket
-reason to keep every surrounding command in core. This proposal awaits owner
-scope review and does not change any lifecycle contract by itself.
+Make the blocker-resolution procedure editable in adopting repositories.
+Today single-ticket resolution and the interactive batch are both in
+`src/coga/commands/unblock.py`. They already converge on one prepared write.
+Moving that procedure into a command ticket exposes the selection, prompts,
+and answer handling while keeping fresh-control reconciliation and publication
+in the shared machinery. The owner accepted the parent scope on November 12.
+This design goes through the child's own review before implementation.
 
-### Objectives advanced
+### Proposed shape
 
-Ticket ownership and hackability: bulk selection, prompts and procedure policy
-can live in command tickets. Simplification: converge on the existing prepared
-write primitives and remove repeated command scaffolding. A classification
-that merely rubber-stamps today's heads is insufficient.
+1. Ship `bootstrap/unblock/ticket.md` and a sibling `ticket.py` with the
+   complete procedure. Replace the built-in `unblock` registration in
+   `src/coga/cli.py` and `src/coga/aliases.py` with a default rewrite to
+   `launch bootstrap/unblock --`, using the existing script dispatch. Preserve
+   the single-ticket, explicit answer, and interactive batch forms. Keep
+   argument handling, selection, prompts, per-ticket failure reporting, and
+   the operation that applies an answer together in the ticket. A local copy
+   must expose the editable implementation. Require deterministic dispatch
+   for this command. Verify the generic no-agent-fallback behavior before
+   cutting over, including when a local definition is missing its script.
+   Coordinate any missing generic dispatch support with the launch sibling.
+2. Carry over the shared preparation used by `prepare_lifecycle_ticket()`
+   and `reconcile_lifecycle_ticket()` in `src/coga/commands/common.py`, and
+   use the same prepared ticket for the write and its publication. Keep
+   `src/coga/commands/unblock.py`'s `_apply_unblock()` semantics. Its blocked
+   path calls `src/coga/mark.py`'s `mark_active()` to preserve activation
+   validation and workflow freezing. Its resolve-only paths call
+   `src/coga/git.py`'s `write_ticket()` and `sync_task_state()` and keep
+   status and step. Combine the two resolve-only paths into one write, one
+   audit append, and one sync call, varying the status text and existing
+   recurring-resume hint. Reuse preparation's existing Git fallback and
+   review-conflict handling in both entry paths. Remove redundant local
+   fallback handling only after confirming equivalent behavior for the
+   call paths retained. The single and bulk procedures can call the same
+   function inside the ticket. There is no need for a new recipe or kernel
+   wrapper around it.
+3. Keep `block`, `owner`, `mark` and `bump` direct. In
+   `src/coga/commands/block.py`, `block()` prepares and appends the ask,
+   passes the same ticket and preparation to `src/coga/mark.py`'s
+   `mark_blocked()`, and then calls `emit_done_marker()` with the target
+   slug. That path preserves recorded-assist or operator attribution and
+   stops the matching session after saving. In `src/coga/commands/owner.py`,
+   `owner()` keeps preparation, eligibility, prospective validation,
+   local-byte comparison, write, audit and strict expected-control publication
+   together under `git.state_lock()`. It rejects terminal and claimed
+   tickets, its own supervised session, and an in-progress agent step.
+   An in-progress owner gate requires `--assist-stopped`. Preserve the
+   distinction between a definite failure (restore owned bytes and retract
+   audit), uncertain publication (keep evidence), and Git soft-skip.
+   This transaction justifies a co-versioned operation. A second command
+   adapter would duplicate the argument boundary without giving the user an
+   editable procedure of consequence.
+4. Record the reviewed placement in
+   `docs/contexts/coga-dev/microkernel/SKILL.md`. Update the packaged
+   `coga/cli` and the owning user topics for changed dispatch or
+   customization guidance. Keep the command contract beside the packaged
+   implementation and update the required-resource inventory.
 
-### Premise check against main
+### Acceptance criteria
 
-Snapshot: `49b34b229` (2026-11-12); physical lines include blanks/comments.
+- [ ] From an installed checkout, `coga unblock --help`,
+      `coga unblock <slug> --answer "…"`, interactive single-ticket use, and
+      `coga unblock --all` work through the command ticket. A repo-local
+      copy wins and a change to its prompt or selection is observable.
+      Run the installed and local-override cases without a configured agent
+      or checkout switch. Keep script framing off stdout. A missing script
+      fails visibly before an agent can start.
+- [ ] Resolve all open asks in one prepared write. Blocked becomes active
+      under existing activation rules. An in-progress ticket or paused
+      recurring period with open asks resolves in place. Preserve pause
+      provenance, frozen step, user attribution, audit and notifications.
+      Cover invalid statuses, missing asks, invalid activation, and legacy
+      blocker text through the existing command and blocker tests.
+- [ ] Neither single nor batch prompts hold the state lock. Before writing,
+      reprepare and recheck after prompting. Batch selection still walks
+      blocked tickets, supports blank skips, reports per-ticket failures and
+      continues. An unreconcilable or changed ticket remains untouched and
+      returns 75 without the generic sweep, including when another batch item
+      succeeded. Cover ordinary Git fallback, merged review adoption, and
+      the refusal path from a feature checkout.
+- [ ] Exercise the real CLI under supervision. Resolving a current
+      in-progress ticket lets its session continue. Direct `block` still
+      stops only the matching session and preserves attribution. Retained
+      `owner`, `mark`, and `bump` preserve their existing gate, conflict,
+      publication, and completion behavior. Verify the owner operation's
+      definite failure, uncertainty and soft-skip cases.
+- [ ] Report before/after physical production lines (including comments and
+      blanks) at named revisions. Include core, edge and executable ticket
+      code for the changed path, including any touched dispatch code. Count
+      relocation separately from removed duplication and list removed
+      registrations or dependencies. Report tests, docs and package resource
+      inventory separately. Run the full Linux suite per
+      `coga-dev/testing`. Native Windows and macOS checks are deferred to
+      release.
 
-1. All subjects remain: `commands/block.py` (106), `unblock.py` (293),
-   `owner.py` (148), with `commands/common.py` (190) and `mark.py` support.
-2. The October description of two independent blocker/status writes is
-   obsolete. `prepare_lifecycle_ticket`/`reconcile_lifecycle_ticket` now
-   prepare against control; `block` changes the ask and status in one prepared
-   write. `_apply_unblock` also resolves asks with its prepared transition.
-3. The required guarantees are carried below; no retired task supplies a
-   missing spec. Prior reasoning and review remain under Superseded designs.
-4. Shared reconciliation already shipped; do not create another transaction
-   abstraction to replace it. `owner` still holds its distinct strict
-   compare/write/audit/publication transaction and remains an open placement.
+### Out of scope
 
-### Proposed boundary and retained primitives
-
-| Surface | Current invariant | Proposed disposition |
-| --- | --- | --- |
-| `mark` / `bump` | Status/step eligibility, operator/owner gates, expected-task/step checks, publication and supervised completion | Retain generic kernel operations for this pass; challenge policy around them, not their guards |
-| `block` | Ask and status prepared together; actor/assist identity; targeted done marker after the write | Retain the guarded operation; move presentation/procedure only through an equivalent completion boundary |
-| Single-task `unblock` | Resolve-only for an in-progress task or paused period; otherwise activation; fresh preparation and conflict refusal | Retain the shared operation; separate `--all` selection and interactive questioning as edge policy |
-| `owner` | Lock across preparation, eligibility, prospective validation, local byte check, write, audit and strict expected-control publication | Recommend keeping this bounded operation co-versioned; decide separately whether its CLI adapter needs a permanent head |
-
-The `owner` proposal preserves concurrent edits, refuses active claims and an
-own supervised reassignment, and distinguishes definite-failure rollback,
-uncertain publication retention and documented Git soft-skips. Do not describe
-these heads as having identical guard coverage or one uniform transaction.
-
-A direct alias to a bootstrap script is not yet a semantics-preserving
-replacement for a session-ending operation: `launch_script.run_script_phase`
-clears the outer supervisor, expected-task/step and sentinel environment.
-Do not restore that whole environment to make a move appear to work. The
-launch sibling owns any narrow, verified completion seam; keep current direct
-operations until its tests prove identity, attribution and termination.
-
-For each proposed edge head, put argument handling and procedure beside its
-ticket and invoke the existing shared operation. If exposing it would only
-add an equally specific wrapper with no customization or simplification gain,
-defer that extraction and record the reason. Avoid a new generic mutation
-language solely to reduce the number of top-level command names.
-
-### Acceptance and reduction evidence
-
-- [ ] Name the actual primitive and guard coverage for every head; record the
-      reviewed retained/moved boundary in `coga-dev/microkernel`.
-- [ ] Settle the open `owner` row with the concrete transaction proof above
-      or a tested equivalent, not registration as justification.
-- [ ] Preserve prepared control reconciliation, blocker answers, status/step
-      behavior, launch/owner/assist gates, audit and notifications, exit 75,
-      and completion signaling from inside an actual supervised session.
-- [ ] Any `unblock --all` move preserves per-ticket rechecks after prompts,
-      conflict reporting and the rest of the batch; no interactive lock is held.
-- [ ] Report real duplicate/policy removal and whole-system counts; preserving
-      a proven primitive is an explicit boundary decision, not a claimed deletion.
-- [ ] Cover commands, owner, mark/bump, Git conflicts and done-marker tests;
-      apply the full-suite and platform-sensitive receipts in `coga-dev/testing`.
+Checkout and queue orchestration, new lifecycle states or flags, a generic
+mutation language, and a new supervisor protocol belong outside this change.
+Future movement of `block` requires a launch-owned completion seam with
+tested identity, attribution and termination. Future movement of `owner`
+requires preserving its supervised self-reassignment refusal across the
+boundary. Keep those placement constraints in the microkernel topic.
 
 ## Context
 
-Read the attached publication contract and `coga-dev/microkernel/objectives`.
-User owners now live under
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/`: `lifecycle`,
-`tickets`, `workflows`, `state-publication`, `notifications` and
-`notifications/producers`. Update only the owning package definition when a
-contract changes; the local-only microkernel topic records placement.
-
-The transaction audit and bounded reductions can proceed after parent scope
-review without waiting for a cosmetic launch split. Moving session-ending
-heads depends on the launch completion seam. Bulk policy belongs here;
-queue scheduling belongs to work orchestration. Drop the old two-write blocker
-inventory and mandatory archive/twin updates; defer pure head renaming.
+- `src/coga/commands/common.py`'s `prepare_lifecycle_ticket()` adapts
+  `reconcile_lifecycle_ticket()` for callers that exit on refusal.
+  `_unblock_all()` in `src/coga/commands/unblock.py` uses
+  `_apply_unblock()`, which can prepare afresh and raise a per-ticket
+  error so the batch continues.
+- `src/coga/commands/mark.py`'s `done()` and `canceled()` and
+  `src/coga/commands/bump.py`'s `bump()` couple their guards and writes to
+  the done marker. `src/coga/launch_script.py`'s `run_script_phase()`
+  runs scripts with fresh task metadata and strips outer supervisor and
+  expected-task/step authority. Ordinary bootstrap exit 75 reaches
+  `src/coga/launch.py`'s `_LaunchInvocation` script handling, which
+  withholds refresh and the sweep. Preserve this isolation.
+- The packaged user topics `coga/lifecycle`, `coga/tickets`,
+  `coga/state-publication`, and `coga/notifications/producers` own the
+  operation contracts. The local microkernel topic owns placement.
+- Baseline at `0eafc938304a1c3aef0e6e6173fa09b1922668c2` using `wc -l`
+  on the named production modules. Under `src/coga/commands/`,
+  `unblock.py` is 293 lines, `block.py` 106, `owner.py` 148,
+  `common.py` 190, `mark.py` 329, and `bump.py` 523.
+  Take the baseline for any additional touched production files at the same
+  revision. The prior two-write blocker inventory predates prepared writes.
 
 <!-- coga:blackboard -->
 
@@ -145,6 +185,23 @@ The body now carries the current-main inventory and proposed boundary.
 The parent refresh owns scope approval; this ticket's existing role,
 status and workflow step are unchanged. No implementation was resumed.
 The earlier design and review evidence remain below for deliberate reading.
+
+## Design handoff — 2026-11-17
+
+Checked the prepared-write paths and the parent scope acceptance against
+current main. The proposed change moves the complete unblock procedure and
+targets duplicated resolve-only effects. Block and owner stay direct for
+distinct supervisor constraints. The launch sibling is the coordination
+point for generic deterministic dispatch if the required fallback guard is
+still missing at implementation.
+
+## Open Questions
+
+Should the owner approve moving both unblock forms behind the default alias
+with launch framing on stderr, or limit the first migration to the
+interactive batch if preserving the direct command experience is more
+important? The proposed full move keeps one local implementation and avoids a
+new public primitive or an operand-aware dispatch rule.
 
 ## Superseded designs
 
