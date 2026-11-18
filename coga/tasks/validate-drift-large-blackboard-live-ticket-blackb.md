@@ -20,13 +20,21 @@ agent: claude
 
 ## Description
 
-Filed by Dream run recurring/dream, period 2026-W46 (run 20261112T051938Z), Phase 6 disposition. validate-drift: large-blackboard (rerouted as an owner-directed state edit per the Dream template).
+Filed by Dream in 2026-W46 (run 20261112T051938Z) as `validate-drift: large-blackboard`. The initial report identified a 36.8 KiB blackboard on `v1/20-ask-which-agents-to-enable-during-coga-init`. That ticket is now done. It is the example that exposed the missing maintenance process.
 
-Live member needing an owner decision: v1/20-ask-which-agents-to-enable-during-coga-init (in_progress), blackboard region 36.8 KiB over the 32.0 KiB threshold. Remedy per coga/blackboard: promote to directory form, move dated evidence into sibling attachments, move abandoned designs into the single Superseded designs section, keep Dev, Blockers, the current handoff, worklist and verification in place; move, do not delete. Owner may edit directly on control; publish via coga/state-publication. No branch or PR requirement.
+### Detect oversized blackboards
 
-Other members this run, not covered here: v1/14-interactive-coga-launch-on-native-windows (done with live checkout, 49.3 KiB — retirement debt, run coga retire, do not slim) and v1/package-definitions/02-repo-cutover-to-package-owned-definitions (done, 40.0 KiB — removed by Dream Retro PR #1201).
+Add a dedicated recurring task, independent of Dream. Use the existing `large-blackboard` findings from `coga validate --json` to report the affected tickets, their sizes, and the current 32 KiB threshold. The alert is informational. Oversized blackboards can be exceptional, and an alert does not create a mandatory review or block work.
 
-coga validate --json is the live member list. Keep this ticket open until the class is empty or the decision is recorded in a context, preserving the tag line 'validate-drift: large-blackboard', decision, rationale, and scope there before closing with accepted warnings.
+### Remove stale notes during normal ticket work
+
+Add a blackboard cleanup instruction to the agent workflow. Before opening a PR, the agent rereads its ticket's blackboard and removes notes that no longer help the work. Age is a cue to check usefulness. Keep current decisions and rationale, active blockers, the worklist, and verification evidence still needed for handoff. Obsolete notes can be deleted directly. Update the owning `coga/blackboard` topic and the agent instructions that apply the policy.
+
+### Completion
+
+- The dedicated recurring task reports oversized blackboards independently of Dream.
+- The pre-PR instructions tell agents to prune obsolete notes, and the blackboard topic documents when deletion is appropriate.
+- Verify both behaviors without editing the completed agent-selection ticket.
 
 ## Context
 
@@ -116,58 +124,9 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-## Brief (2026-11-12, brief-and-hand-off, read-only)
+## Owner direction
 
-**Goal.** Get `v1/20-ask-which-agents-to-enable-during-coga-init` out of
-`coga validate`'s `large-blackboard` class (live region 36.8 KiB vs 32.0 KiB),
-per the `coga/blackboard` size remedy: move, never delete.
-
-**Facts observed (main @ 550516642).**
-- Target: `coga/tasks/v1/20-ask-which-agents-to-enable-during-coga-init.md`,
-  file form, `in_progress`, `step: 7 (review)`, **owner: zach** (not this
-  ticket's owner). PR #1196 is OPEN, unmerged. Last touched 92f10606f
-  (2026-11-11). So it is actively worked: coordinate with Zach first.
-- Live sections (the counted region; `## Superseded designs` at line 1327
-  is excluded): `## Dev` 0.3 KB, `## Evaluator review` 5.2 KB, six dated
-  `## 2026-11-10/11 — …` logs 25.0 KB (lines 776–1194), `## PR` 6.9 KB,
-  `## Open Questions` (None).
-- The current handoff is `### Handoff — what is left…` (line 1089), nested
-  inside `## 2026-11-11 — peer-review (codex)…`; it is partly stale (step
-  has moved 5 → 7, Windows walk now recorded at line 1120).
-- Other class members, out of scope here: v1/14 (49.3 KiB, done with live
-  checkout — retirement debt, `coga retire`), v1/package-definitions/02
-  (40.0 KiB, done — Dream Retro PR #1201), and **`recurring/dream`
-  (73.4 KiB)**, which the Dream disposition did not name. Dream's template
-  blackboard is rewritten each run, so per `coga/blackboard` it is not
-  trimmed by hand: route it to its owner as a decision (attachment,
-  exemption, or accepted warning) before this ticket can close.
-
-**Ordered steps for the human.**
-1. Confirm with Zach (target owner) that slimming now is fine while #1196 is
-   in review; otherwise record "accepted warning until #1196 merges" instead.
-2. Promote to directory form: `git mv` the `.md` to
-   `coga/tasks/v1/20-ask-which-agents-to-enable-during-coga-init/ticket.md`
-   (check `coga/tickets` for any CLI-supported promote path first).
-3. Move the six dated `## 2026-11-1x — …` sections verbatim into a sibling
-   attachment, e.g. `.../20-…/history-2026-11-10-11.md`, opening with
-   `<!-- moved from v1/20-… blackboard on 2026-11-12 -->`. Leave each moved
-   heading in place holding only a pointer line.
-4. Keep in place: `## Dev`, `## PR`, `## Open Questions`, and a current
-   handoff (lift the `### Handoff` block out of the moved log, or rewrite it
-   to reflect step 7 and #1196). Optionally move the resolved
-   `## Evaluator review` into the attachment too (5.2 KB) — it is history
-   once dispositioned.
-5. Record before/after live-region sizes on the target blackboard.
-6. Publish as state on control (`coga/state-publication`; e.g.
-   `coga run publish-state <path>` or the next lifecycle sweep). No branch/PR.
-
-**Irreversible action.** Pushing the restructure to control (the file move
-to directory form changes the task path every reader resolves). It is
-recoverable via git, but a concurrent edit on Zach's side would then
-conflict — hence step 1.
-
-**Done check.** `coga validate --json` shows no `large-blackboard` row for
-v1/20 (live region < 32 KiB), `coga validate` reports no new errors for the
-directory-form task, and the attachment holds every moved byte (diff the
-removed lines against the attachment). Then this ticket closes when the
-class is empty or the remaining rows are recorded as accepted/retire-owned.
+The owner redirected this follow-up from a one-off ticket restructure to two
+independent mechanisms: recurring size alerts and routine cleanup by agents
+before opening a PR. The completed agent-selection ticket is the motivating
+example.
