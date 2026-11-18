@@ -2,14 +2,85 @@
 title: Restore sweep policy after read-only launch API calls
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-Peer review of PR #1233, finding 7, observed launch(read_only=True) setting state_sweep_withheld without restoring its caller context. The recurring-list adapter currently compensates. Bound the policy to its invocation, preserve nested caller state and writer publication, and assess removal of adapter compensation. Owner explicitly deferred this finding from the report extraction PR on 2026-11-16. Source: v1/microkernel/06-read-report-commands-as-ticket-workflows, Peer review.
+`coga.launch.launch(..., read_only=True)` sets `git.state_sweep_withheld` to
+`True` and never resets it, so the policy leaks into the caller's context after
+the call returns or bails. Peer review of PR #1233 (finding 7) found this; the
+owner deferred it from the report-extraction PR on 2026-11-16. Today the
+`coga recurring list` adapter covers for the leak by setting and resetting the
+flag around its own call.
+
+Limit the policy to the read-only invocation. When the call finishes, the
+caller's previous value of `state_sweep_withheld` must be restored, whether the
+call returns or bails. That covers a nested caller that already had it `True`,
+and an ordinary writer command whose end-of-command sweep must still publish
+afterwards. Then remove the adapter's workaround if it is redundant, or record
+on the blackboard why it has to stay.
+
+Done means: the read-only branch restores the caller's value on success and on
+`LaunchBail`. Regression tests show that a caller's `False` and `True` both
+survive a direct `launch(read_only=True)` call, and that an ordinary writer
+command still runs its exit sweep after an in-process read-only call. A test
+runs `coga recurring --force list` and shows no "withheld" warning. Decide
+whether the CLI read-only test in `tests/test_cli.py` needs an API-level twin.
+The adapter workaround is either removed with tests passing or kept with a
+recorded reason. The same PR updates any topic text about this policy.
 
 ## Context
+
+### Code facts (cite by symbol; line numbers drift)
+
+- `git.state_sweep_withheld` is a `ContextVar[bool]`, default `False`. Its
+  comment says `cli.main` scopes it to one invocation. The ordinary path in
+  `cli.main` sets it to `False` with a token around `app()` and resets it in
+  `finally`. The end-of-command `_sweep_coga_state` is skipped when the flag
+  is set.
+- The `cli.main` read-only argv path (`_read_only_launch_requested`) already
+  sets the flag to `True` with a token and resets it. Only the **Python API**
+  branch `launch.launch` (`if read_only:`) calls
+  `git.state_sweep_withheld.set(True)` and drops the token, on both the
+  `LaunchResult` return and the `_bail` paths.
+- `commands/recurring.py` `list_recurring` (the compensating adapter) sets the
+  flag to `False` with a token, calls
+  `launch_target("bootstrap/recurring-list", ..., read_only=True)`, and resets
+  in `finally`. Its comment says "recurring list already has no exit sweep".
+  That is only partly true. `_should_sweep_coga_state` skips plain
+  `recurring list`, but for `coga recurring --force list` (tested in
+  `tests/test_recurring.py`) the subcommand starts with `-`, so the sweep
+  runs. `_sweep_coga_state` also checks `state_sweep_withheld` before it checks
+  argv, so a leaked `True` would print a false "state sweep withheld" warning.
+  The adapter's reset therefore does real work today. It becomes redundant
+  once the API restores the caller's value.
+- Nothing inside the read-only call reads the flag:
+  `launch_script.run_script_phase` doesn't consult it, and a subprocess doesn't
+  inherit a ContextVar. Both fixes are valid: scope the `set(True)` with a
+  token, or delete it. Choose one and record the reason on the blackboard. If
+  you scope it, wrap the whole `if read_only:` branch in try/finally, because
+  the option-combination `_bail` runs right after the set.
+- Many other `state_sweep_withheld.set(True)` calls in `launch.py`,
+  `publish_state.py`, `commands/launch.py`, `commands/ticket.py`, and
+  `commands/skill.py` are deliberate writer-side retention signals (a refused
+  checkout return keeps dirt, and the outer `cli.main` scope clears them).
+  **They are out of scope**; do not convert them to tokens.
+- Existing coverage: `tests/test_launch_script.py` calls
+  `launch_module.launch("bootstrap/inspect", ..., read_only=True)`.
+  `tests/test_recurring.py` and `tests/test_cli.py` cover the adapter and the
+  CLI path.
+
+### Policy contract (cited, not attached)
+
+`coga/launch` (`src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md`)
+is cited, not attached. Read its read-only launch section (`coga launch
+--read-only`). The fact that matters here: read-only dispatch performs no
+publication or CLI exit sweep "on success or refusal", and "ordinary launch
+remains the default and retains its publication and completion boundaries".
+This ticket makes the Python API honor the second clause for its caller.
+Update that topic, and `coga-dev/microkernel` if it describes the flag, in the
+same PR if wording changes.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
