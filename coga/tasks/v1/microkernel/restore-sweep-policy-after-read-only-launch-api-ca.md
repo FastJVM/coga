@@ -1,6 +1,6 @@
 ---
 title: Restore sweep policy after read-only launch API calls
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:dffde730-89af-4e2a-8f22-ed8ab30ab1f6
 ---
 
 ## Description
