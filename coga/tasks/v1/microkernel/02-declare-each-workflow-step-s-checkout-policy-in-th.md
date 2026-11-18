@@ -1,6 +1,6 @@
 ---
 title: Declare each workflow step's checkout policy in the workflow file
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -34,7 +34,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 7 (review)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
