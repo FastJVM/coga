@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: e3689fa4-044e-48e2-ba38-c66d00af51ea
 ---
 
 ## Description
@@ -195,5 +194,64 @@ ordinary ticket.
 ## Dev
 branch: remove-dead-megalaunch-agent-lookup
 
-## Plan
-Remove the unused early `cfg.agent_type` lookup in `megalaunch._preflight_agent_launch`, narrow `launch_agent` to `str`, add a direct unconfigured-agent refusal test.
+## Handoff (implement, 2026-11-17)
+Done on `remove-dead-megalaunch-agent-lookup` at `d35708f4d`, pushed; no PR yet.
+
+Verification of the ticket's premises against current source (all still hold):
+- `megalaunch._preflight_agent_launch` bound `agent` from `cfg.agent_type` and never read it.
+- `launch.prepare_agent_launch` calls `cfg.agent_type(launch_agent)` as its first fallible call (before `shutil.which`, prompt composition, `build_launch_env`) and maps `ConfigError` to `AgentPreparationError(str(exc))`, which preflight returns as its refusal string — identical text.
+- Between the two lookups preflight only runs the status / launch-generation checks, `ticket.render()`, an in-memory `Ticket` copy and `uuid4()`. No writes.
+- Only call site passes `(agent_override or operator.name) if first_step else operator.name` — always `str`.
+- Refusal order changes (agent refusal now follows status/generation refusals) but is unreachable via `megalaunch()`: `--agent` is validated at entry (`cfg.agent_type(agent_override)`, kept), operator resolution rejects unconfigured names. Mention in PR.
+- `ConfigError` import in megalaunch is still used elsewhere; kept.
+- `docs/contexts/coga-dev/internals/launch-claims/SKILL.md` needs no change (documented refusal order untouched).
+
+Changes:
+- `src/coga/megalaunch.py`: drop the early lookup + try/except; `launch_agent: str`; pass `launch_agent` without `or ""`.
+- `tests/test_megalaunch.py`: `test_preflight_agent_launch_refuses_unconfigured_agent_without_writes` calls `_preflight_agent_launch` directly with `"ghost"`, asserts the refusal equals `str(ConfigError)` from `cfg.agent_type("ghost")`, and ticket and log bytes unchanged.
+
+Env note: shell `python` lacks `tomlkit`; tests ran with `.venv/bin/python`.
+Sibling `preserve-supervised-environment-in-megalaunch-wind` changes already on main at branch time (rebased onto `d0fd42dfa`); no conflict.
+
+## PR
+```yaml
+title: Remove dead agent lookup from megalaunch preflight
+author: claude
+author_evidence: >-
+  Implement step ran in a Claude Code session (Opus 5.5) launched by megalaunch.
+head: d35708f4d3c39aeb6ec6c7debbd8de48fb246b6d
+base: d0fd42dfafeb1f4d65856e935264f2fa4b1c9c9c
+depth: skim
+rationale: >-
+  Deletes an unused lookup whose refusal text is reproduced verbatim by
+  prepare_agent_launch; the only observable change is refusal ordering, which
+  megalaunch() cannot reach because agent names are validated earlier.
+implementation: >-
+  Removes the early cfg.agent_type call and its try/except from
+  _preflight_agent_launch, narrows launch_agent to str and drops the
+  `launch_agent or ""` fallbacks, so prepare_agent_launch is the single place
+  preflight resolves the agent.
+deviations: None.
+limitations: >-
+  An unconfigured agent is now refused after the status and launch-generation
+  refusals rather than before; unreachable through megalaunch() since --agent
+  and operator resolution reject unconfigured names first.
+files:
+  src/coga/megalaunch.py: Remove the dead lookup and narrow the parameter type.
+  tests/test_megalaunch.py: >-
+    Pin the unconfigured-agent refusal text and the absence of ticket/log writes
+    with a direct preflight call.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Peer review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest
+    status: passed
+    head: d35708f4d3c39aeb6ec6c7debbd8de48fb246b6d
+    base: d0fd42dfafeb1f4d65856e935264f2fa4b1c9c9c
+    detail: >-
+      4984 passed, 33 skipped in 814.59s; run on a working tree identical to the
+      committed head.
+```
