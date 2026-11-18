@@ -1,15 +1,95 @@
 ---
-title: 01 Add an explicit coga sync command
+title: Add an explicit coga sync command
 status: draft
 owner: nicktoper
-workflow: null
+contexts:
+  - coga-dev/principles
+workflow: code/design-then-implement
 ---
 
 ## Description
 
-TBD
+First ticket of the `git-sync/` project. Add a new `coga sync` command
+(it does not exist today) that implements the project's publication model
+below. Humans and agents both call it. It must be safe to run repeatedly and
+from any checkout.
+
+`coga sync`: commit the Coga state directory, fetch main, push the state to
+main, rebase the current branch onto main, and force-push a previously pushed
+branch with `--force-with-lease`. Today's implicit publication stays in place
+during this ticket. Ticket 02 removes it, so both paths must coexist safely
+until then.
+
+Done means: a merged PR adding `coga sync` with tests for control and feature
+checkouts, and an updated `coga/sync` topic that describes it as the
+publication primitive.
 
 ## Context
+
+### What the design step must resolve
+
+- **Placement under the microkernel rule** (`AGENTS.md`, cite
+  `coga-dev/microkernel`): Typer command, `runner.RECIPES` entry, or alias.
+  Justify why it belongs in core.
+- **Uncommitted code changes** on the branch when syncing: what happens to
+  them through the rebase (only Coga state is committed by sync).
+- **Coga-state commits already on a feature branch**: how they get to main,
+  and how they are dropped from or reconciled on the branch.
+- **Protected or unreachable main**: the config comment near the control
+  remote in `coga/coga.toml` covers this case. Define the failure and retry
+  behavior.
+- **Conflicts** while rebasing Coga state and while rebasing code, and retry
+  after a failed push.
+- **Commit subject**: check the `Sync coga state` prefix rules in
+  `coga/recurring/scheduling/inactivity` before changing it.
+
+### Pointers (cited, not attached)
+
+- Edit: `coga/sync` at
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`.
+- Read: `coga-dev/internals/state-publication`
+  (`docs/contexts/coga-dev/internals/state-publication/SKILL.md`) and
+  `coga-dev/patterns` (the rule for state-changing commands). `coga/sync`
+  routes to both.
+- Existing primitives to reuse or replace: `git.sync_coga_state` (the sweep),
+  `git.sync_task_state`, `git.publish`, `publish_state.py`,
+  `log_publication.py`.
+
+### Project decisions (owner, 2026-11-17)
+
+These apply to the whole `git-sync/` project (01 → 02 → 03):
+
+- **Publication is explicit everywhere.** No command auto-publishes, including
+  lifecycle transitions (`bump`, `block`, `mark`, `create`, launch audit
+  lines). Their writes reach other checkouts only when `coga sync` runs, called
+  by a human, an agent, or the session end.
+- **`coga sync` is the only publication path.** It commits the Coga state
+  directory (`coga/`, plus the contexts root if configured outside it), fetches
+  main, pushes that state to main, and rebases the current branch onto main.
+  When the rebased branch has already been pushed, it force-pushes
+  automatically with `--force-with-lease`.
+- **State goes to main from any checkout.** On a feature checkout, Coga state
+  is still pushed straight to main while code stays on the branch. The current
+  held-for-merge behavior is dropped.
+- **No atomic-publish exception for megalaunch/recurring admission claims**
+  (`launch_generation`). Tickets have an owner, so the owner rejected
+  protecting cross-clone admission races with an exception.
+- **End state: `src/coga/git.py` becomes trivial.**
+- This deliberately reverses the current `coga/sync` invariant that Git
+  publication happens "without committing on a local branch, stashing, or
+  rebasing". Say so in the topics you rewrite.
+
+Origin: the problem surfaced while designing
+`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`. The
+end-of-command sweep (`git.sync_coga_state`) publishes every dirty eligible
+file on control, including definition edits. A fork command would therefore
+publish a byte-identical override that silently stops following package
+updates. `git.py` (thousands of lines) also keeps producing small sync bugs.
+
+Related tickets that may be superseded by this project; check and cancel or
+fold them as the design settles: `fix-git-sync-failure`,
+`hold-dirty-context-edits-on-feature-checkouts-unti`,
+`correct-state-publication-internals-for-pending-pu`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

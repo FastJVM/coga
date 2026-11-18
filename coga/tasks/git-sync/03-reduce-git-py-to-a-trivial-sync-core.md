@@ -1,15 +1,70 @@
 ---
-title: 03 Reduce git.py to a trivial sync core
+title: Reduce git.py to a trivial sync core
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-TBD
+Third ticket of the `git-sync/` project; depends on 01 and 02 being
+merged. With publication explicit, most of `src/coga/git.py` (sweep,
+eligibility, held-for-merge, publication retry and remedy machinery) has no
+reason to exist. Delete the dead code. Move any remaining non-sync git
+helpers to their consumers or to small focused modules, following the
+microkernel rule in `AGENTS.md`.
+
+Done means: a merged PR after which `git.py` is trivial (only what
+`coga sync` and genuinely shared git helpers need, readable in one sitting),
+tests that covered deleted behavior are removed or rewritten (`tests/test_git.py`
+is the bulk), the full suite passes, and `coga-dev/codebase` and
+`coga-dev/internals/state-publication` reflect the new source map.
 
 ## Context
+
+### Pointers
+
+- Find dead code after 02 by grepping for remaining callers of each public
+  symbol in `git.py`. Held-for-merge handling, the sweep
+  (`git.sync_coga_state`) and its eligibility rules should all be gone.
+- Edit `coga-dev/codebase` (`docs/contexts/coga-dev/codebase/SKILL.md`) and
+  `coga-dev/internals/state-publication` in the same PR.
+
+### Project decisions (owner, 2026-11-17)
+
+These apply to the whole `git-sync/` project (01 → 02 → 03):
+
+- **Publication is explicit everywhere.** No command auto-publishes, including
+  lifecycle transitions (`bump`, `block`, `mark`, `create`, launch audit
+  lines). Their writes reach other checkouts only when `coga sync` runs, called
+  by a human, an agent, or the session end.
+- **`coga sync` is the only publication path.** It commits the Coga state
+  directory (`coga/`, plus the contexts root if configured outside it), fetches
+  main, pushes that state to main, and rebases the current branch onto main.
+  When the rebased branch has already been pushed, it force-pushes
+  automatically with `--force-with-lease`.
+- **State goes to main from any checkout.** On a feature checkout, Coga state
+  is still pushed straight to main while code stays on the branch. The current
+  held-for-merge behavior is dropped.
+- **No atomic-publish exception for megalaunch/recurring admission claims**
+  (`launch_generation`). Tickets have an owner, so the owner rejected
+  protecting cross-clone admission races with an exception.
+- **End state: `src/coga/git.py` becomes trivial.**
+- This deliberately reverses the current `coga/sync` invariant that Git
+  publication happens "without committing on a local branch, stashing, or
+  rebasing". Say so in the topics you rewrite.
+
+Origin: the problem surfaced while designing
+`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`. The
+end-of-command sweep (`git.sync_coga_state`) publishes every dirty eligible
+file on control, including definition edits. A fork command would therefore
+publish a byte-identical override that silently stops following package
+updates. `git.py` (thousands of lines) also keeps producing small sync bugs.
+
+Related tickets that may be superseded by this project; check and cancel or
+fold them as the design settles: `fix-git-sync-failure`,
+`hold-dirty-context-edits-on-feature-checkouts-unti`,
+`correct-state-publication-internals-for-pending-pu`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
