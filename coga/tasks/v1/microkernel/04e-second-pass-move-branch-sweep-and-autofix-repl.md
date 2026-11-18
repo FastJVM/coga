@@ -191,3 +191,12 @@ the spec against main.
 ## Blockers
 
 - [ ] [2026-11-16 22:20] [agent:claude] id=20261116T222004 Activation condition unmet: design needs v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245; 04b-04d also wait on it) and v1/microkernel/06-read-report-commands-as-ticket-workflows (PR #1240, stateless publication contract) merged to main first. Unblock once both merge, or tell me to design against the open PR heads instead.
+
+## Coordination: branch-sweep simplification first (2026-11-17)
+
+`v1/why-is-the-code-so-big` is the pilot that simplifies
+`src/coga/branchsweep.py` (~1,730 lines, proposed target ≤ 300). Move the
+branch-sweep recipe only after that ticket lands, so this migration moves the
+small module instead of code that is about to be cut. Its spec also moves
+`discharge_owned_followups` to `autoclose.py` and drops
+`--publish-and-release-local`, which changes what this ticket would migrate.
