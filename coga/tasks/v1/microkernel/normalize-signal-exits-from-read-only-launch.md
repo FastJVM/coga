@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: ac9a902e-48a7-4b30-bca4-c93a99bf50bd
 ---
 
 ## Description
@@ -239,65 +238,79 @@ branch: normalize-signal-exits-from-read-only-launch
   was claimed, then carried across the switch (branch claim published first).
 - Local env: use `.venv/bin/python`; the PATH `python` lacks `tomlkit`.
 
+## Peer review
+
+- Codex completed a direct, independent review of Claude's implementation
+  plus the reviewer's documentation clarification at head `021746b1a1afc4fd2a44be2acd9d8e80e1c5cde3`
+  against base `6dacac7a45f8fc156b12e98661ed1f07af1b30d3`.
+- Finding resolved in the shipped script-tickets topic. The earlier wording
+  implied that a read-only signal exit also logs and posts a failure notice.
+  The final wording assigns those effects to stateful launches.
+- The shared executor normalizes before the read-only return. Stateful audit,
+  notification, and launch failure paths consume the same code. Positive
+  codes retain their meaning, including retry 75 and Windows DWORD handling.
+- The real read-only CLI in a scratch workspace returned 130, 137, and 143
+  when only the child received SIGINT, SIGKILL, and SIGTERM respectively.
+  Each run created no audit log. The code has no interactive rendering change.
+- Full Linux suite on Pop!_OS 24.04 LTS with Python 3.12.12,
+  `.venv/bin/python -m pytest -q` → 4976 passed, 33 skipped in 851.42s.
+  Native macOS and Windows checks are deferred to release. The Python 3.11
+  interpreter on this machine lacked the test dependencies.
+
 ## PR
 
 ```yaml
 title: Normalize signal-killed ticket.py exits to 128 + signal
 author: claude
 author_evidence: >-
-  Implement session ran as Claude Opus 5.5 (claude-opus-5-5) under megalaunch
-  (coga-launch d902ba98-161a-48db-b625-a2216b97516e).
-head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
-base: 89503cec07b530a8ae79b639df796d2e25a7b66f
+  Claude Opus 5.5 implemented the code, tests, and initial documentation in
+  megalaunch session d902ba98-161a-48db-b625-a2216b97516e. Codex independently
+  reviewed the implementation and authored the documentation clarification.
+head: 021746b1a1afc4fd2a44be2acd9d8e80e1c5cde3
+base: 6dacac7a45f8fc156b12e98661ed1f07af1b30d3
 depth: skim
 rationale: >-
-  One-line status mapping in the shared script executor plus two regression
-  tests and a doc sentence; check that read-only stays effect-free and that
-  non-negative codes (75) are untouched.
+  The shared executor has a bounded status conversion, verified on Linux
+  with real signal-killed children. The documentation distinguishes exit
+  reporting from the audit and notification effects of stateful launches.
 implementation: >-
-  Adds a private _normalize_exit_code helper in launch_script and applies it
-  to the ticket.py child's returncode before the read-only return, so every
-  script launch path reports 128 + N for a signal-killed child.
-deviations: None.
+  Maps negative child return codes to 128 + signal before the read-only
+  return, so script launch modes report the same exit status.
+deviations: >-
+  None.
 limitations: >-
-  POSIX only by construction; Windows never yields negative returncodes and
-  the new tests skip there. Windows/macOS not run (release-only tier).
+  Signal regression tests require POSIX. Native Windows and macOS checks
+  are deferred to release. The Linux suite ran on Python 3.12.12.
 files:
   src/coga/launch_script.py: >-
-    Normalize the ticket.py child's negative returncode to 128 + signal
-    before any consumer sees it.
+    Normalize the child return code before the script launch paths diverge.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: >-
-    Item 5 documents that a signal-killed child is reported as 128 + N.
+    Document the exit convention and scope audit and failure notices to
+    stateful launches.
   tests/test_launch_script.py: >-
-    Regression tests for a self-SIGTERM child on the stateful and read-only
-    paths asserting 143 in exit status, audit line and notice.
+    Exercise child-only SIGTERM on both the ordinary stateful path and
+    the read-only CLI. Check the stateful audit line and notification.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 021746b1a1afc4fd2a44be2acd9d8e80e1c5cde3
+  base: 6dacac7a45f8fc156b12e98661ed1f07af1b30d3
   detail: >-
-    No code review yet; the workflow's peer-review step follows implement.
+    Codex completed direct independent review of Claude's implementation.
+    Codex authored and checked the wording correction for read-only effects.
+    No unresolved findings.
 checks:
-  - command: .venv/bin/python -m pytest -q tests/test_launch_script.py
-    status: passed
-    head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
-    base: 89503cec07b530a8ae79b639df796d2e25a7b66f
-    detail: 92 passed on the committed, rebased head.
   - command: .venv/bin/python -m pytest -q
     status: passed
-    head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
-    base: 89503cec07b530a8ae79b639df796d2e25a7b66f
+    head: 021746b1a1afc4fd2a44be2acd9d8e80e1c5cde3
+    base: 6dacac7a45f8fc156b12e98661ed1f07af1b30d3
     detail: >-
-      4976 passed, 33 skipped. Ran on the uncommitted working tree before
-      commit; the three diff paths are byte-identical in the commit, and the
-      rebase only brought in this ticket's own state publication.
-  - command: >-
-      git stash -- src && .venv/bin/python -m pytest -q
-      tests/test_launch_script.py -k signal_killed
+      Pop!_OS 24.04 LTS, Python 3.12.12. 4976 passed, 33 skipped in 851.42s.
+  - command: git diff --check origin/main...HEAD
     status: passed
-    head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
-    base: 89503cec07b530a8ae79b639df796d2e25a7b66f
+    head: 021746b1a1afc4fd2a44be2acd9d8e80e1c5cde3
+    base: 6dacac7a45f8fc156b12e98661ed1f07af1b30d3
     detail: >-
-      Regression check, fix removed: both new tests failed (-15 and 241), as
-      expected; restored and they pass.
+      No whitespace errors.
 ```
