@@ -1,6 +1,6 @@
 ---
 title: Remove implicit publication and sync at session end
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -45,6 +45,7 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
+launch_generation: pending:24118624-c454-475f-87cd-981075bbd490
 ---
 
 ## Description
