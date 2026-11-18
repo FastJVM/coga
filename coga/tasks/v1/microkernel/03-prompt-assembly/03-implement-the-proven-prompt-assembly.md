@@ -464,3 +464,10 @@ The missing full-text evidence is now saved in [the evidence directory](03-imple
 | **Total** | **111707 / 27886** | **104676 / 26131** |
 
 Full Linux receipt at `8c53bcecc8cbe7b5125171a80c1593c7ef9966dc`, base `23e0a5b5f2a25d013e9a43209ab2301378de2d04`: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12; `PYTHONPATH=$PWD/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.pytest-coga-peer-review` → 4919 passed, 33 skipped in 804.60s (0:13:24). `git diff --check` passed. Python 3.11 unavailable; native Windows/macOS deferred to release. This change has no new terminal UI to exercise.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record the paired agent-trial method and composition known limits

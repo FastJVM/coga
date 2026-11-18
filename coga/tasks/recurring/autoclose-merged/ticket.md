@@ -114,3 +114,10 @@ Task: `recurring/autoclose-merged`
 
 - `v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling` "Record the prompt-assembly non-replacement ruling" — PR #1234:
   - `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md:152` by @chatgpt-codex-connector: "P1 Badge Keep the assembler experiment ruling in a local Coga-dev topic" — https://github.com/FastJVM/coga/pull/1234#discussion_r4570620245
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record the paired agent-trial method and composition known limits

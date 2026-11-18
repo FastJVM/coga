@@ -298,3 +298,10 @@ All eight blinded judgments recorded and sealed before unblinding. Owner approve
   - The group `README.md` table now lists 04 and 03's new scope.
 - **Machine:** `/etc/codex/requirements.toml` restored. The `/tmp/coga-quality-trial*` fixtures and the scratchpad venv are disposable.
 
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record the paired agent-trial method and composition known limits

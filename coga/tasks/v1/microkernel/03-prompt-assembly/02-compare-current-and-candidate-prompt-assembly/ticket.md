@@ -220,3 +220,10 @@ ordinary ticket.
   - optionally remove the `[projects."/tmp/coga-prompt-trial-667707cc"]` trust entry (D2b) from `~/.codex/config.toml`;
   - the fixtures under `/tmp/coga-prompt-trial-*` are disposable.
 - **Attachments added this step:** `blind.py` (pack builder), the `probe` command in `adapter.py`, and `report.md`. All are disposable trial tooling, not core.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record the paired agent-trial method and composition known limits

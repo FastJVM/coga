@@ -281,3 +281,10 @@ pass `-m gpt-6.1-sol -c model_reasoning_effort="medium"` on every run. Codex
 exec has no seed/temperature flag. Still open for the owner before ticket
 02's first session: trial/prototype revision, sandbox/approval policy,
 environment-key policy, and a recheck of all pins.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record the paired agent-trial method and composition known limits

@@ -5,6 +5,10 @@ description: How to run and trust Coga's test suite and validation from a checko
 
 # Testing Coga
 
+To measure whether a prompt or composition change makes agents behave or
+write better, run a paired, blinded trial as
+[agent-behavior trials](agent-trials/SKILL.md) describes.
+
 ## Commands
 
 ```sh
