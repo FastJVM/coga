@@ -4259,3 +4259,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 09:43 v1 [fix-the-windows-aws-walk-step-and-add-the-v1-14-at] [human:nicktoper] created (status=draft)
 2026-11-18 09:43 v1 [fix-the-readme-windows-walk-findings-left-unowned] [human:nicktoper] created (status=draft)
 2026-11-18 09:43 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [human:nicktoper] created (status=draft)
+2026-11-18 09:43 v1 [decide-the-two-open-questions-left-by-the-checkout] [human:nicktoper] created (status=draft)
