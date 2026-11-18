@@ -170,6 +170,11 @@ end-of-command state sweep
 one argv argument is delivered as a pointer to the prompt file;
 such a size usually means context bloat.
 
+The CLI diagnostic refreshes the ignored `.agent-skills/` view. For a
+write-free report, call `compose.compose_prompt_report` directly. The flag
+stays with launch because it reports the launch-selected composition and
+provenance, rather than an independent ticket report.
+
 ## Assembler ruling
 
 The production assembler — `compose.compose_prompt_report`, the authoring

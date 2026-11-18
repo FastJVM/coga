@@ -52,15 +52,12 @@ _LAZY_COMMANDS: dict[str, tuple[str, str, dict[str, object]]] = {
     "ticket": ("coga.commands.ticket", "ticket", {}),
     "launch": ("coga.commands.launch", "launch", {}),
     "megalaunch": ("coga.commands.megalaunch", "megalaunch", {}),
-    "status": ("coga.commands.status", "status", {}),
-    "show": ("coga.commands.show", "show", {}),
     "bump": ("coga.commands.bump", "bump", {}),
     "block": ("coga.commands.block", "block", {}),
     "unblock": ("coga.commands.unblock", "unblock", {}),
     "owner": ("coga.commands.owner", "owner", {}),
     "delete": ("coga.commands.delete", "delete", {}),
     "slack": ("coga.commands.slack", "slack", {}),
-    "usage": ("coga.commands.usage", "usage", {}),
     "validate": ("coga.commands.validate", "validate", {}),
     "skill": ("coga.commands.skill", "app", {}),
     "mark": ("coga.commands.mark", "app", {}),
@@ -147,7 +144,7 @@ def _root(
 # and run with a possibly-absent config — not the steady-state boundary the
 # sweep is for.
 _NON_SWEEPING_COMMANDS = frozenset(
-    {"status", "show", "validate", "usage", "init", "uninstall"}
+    {"validate", "init", "uninstall"}
 )
 _SWEEPING_COMMANDS = frozenset(
     {

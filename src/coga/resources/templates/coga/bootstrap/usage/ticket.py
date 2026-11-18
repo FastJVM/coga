@@ -1,5 +1,3 @@
-"""`coga usage` — read token-usage records from the repo-global log."""
-
 from __future__ import annotations
 
 import json
@@ -14,6 +12,10 @@ from coga.usage import Rollup, load_records, rollup
 BY_CHOICES = ("task", "model", "agent", "step")
 
 
+app = typer.Typer(add_completion=False)
+
+
+@app.command()
 def usage(
     by: str = typer.Option(
         "task",
@@ -106,3 +108,7 @@ def _format_overall(result: Rollup) -> str:
         f"cache_read={overall.cache_read_input_tokens} "
         f"output={overall.output_tokens}"
     )
+
+
+if __name__ == "__main__":
+    app(prog_name="coga usage")

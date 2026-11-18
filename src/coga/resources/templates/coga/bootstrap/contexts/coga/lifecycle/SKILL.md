@@ -142,7 +142,8 @@ Pausing preserves the step; cancellation clears it.
 
 ## Triage: `coga status`
 
-A pure read: no mutation, no network. It lists live tasks; `--all` adds
+The editable report lives in [bootstrap/status](../../../status/ticket.md),
+reached through a read-only alias. A pure read: no mutation, no network. It lists live tasks; `--all` adds
 terminal ones with separate counts. `coga status <dir>` limits to a subtree,
 `--no-recurse` to one level, `--dirs` lists plain directories instead; an
 unknown directory fails listing those that exist. `updated` comes from the

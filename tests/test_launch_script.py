@@ -2203,3 +2203,77 @@ def test_ordinary_bootstrap_keeps_user_requirement_and_exit_publication(
         main()
     assert exc.value.code == 0
     assert len(calls) >= 1
+
+
+@pytest.mark.parametrize("name,argv", [
+    ("show", ["show", "missing"]),
+    ("status", ["status", "--order-by", "invalid"]),
+    ("usage", ["usage", "--by", "invalid"]),
+    ("recurring-list", ["recurring", "list", "--invalid"]),
+])
+@pytest.mark.parametrize("branch", ["main", "feature"])
+def test_packaged_reports_preserve_dirty_git_checkout(
+    read_only_repo: Path, name: str, argv: list[str], branch: str,
+) -> None:
+    """Real alias/subcommand dispatch preserves files, index, HEAD and refs."""
+    root = read_only_repo.parent
+    def git_command(*args: str) -> bytes:
+        return subprocess.check_output(["git", "-C", str(root), *args])
+    git_command("init", "-b", "main")
+    git_command("config", "core.autocrlf", "false")
+    git_command("add", ".")
+    git_command("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "seed")
+    if branch != "main":
+        git_command("checkout", "-b", branch)
+    # Dirty tracked log plus untracked ticket, context and full local definition.
+    _write(read_only_repo / "log.md", "unpublished audit\n")
+    _write(read_only_repo / "tasks" / "sample.md",
+           "---\ntitle: Sample\nstatus: draft\n---\n\n## Description\nSample\n\n<!-- coga:blackboard -->\n")
+    _write(read_only_repo / "contexts" / "dirty.md", "unpublished context\n")
+    source = _SOURCE_ROOT / "src/coga/resources/templates/coga/bootstrap" / name
+    shutil.copytree(source, read_only_repo / "bootstrap" / name,
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    def snapshot() -> dict[Path, bytes]:
+        return {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    before = snapshot()
+    status = git_command("status", "--porcelain=v1")
+    refs = git_command("show-ref", "--head")
+    env = dict(os.environ, PYTHONPATH=str(_SOURCE_ROOT / "src"),
+               PYTHONDONTWRITEBYTECODE="1", TERM="dumb")
+    normal = ["show", "sample"] if name == "show" else ["recurring", "list"] if name == "recurring-list" else [name]
+    for command, expected in ((normal, 0), ([*(normal[:2] if name == "recurring-list" else normal[:1]), "--help"], 0), (argv, 2)):
+        result = subprocess.run([sys.executable, "-m", "coga.cli", *command],
+                                cwd=read_only_repo, env=env, capture_output=True, text=True)
+        assert result.returncode == expected, result.stderr
+        assert "state sweep withheld" not in result.stderr
+        assert snapshot() == before
+        assert git_command("status", "--porcelain=v1") == status
+        assert git_command("show-ref", "--head") == refs
+    assert not (root / ".agent-skills").exists()
+
+
+@pytest.mark.parametrize("argv", [
+    ["show", "missing"], ["status"], ["usage"], ["recurring", "list"],
+])
+def test_report_dispatch_uses_read_executor_without_writer_effects(
+    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str],
+) -> None:
+    from coga.cli import main
+    from types import SimpleNamespace
+    for name in ("sync_coga_state", "refresh", "prepare_control_checkout", "sync_log", "sync_task_state", "publish"):
+        monkeypatch.setattr(git, name, _fail(name))
+    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch", "_preflight_push_auth"):
+        monkeypatch.setattr(launch_module, name, _fail(name))
+    calls = []
+    def script_spawn(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr("coga.launch_script.subprocess.run", script_spawn)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    monkeypatch.setattr(sys, "argv", ["coga", *argv])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    assert len(calls) == 1
+    assert calls[0][0][1].endswith("ticket.py")
+    assert "COGA_SUPERVISED" not in calls[0][1]["env"]

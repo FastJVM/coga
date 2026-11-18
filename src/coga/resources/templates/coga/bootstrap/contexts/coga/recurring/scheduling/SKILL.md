@@ -153,7 +153,10 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
   identifies a possible unpublished tail and offers
   [publication recovery](../../state-publication/SKILL.md#a-stranded-log-tail-blocking-catch-up).
   It preserves the tail and the refusal; no recovery runs automatically.
-- `coga recurring list` is read-only: templates, firings, period state.
+- `coga recurring list` forwards to the editable
+  [bootstrap/recurring-list](../../../../recurring-list/ticket.md) report through
+  read-only launch. The fixed adapter preserves the two-word spelling;
+  selection and presentation live beside the ticket.
   `coga recurring promote` is in [templates](../templates/SKILL.md#promotion).
 
 Every launching entry point runs from the control branch and honors the

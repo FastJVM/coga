@@ -61,6 +61,14 @@ argv-parsing adapter calling the same launch API. A read-only entry rejects
 write operands; a child cannot upgrade its dispatch policy. Ordinary launch
 remains the default and retains its publication and completion boundaries.
 
+The shipped report aliases and the `recurring list` adapter use this same
+boundary; their owning command tickets define selection and presentation.
+Use `--` before script flags so `--help` reaches the report parser. Report
+help therefore describes the effective, possibly local, script and needs the
+same valid repo configuration: outside a repository, or with a broken
+`coga.toml`, `coga status --help` refuses with exit 2 like any other read
+(owner decision, 2026-11-16, accepted over a package-only help fallback).
+
 ## Checkout boundary
 
 Ordinary task launches and direct chats prepare current control before

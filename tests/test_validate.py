@@ -3095,3 +3095,82 @@ def test_validate_accepts_absent_resource_root(repo: Path) -> None:
     report = run(load_config(repo))
 
     assert not [i for i in report.issues if i.kind == "unreadable-resource-override"]
+
+
+@pytest.mark.parametrize("module_entry", [False, True])
+def test_validation_entries_fix_only_selected_ticket_without_user_or_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, module_entry: bool,
+) -> None:
+    import json
+    import os
+    import subprocess
+    import sys
+    root = tmp_path / "coga"
+    _write(root / "coga.toml", 'version = 1\n[git]\nenabled = true\n[notification]\nchannels = []\n')
+    content = '---\ntitle: Kept title\nstatus: draft\nowner: tester\nworkflow: null\n---\n\n## Description\nKeep this exact body.\n'
+    selected = root / "tasks" / "selected.md"
+    unrelated = root / "tasks" / "unrelated.md"
+    _write(selected, content)
+    _write(unrelated, content)
+    _write(root / "log.md", "Unpublished audit\n")
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"), TERM="dumb")
+    env.pop("SLACK_WEBHOOK_URL", None)
+    argv = ["-m", "coga.validate"] if module_entry else ["-m", "coga.cli", "validate"]
+    result = subprocess.run([sys.executable, *argv, "--task", "selected", "--fix", "--json"],
+                            cwd=root, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["ok_count"] == 1
+    assert [f["kind"] for f in payload["fixes"]] == ["blackboard-fence"]
+    assert selected.read_text().startswith(content.rstrip("\n") + "\n\n<!-- coga:blackboard -->")
+    assert unrelated.read_text() == content
+    assert (root / "log.md").read_text() == "Unpublished audit\n"
+    assert not (root / ".agent-skills").exists()
+
+
+def test_safe_fix_refuses_concurrent_ticket_write(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from coga import validate as validator
+    from coga.taskfile import TaskFileError
+    cfg = load_config(repo)
+    path = repo / "tasks" / "concurrent.md"
+    _write(path, '---\ntitle: Concurrent\nstatus: draft\n---\n\n## Description\nOriginal.\n')
+    original = validator.render_blackboard
+    def racing_render(*args, **kwargs):
+        path.write_text(path.read_text() + "Concurrent edit.\n", encoding="utf-8")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(validator, "render_blackboard", racing_render)
+    with pytest.raises(TaskFileError, match="ticket changed"):
+        apply_safe_fixes(cfg)
+    assert path.read_text().endswith("Concurrent edit.\n")
+    assert "<!-- coga:blackboard -->" not in path.read_text()
+
+
+@pytest.mark.parametrize("probe", ["--check-slack", "--check-github"])
+def test_module_entry_refuses_probe_with_task_using_short_message(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, probe: str
+) -> None:
+    monkeypatch.chdir(repo)
+
+    assert _main(["--task", "anything", probe]) == 2
+    assert capsys.readouterr().err == f"{probe} is not supported with --task\n"
+
+
+def test_validation_entries_do_not_mask_internal_value_errors(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from coga.cli import app
+    import coga.validate as validate_module
+
+    def broken(*args, **kwargs):
+        raise ValueError("internal; failure")
+
+    monkeypatch.setattr(validate_module, "run", broken)
+    monkeypatch.chdir(repo)
+
+    with pytest.raises(ValueError, match="internal; failure"):
+        _main(["--json"])
+    result = CliRunner().invoke(app, ["validate", "--json"])
+    assert isinstance(result.exception, ValueError)
+    assert result.exit_code != 2

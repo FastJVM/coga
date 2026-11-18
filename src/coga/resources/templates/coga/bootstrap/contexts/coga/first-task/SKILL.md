@@ -52,6 +52,12 @@ warns when `user` is unset. Network probes are opt-in:
 ([coga/notifications](../notifications/SKILL.md)). Neither combines with
 `--task`.
 
+Validation remains a core command. Its CLI and `python -m coga.validate`
+entry share execution and JSON/text rendering; `validate-drift` consumes the
+module entry. Both need no configured user and never publish, including
+`--fix`, which only applies conservative local blackboard-fence repairs under
+a state lock and refuses concurrent changes.
+
 These checks do not test agent authentication or complete a first task.
 
 On an empty repo, `init` seeded an onboarding ticket. `coga build` is a

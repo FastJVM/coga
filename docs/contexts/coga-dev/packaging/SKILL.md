@@ -22,6 +22,11 @@ editing `bootstrap/workflows/code/*.md` changes what `mark_active` freezes into
 Coga's own tickets. Check which side is live before assuming an edit is
 downstream-only.
 
+The four report command directories (`show`, `status`, `usage`,
+`recurring-list`) ship both `ticket.md` and their full `ticket.py`
+implementations. The required-resource manifest pins these owners; wheel
+verification exercises local overrides without a live repository mirror.
+
 ## Distribution states for a context
 
 - **Bootstrap fallback**: `templates/coga/bootstrap/contexts/<ref>/SKILL.md`

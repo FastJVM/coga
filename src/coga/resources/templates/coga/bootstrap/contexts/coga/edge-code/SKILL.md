@@ -51,6 +51,11 @@ Phone-home's module is self-contained, so a copy of the single file works as
 a local fork. The migration procedure includes source inspection and copy
 commands; do not run production telemetry to find its source.
 
+Report command tickets ship complete scripts under `bootstrap/`, rather
+than import wrappers in `coga_edge`. Copy the whole selected directory to
+`coga/bootstrap/<name>/` for a local fork, including any helpers. Removing
+that override restores package updates.
+
 ## Audit retention adoption
 
 Fresh init selects the weekly trim-log job with default-on 30-day retention.

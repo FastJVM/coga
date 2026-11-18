@@ -8,6 +8,8 @@ still run there; only commands that act *as* someone keep the hard
 
 from __future__ import annotations
 
+from report_helpers import report_cli
+
 import json
 from pathlib import Path
 from textwrap import dedent
@@ -160,13 +162,13 @@ def test_inherited_assist_still_sweeps_cli_state(
 
 
 def test_status_runs_without_user(clone: Path) -> None:
-    result = CliRunner().invoke(app, ["status"])
+    result = report_cli(["status"])
     assert result.exit_code == 0
     assert "fix-retry-logic" in result.output
 
 
 def test_show_runs_without_user(clone: Path) -> None:
-    result = CliRunner().invoke(app, ["show", "fix-retry-logic"])
+    result = report_cli(["show", "fix-retry-logic"])
     assert result.exit_code == 0
     assert "fix-retry-logic" in result.output
 
@@ -195,7 +197,7 @@ def test_task_validate_runs_and_warns_without_user(clone: Path) -> None:
 
 
 def test_usage_runs_without_user(clone: Path) -> None:
-    result = CliRunner().invoke(app, ["usage"])
+    result = report_cli(["usage"])
     assert result.exit_code == 0
 
 
@@ -206,7 +208,7 @@ def test_skill_status_runs_without_user(clone: Path) -> None:
 
 
 def test_recurring_list_runs_without_user(clone: Path) -> None:
-    result = CliRunner().invoke(app, ["recurring", "list"])
+    result = report_cli(["recurring", "list"])
     assert result.exit_code == 0
     assert "(no recurring templates)" in result.output
 

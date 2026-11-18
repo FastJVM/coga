@@ -27,9 +27,11 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 
 | Command | Owner |
 | --- | --- |
-| `create`, `ticket`, `show` | [coga/tickets/authoring](../tickets/authoring/SKILL.md) |
+| `create`, `ticket` | [coga/tickets/authoring](../tickets/authoring/SKILL.md) |
+| `show` → `launch --read-only bootstrap/show --` | [report ticket](../../../show/ticket.md) |
+| `status` → `launch --read-only bootstrap/status --` | [report ticket](../../../status/ticket.md) |
 | `owner` | [coga/tickets](../tickets/SKILL.md#owner-and-relationships) |
-| `mark`, `bump`, `block`, `unblock`, `status` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
+| `mark`, `bump`, `block`, `unblock` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete` | [coga/checkout-cleanup](../checkout-cleanup/SKILL.md) |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
 | `open-pr` → `run open-pr` | [coga/pr-publication](../pr-publication/SKILL.md) |
@@ -42,7 +44,8 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `launch` | [coga/launch](../launch/SKILL.md); script phase: [coga/script-tickets](../script-tickets/SKILL.md) |
 | `chat` → `launch bootstrap/orient` | [coga/launch](../launch/SKILL.md) |
 | `megalaunch`, `pick` → `megalaunch --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
-| `recurring` (`--force`, `--all`, `launch`, `promote`, `list`) | [coga/recurring](../recurring/SKILL.md) and its children |
+| `recurring` (`--force`, `--all`, `launch`, `promote`) | [coga/recurring](../recurring/SKILL.md) and its children |
+| `recurring list` → `launch --read-only bootstrap/recurring-list --` (fixed adapter) | [report ticket](../../../recurring-list/ticket.md) |
 | `dream` → `recurring launch dream` | [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) |
 | `autoclose` → `recurring launch autoclose-merged --rerun` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |
 | `skill-update` → `recurring launch skill-update` | [coga/skill-management](../skill-management/SKILL.md) |
@@ -54,7 +57,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `run <recipe>` and `[aliases]` | [coga/extension-model](../extension-model/SKILL.md) |
 | `skill` | [coga/skill-management](../skill-management/SKILL.md) |
 | `slack` | [coga/notifications](../notifications/SKILL.md) |
-| `usage` | [coga/usage](../usage/SKILL.md) |
+| `usage` → `launch --read-only bootstrap/usage --` | [report ticket](../../../usage/ticket.md); [read API](../usage/SKILL.md) |
 
 ## Aliases and recipes
 
