@@ -2,14 +2,81 @@
 title: Remove dead megalaunch agent lookup
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-Peer review of PR #1233, finding 9, identified an unused agent lookup in megalaunch preflight. Verify that it has no required validation or diagnostic effect, then remove the dead lookup and keep readiness resolution authoritative. Owner explicitly deferred this finding from the report extraction PR on 2026-11-16. Source: v1/microkernel/06-read-report-commands-as-ticket-workflows, Peer review.
+The peer review of PR #1233 (merge `93c95405e`), finding 9, found an agent
+lookup in megalaunch's preflight whose result is never used:
+`megalaunch._preflight_agent_launch` opens with
+`agent = cfg.agent_type(launch_agent or "")` and returns the `ConfigError`
+text on failure, but nothing reads `agent` afterwards. The authoritative
+lookup happens later, inside `launch.prepare_agent_launch`, which calls
+`cfg.agent_type(launch_agent)` again and turns a `ConfigError` into
+`AgentPreparationError`. `_preflight_agent_launch` already returns that error
+as its refusal string. The owner deferred this finding from the report
+extraction PR on 2026-11-16 (source:
+`v1/microkernel/06-read-report-commands-as-ticket-workflows`, "Publication
+obligations").
+
+First confirm that the early lookup has no required validation or diagnostic
+effect. Then remove it, so that `prepare_agent_launch` is the only place
+megalaunch preflight resolves the agent.
+
+Also narrow `_preflight_agent_launch`'s `launch_agent` parameter from
+`str | None` to `str` and drop both `launch_agent or ""` fallbacks. The only
+call site passes `agent_override or operator.name`, which is always a `str`.
+
+Done when:
+- The early `cfg.agent_type` call, with its `try`/`except`, is gone from
+  `_preflight_agent_launch`.
+- `launch_agent` is typed `str`.
+- A new test calls `_preflight_agent_launch` directly with an unconfigured
+  agent name. It asserts that the returned string is the `ConfigError` text
+  and that no ticket or log bytes changed.
+- `python -m pytest` passes.
 
 ## Context
+
+### What to verify before deleting
+
+An independent review (2026-11-17) already confirmed the points below.
+Re-check them against current source; don't assume they still hold.
+
+- **The lookup is dead, and the real one comes first.** `cfg.agent_type` is
+  still the first fallible call inside `prepare_agent_launch`, before the CLI
+  `which` check, prompt composition and secret resolution. That keeps an
+  unknown agent's refusal text identical to today's.
+- **No side effects sit between the two lookups.** The code in between only
+  calls `ticket.render()`, makes an in-memory `Ticket` copy and generates a
+  `uuid4()`. Activation and `mark_in_progress` run only after preflight
+  returns.
+- **The bad-agent path can't be reached through `megalaunch()`.** `--agent`
+  is validated when megalaunch starts, `bump.resolve_main_agent` rejects
+  unconfigured names, and config loading rejects a peer that isn't
+  configured. So moving the agent refusal after the status and
+  launch-generation refusals has no practical effect. Say so in the PR. It
+  is also why the test has to call `_preflight_agent_launch` directly. No
+  existing test pins this refusal: the authoring-path agent test in
+  `tests/test_megalaunch.py` covers a different path.
+- Keep the separate `cfg.agent_type(agent_override)` validation near the top
+  of megalaunch's entry function. It validates `--agent` up front for the
+  whole run, which is a different job, and it is out of scope.
+
+### Docs
+
+`docs/contexts/coga-dev/internals/launch-claims/SKILL.md` (cited, not
+attached) describes `_preflight_agent_launch` as materializing "the exact
+prompt, secret environment … and agent that spawn will use". That is still
+true after the change. Update it only if you change the documented refusal
+order.
+
+### Related
+
+The sibling ticket `preserve-supervised-environment-in-megalaunch-wind`
+(finding 2) edits the same function's Windows preflight. Reconcile with
+`main` before publishing, in case it landed first.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
