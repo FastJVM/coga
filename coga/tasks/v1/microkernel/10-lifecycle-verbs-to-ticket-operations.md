@@ -1,6 +1,6 @@
 ---
 title: Move lifecycle verbs to ticket operations
-status: active
+status: in_progress
 owner: nicktoper
 agent: codex
 contexts:
