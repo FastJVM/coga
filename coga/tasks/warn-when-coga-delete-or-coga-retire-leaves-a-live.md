@@ -41,9 +41,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 48101d2b-221f-49fa-97b0-c05a6ab2830c
 ---
 
 ## Description
@@ -533,3 +532,77 @@ Investigation notes:
    could prompt before deleting when it finds hits. The proposal rejects that
    to keep one behaviour for every caller and to avoid any risk of an
    unattended hang. Confirm.
+
+## Evaluator review
+
+Resolve the following before implementation.
+
+1. **Use the qualified task identity.** In `src/coga/tasks.py`,
+   `discover_tasks` constructs `TaskRef.slug` from the leaf and stores the
+   parent separately. For `recurring/dream`, `slug` is `dream`, so the
+   proposed early return never fires. A nested ordinary task would also get
+   the wrong root-relative prefix if the matcher uses `ref.slug`. Specify
+   `ref.id_slug` for the qualified path, `ref.slug` for the leaf query, and
+   the exact recurring namespace exemption. Test a tracked link to a nested
+   ordinary task and assert that a real `recurring/<name>` ref never invokes
+   Git discovery or grep.
+2. **Match the path actually removed.** Rule (a) accepts any dot or slash
+   after the slug. When deleting file-form `foo.md`, this warns for
+   `coga/tasks/foo.md.bak`, `coga/tasks/foo.bar.md` and
+   `coga/tasks/foo/other.md`. The same dot rule accepts a sibling of a
+   directory-form ticket. `delete_task.run_delete_task` removes exactly the
+   file or the directory subtree. Define the supported token delimiters and
+   suffixes, then use the exact file target or a directory component boundary
+   for root-relative, relative and URL targets. Explicitly decide whether a
+   bare extensionless path for file form counts. Include positive relative
+   links with fragments, a directory attachment, and dot-sibling negatives as
+   classifier cases.
+3. **Define URL ref parsing and scope.** The promise to recognize any branch
+   includes slash-containing refs, such as
+   `/blob/release/next/coga/tasks/foo.md`. A single-component ref parser
+   misses those. A hex-shaped branch can also satisfy the OID heuristic, and
+   the rule as written matches a URL into another repository with the same
+   path. Specify how to find the path boundary, whether external repository
+   URLs are in scope, and whether hex-shaped refs are deliberately treated as
+   permalinks without verification. Add a slash-ref positive and an OID
+   negative for the chosen policy.
+4. **State which tree the warning covers.** The prescribed `git grep`
+   inspects tracked working-tree contents in the invoking checkout.
+   `commands/delete.delete` can land a removal from a linked worktree, and
+   `coga/state-publication` (“Control versus feature checkouts”) also allows
+   routine state publication from feature and detached checkouts. A link
+   added only on control can therefore go unwarned. Choose whether to check
+   the control tree too or document the advisory as limited to the invoking
+   checkout. Align the acceptance criteria and docs with that choice.
+5. **Complete the advisory failure contract.** In `src/coga/git.py`,
+   `toplevel` calls `_run`, which raises `GitError` when Git is missing.
+   The guard must cover discovery as well as grep. Specify that a scan
+   failure emits one skip line, a successful empty scan emits nothing, and
+   existing deletion or publication failures retain their current behavior.
+   Add coverage for discovery failure, grep exit 1, and grep failure. Give
+   the grep output a reliable path/line delimiter, since a tracked POSIX
+   filename can contain a colon, and pin normal output so Git formatting
+   settings cannot silently change what the parser reads.
+
+### Optional recommendations
+
+- Use Git-enabled tracked-file fixtures for the positive CLI cases. The
+  autouse `_stub_git` in `tests/conftest.py` stubs publication by default.
+  Exercise retire through its alias subprocess using the pattern in
+  `tests/test_retire.py::test_retire_alias_deletes_a_done_ticket` to check
+  stderr survives script dispatch. Put the promotion case beside the
+  existing promotion cases in `tests/test_recurring.py`.
+- The promotion documentation owner is `coga/recurring/templates`
+  (“Promotion”). `coga/tickets/discovery` already explains how to recover
+  a deleted ticket from the deleting commit's parent. The same section can
+  name that parent as the permalink target.
+- Record the archive decision in the composed body. The repository's
+  archive-access rule governs agent searches, and Retro explicitly honors
+  repository search exclusions. If the runtime diagnostic includes archive
+  paths and line excerpts, distinguish that decision from agent search
+  permissions in the docs.
+
+The warning-only approach and three call sites fit one PR. The shared helper
+meets the microkernel consumer rule, and the frozen workflow gives the next
+decision to the owner on control. The required sections are correctly nested
+under Description and Context. PR #1214 is present in main's Git history.
