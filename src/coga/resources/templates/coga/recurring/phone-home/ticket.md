@@ -115,9 +115,11 @@ excludes templates, READMEs and attachments. Explicit zeros for all seven
 `lifecycle.VALID_STATUSES`. Never send partial counts from invalid inventory.
 
 Movement counts complete valid timestamp/ref/actor audit envelopes for work
-refs (including deleted tasks), using the versioned/legacy decoding contract
-in [coga-dev/internals/spool-merge](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md). The decoded
-message is exactly one of:
+refs (including deleted tasks), read through shared core
+(`logfile.parse_events`, `logfile.decode_log_message`): lines split on LF
+only, a `v1`-marked message is decoded before matching, an unmarked legacy
+message is read raw, and a timestamp-less continuation line is never an
+event. The decoded message is exactly one of:
 
 - `advanced to step <positive integer> (<step name>)`, optionally followed by
   the producer's ` → <operator>` handoff and/or ` — <FYI>` suffix;

@@ -157,16 +157,35 @@ for real — it just resolves somewhere harmless. This writes `$S/sbx.env` with 
 value for each: a secret whose name mentions `WEBHOOK` gets its own catcher
 path, anything else a placeholder.
 
+A package-backed job's definition lives in the installed package, not the
+clone (its `coga/recurring/<name>/ticket.md` is a state-only carrier), so the
+rewrite reaches only local definitions. The block therefore walks the
+effective catalog (`recurring.iter_template_sources`,
+[coga/recurring/templates](context:coga/recurring/templates)) and stops when a
+package definition declares an `op://` ref; fork that job locally under
+[coga/edge-code](context:coga/edge-code) before firing it here. `COGA_PY` is
+the interpreter the installed `coga` runs under.
+
 ```bash
 cd $S/repo
 . $S/port.env
-python3 - "$PORT" > $S/sbx.env <<'EOF'
-import pathlib, re, sys
+COGA_PY=$(sed -n '1s/^#!//p' "$(command -v coga)")
+"$COGA_PY" - "$PORT" > $S/sbx.env <<'EOF'
+import re, sys
+from coga.config import load_config
+from coga.recurring import iter_template_sources
 port = sys.argv[1]
 ref = re.compile(r"^(\s*-?\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:\s*)op://\S+", re.M)
 names = set()
-for t in sorted(pathlib.Path("coga/recurring").glob("*/ticket.md")):
+for src in iter_template_sources(load_config(require_user=False)):
+    t = src.ticket_path
+    if t is None or not t.is_file():
+        continue
     text = t.read_text()
+    if src.origin != "local":
+        if ref.search(text):
+            sys.exit(f"package job {src.name} declares op:// secrets; fork it locally first")
+        continue
     new = ref.sub(lambda m: (names.add(m[2]), f"{m[1]}{m[2]}{m[3]}env:SBX_{m[2]}")[1], text)
     if new != text:
         t.write_text(new)
@@ -245,12 +264,24 @@ Why each piece:
   catcher fails rather than reaching the internet. Keep `NO_PROXY` pointed at
   localhost or the catcher is unreachable too.
 
-Derive which templates can fire headless rather than trusting a list:
+Derive which templates can fire headless rather than trusting a list. Check
+each job's effective definition, local override else package: a
+package-backed job's `coga/recurring/<name>/` holds only a state-only
+carrier, so globbing the clone for `ticket.py` labels every package script
+job `agent`.
 
 ```bash
-for t in coga/recurring/[!_]*/; do
-  [ -f "$t/ticket.py" ] && echo "script  $(basename $t)" || echo "agent   $(basename $t)"
-done
+COGA_PY=$(sed -n '1s/^#!//p' "$(command -v coga)")
+"$COGA_PY" - <<'EOF'
+from coga.config import load_config
+from coga.recurring import iter_template_sources
+for s in iter_template_sources(load_config(require_user=False)):
+    if s.definition_dir is None:
+        print(f"none    {s.name} ({s.error or s.reason})")
+        continue
+    kind = "script" if (s.definition_dir / "ticket.py").is_file() else "agent"
+    print(f"{kind:<7} {s.name} [{s.origin}]")
+EOF
 ```
 
 ## What to check after a firing
