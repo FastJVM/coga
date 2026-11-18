@@ -4262,3 +4262,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 09:43 v1 [decide-the-two-open-questions-left-by-the-checkout] [human:nicktoper] created (status=draft)
 2026-11-18 09:45 v1 [decide-where-the-google-helper-skills-read-their-c] [human:nicktoper] created (status=draft)
 2026-11-18 09:50 v1 [recurring/dream] [agent:claude] slack: Dream W47: validate-drift 13 human-needed (all already ticketed); scans 47 findings; 5 knowledge PRs + 23 direct deletes; 5 proposal PRs (#1260–#1264); 9 drafts; 0 upstream; retirement debt 2 done+checkout + 41 canceled
+2026-11-18 09:51 v1 [recurring/dream] [agent:claude] task done — Dream W47: 5 knowledge PRs, 23 direct deletes, 5 proposal PRs, 9 drafts
