@@ -1,6 +1,6 @@
 ---
 title: Trim retained audit history
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 1 (trim)
 ---
 
 ## Description
@@ -69,3 +68,7 @@ for explicit adoption, native Git conflict recovery and interrupted runs.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Trim log
+
+Removed 6744 events / 2059602 bytes; retained 4182 events / 1208966 bytes. Preservation counts/bytes: {'existing-task': (2589, 566456), 'ledger': (14, 1394), 'pause': (14, 1394), 'recent': (2911, 1020494)}.
