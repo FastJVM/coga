@@ -200,3 +200,9 @@ branch-sweep recipe only after that ticket lands, so this migration moves the
 small module instead of code that is about to be cut. Its spec also moves
 `discharge_owned_followups` to `autoclose.py` and drops
 `--publish-and-release-local`, which changes what this ticket would migrate.
+
+---
+
+## Blocker reminders
+
+- d09c90ff76bd last_reminded: 2026-11-18 09:02
