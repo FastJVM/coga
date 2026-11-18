@@ -11435,3 +11435,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 20:58 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 20:58 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 20:58 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [megalaunch] launched via coga megalaunch
+2026-11-17 21:01 v1 [warn-when-coga-delete-or-coga-retire-leaves-a-live] [agent:claude] advanced to step 2 (evaluate-design) → codex — Spec written: warn-only shared helper used by delete, the retire done path and promote; run_delete_task unchanged. 3 open questions on the blackboard.
