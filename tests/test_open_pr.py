@@ -1554,3 +1554,48 @@ def test_open_pr_limits_long_titles_without_losing_ticket(tmp_path, monkeypatch,
     assert original_title in data["body"]
     if prepared:
         assert prep["title"] in data["body"]
+
+
+def _oversized_presentation(tmp_path, monkeypatch, limit: int, prose: str = "Bounded."):
+    import coga.open_pr as open_pr_module
+    from coga.taskfile import split_body
+
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    paths = [f"results/run-{i:03d}/receipt-{i:03d}.json" for i in range(60)] + ["coga/change.txt"]
+    prep["files"] = {path: "Retain the run receipt." for path in paths}
+    prep["implementation"] = prose
+    ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
+    above, blackboard = split_body(ticket.body)
+    monkeypatch.setattr(open_pr_module, "_BODY_LIMIT", limit)
+    changes = [("A", paths[:-1]), ("M", paths[-1:])]
+    return lambda: open_pr_module._pr_presentation(
+        ticket, blackboard, above, "presentation",
+        head=prep["head"], base=prep["base"], changes=changes,
+    )
+
+
+def test_open_pr_groups_changed_files_only_when_body_exceeds_limit(tmp_path, monkeypatch):
+    render = _oversized_presentation(tmp_path, monkeypatch, limit=10**6)
+    _, full = render()
+    assert "<code>results/run-007/receipt-007.json</code> | A |" in full
+    assert "Grouped by directory" not in full
+
+    render = _oversized_presentation(tmp_path / "small", monkeypatch, limit=len(full) - 1)
+    title, grouped = render()
+    assert len(grouped) <= len(full) - 1
+    assert "Grouped by directory to fit GitHub's" in grouped
+    assert "<code>results/run-007/</code> | 1 (A×1) |" in grouped
+    assert "<code>coga/</code> | 1 (M×1) |" in grouped
+    assert "receipt-007.json" not in grouped
+    # Ticket snapshot, receipts and the managed markers stay intact.
+    assert "Ship the change" in grouped and "3 passed." in grouped
+    assert grouped.startswith("<!-- coga:pr:v1 title=") and grouped.endswith("<!-- /coga:pr -->\n")
+    assert title.startswith("[skim ·")
+
+
+def test_open_pr_refuses_body_over_limit_even_when_grouped(tmp_path, monkeypatch):
+    render = _oversized_presentation(tmp_path, monkeypatch, limit=4000, prose="x" * 5000)
+    with pytest.raises(OpenPrError, match="grouped by directory"):
+        render()

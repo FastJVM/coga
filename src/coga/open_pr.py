@@ -350,6 +350,7 @@ def _check_recorded_clone(
 
 _STATUSES = {"passed", "failed", "pending", "not-run"}
 _TITLE_LIMIT = 256
+_BODY_LIMIT = 65536  # GitHub rejects longer PR bodies.
 _MANAGED_START = re.compile(
     r"<!-- coga:pr:v1 title=([0-9a-f]{64}) body=([0-9a-f]{64}) -->\r?\n"
 )
@@ -435,6 +436,23 @@ def _publication_diff(cwd: str, head_ref: str, base_ref: str) -> tuple[str, str,
         changes.append((status, fields[i + 1:i + count + 1]))
         i += count + 1
     return head, base, changes
+
+
+def _grouped_file_rows(changes: list[tuple[str, list[str]]]) -> list[str]:
+    """One row per parent directory, with per-status counts, for oversized diffs."""
+    groups: dict[str, dict[str, int]] = {}
+    for status, names in changes:
+        for path in names:
+            parent = path.rsplit("/", 1)[0] + "/" if "/" in path else "./"
+            counts = groups.setdefault(parent, {})
+            counts[status] = counts.get(status, 0) + 1
+    rows = []
+    for parent in sorted(groups):
+        counts = groups[parent]
+        total = sum(counts.values())
+        summary = ", ".join(f"{status}×{n}" for status, n in sorted(counts.items()))
+        rows.append(f"| <code>{_cell(parent)}</code> | {total} ({summary}) |")
+    return rows
 
 
 def _pr_body(ticket: Ticket, above: str, slug: str, content: str) -> str:
@@ -574,14 +592,38 @@ def _pr_presentation(
         f"Evidence scope: head `{head}`, diff base `{base}`.\n\n"
         f"## Implementation\n\n{prose['implementation']}\n\n"
         f"## Deviations and limitations\n\n{prose['deviations']}\n\n{prose['limitations']}\n\n"
-        "## Changed files\n\n| Path | Change |\n| --- | --- |\n"
-        + "\n".join(file_rows)
-        + "\n\n## Checks\n\n"
-        + "\n\n".join(check_items)
     )
-    body = _pr_body(ticket, above, slug, content)
-    marker = f"<!-- coga:pr:v1 title={_digest(title)} body={_digest(body)} -->\n"
-    return title, marker + body + _MANAGED_END + "\n"
+
+    def assemble(files_section: str) -> str:
+        body = _pr_body(
+            ticket, above, slug,
+            content + files_section + "\n\n## Checks\n\n" + "\n\n".join(check_items),
+        )
+        marker = f"<!-- coga:pr:v1 title={_digest(title)} body={_digest(body)} -->\n"
+        return marker + body + _MANAGED_END + "\n"
+
+    full = assemble(
+        "## Changed files\n\n| Path | Change |\n| --- | --- |\n" + "\n".join(file_rows)
+    )
+    if len(full) <= _BODY_LIMIT:
+        return title, full
+    # GitHub refuses the whole body past its limit. The per-path table is the
+    # only part that grows with the diff and is recoverable from git, so it
+    # alone is grouped; the literal ticket snapshot is never shortened.
+    grouped = assemble(
+        "## Changed files\n\n"
+        f"Grouped by directory to fit GitHub's {_BODY_LIMIT}-character body limit; "
+        f"`git diff --name-status {base}...{head}` lists every path.\n\n"
+        "| Directory | Paths (by change) |\n| --- | --- |\n"
+        + "\n".join(_grouped_file_rows(changes))
+    )
+    if len(grouped) > _BODY_LIMIT:
+        raise OpenPrError(
+            f"PR presentation: the generated body is {len(grouped)} characters even with "
+            f"changed files grouped by directory; GitHub allows {_BODY_LIMIT}. Shorten the "
+            "preparation prose or check receipts and rerun."
+        )
+    return title, grouped
 
 
 def _digest(value: str) -> str:
