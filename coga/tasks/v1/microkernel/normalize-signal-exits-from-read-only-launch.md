@@ -1,6 +1,6 @@
 ---
 title: Normalize signal exits from read-only launch
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:0ca1e388-8b05-41c2-9124-3ef01d885154
 ---
 
 ## Description
