@@ -1,6 +1,6 @@
 ---
 title: Warn when coga delete or coga retire leaves a live link to the deleted ticket
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -43,6 +43,7 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
+launch_generation: pending:e5df0aaa-62f9-428f-957d-16c7902f2ee8
 ---
 
 ## Description
