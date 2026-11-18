@@ -4214,3 +4214,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 08:43 v1 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-18 08:43 v1 [recurring/resolve-conflicts] [system] started (active → in_progress) via recurring delegation to bootstrap/resolve-conflicts
 2026-11-18 08:43 v1 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
+2026-11-18 09:01 v1 [bootstrap/resolve-conflicts] [agent:claude] slack: resolve-conflicts: 9 open PRs — 2 rebased-pushed (#1248, #1246), 6 up-to-date, 1 conflict needs human (#1247: stacked on a stale copy of #1244; restack after #1244 lands)
