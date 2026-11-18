@@ -11426,3 +11426,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 20:18 v1 [redesign-coga-s-git-sync-around-explicit-session-e] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-11-17 20:24 v1 [git-sync/01-add-an-explicit-coga-sync-command] [human:nicktoper] created (status=draft)
 2026-11-17 20:24 v1 [git-sync/02-remove-implicit-publication-and-sync-at-session] [human:nicktoper] created (status=draft)
+2026-11-17 20:24 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [human:nicktoper] created (status=draft)
