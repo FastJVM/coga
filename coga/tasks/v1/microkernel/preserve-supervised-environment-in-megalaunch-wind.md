@@ -1,6 +1,6 @@
 ---
 title: Preserve supervised environment in megalaunch Windows preflight
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:0207b480-a11a-4288-ad0c-82d797effac2
 ---
 
 ## Description
