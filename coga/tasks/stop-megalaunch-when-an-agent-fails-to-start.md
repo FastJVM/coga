@@ -160,3 +160,7 @@ Pick the "failed to start" signal and record why on the blackboard. Candidates: 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: stop-megalaunch-when-an-agent-fails-to-start
