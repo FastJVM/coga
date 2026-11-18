@@ -4211,3 +4211,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 08:42 v1 [recurring/phone-home] [system] launched as a script (ticket.py)
 2026-11-18 08:43 v1 [recurring/phone-home] [system] task done
 2026-11-18 08:43 v1 [recurring/phone-home] [system] script exited with code 0
+2026-11-18 08:43 v1 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
