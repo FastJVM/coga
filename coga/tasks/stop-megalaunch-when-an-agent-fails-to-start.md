@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: c91709af-7198-40a4-abd3-dd75ccbee9e8
 ---
 
 ## Description
@@ -164,3 +163,113 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: stop-megalaunch-when-an-agent-fails-to-start
+
+## Implement handoff (2026-11-17, claude)
+
+Implemented on the branch (commit b6bf135c8), pushed; no PR yet.
+
+### Failed-to-start signal (design choice)
+`megalaunch._agent_failed_to_start`: natural non-zero exit (not crash/signal,
+timeout or done teardown), no done signal, ticket byte-identical to the claim
+the child ran under (admitted rendering under Git, start write without), AND
+`AgentSessionResult.elapsed_seconds < STARTUP_FAILURE_WINDOW_SECONDS` (20 s).
+- Structural part = untouched claimed ticket + no done signal. Transcript
+  identity was rejected: usage parsing only exists for claude/codex (custom
+  CLIs and test fakes have none), returns "not found" mixed with ambiguity and
+  parse failures as free-text `usage_status: unknown` reasons, and claude's
+  fallback window search means a missing pinned file is not proof. Plumbing a
+  reliable "transcript located" bit out of `usage.capture_session` would be a
+  bigger shared-core change than this ticket warrants.
+- 20 s window: the incident died in ~4 s; the measurement (around
+  `run_with_done_marker`) includes held-child proof (control fetch) and the
+  admission push, so it needs headroom for a slow network. It keeps an agent
+  that worked >20 s without touching its ticket on the ordinary `failed` path.
+- A session result that does not report elapsed (`None`) is never classified
+  as a failed start (keeps stubbed fakes and any other caller on today's path).
+
+### Restore
+`_restore_after_failed_start`: under `git.state_lock`, CAS local == claim,
+write the step's pre-launch bytes (selection: deferred-activation capture of
+draft/paused/blocked; else the preflight read of active/in_progress), drop
+`launch_generation` if present (only re-rendered then), log
+`restored (in_progress → X) — agent failed to start (exit N); megalaunch run
+stopped`, `sync_task_state(strict, expect={ticket: claim})`. Refused publish →
+put claim bytes back + retract log; uncertain → keep local restore; either way
+the row says manual reconciliation. Row: outcome `failed`, `stops_run=True`,
+detail `agent failed to start (exited with code N); run stopped; restored to X; ...`.
+Sweep returns before the drain; drain returns; selection breaks (later picks
+never reread/activated). Exit 1 via the existing failed count.
+- Drain: pre-launch for a drained ticket is the post-activation `active`
+  bytes (dependency answers kept), documented in the topic. Restoring to
+  `blocked` would discard a legitimate automatic answer.
+- `_as_drained` now uses `dataclasses.replace` so the flag survives.
+
+### Docs
+coga/megalaunch Sessions + summary; coga-dev launch-claims (new "Failed agent
+start" section, notes the one sanctioned backward compensation);
+agent-spawn mentions `elapsed_seconds`.
+
+### Follow-ups / not done
+- stderr capture not attempted (out of scope); no ticket filed since nobody
+  asked for it yet. Next step may file one if the reviewer wants it.
+- Single `coga launch` unchanged by design.
+
+## PR
+
+```yaml
+title: Stop megalaunch when an agent fails to start
+author: claude
+author_evidence: >-
+  Implement step ran as a Claude Code session (Opus 5.5) launched by coga
+  megalaunch; this handoff was written by that session.
+head: b6bf135c8d4864ef2b832e8a68d72c260b2e84b4
+base: 4473202d762d6603761bab415d964712dcfc0481
+depth: deep
+rationale: >-
+  Changes megalaunch run control and adds a backward lifecycle compensation
+  (restoring a claimed ticket to its pre-launch bytes); the failed-start
+  heuristic (untouched ticket plus a 20 s window) is a judgment call worth
+  reviewing. No code review has run yet.
+implementation: >-
+  AgentSessionResult gains elapsed_seconds measured around the PTY watcher.
+  Megalaunch classifies a natural non-zero exit with no done signal, an
+  untouched claimed ticket and elapsed under STARTUP_FAILURE_WINDOW_SECONDS as
+  a failed start, restores the step's pre-launch bytes by compare-and-set
+  without the launch claim, logs and strictly publishes it, and sets
+  stops_run so the sweep, drain and selection loops all stop.
+deviations: >-
+  Transcript identity was not used as the structural signal (see blackboard
+  rationale); the untouched claimed ticket is the structural signal instead.
+  A drained ticket restores to active, keeping its dependency answer.
+limitations: >-
+  A failed start slower than 20 s, or one that writes its ticket, keeps the
+  old failed-and-continue path. No real claude or codex binary was exercised;
+  tests model the PTY watcher. Windows not run (release-only per testing topic).
+files:
+  src/coga/launch.py: Report the supervised session's elapsed seconds on AgentSessionResult.
+  src/coga/megalaunch.py: Detect a failed agent start, restore the ticket, stop every loop.
+  tests/test_megalaunch.py: >-
+    Cover sweep (active, in_progress), pick of drafts, drain, git publication,
+    worked-then-failed and over-window cases.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Document the stop-and-restore rule and summary row.
+  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Document the restore compare-and-set as the one sanctioned backward compensation.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Document elapsed_seconds on AgentSessionResult.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; peer-review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest
+    status: passed
+    head: b6bf135c8d4864ef2b832e8a68d72c260b2e84b4
+    base: 4473202d762d6603761bab415d964712dcfc0481
+    detail: >-
+      4990 passed, 33 skipped on Linux; run on the uncommitted tree that was
+      then committed unchanged as head (rebase was a no-op).
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: b6bf135c8d4864ef2b832e8a68d72c260b2e84b4
+    base: 4473202d762d6603761bab415d964712dcfc0481
+    detail: Warnings only (existing idle in_progress notices), no errors.
+```

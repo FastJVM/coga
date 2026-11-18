@@ -11444,3 +11444,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 21:03 v1 [stop-megalaunch-when-an-agent-fails-to-start] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 21:03 v1 [stop-megalaunch-when-an-agent-fails-to-start] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 21:03 v1 [stop-megalaunch-when-an-agent-fails-to-start] [megalaunch] launched via coga megalaunch
+2026-11-17 21:22 v1 [stop-megalaunch-when-an-agent-fails-to-start] [agent:claude] advanced to step 2 (peer-review) → codex
