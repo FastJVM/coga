@@ -220,3 +220,10 @@ checks:
     detail: >-
       The workflow exempts a pure prose README edit from the test suite.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record why installs pin Python 3.11 and bypass the Restricted policy

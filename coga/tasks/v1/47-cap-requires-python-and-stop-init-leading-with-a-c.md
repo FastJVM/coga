@@ -251,3 +251,10 @@ checks:
     base: d11e9a82352bb407943a5550492e99eac7f82980
     detail: "No whitespace errors."
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record why installs pin Python 3.11 and bypass the Restricted policy

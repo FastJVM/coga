@@ -290,6 +290,16 @@ report that gap with the actual interpreter and results. Reusable workflows
 cannot assume Python 3.11 is installed in a user's environment. Raising
 `requires-python` requires an owner decision.
 
+`requires-python` deliberately has no upper bound (owner-reviewed, v1/47,
+PR #1235). A cap does not make `uv tool install coga` choose an older
+interpreter: a resolver on a newer Python falls back to the newest *uncapped*
+release on PyPI (0.4.1), silently installing stale Coga. The too-new-Python
+failure is that uv picks the newest CPython (3.15), PyYAML has no wheel for it,
+and the source build needs macOS developer tools or MSVC on Windows. Pinning
+the interpreter at install time solves it: the README, init's PATH step
+(`commands/init.py`), and the clean-install harnesses all use
+`uv tool install --python 3.11`. Do not add a cap without re-deciding this.
+
 **Receipt fields.** Each run records the full commit SHA, the platform and OS
 version, the Python version, the exact command, pass/skip/fail counts, and
 runtime. For example: `3f1c…` (full SHA), Ubuntu 24.04, Python 3.12.12,
