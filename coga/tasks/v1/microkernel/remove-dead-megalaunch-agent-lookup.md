@@ -193,6 +193,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/1251
 branch: remove-dead-megalaunch-agent-lookup
 
 ## Handoff (implement, 2026-11-17)
