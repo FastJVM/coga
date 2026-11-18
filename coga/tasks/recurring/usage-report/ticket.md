@@ -1,6 +1,6 @@
 ---
 title: Agent usage report
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -14,7 +14,6 @@ workflow:
     - coga/usage-report/post
     assignee: agent
     checkout: manual
-step: 1 (post)
 ---
 
 ## Description
