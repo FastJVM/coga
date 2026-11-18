@@ -11361,3 +11361,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 16:19 v1 [v1/why-is-the-code-so-big] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 16:19 v1 [v1/why-is-the-code-so-big] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 16:19 v1 [v1/why-is-the-code-so-big] [megalaunch] launched via coga megalaunch
+2026-11-17 16:23 v1 [v1/why-is-the-code-so-big] [agent:claude] blocked: Design spec written with 19 proposed verdicts (Description table). Per the ticket, the owner must settle them live before bump: answer Open Questions Q1-Q6 on the blackboard — chiefly Q1 (replace retired/ archive tag + patch-id/state-path analysis with 'tip contained in control or a GitHub PR head') and Q2 (move discharge_owned_followups to autoclose.py → branchsweep.py target <=300 lines). Relaunch this task attended to settle them, then bump.
