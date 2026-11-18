@@ -32,9 +32,11 @@ Add a blackboard cleanup instruction to the agent workflow. Whenever the agent l
 
 ### Completion
 
-- The dedicated recurring task reports oversized blackboards independently of Dream.
-- The ticket-loading instructions tell agents to prune obsolete notes, and the blackboard topic documents when deletion is appropriate.
-- Verify both behaviors without editing the completed agent-selection ticket.
+Deliver both behaviors in this ticket.
+
+- Run the dedicated recurring task against a fixture with a blackboard above the threshold and one below it. Verify that only the oversized blackboard is reported, with its ticket ref, measured size, and threshold.
+- Verify that the normal agent prompt includes the cleanup instruction when loading or resuming a ticket. Walk through a sample blackboard containing obsolete notes and information still needed for handoff, and confirm the instruction supports removing the former and retaining the latter. Update the owning blackboard topic alongside the prompt.
+- Use fixtures for verification and leave the completed agent-selection ticket as the original example.
 
 ## Context
 
