@@ -11470,3 +11470,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 22:30 v1 [git-sync/01-add-an-explicit-coga-sync-command] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 22:30 v1 [git-sync/01-add-an-explicit-coga-sync-command] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 22:30 v1 [git-sync/01-add-an-explicit-coga-sync-command] [megalaunch] launched via coga megalaunch
+2026-11-17 22:36 v1 [git-sync/01-add-an-explicit-coga-sync-command] [agent:claude] advanced to step 2 (evaluate-design) → codex — Spec written; 5 open questions on the blackboard (Q1: should sync land a branch's committed topic edits on main before review?)
