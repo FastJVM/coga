@@ -1,6 +1,6 @@
 # ADK Go API reference
 
-> Reflects `google.golang.org/adk/v2 v2.1.0`, the version the `adk_go` template pins. If a symbol
+> Reflects `google.golang.org/adk/v2 v2.7.1`, the version the `adk_go` template pins. If a symbol
 > here is missing, check your `go.mod` before assuming the page is wrong.
 
 ## 1. Core Concepts & Project Structure
@@ -21,7 +21,6 @@ my-agent/
 ├── app/
 │   ├── agent.go             // NewRootAgent(ctx) (agent.Agent, error) — model, instruction, tools
 │   └── agent_test.go
-├── appinfo/                 // template-owned: serves {prefix}/apps/{app}/app-info for agents-cli eval
 ├── e2e/
 │   ├── integration/         // server_e2e_test.go — drives a running server
 │   └── load_test/
