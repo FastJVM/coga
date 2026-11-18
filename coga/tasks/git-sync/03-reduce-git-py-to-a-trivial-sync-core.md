@@ -186,3 +186,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blockers
 
 - [ ] [2026-11-17 22:50] [agent:claude] id=20261117T225004 Depends on git-sync/01-add-an-explicit-coga-sync-command and git-sync/02-remove-implicit-publication-and-sync-at-session being merged; both are still at step 3 (review-design) and git.sync_coga_state is still live in src/coga/git.py, so there is no dead code to delete yet.
+
+---
+
+## Blocker reminders
+
+- 34c46aa2ba1c last_reminded: 2026-11-18 09:02
