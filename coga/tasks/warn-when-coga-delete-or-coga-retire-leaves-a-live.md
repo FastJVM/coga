@@ -2,12 +2,55 @@
 title: Warn when coga delete or coga retire leaves a live link to the deleted ticket
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/design-then-implement
 ---
 
 ## Description
 
-Follow-up from make-retro-check-inbound-doc-links-before-deleting. That ticket made retro/done-ticket search tracked files for a source task's path and repoint live-tree references (blob/<control-branch> URLs, relative links) to a commit permalink before deleting. Two delete paths still bypass that rule. coga retire deletes a done ticket deterministically, without Retro (src/coga/resources/retire.md), and an ordinary human coga delete has the same gap (src/coga/commands/delete.py plus delete_task.run_delete_task). Either can break navigation on main the way the README link to document-the-remedy-for-a-bloated-blackboard-sibli did (fixed by PR #1214). Decide whether delete_task should run git grep -F for the task path, excluding the task root and log.md, and warn or refuse before deleting. That would add core behavior to a shared path with two consumers (coga delete and the delete-task recipe), so check the microkernel rule. Also decide whether coga retire should repoint the links itself.
+Follow-up from `make-retro-check-inbound-doc-links-before-deleting`. That
+ticket made Retro (`retro/done-ticket`) search tracked files for a source
+task's path before deleting it, and repoint live-tree references
+(`blob/<control-branch>/` URLs, relative Markdown links, bare paths) to a
+commit permalink. Two delete paths still skip that check:
+
+- **`coga retire` on a `done` ticket** deletes it deterministically, with no
+  Retro run.
+- **An ordinary human `coga delete <task>`** has the same gap.
+
+Either one can break navigation on main. That already happened once: a README
+link to the deleted `document-the-remedy-for-a-bloated-blackboard-sibli`
+ticket broke and had to be fixed in PR #1214.
+
+The design step must decide, with reasons:
+
+1. **Where the check lives.** It can run inside the shared `run_delete_task`
+   or only in the command-level callers (`commands/delete.delete` and the
+   retire `ticket.py`'s `_delete_done_task`). Check the microkernel rule,
+   because `run_delete_task` has more consumers than these two paths (see
+   Context).
+2. **Warn or refuse.** Choose between a warning or a refusal, and add an
+   override flag if refusal is chosen.
+3. **Whether `coga retire` repoints links itself.** It can rewrite the links
+   to a permalink, or only warn and point the operator at the fix.
+
+The design must also say how every other caller of `run_delete_task` is
+treated: either unchanged or covered by the check (see the Code map in
+Context). It must also say what the check does when Git is disabled or
+unavailable.
+
+Done means:
+
+- `coga delete` and the done-ticket path of `coga retire` both detect tracked
+  live-tree references to the task before deleting it, and warn or refuse as
+  the approved design says.
+- Tests cover a referenced and an unreferenced task on both paths. They also
+  cover the false-positive cases the design decides on: an existing commit
+  permalink, a longer slug that shares the prefix, a test-fixture path, and a
+  short leaf collision.
+- Unattended deletions do not become blocked. This covers recurring
+  replacement, Dream/Retro deleting period tickets, and Retro's direct
+  `coga delete`.
+- The owning docs describe the new behavior in the same PR.
 
 ## Context
 
@@ -94,6 +137,130 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Code map (cite by symbol; verify against current tree)
+
+- `delete_task.run_delete_task(cfg, ref)` is the single implementation of
+  task removal. It takes `git.state_lock`, removes the directory form or the
+  file form, and returns a report line. It raises only `DeleteTaskError`. It
+  does no Git publication: callers own that.
+- Its consumers, all of which must keep working:
+  - `commands/delete.delete`, the Typer head. It calls `run_delete_task` and
+    then `git.publish` with `"Ticket: <id-slug> — deleted"`. The
+    `--keep-control-checkout` flag is Retro's isolated direct delete.
+  - `delete_task.run_delete_task_recipe`, the `coga run delete-task`
+    registered recipe. It does a bare working-tree removal with no publish.
+  - `coga retire`, which is an edge `ticket.py`. The done path is
+    `_delete_done_task` in
+    `src/coga/resources/templates/coga/bootstrap/retire/ticket.py`. It calls
+    `run_delete_task` and then publishes `"Ticket: <id-slug> — deleted
+    (retire)"`. `src/coga/resources/retire.md` is only the body of the
+    canceled-ticket Retro task. Canceled retire goes through Retro, which
+    already handles inbound references, so it is out of scope.
+  - Recurring replacement in `recurring.py`. It deletes and recreates a
+    period task **at the same path** and runs unattended. A reference check
+    inside `run_delete_task` would fire on every replacement, either as noise
+    or as a blocked recurring job. That is the main argument against putting
+    the check in the shared function without a caller opt-in.
+  - `recurring.promote_task` (`coga recurring promote`). It copies a task into
+    a recurring template and then removes it **permanently**, so it is a third
+    path that can break links. The design must decide whether it gets the
+    check.
+  - Dream's Retro deletes recurring period tickets with
+    `coga delete recurring/<name>`, unattended. See
+    `src/coga/resources/templates/coga/recurring/dream/ticket.md`, which
+    describes the period-ticket deletion. `tasks/recurring/` paths already get
+    many tracked hits, but those paths are recreated every period, so they are
+    not broken links. A naive check in `coga delete` would fire on nearly every
+    period delete, and a refusal there would block Dream.
+  - `coga run delete-task` is also used by Dream's cleanup-orphan-markers
+    task.
+  - Retro calls `coga delete` for a no-durable-knowledge source only after
+    its agent has judged that no inbound references exist. Otherwise it routes
+    the source through a reference-pin PR. That judgment drops cases that a
+    plain `git grep` will still match:
+    - longer slugs that share the prefix
+    - fixture paths
+    - existing commit permalinks, which contain the path
+    - excluded trees
+    - links from other live tickets
+
+    So a deterministic refusal **would** block Retro's direct delete. The
+    design must pick one of:
+    - apply the same filters Retro applies
+    - add a caller opt-out flag that Retro's documented `coga delete` calls
+      pass
+    - warn only
+
+### Search rule to reuse (copied from `retro/done-ticket`, section "Inbound references")
+
+Package skill:
+`src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md`.
+Search tracked files for both the task path relative to the Git root and its
+final slug component. The leaf search catches relative links such as
+`../tasks/<leaf>.md`. Exclude the task root and the log:
+
+```bash
+git grep -n -F -e '<tasks-root>/<slug>' -e '<task-leaf>' -- . ':!<tasks-root>' ':!<coga-os>/log.md'
+```
+
+When reading the hits:
+
+- Honor search restrictions (for example `':!docs/archive'`).
+- A longer slug that shares the prefix is not a reference, and neither is the
+  same relative path inside a test fixture.
+- Existing commit permalinks are already safe.
+- Links from other live tickets are out of scope.
+
+A deterministic check cannot "inspect each hit" the way Retro's agent does.
+The design has to choose the false-positive policy. One option is to report
+the hits and leave the judgment to the operator.
+
+If links are repointed, the target is a commit permalink of the control-branch
+tip that still contains the task (full OID). Retro sends repoints through a
+reviewable PR, because `coga delete` publishes only the task and the log. If
+`coga retire` repoints, the design must say how those doc edits get reviewed or
+published.
+
+### Microkernel rule (cited, not attached: `coga-dev/microkernel`, `docs/contexts/coga-dev/microkernel/SKILL.md`)
+
+Read "The kernel tier and its edges" and "Open command placements".
+
+- Core code needs at least 2 real consumers, or a reviewed co-versioned
+  contract.
+- `delete` is a kernel head because it is a thin head over the fixed
+  `delete-task` recipe.
+- Logic with one consumer belongs at the edge, for example in the retire
+  `ticket.py`.
+- A shared helper (such as a "find live references to a path" function called
+  by both `coga delete` and retire) passes the two-consumer bar. Placing that
+  logic inside `run_delete_task` changes every consumer listed above.
+
+### Git disabled or unavailable
+
+`git grep` needs Git. The design must say what happens when Git is disabled in
+config, when there is no repo root, or when `git` is missing. Retire's
+`_cleanup_checkout` already soft-skips in these cases. For publication and
+soft-skip semantics, see `coga/state-publication` (cited, not attached).
+
+### Docs to update in the same PR
+
+- `coga/cli`, for `delete` and `retire` behavior.
+- `bootstrap/delete-task` skill contract, if recipe behavior changes.
+- `coga/tickets/discovery`, which covers retired-task recovery.
+- The `retro/done-ticket` "Inbound references" section, if the shared helper
+  becomes the canonical search.
+
+Follow `coga/knowledge`: one owner per fact.
+
+### Out of scope
+
+- Changing Retro's own repoint flow.
+- Links from other live tickets.
+- The canceled-ticket path of `coga retire`, which Retro already covers.
+- If the design picks warn-only, `coga retire` repointing links itself can go
+  to a follow-up ticket instead of this one.
+- Rewriting history: existing broken links are already fixed (PR #1214).
 
 <!-- coga:blackboard -->
 
