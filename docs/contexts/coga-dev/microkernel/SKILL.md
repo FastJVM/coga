@@ -100,6 +100,15 @@ reports launch-selected composition/provenance, refuses script targets and
 refreshes the ignored skill view. The write-free compose API remains separate.
 These decisions do not claim that diagnostic rendering has two consumers.
 
+Running `show`, `status`, `usage` and `recurring list` as script tickets adds
+a second interpreter startup per call. The owner accepted that cost in
+exchange for editable reports and set no latency target. Paired medians at
+migration (Linux, Python 3.12, one fixture) were about +0.16 s per command
+under light load; under full-suite load `show` went 0.36→0.53 s and `status`
+0.28→0.49 s. Do not move these reports back in-process for speed without
+reopening that decision; to cut the overhead, trim the scripts' import cost
+first.
+
 ## The `ticket.py` script phase
 
 The user contract is [coga/script-tickets](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md).
