@@ -2264,6 +2264,7 @@ def _preflight_agent_launch(
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:
             return f"git push access unavailable: {auth.detail}"
+    assert prepared.prompt is not None
     return _PreparedAgentLaunch(
         ticket=launch_ticket,
         source_ticket_bytes=expected_source_bytes,

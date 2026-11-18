@@ -39,14 +39,16 @@ boundaries. Entry preparation is `git.prepare_control_checkout`
 ([git refresh](../git-refresh/SKILL.md)); a prepared step spawns with the
 prompt composed before the switch
 (`spawn_agent_session(composed_prompt=...)`). `prepare_agent_launch` is the shared readiness operation for ordinary launch
-and megalaunch: agent/CLI resolution, retained production `compose_prompt`,
-scoped `build_launch_env`, and command representability. It returns
-`PreparedAgentLaunch` (agent, prompt, environment, CLI path) or a typed
+and megalaunch. It resolves the agent and CLI, validates prompt layers, builds
+the scoped environment, and checks command representability. It returns
+`PreparedAgentLaunch` (agent, rendered prompt or resolved layers, environment,
+CLI path) or a typed
 `AgentPreparationError`; it writes no repo state, though secret resolution may
 call an external provider. Callers keep their distinct admission/publication
-transactions and never cache preparation across a moving boundary. Ordinary
-launch recomposes from its final prospective ticket and checkout notice;
-megalaunch adds its supervised identity to the prepared environment and keeps
+transactions. Ordinary launch renders its final prospective ticket and checkout
+notice using the resolved layers while their selection still matches.
+Megalaunch retains its readiness prompt, adds its supervised identity to the
+prepared environment, and keeps
 its claim and held-child release proof. An
 open blocker left after a resumed session is restored by
 `_reblock_unresolved_resume`; the `--agent` continuation rule is

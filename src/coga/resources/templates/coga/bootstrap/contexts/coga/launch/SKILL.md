@@ -139,13 +139,18 @@ operator. An assist's attribution is owned by
 
 ## Agent preflight order
 
-Agent type and CLI lookup, a full prompt composition (a missing layer
-refuses), declared secrets, the native Windows command-line check (below),
-push auth (`git push --dry-run`; skipped for
+Agent type and CLI lookup, prompt-layer resolution (every context, skill,
+step, and resource the spawn will compose is resolved and read; a missing or
+unreadable layer refuses), declared secrets, the native Windows command-line
+check (below), push auth (`git push --dry-run`; skipped for
 bootstrap targets, `[git].enabled = false`, or no resolvable remote).
-Ordinary managed agent-only launches then plan checkout policy, reserve/create
-or validate the branch, and compose from the prospective final ticket and
-checkout notice. Source-ticket, policy, branch occupancy, ignored-path, and
+Resolution assembles no prompt: the first step composes exactly once, around
+the layers already read, from the ticket it actually starts on and its
+checkout notice, re-resolving only if that ticket selects different contexts,
+skills, or step. Ordinary managed agent-only launches compose after planning
+checkout policy and reserving/creating or validating the branch, from the
+prospective final ticket and checkout notice; other launches compose at
+spawn. Source-ticket, policy, branch occupancy, ignored-path, and
 stranded-ticket checks precede every startup write. Activation/start, linkage,
 and audit publish together; fetched control must confirm the ticket contract
 before checkout entry and execution. Compatible owner notes are recomposed;

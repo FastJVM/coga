@@ -214,6 +214,7 @@ def compose_prompt(
     include_blocker_preamble: bool = True,
     launch_context: LaunchContext = "attended",
     checkout: CheckoutNotice | None = None,
+    resolved: ResolvedPromptLayers | None = None,
 ) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
     return compose_prompt_report(
@@ -223,33 +224,59 @@ def compose_prompt(
         include_blocker_preamble=include_blocker_preamble,
         launch_context=launch_context,
         checkout=checkout,
+        resolved=resolved,
     ).prompt
 
 
-def compose_prompt_report(
-    cfg: Config,
+@dataclass(frozen=True)
+class ResolvedPromptLayers:
+    """The file-backed half of one composition, resolved and read once.
+
+    `resolve_prompt_layers` produces it; `compose_prompt_report` renders the
+    ticket-derived and runtime layers around it. `selection` records every
+    input that chose these files, so a ticket whose contexts, skills, step, or
+    workflow differ is never rendered against them: composition re-resolves
+    instead. The text is what was read at resolve time.
+    """
+
+    selection: tuple[object, ...]
+    base: PromptLayer
+    ticket_loop: PromptLayer | None
+    session_conduct: PromptLayer
+    repo_context: PromptLayer | None
+    ticket_contexts: tuple[PromptLayer, ...]
+    skills: tuple[PromptLayer, ...]
+    blocker_template: tuple[str, Path | None] | None
+
+
+def _layer_selection(
     task_ref: TargetRef,
     ticket: Ticket,
     *,
-    include_blocker_preamble: bool = True,
-    launch_context: LaunchContext = "attended",
-    checkout: CheckoutNotice | None = None,
-) -> PromptComposition:
-    """Assemble the prompt and keep per-layer measurement metadata.
+    include_blocker_preamble: bool,
+    launch_context: LaunchContext,
+) -> tuple[object, ...]:
+    workflow = ticket.workflow
+    workflow_name = workflow.get("name") if isinstance(workflow, dict) else None
+    return (
+        task_ref.id_slug,
+        isinstance(task_ref, BootstrapRef),
+        launch_context,
+        include_blocker_preamble,
+        tuple(ticket.contexts),
+        tuple(ticket.skills),
+        repr(ticket.current_step()),
+        workflow_name,
+    )
 
-    `launch_context` selects the one composed session-conduct layer. It
-    defaults to `"attended"` so any caller that does not know it is draining a
-    queue gets the ask-a-present-human contract. `checkout` is the launcher's
-    observed checkout result, rendered as a runtime appendix after the ticket;
-    without one the appendix says that no preparation was supplied.
+
+def _prompt_blackboard(cfg: Config, task_ref: TargetRef, ticket: Ticket) -> tuple[str, str | None]:
+    """Split the ticket body at the fence and filter the blackboard for prompts.
+
+    Bootstrap tickets legitimately carry no fence, so they are parsed
+    leniently (blackboard is then None and the blackboard layer is omitted);
+    a normal task ticket missing the fence fails loud.
     """
-    layers: list[PromptLayer] = []
-
-    # Split the single-file ticket body at the blackboard fence: the body above
-    # feeds the Description / inline-Context layers, the region below is the
-    # blackboard layer. Bootstrap tickets legitimately carry no fence, so they are
-    # parsed leniently (blackboard is then None and the blackboard layer is
-    # omitted); a normal task ticket missing the fence fails loud.
     body_above, blackboard_text = split_body(
         ticket.body, blackboard_required=not isinstance(task_ref, BootstrapRef)
     )
@@ -266,39 +293,65 @@ def compose_prompt_report(
         # Filter before every prompt consumer, including the blocker preamble:
         # historical blocker examples must not reappear as current asks.
         blackboard_text = blackboard_for_prompt(blackboard_text, task_ref.ticket_path)
+    return body_above, blackboard_text
 
-    header = (
-        f"# Coga task — {task_ref.id_slug}\n\n"
-        f"Title: {ticket.title}\n"
-        f"Task directory: {_task_path_for_prompt(cfg, task_ref)}"
-    )
-    if ticket.status:
-        header += f"\nStatus: {ticket.status}"
-    layers.append(PromptLayer("header", "Header", header, raw=True))
+
+def _open_asks(
+    task_ref: TargetRef,
+    blackboard_text: str | None,
+    *,
+    include_blocker_preamble: bool,
+) -> list[Blocker]:
+    if not include_blocker_preamble or isinstance(task_ref, BootstrapRef):
+        return []
+    return [
+        b for b in parse_blockers_text(blackboard_text or "") if not b.resolved
+    ]
+
+
+def resolve_prompt_layers(
+    cfg: Config,
+    task_ref: TargetRef,
+    ticket: Ticket,
+    *,
+    include_blocker_preamble: bool = True,
+    launch_context: LaunchContext = "attended",
+) -> ResolvedPromptLayers:
+    """Resolve and read every file-backed layer this ticket selects.
+
+    This is where a missing context, skill, or resource raises `ComposeError`
+    and a layer file that vanished between resolve and read raises
+    `FileNotFoundError`; the ticket's own shape (a missing blackboard fence)
+    is checked here too. `coga launch` calls it as its pre-activation refusal
+    point and hands the result to the one composition the spawn uses, so a
+    launch reads each layer file once and assembles the prompt once.
+    """
+    _, blackboard_text = _prompt_blackboard(cfg, task_ref, ticket)
 
     # 1. Base prompt — neutral on conduct. It cross-references the selected
     # layer below rather than carrying a default that a later layer overrides.
     base_text, base_path = _resource(cfg, "prompt.md")
-    layers.append(PromptLayer(
+    base = PromptLayer(
         "base_prompt",
         "Coga base prompt",
         _prompt_text(base_text, drop_title=True),
         ref="prompt.md",
         path=_override_path(base_path),
-    ))
+    )
 
     # 1b. Ticket loop — blackboard, bump, block. Only a task ticket has that
     # lifecycle; a stateless bootstrap target finishes as its own ticket says,
     # so composing these rules there would only be contradicted by it.
+    ticket_loop = None
     if not isinstance(task_ref, BootstrapRef):
         loop_text, loop_path = _resource(cfg, "prompt-ticket.md")
-        layers.append(PromptLayer(
+        ticket_loop = PromptLayer(
             "ticket_loop",
             "Ticket loop",
             _prompt_text(loop_text, drop_title=True),
             ref="prompt-ticket.md",
             path=_override_path(loop_path),
-        ))
+        )
 
     # 2. Session conduct, selected by launch context. Exactly one, immediately
     # after the neutral base so the agent reads how to operate before any task
@@ -314,57 +367,37 @@ def compose_prompt_report(
     # layer title, so the selected context stays visible to the agent instead
     # of being flattened into one generic title.
     conduct_text, conduct_path = _resource(cfg, conduct_resource)
-    layers.append(PromptLayer(
+    session_conduct = PromptLayer(
         "session_conduct",
         _leading_heading(conduct_text) or "Session conduct",
         _prompt_text(conduct_text, drop_title=True),
         ref=conduct_resource,
         path=_override_path(conduct_path),
-    ))
+    )
 
-    # 2b. Blocker-resolution preamble. An interactive session whose blackboard
-    # still carries open asks must resolve-or-re-block before the step's real
-    # work — this is how `coga launch` resumes a blocked ticket as a chat
-    # (launch reactivates it inline, so by compose time `status:` is already
-    # `in_progress`; the open asks are the durable signal). Keying off the
-    # blackboard rather than a launch-threaded flag keeps the preamble purely
-    # composed state: it reappears if a session dies mid-discussion and
-    # disappears once `coga unblock` records the answer.
-    if include_blocker_preamble and not isinstance(task_ref, BootstrapRef):
-        open_asks = [
-            b
-            for b in parse_blockers_text(blackboard_text or "")
-            if not b.resolved
-        ]
-        if open_asks:
-            preamble, preamble_path = _blocker_preamble(
-                cfg, task_ref.id_slug, open_asks
-            )
-            # The preamble lists the open asks; the blackboard keeps only the
-            # resolved history and a pointer, so no ask composes twice.
-            blackboard_text = without_open_blockers(
-                blackboard_text or "", OPEN_BLOCKERS_POINTER
-            )
-            layers.append(PromptLayer(
-                "blocker_preamble",
-                "Resolve the open blocker first",
-                _prompt_text(preamble, drop_title=True),
-                ref="prompt-blocker-resolution.md",
-                path=_override_path(preamble_path),
-            ))
+    # 2b. The blocker-resolution template is read only when this ticket has
+    # open asks now; a render that finds asks a later ticket gained reads it
+    # then (see `compose_prompt_report`).
+    blocker_template = None
+    if _open_asks(
+        task_ref, blackboard_text, include_blocker_preamble=include_blocker_preamble
+    ):
+        blocker_template = _resource(cfg, "prompt-blocker-resolution.md")
 
     # 3. repo context.md
+    repo_context = None
     pctx = repo_context_path(cfg)
     if pctx.is_file():
-        layers.append(PromptLayer(
+        repo_context = PromptLayer(
             "repo_context",
             "Repo context",
             _prompt_text(pctx.read_text(encoding="utf-8"), drop_title=True),
             ref="context.md",
             path=str(pctx),
-        ))
+        )
 
     # 4. ticket-attached contexts
+    ticket_contexts: list[PromptLayer] = []
     for ref in ticket.contexts:
         try:
             cp = resolve_context_path(cfg, ref)
@@ -377,7 +410,7 @@ def compose_prompt_report(
                 f"context file exists for it. Checked: {checked}. Create one of "
                 f"those files or remove {ref!r} from the ticket's `contexts:` list."
             )
-        layers.append(PromptLayer(
+        ticket_contexts.append(PromptLayer(
             "ticket_context",
             f"Context — {ref}",
             _prompt_text(cp.read_text(encoding="utf-8"), drop_title=True),
@@ -386,9 +419,122 @@ def compose_prompt_report(
         ))
 
     # 5. ticket-level skills + current workflow step
+    skills: list[PromptLayer] = []
     for skill_ref in ticket.skills:
-        layers.extend(_skill_layers(cfg, skill_ref, slug=task_ref.id_slug))
-    layers.extend(_step_layers(cfg, ticket, slug=task_ref.id_slug))
+        skills.extend(_skill_layers(cfg, skill_ref, slug=task_ref.id_slug))
+    skills.extend(_step_layers(cfg, ticket, slug=task_ref.id_slug))
+
+    return ResolvedPromptLayers(
+        selection=_layer_selection(
+            task_ref,
+            ticket,
+            include_blocker_preamble=include_blocker_preamble,
+            launch_context=launch_context,
+        ),
+        base=base,
+        ticket_loop=ticket_loop,
+        session_conduct=session_conduct,
+        repo_context=repo_context,
+        ticket_contexts=tuple(ticket_contexts),
+        skills=tuple(skills),
+        blocker_template=blocker_template,
+    )
+
+
+def compose_prompt_report(
+    cfg: Config,
+    task_ref: TargetRef,
+    ticket: Ticket,
+    *,
+    include_blocker_preamble: bool = True,
+    launch_context: LaunchContext = "attended",
+    checkout: CheckoutNotice | None = None,
+    resolved: ResolvedPromptLayers | None = None,
+) -> PromptComposition:
+    """Assemble the prompt and keep per-layer measurement metadata.
+
+    `launch_context` selects the one composed session-conduct layer. It
+    defaults to `"attended"` so any caller that does not know it is draining a
+    queue gets the ask-a-present-human contract. `checkout` is the launcher's
+    observed checkout result, rendered as a runtime appendix after the ticket;
+    without one the appendix says that no preparation was supplied.
+
+    `resolved` is a caller's earlier `resolve_prompt_layers` result. It is
+    used only when its selection matches this ticket and these arguments;
+    otherwise the file-backed layers are resolved here. Either way the
+    header, blocker preamble, ticket regions, and checkout notice are rendered
+    from `ticket` and `checkout` as passed.
+    """
+    selection = _layer_selection(
+        task_ref,
+        ticket,
+        include_blocker_preamble=include_blocker_preamble,
+        launch_context=launch_context,
+    )
+    if resolved is None or resolved.selection != selection:
+        resolved = resolve_prompt_layers(
+            cfg,
+            task_ref,
+            ticket,
+            include_blocker_preamble=include_blocker_preamble,
+            launch_context=launch_context,
+        )
+
+    # The ticket body splits at the blackboard fence: the body above feeds the
+    # Description / inline-Context layers, the region below is the blackboard.
+    body_above, blackboard_text = _prompt_blackboard(cfg, task_ref, ticket)
+
+    layers: list[PromptLayer] = []
+    header = (
+        f"# Coga task — {task_ref.id_slug}\n\n"
+        f"Title: {ticket.title}\n"
+        f"Task directory: {_task_path_for_prompt(cfg, task_ref)}"
+    )
+    if ticket.status:
+        header += f"\nStatus: {ticket.status}"
+    layers.append(PromptLayer("header", "Header", header, raw=True))
+
+    # 1. Base prompt, 1b. ticket loop, 2. session conduct.
+    layers.append(resolved.base)
+    if resolved.ticket_loop is not None:
+        layers.append(resolved.ticket_loop)
+    layers.append(resolved.session_conduct)
+
+    # 2b. Blocker-resolution preamble. An interactive session whose blackboard
+    # still carries open asks must resolve-or-re-block before the step's real
+    # work — this is how `coga launch` resumes a blocked ticket as a chat
+    # (launch reactivates it inline, so by compose time `status:` is already
+    # `in_progress`; the open asks are the durable signal). Keying off the
+    # blackboard rather than a launch-threaded flag keeps the preamble purely
+    # composed state: it reappears if a session dies mid-discussion and
+    # disappears once `coga unblock` records the answer.
+    open_asks = _open_asks(
+        task_ref, blackboard_text, include_blocker_preamble=include_blocker_preamble
+    )
+    if open_asks:
+        template = resolved.blocker_template
+        if template is None:
+            template = _resource(cfg, "prompt-blocker-resolution.md")
+        preamble, preamble_path = _blocker_preamble(
+            task_ref.id_slug, open_asks, template
+        )
+        # The preamble carries the open asks; the blackboard keeps a pointer.
+        blackboard_text = without_open_blockers(
+            blackboard_text or "", OPEN_BLOCKERS_POINTER
+        )
+        layers.append(PromptLayer(
+            "blocker_preamble",
+            "Resolve the open blocker first",
+            _prompt_text(preamble, drop_title=True),
+            ref="prompt-blocker-resolution.md",
+            path=_override_path(preamble_path),
+        ))
+
+    # 3. repo context.md, 4. ticket-attached contexts, 5. skills + step.
+    if resolved.repo_context is not None:
+        layers.append(resolved.repo_context)
+    layers.extend(resolved.ticket_contexts)
+    layers.extend(resolved.skills)
 
     # 6. The ticket itself, last and contiguous, in the order it sits on disk:
     # `## Description`, then `## Context`, then the blackboard region below the
@@ -495,7 +641,7 @@ def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:
 
 
 def _blocker_preamble(
-    cfg: Config, slug: str, open_asks: list[Blocker]
+    slug: str, open_asks: list[Blocker], template: tuple[str, Path | None]
 ) -> tuple[str, Path | None]:
     """Render the resolve-or-re-block preamble for a ticket with open asks.
 
@@ -510,8 +656,8 @@ def _blocker_preamble(
             else "unknown time"
         )
         lines.append(f"- [{ts}] [{blocker.actor}] {blocker.reason}")
-    template, path = _resource(cfg, "prompt-blocker-resolution.md")
-    rendered = template.replace("{slug}", slug).replace("{blockers}", "\n".join(lines))
+    text, path = template
+    rendered = text.replace("{slug}", slug).replace("{blockers}", "\n".join(lines))
     return rendered, path
 
 
@@ -736,8 +882,10 @@ __all__ = [
     "SESSION_CONDUCT_RESOURCES",
     "PromptComposition",
     "PromptLayer",
+    "ResolvedPromptLayers",
     "compose_prompt",
     "compose_prompt_report",
     "estimate_tokens",
+    "resolve_prompt_layers",
     "write_prompt_file",
 ]

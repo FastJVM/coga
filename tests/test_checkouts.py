@@ -769,6 +769,42 @@ def test_grouped_preflight_refuses_before_any_startup_write(
     assert _control(git_repo, _rel(git_repo, ref)).encode() == original
 
 
+def test_grouped_launch_composes_its_first_prompt_once(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """The entry preflight resolves every layer; preparation composes once from
+    the prospective final ticket and the checkout notice, reusing those layers.
+    The `compose` refusal case above keeps a missing layer ahead of any write."""
+    import coga.compose as compose_module
+
+    ref = _startup_task(git_repo, "draft", "create")
+    counts = {"compose": 0, "resolve": 0}
+    real_compose = launch_module.compose_prompt
+    real_resolve = compose_module.resolve_prompt_layers
+
+    def compose(*args, **kwargs):  # type: ignore[no-untyped-def]
+        counts["compose"] += 1
+        assert kwargs.get("checkout") is not None
+        assert kwargs.get("resolved") is not None
+        return real_compose(*args, **kwargs)
+
+    def resolve(*args, **kwargs):  # type: ignore[no-untyped-def]
+        counts["resolve"] += 1
+        return real_resolve(*args, **kwargs)
+
+    monkeypatch.setattr(launch_module, "compose_prompt", compose)
+    monkeypatch.setattr(launch_module, "resolve_prompt_layers", resolve)
+    monkeypatch.setattr(compose_module, "resolve_prompt_layers", resolve)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    assert counts == {"compose": 1, "resolve": 1}
+    assert len(agent.seen) == 1
+    prompt = agent.seen[0]["prompt"]
+    assert "Status: in_progress" in prompt
+    assert "Checkout policy: create-or-reuse" in prompt
+
+
 def test_failed_start_notification_is_nonfatal_after_clean_branch_entry(
     git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, capsys,
 ) -> None:  # type: ignore[no-untyped-def]

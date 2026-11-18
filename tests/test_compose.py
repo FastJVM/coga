@@ -15,10 +15,12 @@ from coga.compose import (
     EMPTY_BLACKBOARD_TEXT,
     OPEN_BLOCKERS_POINTER,
     SESSION_CONDUCT_RESOURCES,
+    CheckoutNotice,
     ComposeError,
     _prompt_text,
     compose_prompt,
     compose_prompt_report,
+    resolve_prompt_layers,
     write_prompt_file,
 )
 from conftest import hold_by_agent, hold_by_owner
@@ -147,6 +149,62 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Current step: implement" in prompt
     # Blackboard present
     assert "Blackboard" in prompt
+
+
+def test_compose_renders_fresh_ticket_around_resolved_layers(repo: Path) -> None:
+    """A matching resolution supplies the file-backed layers as they were read;
+    the header, ticket regions, and checkout notice come from the ticket and
+    notice passed to the composition."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name="code/with-review",
+        contexts=["email/payment-flow"],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    resolved = resolve_prompt_layers(cfg, ref, ticket)
+    context = repo / "contexts" / "email" / "payment-flow" / "SKILL.md"
+    context.unlink()
+
+    started = read_ticket(ref)
+    started.frontmatter["status"] = "in_progress"
+    notice = CheckoutNotice(summary="Launch stayed on main.", return_owner="Run `coga bump` last.")
+    prompt = compose_prompt(cfg, ref, started, checkout=notice, resolved=resolved)
+
+    assert prompt == compose_prompt_report(
+        cfg, ref, started, checkout=notice, resolved=resolved
+    ).prompt
+    assert "Stripe retries on 429" in prompt
+    assert "Status: in_progress" in prompt
+    assert "Launch stayed on main." in prompt
+
+
+def test_compose_reresolves_when_ticket_selects_other_layers(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    resolved = resolve_prompt_layers(cfg, ref, read_ticket(ref))
+
+    changed = read_ticket(ref)
+    changed.frontmatter["contexts"] = ["email/payment-flow"]
+    assert "Stripe retries on 429" in compose_prompt(cfg, ref, changed, resolved=resolved)
+
+    changed.frontmatter["contexts"] = ["email/ghost"]
+    with pytest.raises(ComposeError, match="email/ghost"):
+        compose_prompt(cfg, ref, changed, resolved=resolved)
 
 
 def _conduct_step_task(repo: Path) -> tuple[object, object, object]:

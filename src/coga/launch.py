@@ -58,8 +58,10 @@ from coga.compose import (
     LaunchContext,
     CheckoutNotice,
     PromptComposition,
+    ResolvedPromptLayers,
     compose_prompt,
     compose_prompt_report,
+    resolve_prompt_layers,
     write_prompt_file,
 )
 from coga import oscompat
@@ -860,6 +862,9 @@ class _LaunchInvocation:
         self.return_timeout = return_timeout
         self.script_failure_important = script_failure_important
         self.launch_context = launch_context
+        # File-backed prompt layers resolved by the entry preflight and handed
+        # to the first step's one composition (see `_launch`).
+        self.resolved_layers: ResolvedPromptLayers | None = None
         self.before_recompose = before_recompose
         self.before_final_spawn = before_final_spawn
         self.require_agent_target = require_agent_target
@@ -1787,6 +1792,7 @@ class _LaunchInvocation:
                 prepared = prepare_agent_launch(
                     self.cfg, self.ref, self.ticket, self.launch_agent,
                     launch_context=self.launch_context,
+                    defer_prompt=True,
                     discussion=_is_discussion_bootstrap(self.ref),
                     kickoff=_bootstrap_kickoff(self.ref),
                 )
@@ -1795,6 +1801,7 @@ class _LaunchInvocation:
                     git.state_sweep_withheld.set(True)
                 _bail(str(exc))
             self.agent, self.env = prepared.agent, prepared.env
+            self.resolved_layers = prepared.resolved_layers
             _report(f"Launch: found agent CLI at {prepared.cli_path}")
 
             # Refuse to start an agent session when git push access is broken. Coga
@@ -2044,9 +2051,13 @@ class _LaunchInvocation:
                 checkout_notice: CheckoutNotice | None = None
                 composed_prompt: str | None = None
                 record_launch = self.record_launch
+                # Only the first step reuses the entry preflight's layer reads;
+                # a chained step composes from the files as they stand then.
+                resolved_layers = self.resolved_layers if is_first_step else None
                 if self._manages_branch_checkout():
                     spawn_ticket, composed_prompt = self._prepare_step_checkout(
-                        spawn_ticket, actor=actor, log_message=log_message
+                        spawn_ticket, actor=actor, log_message=log_message,
+                        resolved_layers=resolved_layers,
                     )
                     self.ticket = spawn_ticket
                     record_launch = False
@@ -2096,6 +2107,7 @@ class _LaunchInvocation:
                         record_launch=record_launch,
                         composed_prompt=composed_prompt,
                         checkout_notice=checkout_notice,
+                        resolved_layers=resolved_layers,
                     )
                 except ComposeError as exc:
                     _bail(str(exc))
@@ -2270,7 +2282,8 @@ class _LaunchInvocation:
         )
 
     def _prepare_step_checkout(
-        self, ticket: Ticket, *, actor: str, log_message: str
+        self, ticket: Ticket, *, actor: str, log_message: str,
+        resolved_layers: ResolvedPromptLayers | None = None,
     ) -> tuple[Ticket, str]:
         """Plan on control, compose, publish startup, then switch and project.
 
@@ -2279,7 +2292,9 @@ class _LaunchInvocation:
         preparation leaves no launch record; the switch-time checks were
         already run once while planning. Returns the authoritative ticket and
         the prompt composed from control state; the spawn must use both
-        unchanged. A refusal reports where the checkout stands and stops the
+        unchanged. `resolved_layers` are the entry preflight's file-backed
+        layers; composition renders this plan's ticket and notice around them.
+        A refusal reports where the checkout stands and stops the
         launch without a sweep or a return over state it did not start.
         """
         assert isinstance(self.ref, TaskRef)
@@ -2293,6 +2308,7 @@ class _LaunchInvocation:
             prompt = compose_prompt(
                 self.cfg, self.ref, current,
                 launch_context=self.launch_context, checkout=notice,
+                resolved=resolved_layers,
             )
             return current, notice, prompt
 
@@ -3657,9 +3673,10 @@ class PreparedAgentLaunch(NamedTuple):
     """One fresh readiness pass; never retained across publication/reload."""
 
     agent: AgentType
-    prompt: str
+    prompt: str | None
     env: dict[str, str]
     cli_path: str
+    resolved_layers: ResolvedPromptLayers | None
 
 
 def prepare_agent_launch(
@@ -3671,8 +3688,12 @@ def prepare_agent_launch(
     launch_context: LaunchContext = "attended",
     discussion: bool = False,
     kickoff: str | None = None,
+    defer_prompt: bool = False,
 ) -> PreparedAgentLaunch:
-    """Validate CLI, full prompt, secrets and command without repo writes.
+    """Validate CLI, prompt layers, secrets and command without repo writes.
+
+    Ordinary launch defers rendering until it has the final ticket and checkout
+    notice. Queue callers retain the prompt rendered during readiness.
 
     Callers own prospective lifecycle, admission and publication. Secret
     resolution may call an external provider; the result is not cached.
@@ -3682,7 +3703,14 @@ def prepare_agent_launch(
         cli_path = shutil.which(agent.cli)
         if cli_path is None:
             raise AgentPreparationError(agent_cli_missing_message(agent.name, agent.cli))
-        prompt = compose_prompt(cfg, ref, ticket, launch_context=launch_context)
+        prompt = None
+        resolved_layers = None
+        if defer_prompt:
+            resolved_layers = resolve_prompt_layers(
+                cfg, ref, ticket, launch_context=launch_context
+            )
+        else:
+            prompt = compose_prompt(cfg, ref, ticket, launch_context=launch_context)
         env = build_launch_env(cfg, ticket.secrets)
     except FileNotFoundError as exc:
         raise AgentPreparationError(missing_launch_file_message(exc)) from exc
@@ -3694,7 +3722,7 @@ def prepare_agent_launch(
     )
     if refusal is not None:
         raise AgentPreparationError(refusal, command_refused=True)
-    return PreparedAgentLaunch(agent, prompt, env, cli_path)
+    return PreparedAgentLaunch(agent, prompt, env, cli_path, resolved_layers)
 
 
 def build_agent_command(
@@ -3840,6 +3868,7 @@ def spawn_agent_session(
     include_blocker_preamble: bool = True,
     composed_prompt: str | None = None,
     checkout_notice: CheckoutNotice | None = None,
+    resolved_layers: ResolvedPromptLayers | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -3866,6 +3895,9 @@ def spawn_agent_session(
     own preflight boundary. The spawn uses those exact bytes instead of
     recomposing after intervening lifecycle publication. `checkout_notice`
     is the caller's observed checkout result for a prompt composed here.
+    `resolved_layers` are file-backed layers the caller already resolved at
+    its preflight; composition here renders `ticket` and `checkout_notice`
+    around them instead of reading those files again.
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately publishes the `log.md` launch append (via
@@ -3955,6 +3987,7 @@ def spawn_agent_session(
             include_blocker_preamble=include_blocker_preamble,
             launch_context=launch_context,
             checkout=checkout_notice,
+            resolved=resolved_layers,
         )
     else:
         _report(f"{label}: using preflighted prompt")
