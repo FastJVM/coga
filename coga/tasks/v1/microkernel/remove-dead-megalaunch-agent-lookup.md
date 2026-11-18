@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 9e91e71f-26ef-4d7b-adbb-4551b4d524b3
 ---
 
 ## Description
@@ -214,45 +213,66 @@ Changes:
 Env note: shell `python` lacks `tomlkit`; tests ran with `.venv/bin/python`.
 Sibling `preserve-supervised-environment-in-megalaunch-wind` changes already on main at branch time (rebased onto `d0fd42dfa`); no conflict.
 
+## Peer review
+
+Independent direct review by Codex completed against head
+`2e4e2615357a64a70c1ce0830b89c4aaaaf18885` and base
+`8b4dffe8c4c17336bef999bf60da90791336814e`. No must-fix findings.
+The only call site passes a configured string, the surviving lookup precedes
+CLI lookup, prompt composition and secret resolution, and its exception
+retains the original text. Preflight's status check, ticket rendering and
+copy, and generation allocation perform no ticket or log writes.
+The separate entry-point override check remains in place. The documented
+launch-claims contract still applies. The diff changes no raw-terminal
+interaction or rendering. Linux verification passed. Native Windows and macOS
+verification is deferred to release.
+
 ## PR
 ```yaml
 title: Remove dead agent lookup from megalaunch preflight
 author: claude
 author_evidence: >-
-  Implement step ran in a Claude Code session (Opus 5.5) launched by megalaunch.
-head: d35708f4d3c39aeb6ec6c7debbd8de48fb246b6d
-base: d0fd42dfafeb1f4d65856e935264f2fa4b1c9c9c
+  The implement handoff records a Claude Code session using Opus 5.5.
+head: 2e4e2615357a64a70c1ce0830b89c4aaaaf18885
+base: 8b4dffe8c4c17336bef999bf60da90791336814e
 depth: skim
 rationale: >-
-  Deletes an unused lookup whose refusal text is reproduced verbatim by
-  prepare_agent_launch; the only observable change is refusal ordering, which
-  megalaunch() cannot reach because agent names are validated earlier.
+  The change removes a redundant lookup and preserves the diagnostic text.
+  Read the refusal-order limitation for the one difference in a direct
+  preflight call. Independent review and the full Linux suite passed.
 implementation: >-
-  Removes the early cfg.agent_type call and its try/except from
-  _preflight_agent_launch, narrows launch_agent to str and drops the
-  `launch_agent or ""` fallbacks, so prepare_agent_launch is the single place
-  preflight resolves the agent.
-deviations: None.
+  Removes the early cfg.agent_type call and exception handler, narrows
+  launch_agent to str, and passes the name directly to prepare_agent_launch.
+  A direct preflight test covers the unconfigured-agent message and checks
+  the ticket and log byte for byte.
+deviations: "None."
 limitations: >-
-  An unconfigured agent is now refused after the status and launch-generation
-  refusals rather than before; unreachable through megalaunch() since --agent
-  and operator resolution reject unconfigured names first.
+  Direct preflight calls now prioritize status and launch-generation refusals
+  over the unknown-agent refusal. Megalaunch validates the override and
+  resolves a configured operator before preflight, so the ordering change
+  is unreachable through the public command. Native Windows and macOS
+  verification is deferred to release.
 files:
-  src/coga/megalaunch.py: Remove the dead lookup and narrow the parameter type.
-  tests/test_megalaunch.py: >-
-    Pin the unconfigured-agent refusal text and the absence of ticket/log writes
-    with a direct preflight call.
+  src/coga/megalaunch.py: "Resolve the agent only in prepare_agent_launch and narrow the preflight parameter type."
+  tests/test_megalaunch.py: "Pin the unconfigured-agent refusal text and confirm ticket and log bytes stay the same."
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Peer review is the next workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 2e4e2615357a64a70c1ce0830b89c4aaaaf18885
+  base: 8b4dffe8c4c17336bef999bf60da90791336814e
+  detail: >-
+    Direct review completed with no must-fix findings. Verified the caller,
+    refusal ordering and text, write boundary, and scope of the regression test.
 checks:
   - command: .venv/bin/python -m pytest
     status: passed
-    head: d35708f4d3c39aeb6ec6c7debbd8de48fb246b6d
-    base: d0fd42dfafeb1f4d65856e935264f2fa4b1c9c9c
-    detail: >-
-      4984 passed, 33 skipped in 814.59s; run on a working tree identical to the
-      committed head.
+    head: 2e4e2615357a64a70c1ce0830b89c4aaaaf18885
+    base: 8b4dffe8c4c17336bef999bf60da90791336814e
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 4984 passed, 33 skipped in 824.74s."
+  - command: .venv/bin/python -m pytest -q tests/test_megalaunch.py::test_preflight_agent_launch_refuses_unconfigured_agent_without_writes
+    status: passed
+    head: 2e4e2615357a64a70c1ce0830b89c4aaaaf18885
+    base: 8b4dffe8c4c17336bef999bf60da90791336814e
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 1 passed in 0.21s."
 ```
