@@ -81,6 +81,23 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
 
 ## Code-level hazards
 
+- **Patch a name where it is used.** `commands/init.py` imports `AGENT_CLIS`
+  and `packaged_template_root` by name, so monkeypatching
+  `coga.dependencies.AGENT_CLIS` or `coga.commands.update.packaged_template_root`
+  does not reach init: patch `coga.commands.init.AGENT_CLIS` /
+  `init_cmd.packaged_template_root`. `tests/test_init.py`'s `fake_vendor`
+  patches only `update_cmd`, so `_do_init` still copies the real packaged
+  template; tests comparing against the packaged `coga.toml` use
+  `_PACKAGED_COGA_TOML`.
+- **`coga validate` does not check bootstrap tickets' pinned `agent:`.** Its
+  `unknown-agent` / `missing-main-agent` check (`validate._check_main_agent`)
+  runs only on refs from `list_tasks(cfg)`, which walks `coga/tasks/`, so a
+  `bootstrap/ticket` or `bootstrap/orient` whose `agent: claude` names an
+  undeclared type (a Codex-only repo) validates clean and fails only when
+  `coga ticket` or `coga chat` resolves the operator. A delivered onboarding
+  ticket such as `coga-build` lives under `tasks/` and is checked. Separately,
+  validate's success line prints `All good (1 tasks checked).` with no
+  singular form (`validate.py`, cosmetic, no ticket).
 - **Calling a Typer command from Python passes `OptionInfo` sentinels** for
   every omitted option, not defaults (this crashed `repl_supervisor`'s timeout
   comparison once). Pass every parameter, or better call a non-Typer helper.

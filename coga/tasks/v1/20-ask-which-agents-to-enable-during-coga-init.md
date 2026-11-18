@@ -2247,3 +2247,10 @@ checks:
       Validation behavior and config/task schemas are unchanged; the diff is
       init console output, its label registry, tests and owning documentation.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record init agent-selection gotchas
