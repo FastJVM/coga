@@ -659,7 +659,7 @@ def test_megalaunch_command_refusal_fails_only_that_ticket(
     cfg = load_config(repo)
     refused = create_task(
         cfg=cfg,
-        title="Unrepresentable command",
+        title="Command refused",
         workflow_name="code",
         contexts=[],
         owner="marc",
@@ -668,7 +668,7 @@ def test_megalaunch_command_refusal_fails_only_that_ticket(
     )
     healthy = create_task(
         cfg=cfg,
-        title="Representable command",
+        title="Healthy command",
         workflow_name="code",
         contexts=[],
         owner="marc",
@@ -687,7 +687,10 @@ def test_megalaunch_command_refusal_fails_only_that_ticket(
 
     run = run_megalaunch(cfg, selection=[refused["slug"], healthy["slug"]])
 
-    result = next(r for r in run.results if r.slug == refused["slug"])
+    # Creation times have minute precision. These slugs put the refused ticket
+    # first even when the queue breaks a timestamp tie by slug.
+    assert [r.slug for r in run.results] == [refused["slug"], healthy["slug"]]
+    result, healthy_result = run.results
     assert result.outcome == "failed"
     assert "cannot be represented" in result.detail
     assert result.launched is False
@@ -697,6 +700,7 @@ def test_megalaunch_command_refusal_fails_only_that_ticket(
     assert Ticket.read(refused["path"]).status == "active"
     assert _log_lines_for(cfg, refused["slug"], "launch") == []
     # The queue carried on to the healthy ticket.
+    assert healthy_result.outcome == "completed"
     assert launched == [healthy["slug"]]
 
 
