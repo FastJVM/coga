@@ -11491,3 +11491,22 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 22:50 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [agent:claude] blocked: Depends on git-sync/01-add-an-explicit-coga-sync-command and git-sync/02-remove-implicit-publication-and-sync-at-session being merged; both are still at step 3 (review-design) and git.sync_coga_state is still live in src/coga/git.py, so there is no dead code to delete yet.
 2026-11-17 22:50 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [system] {"agent":"claude","agent_turns":1,"cache_creation_input_tokens":38827,"cache_read_input_tokens":216276,"cli":"claude","content_status":"ok","elapsed_seconds":23.814308,"ended_at":"2026-11-18T06:50:08.428137Z","exit_code":0,"exit_kind":"done","human_turns":0,"input_tokens":8,"model":"claude-opus-5-5","outcome":"I'll start by checking the checkout state and whether the 01/02 dependencies have merged.","outcome_status":"completed","output_tokens":987,"provider":"anthropic","request":null,"schema":2,"session_id":"d3ad6178-c8a5-48e1-b23e-4c3197ebc61c","slug":"git-sync/03-reduce-git-py-to-a-trivial-sync-core","started_at":"2026-11-18T06:49:44.613829Z","step":"implement","title":"Reduce git.py to a trivial sync core","ts":"2026-11-18T06:50:08.428137Z","usage_reason":null,"usage_status":"ok"}
 2026-11-18 08:40 v1 [validate-drift-large-blackboard-live-ticket-blackb] [human:nicktoper] launched (operator=nicktoper, launch_agent=codex, agent=codex)
+2026-11-18 08:41 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-11-18
+2026-11-18 08:41 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-11-18
+2026-11-18 08:41 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-17
+2026-11-18 08:41 v1 [recurring/dream] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/dream] [system] deleted completed prior-period task before 2026-W47
+2026-11-18 08:41 v1 [recurring/dream] [system] created recurring/dream for 2026-W47
+2026-11-18 08:41 v1 [recurring/phone-home] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/phone-home] [system] created recurring/phone-home for 2026-W47
+2026-11-18 08:41 v1 [recurring/resolve-conflicts] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W47
+2026-11-18 08:41 v1 [recurring/skill-update] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/skill-update] [system] created recurring/skill-update for 2026-W47
+2026-11-18 08:41 v1 [recurring/trim-log] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/trim-log] [system] created recurring/trim-log for 2026-W47
+2026-11-18 08:41 v1 [recurring/usage-report] [system] created (status=active)
+2026-11-18 08:41 v1 [recurring/usage-report] [system] created recurring/usage-report for 2026-W47
