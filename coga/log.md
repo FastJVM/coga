@@ -11379,3 +11379,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 16:56 v1 [v1/microkernel/preserve-supervised-environment-in-megalaunch-wind] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 16:56 v1 [v1/microkernel/preserve-supervised-environment-in-megalaunch-wind] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 16:56 v1 [v1/microkernel/preserve-supervised-environment-in-megalaunch-wind] [megalaunch] launched via coga megalaunch
+2026-11-17 16:58 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
