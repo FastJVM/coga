@@ -894,3 +894,10 @@ Eligible 35 done tickets; deferred as retirement debt: `make-retro-check-inbound
 - #1259 microkernel report-command startup cost — v1/microkernel/06
 Direct-deleted (23): correct-the-coga-workflows…, decide-the-dream-scans…, fix-the-checkouts…, remove-the-fixed-uninstall…, replace-activity-capture…, update-the-testing-topic…, hold-dirty-context-edits…, correct-state-publication…, v1/48, v1/microkernel/{01,02,03-launch-decomposition,avoid-duplicate…,normalize-signal…}, 03-prompt-assembly/record-{output-quality…,non-replacement…}, recurring/{address-pr-comments,blocker-reminders,phone-home,resolve-conflicts,skill-update,trim-log,usage-report}.
 Retro follow-ups (route in Phase 6): 03-prompt-assembly/README.md + v1/microkernel/README.md stale rows; orphan `03-implement-the-proven-prompt-assembly-evidence/` dir; v1/45 deferred README should-fix items have no live owner; v1/microkernel/02 open questions (validate warn on `requires: branch` + `checkout: control|manual`; legacy-snapshot fallback retirement owner).
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-11-18T17:40:48+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
