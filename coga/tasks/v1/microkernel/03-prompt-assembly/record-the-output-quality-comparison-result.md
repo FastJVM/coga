@@ -1,6 +1,6 @@
 ---
 title: Record the output-quality comparison result
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -24,7 +24,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (review)
 agent: claude
 ---
 
