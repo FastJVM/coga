@@ -58,7 +58,9 @@ lookup, skill refresh, or push probe.
    child completion cannot finish an outer agent session.
 5. `script exited with code N` is logged even if the script deleted or broke
    its ticket. A non-zero exit posts `💥 script failed` (non-fatal to the
-   post) and launch exits with that code. On success config, target, and
+   post) and launch exits with that code. A child killed by signal `N` is
+   reported as `128 + N` (SIGINT 130, SIGKILL 137) in the log line, the
+   notice, and launch's exit status, on read-only launches too. On success config, target, and
    ticket are re-derived again. A bootstrap script keeps framing on stderr so
    `$(coga <verb>)` sees only its stdout. A bootstrap script that exits 75
    declares it retained local state:

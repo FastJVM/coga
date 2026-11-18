@@ -87,6 +87,16 @@ def script_entry_point(ref: TargetRef) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def _normalize_exit_code(returncode: int) -> int:
+    """Map a signal-killed child's POSIX ``-N`` to the shell's ``128 + N``.
+
+    Non-negative codes pass through unchanged: 75 keeps its retained-state
+    meaning, and Windows NTSTATUS values are never negative.
+    """
+
+    return 128 - returncode if returncode < 0 else returncode
+
+
 def run_script_phase(
     cfg: Config,
     ref: TargetRef,
@@ -278,7 +288,9 @@ def run_script_phase(
         env=env,
         check=False,
     )
-    exit_code = completed.returncode
+    # Normalize before the read-only return so every consumer (the shell,
+    # the audit line, the failure notice, LaunchBail) sees one status.
+    exit_code = _normalize_exit_code(completed.returncode)
 
     if read_only:
         # No teardown reload, lifecycle inspection, notification or agent fallback.

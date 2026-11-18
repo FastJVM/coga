@@ -464,6 +464,30 @@ def test_nonzero_script_exit_halts_and_notifies_once(
     assert kwargs["fatal"] is False
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal exit status")
+def test_signal_killed_script_exits_128_plus_signal(
+    script_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A signal reaching only the child (kill, OOM) must not leak -N to the shell.
+    ref = _create_script_task(
+        script_repo,
+        "import os, signal\nos.kill(os.getpid(), signal.SIGTERM)\n",
+    )
+    notifications: list[str] = []
+    monkeypatch.setattr(
+        "coga.launch_script.post",
+        lambda cfg, message, **kwargs: notifications.append(message),
+    )
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 143, result.output
+    assert "script exited with code 143" in (script_repo / "log.md").read_text(encoding="utf-8")
+    assert len(notifications) == 1
+    assert "exit 143" in notifications[0]
+
+
 @pytest.mark.parametrize("ticket_result", ["deleted", "malformed"])
 def test_nonzero_script_exit_survives_unreadable_ticket_result(
     script_repo: Path,
@@ -2070,6 +2094,21 @@ def test_read_only_script_preserves_streams_argv_authority_and_dirty_checkout(
     assert git_command("status", "--porcelain=v1") == status
     assert git_command("rev-parse", "HEAD") == head
     assert git_command("branch", "--show-current").strip() == b"main"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal exit status")
+def test_read_only_signal_killed_script_exits_128_plus_signal(read_only_repo: Path) -> None:
+    _write(
+        read_only_repo / "bootstrap" / "inspect" / "ticket.py",
+        "import os, signal\nos.kill(os.getpid(), signal.SIGTERM)\n",
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(_SOURCE_ROOT / "src")
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "launch", "--read-only", "bootstrap/inspect"],
+        cwd=read_only_repo, env=env, capture_output=True, check=False,
+    )
+    assert result.returncode == 143, result.stderr
 
 
 @pytest.mark.parametrize("alias", [False, True])
