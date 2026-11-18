@@ -1748,53 +1748,52 @@ def _restore_after_failed_start(
         source.frontmatter.pop("launch_generation", None)
         restored = source.render().encode("utf-8")
 
-    with git.state_lock(cfg):
-        try:
-            current_bytes = _ticket_bytes(ref)
-            log_before = _log_bytes(cfg)
-        except OSError as exc:
-            return stopped(
-                f"could not read restore state ({exc}); ticket needs manual reconciliation"
-            )
-        if current_bytes != claimed_bytes:
-            return stopped(
-                "ticket changed since launch admission; ticket needs manual reconciliation"
-            )
-        try:
-            atomic_write_bytes(ref.ticket_path, restored)
-            append_log(
-                cfg,
-                ref.id_slug,
-                "megalaunch",
-                f"restored (in_progress → {prior}) — agent failed to start "
-                f"(exit {exit_code}); megalaunch run stopped",
-            )
-            if cfg.git_enabled:
-                git.sync_task_state(
-                    cfg,
-                    ref.path,
-                    message=f"Ticket: {ref.id_slug} — restored {prior}",
-                    expect={ref.ticket_path: claimed_bytes},
-                    strict=True,
-                )
-        except git.UncertainPublishError as exc:
-            return stopped(
-                f"restored to {prior} locally but publication is uncertain; "
-                f"ticket needs manual reconciliation — {exc}"
-            )
-        except (OSError, git.GitError) as exc:
-            # Definitely not on control: keep local state equal to the claim
-            # control still holds rather than a restore nobody accepted.
-            try:
-                _restore_ticket_bytes(cfg, ref, claimed_bytes, log_before=log_before)
-            except OSError as rollback_exc:
+    try:
+        with git.state_lock(cfg):
+            if _ticket_bytes(ref) != claimed_bytes:
                 return stopped(
-                    f"restore failed ({exc}) and local rollback failed ({rollback_exc}); "
-                    "ticket needs manual reconciliation"
+                    "ticket changed since launch admission; ticket needs manual reconciliation"
                 )
-            return stopped(
-                f"restore to {prior} failed ({exc}); ticket needs manual reconciliation"
-            )
+            log_before = _log_bytes(cfg)
+            try:
+                atomic_write_bytes(ref.ticket_path, restored)
+                append_log(
+                    cfg,
+                    ref.id_slug,
+                    "megalaunch",
+                    f"restored (in_progress → {prior}) — agent failed to start "
+                    f"(exit {exit_code}); megalaunch run stopped",
+                )
+                if cfg.git_enabled:
+                    git.sync_task_state(
+                        cfg,
+                        ref.path,
+                        message=f"Ticket: {ref.id_slug} — restored {prior}",
+                        expect={ref.ticket_path: claimed_bytes},
+                        strict=True,
+                    )
+            except git.UncertainPublishError as exc:
+                return stopped(
+                    f"restored to {prior} locally but publication is uncertain; "
+                    f"ticket needs manual reconciliation — {exc}"
+                )
+            except (OSError, git.GitError) as exc:
+                # Definitely not on control: keep local state equal to the claim
+                # control still holds rather than a restore nobody accepted.
+                try:
+                    _restore_ticket_bytes(cfg, ref, claimed_bytes, log_before=log_before)
+                except OSError as rollback_exc:
+                    return stopped(
+                        f"restore failed ({exc}) and local rollback failed ({rollback_exc}); "
+                        "ticket needs manual reconciliation"
+                    )
+                return stopped(
+                    f"restore to {prior} failed ({exc}); ticket needs manual reconciliation"
+                )
+    except (OSError, git.GitError) as exc:
+        return stopped(
+            f"restore could not be confirmed ({exc}); ticket needs manual reconciliation"
+        )
     return stopped(f"restored to {prior}; {next_step}")
 
 
@@ -2206,8 +2205,7 @@ def _admit_launch_claim_after_release(
 
     try:
         ticket.frontmatter["launch_generation"] = admitted_generation
-        admitted_bytes = ticket.render().encode("utf-8")
-        atomic_write_bytes(ref.ticket_path, admitted_bytes)
+        admitted_bytes = git.write_ticket(cfg, ticket, ref.ticket_path)
         # The supervisor already holds `state_lock` through this callback;
         # `publish` re-enters it. `expect` pins the pending control copy the
         # seal accepts this exact prefix-stripped transition against.
