@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 6d6c53ee-c103-491d-b26b-f743e14f6680
 ---
 
 ## Description
@@ -262,7 +261,21 @@ ticket) is still not merged, so a small conflict can be expected there.
 Native Windows verification is deferred to release, per coga-dev/testing.
 `coga validate` was not run because validation behavior did not change.
 
-Next: peer review by other-agent on the pushed branch.
+## Peer review
+
+Codex completed a direct, independent review of Claude's implementation at
+`2063dd72e872fc2d70af4705e0353c2ae3df7a06` against `98e7ab0e51e44b5e71af904d615aab415f06e3f8`, including Codex's test-only follow-up. The shared
+readiness check and spawn receive the same supervised mapping, with one
+secret resolution per preparation. A command refusal returns before activation
+or claim publication and leaves the rest of the queue eligible to launch.
+The original refusal test could launch the healthy ticket first when creation
+timestamps tied. The follow-up makes refusal first and asserts the subsequent
+ticket completes. The final diff has no unresolved findings.
+
+The full Linux suite passed. With the final tests copied onto the base source,
+the wiring test failed at the missing `COGA_SUPERVISED` witness and the
+refusal test passed. The diff changes preflight wiring and queue outcomes.
+Native Windows and macOS verification is deferred to release.
 
 ## PR
 
@@ -272,24 +285,25 @@ author: claude
 author_evidence: >-
   Implement session ran as Claude Code (claude-opus-5-5) under megalaunch,
   launch f960b016-5946-4ae1-9002-358934ae6d80.
-head: e4583951f4ccdf34a5fe0b857fa05c4e3c8aab17
-base: 7f24c3fe3017a3b01d6282b53d0faac90d2cfb80
+head: 2063dd72e872fc2d70af4705e0353c2ae3df7a06
+base: 98e7ab0e51e44b5e71af904d615aab415f06e3f8
 depth: skim
 rationale: >-
   Small, bounded wiring change with no observable behavior change today. The
   Windows planner reads only PATH/PATHEXT, which the supervised builder leaves
-  alone. Read the description for the API tradeoff and the ordinary-launch
-  scope note.
+  alone. The Linux suite and the pre-fix control cover the wiring and queue
+  behavior. Read the API tradeoff and the ordinary-launch scope note.
 implementation: >-
   prepare_agent_launch takes an optional env_transform, applied after
   build_launch_env and before agent_command_refusal. The returned env is the
   transformed one. Megalaunch passes build_supervised_step_env through it, so
   the representability check vouches for the exact mapping handed to
-  spawn_agent_session. Secrets are resolved once, and nothing is cached across
-  publication.
+  spawn_agent_session. Each readiness pass resolves secrets once. The existing
+  claim checks bind the prepared launch to the ticket revision it validated.
 deviations: >-
-  None. This is the first option the ticket allowed: one check, at the cost of
-  one more optional parameter on the shared API.
+  The implementation uses the ticket's optional environment transform design.
+  It adds one keyword parameter to the shared API and performs one check.
+  Codex tightened the refusal test during peer review to prove queue order.
 limitations: >-
   Ordinary launch still checks the plain launch env. Its spawn step and
   checkout-return witness are settled after checkout preparation, so it is out
@@ -304,34 +318,45 @@ files:
     prepared.env.
   tests/test_megalaunch.py: >-
     Wiring test (the check sees the supervised witnesses and equals the spawn
-    env) and refusal-path test (fails only that ticket, writes no claim).
+    env) and refusal-path test (writes no claim and then completes the
+    healthy ticket).
   docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: >-
     State which environment each caller's representability check uses.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 2063dd72e872fc2d70af4705e0353c2ae3df7a06
+  base: 98e7ab0e51e44b5e71af904d615aab415f06e3f8
   detail: >-
-    Independent review is the next workflow step (peer-review by
-    other-agent). It has not run yet.
+    Codex directly reviewed Claude's implementation and completed review on
+    the final diff. Codex's only change was to make the refusal test run the
+    rejected ticket first and verify the healthy ticket completed thereafter.
+    No unresolved findings.
 checks:
   - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider
     status: passed
-    head: e4583951f4ccdf34a5fe0b857fa05c4e3c8aab17
-    base: 7f24c3fe3017a3b01d6282b53d0faac90d2cfb80
+    head: 2063dd72e872fc2d70af4705e0353c2ae3df7a06
+    base: 98e7ab0e51e44b5e71af904d615aab415f06e3f8
     detail: >-
-      4985 passed, 33 skipped in 792s; Pop!_OS 24.04 LTS, Python 3.12.12, on
-      the committed, clean tree. Python 3.11 floor not exercised (3.12 only).
+      4985 passed, 33 skipped in 837.46s (0:13:57). Pop!_OS 24.04 LTS, Python 3.12.12. Python 3.11 has no
+      pytest installation in the local interpreter and was not exercised.
   - command: >-
-      git stash push src/ && .venv/bin/python -m pytest tests/test_megalaunch.py
-      -k "command_check_sees or command_refusal_fails"
+      baseline_dir=$(mktemp -d /tmp/coga-peer-main.XXXXXX) &&
+      git archive origin/main | tar -x -C "$baseline_dir" &&
+      cp tests/test_megalaunch.py "$baseline_dir/tests/test_megalaunch.py" &&
+      coga_peer_python="$PWD/.venv/bin/python" &&
+      cd "$baseline_dir" &&
+      PYTHONPATH="$PWD/src" "$coga_peer_python" -m pytest -q -p no:cacheprovider
+      tests/test_megalaunch.py -k 'command_check_sees or command_refusal_fails'
     status: passed
-    head: 89d0a51cd50aaaf5b18209925d582f83a11beb9a
-    base: 87539213998ea0c298318ee9d2bd866447f16de1
+    head: 2063dd72e872fc2d70af4705e0353c2ae3df7a06
+    base: 98e7ab0e51e44b5e71af904d615aab415f06e3f8
     detail: >-
-      Pre-rebase negative control. With the src fix removed, the wiring test
-      failed at env["COGA_SUPERVISED"] and the refusal test passed, as
-      expected.
+      Expected negative control. Used the reviewed test file on the base
+      source. The wiring test failed with KeyError for COGA_SUPERVISED and
+      the refusal test passed (1 failed, 1 passed, 162 deselected in 0.90s).
+      Pop!_OS 24.04 LTS, Python 3.12.12.
   - command: python -m pytest on native Windows/macOS
     status: not-run
     detail: Native checks are release-only per coga-dev/testing.
