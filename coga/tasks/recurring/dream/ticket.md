@@ -901,3 +901,43 @@ Generated: 2026-11-18T17:40:48+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-11-18 ~18:15 UTC (period 2026-W47, run `20261118T170921Z`, unattended queue).
+
+| Phase | Result | Detail |
+|---|---|---|
+| Preflight | ok | git-common-dir, remote (origin/main), gh |
+| 1 validate-drift | human-needed | 13 issues (7 unfrozen-workflow, 4 stuck-in-progress, 2 large-blackboard); 0 direct-fix, 0 PR proposal, 0 machine-local — all 3 classes already ticketed |
+| 2 knowledge scan | reported | 31/31 shards, 40 raw findings (13 extract, 22 stale, 2 gap + 1 drift-labelled) |
+| 3 contract audit | reported | 13/13 shards (ca-own ownership check inline: 0), 14 drift (5 dup of Phase 2) → 47 de-duplicated |
+| 4 retro/done-ticket | pr-opened | 35 eligible → 5 knowledge PRs (12 tickets) + 23 direct deletes; verified, torn down |
+| 5 cleanup-orphan-markers | no-op | no candidates |
+| 6 disposition | proposed / pr-opened | 5 proposal PRs, 9 drafts, 0 upstream |
+| upstream-coga.md | upstream-captured: 0 | Coga source repo |
+
+Quality note: wave 1 of the knowledge scan (ks-01..ks-10) ran on Sonnet and yielded 6 findings; waves 2–3 on the default model yielded 34. Coverage is complete (every leaf wrote a completion line), but wave 1's areas (recurring/launch) may be under-read.
+
+**Knowledge PRs (Phase 4):** #1255 agent-trial method + compose limits (also covers gap ks-13) · #1256 install Python pin / Restricted policy · #1257 coga-dev hazards · #1258 init agent-selection gotchas · #1259 microkernel report-command startup cost. All 9 `source: done` extract findings are carried by #1256/#1257/#1258.
+
+**Proposal PRs (Phase 6, pr-required, none auto-merged):**
+- #1260 coga-dev internals: git-refresh callers, publish state_lock, activity-capture usage.py, git-regressions citation (ks-16, ks-18, ca-01, ca-02)
+- #1261 user topics: pr-publication/preparation author refusal, terminal-owners network, first-task freeze, bootstrap/ticket `coga draft`, human/run bump (ks-18 ×2, ks-29, ks-30 ×2)
+- #1262 bootstrap/import: `_dispatch_branch_sync`, `include` allowlist, `installed_ref`, `coga/skills/code/*` (ks-30 ×2, ca-08 ×4)
+- #1263 Google skills: dead helper paths, rejected config tables, stopgap framing (ks-28 ×2, ks-29 ×2, ca-09 ×3)
+- #1264 recurring/Dream contracts: cleanup-orphan-markers scope, branch-sweep closed-unmerged path, code/implement adjacent bugs, validate-drift idempotency, phone-home local-only link, recurring/verify detection (ks-02, ks-03, ks-28, ca-08, ca-09, ca-11)
+
+**Drafts created (code/with-review):**
+- Overlap with open PRs that don't carry the fix: `add-the-megalaunch-dependency-resolution-append-lo` (ks-15/ca-02; #1247/#1248) · `correct-script-tickets-on-which-supervisor-variabl` (ca-05; #1244/#1247) · `update-the-testing-topic-known-failure-note-on-the` (ks-20; #1246/#1255/#1256, fix in #1245) · `name-clone-scoped-recurring-scripts-among-the-scru` (ks-27; #1246) · `fix-the-windows-aws-walk-step-and-add-the-v1-14-at` (ks-23 + ks-11 done+checkout extract from v1/14; #1256/#1257)
+- Retro follow-ups: `fix-the-readme-windows-walk-findings-left-unowned` (v1/31 findings 6/7/10; owner v1/33 deleted) · `refresh-the-v1-microkernel-task-readmes-after-the` (ks-03 + 03-prompt-assembly README + orphan evidence dir) · `decide-the-two-open-questions-left-by-the-checkout` (v1/microkernel/02)
+- Open decision from #1263: `decide-where-the-google-helper-skills-read-their-c`
+
+**Already covered:** gap ks-19 (uninstall.py `_AGENT_SKILL_DIRS`) → already ticketed as `v1/50-make-adding-a-third-agent-one-registry-edit`. Microkernel size exception (ks-25) → carried by open PR #1246; microkernel open-placements owners (ks-25) → carried by open PRs #1244/#1247/#1248. Gap ks-13 (A/B trial method) → carried by #1255.
+Phase 1 classes, already ticketed: `validate-drift-unfrozen-workflow-canceled-tickets` (7 members, all canceled; same set) · `validate-drift-stuck-in-progress-in-progress-ticke` (4 members; new since filing: the two validate-drift owner tickets themselves) · `validate-drift-large-blackboard-live-ticket-blackb` (v1/20 now done → removed by #1258; v1/14 retirement debt).
+
+**Retirement debt (run `coga retire <slug>`):**
+- done+checkout: `v1/14-interactive-coga-launch-on-native-windows` (local branch; its remaining windows-aws gotchas routed to draft above) · `make-retro-check-inbound-doc-links-before-deleting` (branch still on origin).
+- canceled: 41 tickets. Retirement unlocks these extracts: `ship-a-shared-recurring-reminder-engine-battery` (coga/recurring — recurring-reminder harness boundary) · `v1/42-idea-piece` (marketing/write-post — owner wording limits) · `marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive` (coga-dev/current-direction — declined Gemini integration + verified CLI constraints) · `v1/pr-are-only-when-ready-for-review` (coga/checkouts — cross-repo tickets can't drive branch-gated workflows) · `define-the-api-equivalent-cost-proxy-and-price-tab` (coga-dev/internals/usage-pricing — why the dollar-cost proxy was declined, what reopens it).
+
+**Machine-local validator issues:** none. **Human-needed:** stale linked worktree `/home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops` on branch `dream/ops-20261026T172253Z` from an October Dream run is still registered — inspect and remove. **Review gates:** 10 PRs (#1255–#1264) need human review.
