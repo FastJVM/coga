@@ -327,4 +327,5 @@ checks:
 
 ## Blockers
 
-- [ ] [2026-11-17 21:30] [agent:codex] id=20261117T213044 Decide what startup evidence transcriptless agent CLIs must provide, or narrow the guarantee for those CLIs. A real PTY reproduction shows the current 20-second rule rolls back a ticket and stops the queue after an agent creates a work artifact and exits 1 without touching the ticket.
+- [x] [2026-11-17 21:30] [agent:codex] id=20261117T213044 Decide what startup evidence transcriptless agent CLIs must provide, or narrow the guarantee for those CLIs. A real PTY reproduction shows the current 20-second rule rolls back a ticket and stops the queue after an agent creates a work artifact and exits 1 without touching the ticket.
+  resolved: [2026-11-17 22:06] [human:nicktoper] Require positive startup-failure evidence before restoring the ticket and stopping the queue. An ambiguous nonzero exit, including one from a transcriptless CLI without explicit evidence, follows the existing failed path.

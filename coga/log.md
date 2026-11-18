@@ -11460,3 +11460,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 22:06 v1 [stop-megalaunch-when-an-agent-fails-to-start] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-17 22:06 v1 [stop-megalaunch-when-an-agent-fails-to-start] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 22:06 v1 [stop-megalaunch-when-an-agent-fails-to-start] [megalaunch] launched via coga megalaunch
+2026-11-17 22:06 v1 [stop-megalaunch-when-an-agent-fails-to-start] [human:nicktoper] unblocked (asks resolved, still in_progress): Require positive startup-failure evidence before restoring the ticket and stopping the queue. An ambiguous nonzero exit, including one from a transcriptless CLI without explicit evidence, follows the existing failed path.
