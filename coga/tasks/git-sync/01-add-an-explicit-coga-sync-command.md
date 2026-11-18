@@ -43,9 +43,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 3abac472-ffb5-4d7c-b9c5-a1f67219e7c3
 ---
 
 ## Description
@@ -585,3 +584,88 @@ scope) and `## Context` (placement, cited machinery). Key decisions and why:
 5. **`[git].enabled = false` exits 0** (nothing to publish to), mirroring
    `coga run publish-state`. Confirm, or should an explicit `coga sync`
    fail loud (exit 1)?
+
+## Evaluator review
+
+**Needs revision before implementation.** The ticket has the required body
+sections, the frozen workflow routes evaluation and owner review through
+control, and the shared-lock transaction supports the built-in placement
+under `coga-dev/microkernel`. The bare-remote fixtures in
+`tests/test_publish_state.py` and relocated layout in
+`tests/test_layout_contexts.py` fit the requested verification.
+
+### Must fix
+
+1. **The proposed rebase can succeed while reintroducing state.** Reproduced
+   on Git 2.43 using Proposed shape step 6. Start with state A. On feature,
+   commit A → B alongside code, then revert the state to A. Independently
+   land B on main. Step 4 sees no net feature state change and lands nothing.
+   Both picks replay without a conflict, leaving state A on feature and B on
+   main. Define how every replayed commit excludes root changes, including
+   clean picks, and how sync enforces the final root-tree equality before
+   pushing. Add this case to the mixed-commit test. Also make the rebase's
+   treatment of merge commits explicit. Plain rebase can drop code added
+   only in a merge resolution.
+
+2. **Keep the audit log within its existing transaction and retention rules.**
+   The generic unchanged-side shortcuts in “Conflicts and merging while
+   landing” can publish a one-sided truncation without invoking
+   `log_publication.reconcile`. Its `_reconcile` compares the source with
+   pre-edit HEAD and source-base events and rejects unreceipted truncation.
+   The spool-merge topic's “How publish lands the audit log” explicitly
+   forbids using a `PUBLISHED_REF` blob as the log source base. It also
+   describes a pending `log_transaction` receipt that fences ordinary
+   publication. Specify the dedicated log path, inputs, and receipt check
+   before mutation. Test one-sided truncation and a pending receipt as well
+   as two-clone append.
+
+3. **Resolve preflight ordering and missing control.** “Preconditions” promises
+   exit 2 without changes for unrelated histories, but Proposed shape
+   commits before fetching and checking ancestry. Specify which changes a
+   preflight fetch may make to tracking refs and check ancestry before
+   staging or committing. `git._fetch_control` suppresses a missing remote
+   branch and can leave a stale tracking ref in place. Require a verified
+   tip and define behavior for a deleted remote control branch, an unborn
+   HEAD, and missing local control in a remote-less repo. Reconcile the
+   diagnostic contract with a fetch failure before any local state commit.
+
+4. **Define what provenance proves and how recording failures recover.**
+   `git._write_published` stores blobs at mode 100644 and removes entries
+   for deletions. It cannot distinguish a published deletion from absent
+   provenance or supply a historical file mode for a three-way merge.
+   Also, selecting only merge-base → HEAD paths misses a deliberate return
+   to merge-base bytes after an implicit sweep published different working
+   bytes. Specify how candidates and bases distinguish that edit from a
+   checkout merely behind main. `git._record_published` catches failures and
+   only emits a note. State when pending expectations may be cleared and how
+   a rerun repairs failed bookkeeping after main has advanced.
+
+5. **Give branch push its own partial-success contract.** The push failure
+   criteria promise that sync has not rebased and rerunning retries. After a
+   lease rejection or transport failure at the branch-push stage, main may
+   already hold the state and HEAD is already rebased. A rerun may have no
+   HEAD change, or the old tracking tip may no longer be its ancestor. Specify
+   the diagnostic, exit code, and safe recovery for this stage separately
+   from a failed landing. Assert both refs and retained code in the
+   lease-mismatch test.
+
+6. **Resolve the review boundary in the ticket body.** The stated scope
+   publishes relocated `docs/contexts` edits before review. That removes
+   those edits from the feature diff, even when AGENTS.md requires updating
+   the owning topic in the same PR as its behavior change. The blackboard
+   already flags this decision. Record the owner's disposition and how a
+   maintainer should preserve same-PR review when that is required. Scope
+   the blanket language in `coga/state-publication` and the “Invariants”
+   section of `coga-dev/internals/state-publication` to implicit publication
+   where needed, and link the explicit command contract from those surfaces.
+
+### Optional
+
+- Specify whether the branch-local commit should bypass every hook or just
+  verification hooks. `git commit --no-verify` still runs hooks such as
+  `prepare-commit-msg` and `post-commit`, so the proposed invocation needs
+  a different mechanism if the existing “neither runs hooks” criterion is
+  retained.
+- Exercise a remote-less linked worktree and a non-default control branch
+  alongside the relocated-context case. These cover the CAS and branch
+  lookup contracts independently of the usual origin/main fixture.
