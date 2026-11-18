@@ -45,7 +45,7 @@ workflow:
     checkout: reuse-required
 step: 2 (evaluate-design)
 agent: claude
-launch_generation: pending:cbc9d672-1982-4bf1-abfc-8a90f1b2c633
+launch_generation: cbc9d672-1982-4bf1-abfc-8a90f1b2c633
 ---
 
 ## Description
