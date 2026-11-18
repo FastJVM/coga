@@ -54,7 +54,6 @@ effects, or calling shared infrastructure does not settle their placement.
 | --- | --- | --- |
 | `megalaunch`, `slack` | Placement of queue orchestration and the user-facing notification head | `work-orchestration-commands-to-tickets` |
 | `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `residual-command-surfaces` |
-| `show`, `status`, `validate`, `usage`, `recurring list` | Placement of the read/report heads, separately from shared rendering and validation infrastructure | `read-report-commands-as-ticket-workflows` |
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
@@ -78,6 +77,28 @@ its audit; an uncertain push keeps the write for reconciliation. Both exit 75
 to suppress the generic sweep. With Git disabled or unavailable through a
 documented soft-skip, the local write remains the result
 ([publish primitive](../internals/state-publication/publish/SKILL.md)).
+
+## Settled read/report placements
+
+Show, status, usage and recurring-list own their parsers and presentation in
+packaged `bootstrap/<name>/ticket.py`, resolved local-first. Core never imports
+these reports. `views.last_updated_map` (status and megalaunch) and
+`views.operator_cell` (show and status) remain shared APIs. Usage record readers
+and rollups remain shared with the weekly usage report; recurring catalog
+selection remains shared with status and scheduling.
+
+Validation stays in core: its public CLI and the fixed `validate-drift` recipe
+consume the fix-capable module entry and JSON serialization. Both parsers call
+one core execution/rendering contract. Safe local fixes retain the state lock,
+concurrent-byte refusal and atomic write, without publication or user setup.
+
+The fixed `recurring list` adapter is a settled co-versioned exception: its
+forwarding agrees with launch's private read-only boundary while retaining the
+two-word spelling without nested aliases or another executor. Its ticket owns
+all catalog presentation. Launch's prompt-report diagnostic also stays: it
+reports launch-selected composition/provenance, refuses script targets and
+refreshes the ignored skill view. The write-free compose API remains separate.
+These decisions do not claim that diagnostic rendering has two consumers.
 
 ## The `ticket.py` script phase
 

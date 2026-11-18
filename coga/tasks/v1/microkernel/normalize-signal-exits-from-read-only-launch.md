@@ -2,14 +2,100 @@
 title: Normalize signal exits from read-only launch
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-Peer review of PR #1233, finding 6, observed read-only launch passing a negative child return code through to the shell (-2 becomes 254 rather than 130). Normalize process exits consistently with other launch paths and cover a child terminated by signal. Owner explicitly deferred this finding from the report extraction PR on 2026-11-16. Source: v1/microkernel/06-read-report-commands-as-ticket-workflows, Peer review.
+Peer review of PR #1233 (finding 6) found that `coga launch --read-only`
+hands a signal-killed `ticket.py` child's negative return code straight to
+the shell. A child killed by SIGINT returns `-2`, which the shell sees as 254
+instead of the conventional 130. The owner deferred this finding from the
+report-extraction PR on 2026-11-16 (source:
+v1/microkernel/06-read-report-commands-as-ticket-workflows, Peer review).
+
+Normalize the child's exit status where `ticket.py` is run, so every script
+launch path follows the same `128 + signal` convention the other launch paths
+already use. The owner chose to normalize once in the shared executor rather
+than only on the read-only return, which covers ordinary script launches too.
+
+Done means:
+
+- a read-only launch whose `ticket.py` is killed by a signal exits `128 + N`
+  (SIGINT gives 130), and so does an ordinary bootstrap or stateful script
+  launch;
+- the `script exited with code N` audit line and the `💥 script failed`
+  notice report the normalized code;
+- a test in `tests/test_launch_script.py` covers a child killed by a
+  signal on the read-only path and on at least one ordinary script path;
+- `coga/script-tickets` item 5 is updated in the same PR.
 
 ## Context
+
+### Where the code is
+
+- `launch_script.run_script_phase` runs the child with
+  `subprocess.run([sys.executable, entry, *args], check=False)` and takes
+  `exit_code = completed.returncode` as is. The `read_only` branch returns
+  `ScriptPhaseResult(exit_code=...)` right after that. Normalize there, before
+  the read-only early return, so the read-only return, `append_log`, the
+  failure notice, and `launch._exit_failed_script` → `LaunchBail` all see the
+  same value.
+- `launch.launch` returns `LaunchResult(kind="script", exit_code=...)` for
+  read-only. `commands/launch.py` exits through
+  `oscompat.process_exit_status`, which only remaps Windows DWORD values
+  (≥ 0x80000000). It passes POSIX codes, negative ones included, through
+  unchanged, so Python's `SystemExit(-2)` shows up as 254.
+- Code that already applies the convention: `repl_supervisor`
+  (`128 + os.WTERMSIG(status)` and `128 + sig` for crashes),
+  `recurring_runner` (`128 + signal.SIGTERM`), and `launch`'s own
+  SIGINT/SIGTERM handler (`SystemExit(128 + signum)`). Reuse a shared helper
+  if one fits. Otherwise a small private helper next to `run_script_phase` is
+  fine; don't add a new core module for this.
+
+### Constraints
+
+- Map only negative POSIX return codes (`-N` → `128 + N`). Leave
+  non-negative codes as they are: 75 (EX_TEMPFAIL retry semantics, also
+  checked in `run_script_chain`) and Windows NTSTATUS values, where
+  `returncode` is never negative, must keep their current meaning.
+- Read-only must stay side-effect free. Don't add teardown, logging, or
+  publication to the read-only branch while moving the normalization.
+- No reusable helper exists: `repl_supervisor` works from a wait status, not
+  a returncode. Write a small private helper.
+
+### What the bug actually is
+
+A terminal Ctrl-C also reaches the parent `coga`. It already exits 130
+through `launch._on_signal`, or through KeyboardInterrupt on read-only. The
+real defect is a signal that reaches **only the child**: a `kill`, or an OOM
+SIGKILL, which should exit 137. Test that case, not a Ctrl-C through the
+parent.
+
+### Tests
+
+The read-only fixtures live in `tests/test_launch_script.py` (the
+`read_only_repo` fixture and the `test_read_only_*` tests). Have the child
+signal itself, for example `os.kill(os.getpid(), signal.SIGTERM)`, and assert
+143. SIGINT works too (an uncaught KeyboardInterrupt re-raises SIGINT, giving
+-2), but SIGTERM is simpler. Skip on Windows. No existing test asserts a raw
+negative script code. The `-SIGINT` in `tests/test_launch.py` is on a
+`ReplOutcome` and is unrelated.
+
+### Other consumers of the script exit code (check, none expected to break)
+
+`retire/ticket.py` prints "exited {code}", recurring delegation failure
+reporting is in `recurring_runner`, and `runner._escaping_exit_code`. All will
+now see `128 + N` instead of a negative value.
+
+### Docs (cited, not attached)
+
+`coga/script-tickets`
+(`src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md`),
+item 5, says "launch exits with that code". Add that a signal-killed child
+is reported as `128 + signal`. The `coga/launch` section "Read-only command
+dispatch" already says "the usual process-status convention", so it needs no
+edit.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

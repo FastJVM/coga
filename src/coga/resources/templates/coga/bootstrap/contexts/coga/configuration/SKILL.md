@@ -26,7 +26,8 @@ Init declares the agents whose CLI it found on `PATH` and comments out the
 `[agents.*]` table of every other supported agent. So with one agent installed
 you need no config edit: that agent is the only declared type and therefore the
 default. To add another, install its CLI and uncomment its table in
-`coga/coga.toml`.
+`coga/coga.toml`. When init found no agent CLI it comments nothing out, so the
+file declares every supported agent and installing one needs no edit.
 
 In a repo that declares both, choose which one new tasks get with this
 top-level setting, placed before any `[table]` in `coga/coga.local.toml`:

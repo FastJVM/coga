@@ -114,7 +114,8 @@ def test_all_existing_history_readers_and_service_order_are_unchanged(tmp_path):
     from coga.config import Config
     from coga.service_order import service_order
     from coga.tasks import list_tasks
-    from coga.views import render_show
+    from report_helpers import report_module
+    render_show = report_module("show").render_show
     cfg = Config(repo_root=tmp_path, current_user="a", default_status="draft", agents={}, slack_webhook=None, slack_enabled=False)
     (tmp_path / "tasks").mkdir()
     for ref, status in [("a", "canceled"), ("b", "draft")]:

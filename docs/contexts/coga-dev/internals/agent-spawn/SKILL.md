@@ -38,8 +38,18 @@ guarantees in [coga/launch](../../../../../src/coga/resources/templates/coga/boo
 boundaries. Entry preparation is `git.prepare_control_checkout`
 ([git refresh](../git-refresh/SKILL.md)); a prepared step spawns with the
 prompt composed before the switch
-(`spawn_agent_session(composed_prompt=...)`). Agent preflight looks up the
-CLI with `shutil.which` and resolves secrets with `build_launch_env`; an
+(`spawn_agent_session(composed_prompt=...)`). `prepare_agent_launch` is the shared readiness operation for ordinary launch
+and megalaunch. It resolves the agent and CLI, validates prompt layers, builds
+the scoped environment, and checks command representability. It returns
+`PreparedAgentLaunch` (agent, rendered prompt or resolved layers, environment,
+CLI path) or a typed
+`AgentPreparationError`; it writes no repo state, though secret resolution may
+call an external provider. Callers keep their distinct admission/publication
+transactions. Ordinary launch renders its final prospective ticket and checkout
+notice using the resolved layers while their selection still matches.
+Megalaunch retains its readiness prompt, adds its supervised identity to the
+prepared environment, and keeps
+its claim and held-child release proof. An
 open blocker left after a resumed session is restored by
 `_reblock_unresolved_resume`; the `--agent` continuation rule is
 `consecutive_agent_override`.
@@ -50,6 +60,18 @@ publishes and confirms the group before checkout entry and notification.
 [`_publish_startup`](../state-publication/publish/SKILL.md#ordinary-managed-startup)
 owns the finalizer and its failure paths. Other launch routes keep their own
 publication order.
+
+The same public `launch(..., read_only=True)` selects the stateless script
+policy owned by [launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#read-only-command-dispatch),
+before ordinary invocation/checkout setup. It uses `run_script_phase` with an
+explicit effect policy, not a second subprocess implementation.
+
+The retained named agent defaults are `bootstrap/orient` and
+`bootstrap/ticket`: their discussion delivery lets the human supply the first
+substantive turn; authoring's kickoff starts its greet-first interview. The
+orientation checkout guard/receipt proves occupancy across a chat and cannot
+move into editable procedure prose. This change does not introduce a new
+prompt applicability rule or relocate those existing delivery defaults.
 
 ## Order inside one call
 

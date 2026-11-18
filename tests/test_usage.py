@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from report_helpers import report_cli
+
 import dataclasses
 import json
 import os
@@ -1242,7 +1244,7 @@ def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
     )
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["usage", "--json"])
+    result = report_cli(["usage", "--json"])
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
@@ -1276,7 +1278,7 @@ def test_usage_command_counts_duplicated_lines_once(
     )
     monkeypatch.chdir(tmp_path / "coga")
 
-    result = CliRunner().invoke(app, ["usage", "--json"])
+    result = report_cli(["usage", "--json"])
 
     assert result.exit_code == 0, result.output
     overall = json.loads(result.output)["overall"]

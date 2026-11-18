@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import json
-import sys
-from dataclasses import asdict
-from typing import Any
 
 import typer
 
 from coga.blackboard import BLACKBOARD_WARN_BYTES
 from coga.config import ConfigError, load_config
-from coga.validate import run, validate_task
+from coga.validate import ValidationOptionError, emit_report, execute_validation
 
 
 def validate(
@@ -57,60 +53,13 @@ def validate(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
 
-    if task is not None:
-        if check_slack:
-            typer.secho(
-                "--check-slack is not supported with --task; "
-                "it probes the Slack webhook, which is a whole-repo concern.",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            raise typer.Exit(2)
-        if check_github:
-            typer.secho(
-                "--check-github is not supported with --task; "
-                "it probes git/GitHub auth, which is a whole-repo concern.",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            raise typer.Exit(2)
-        report = validate_task(
-            cfg,
-            task,
-            fix=fix,
-            max_blackboard_bytes=int(max_blackboard_kb * 1024),
-            idle_hours=idle_hours,
+    try:
+        report = execute_validation(
+            cfg, task=task, fix=fix, idle_hours=idle_hours,
+            max_blackboard_kb=max_blackboard_kb,
+            check_slack=check_slack, check_github=check_github,
         )
-    else:
-        report = run(
-            cfg,
-            idle_hours=idle_hours,
-            max_blackboard_bytes=int(max_blackboard_kb * 1024),
-            check_slack=check_slack,
-            check_github=check_github,
-            fix=fix,
-        )
-
-    if json_output:
-        payload: dict[str, Any] = {
-            "generated_at": report.generated_at,
-            "ok_count": report.ok_count,
-            "fixes": [asdict(f) for f in report.fixes],
-            "issues": [asdict(i) for i in report.issues],
-        }
-        json.dump(payload, sys.stdout, indent=2)
-        sys.stdout.write("\n")
-    else:
-        if not report.issues:
-            for fix_item in report.fixes:
-                typer.echo(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
-            typer.echo(f"All good ({report.ok_count} tasks checked).")
-        else:
-            for fix_item in report.fixes:
-                typer.echo(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
-            for issue in report.issues:
-                sev = issue.severity.upper()
-                typer.echo(f"[{sev}] {issue.task}: {issue.kind} — {issue.message}")
-
-    if any(i.severity == "error" for i in report.issues):
-        raise typer.Exit(1)
+    except ValidationOptionError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(2)
+    raise typer.Exit(emit_report(report, json_output=json_output))

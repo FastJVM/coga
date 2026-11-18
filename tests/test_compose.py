@@ -12,9 +12,12 @@ from coga.blackboard import append_blocker, resolve_open_blockers
 from coga.create import create_task
 from coga.slugify import slugify
 from coga.compose import (
+    EMPTY_BLACKBOARD_TEXT,
+    OPEN_BLOCKERS_POINTER,
     SESSION_CONDUCT_RESOURCES,
     CheckoutNotice,
     ComposeError,
+    _prompt_text,
     compose_prompt,
     compose_prompt_report,
     resolve_prompt_layers,
@@ -430,7 +433,9 @@ def test_coga_repo_principles_compose_only_when_attached(
     report = compose_prompt_report(cfg, ref, ticket)
     layers = [layer for layer in report.layers if layer.layer == "repo_context"]
     assert len(layers) == 1
-    assert layers[0].text == source.read_text(encoding="utf-8")
+    source_text = source.read_text(encoding="utf-8")
+    assert source_text.startswith("# Context\n")
+    assert layers[0].text.strip() == source_text.removeprefix("# Context\n").strip()
     assert "Expand human capacity" in principles.read_text(encoding="utf-8")
     assert "Expand human capacity" not in report.prompt
 
@@ -497,7 +502,6 @@ def test_bundled_review_step_composes_address_pr_comments_skill(
     prompt = compose_prompt(cfg, ref, read_ticket(ref))
 
     assert "Current step: review (skill: code/address-pr-comments)" in prompt
-    assert "Address PR review comments" in prompt
     assert "Do not run `coga bump`" in prompt
     assert "A pure prose edit does not require pytest" in prompt
 
@@ -557,7 +561,7 @@ def test_design_workflow_routes_a_cold_peer_review_before_owner_approval(
     prompt = compose_prompt(cfg, ref, read_ticket(ref))
 
     assert "Current step: evaluate-design (skill: code/review-design)" in prompt
-    assert "Review the design cold" in prompt
+    assert "You are the independent evaluator" in prompt
     assert "## Evaluator review" in prompt
     assert "The next `review-design` step is the owner gate" in prompt
 
@@ -602,24 +606,24 @@ def test_design_prompts_remain_accurate_for_pre_evaluator_snapshots(
 
 
 @pytest.mark.parametrize(
-    ("workflow_name", "step", "heading", "legacy_direction"),
+    ("workflow_name", "step", "body_marker", "legacy_direction"),
     [
         (
             "code/with-self-review",
             "2 (self-qa)",
-            "Self-QA the diff",
+            "Independent quality pass over what `code/implement` committed",
             "`coga block` — something is off",
         ),
         (
             "code/with-review",
             "3 (open-pr)",
-            "Push and open the PR",
+            "done by a single deterministic command, `coga open-pr`",
             "earlier-step gap — `coga block` with a one-line reason",
         ),
         (
             "direct/body",
             "1 (execute)",
-            "Run the ticket body directly",
+            "**the ticket body is the spec**",
             "If you are blocked before completion, `coga block` with a reason",
         ),
     ],
@@ -628,7 +632,7 @@ def test_stock_step_prompt_escalates_per_launch_mode(
     repo: Path,
     workflow_name: str,
     step: str,
-    heading: str,
+    body_marker: str,
     legacy_direction: str,
 ) -> None:
     """Other shipped agent steps do not append a generic block command."""
@@ -663,7 +667,7 @@ def test_stock_step_prompt_escalates_per_launch_mode(
         compose_prompt(cfg, ref, read_ticket(ref)).split()
     )
 
-    assert heading in normalized_prompt
+    assert body_marker in normalized_prompt
     assert "escalate per your launch mode" in normalized_prompt
     assert legacy_direction not in normalized_prompt
 
@@ -806,7 +810,13 @@ def test_compose_omits_superseded_designs_without_rewriting_ticket(
     assert "2026-09-18 — Abandoned plan" not in prompt
     assert "Current requirements remain binding." in prompt
     assert "Current decision and reason." in prompt
-    assert live_before + live_after in blackboard.text
+    assert (
+        live_before.replace("## ", "### ")
+        + live_after.replace("## ", "### ").replace(
+            "- [ ] [2026-09-18 12:00] [human:marc] id=current Current open question",
+            OPEN_BLOCKERS_POINTER,
+        )
+    ) in blackboard.text
     assert "Current open question" in prompt
     assert "Resolve the open blocker first" in prompt
     assert str(ref.ticket_path) in blackboard.text
@@ -855,7 +865,8 @@ def test_compose_keeps_similar_headings_and_archive_examples(
     report = compose_prompt_report(cfg, ref, read_ticket(ref))
     blackboard = next(layer for layer in report.layers if layer.layer == "blackboard")
 
-    assert blackboard.text == text
+    assert blackboard.text == _prompt_text(text, drop_title=False, frontmatter=False)
+    assert example.strip().splitlines()[-1].lstrip("# >") in blackboard.text
 
 
 @pytest.mark.parametrize("ending", ["", "\n", " \t\r\n"])
@@ -1395,9 +1406,9 @@ def test_compose_falls_back_to_packaged_resources(repo: Path) -> None:
         l.layer: l for l in composition.layers
         if l.layer in {"base_prompt", "session_conduct"}
     }
-    assert fixed["base_prompt"].text == (
-        files("coga.resources").joinpath("prompt.md").read_text(encoding="utf-8")
-    )
+    packaged = files("coga.resources").joinpath("prompt.md").read_text(encoding="utf-8")
+    assert fixed["base_prompt"].text == _prompt_text(packaged, drop_title=True)
+    assert "You are an agent working inside Coga" in fixed["base_prompt"].text
     assert fixed["base_prompt"].path is None
     assert fixed["session_conduct"].path is None
 
@@ -1472,3 +1483,334 @@ def test_compose_rejects_unusable_override_path(repo: Path, kind: str) -> None:
 
     with pytest.raises(ComposeError, match=re.escape(str(override))):
         compose_prompt(cfg, ref, read_ticket(ref))
+
+
+# --- layer normalization ------------------------------------------------------
+
+_ATX_LINE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]|$)")
+
+
+def _unfenced_heading_levels(text: str) -> list[int]:
+    from coga.taskfile import markdown_lines
+
+    return [
+        len(match.group(1))
+        for line, fenced in markdown_lines(text)
+        if not fenced and (match := _ATX_LINE.match(line))
+    ]
+
+
+def test_prompt_text_strips_frontmatter_but_not_a_fenced_rule() -> None:
+    text = "---\nname: a/b\ndescription: x\n---\n\nBody.\n\n```yaml\n---\nkey: v\n---\n```\n"
+
+    out = _prompt_text(text, drop_title=True)
+
+    assert "name: a/b" not in out
+    assert out.strip().startswith("Body.")
+    assert "```yaml\n---\nkey: v\n---\n```\n" in out
+    # Ticket regions are not whole files: a leading rule there is content.
+    region = "---\nLive.\n---\n"
+    assert _prompt_text(region, drop_title=False, frontmatter=False) == region
+
+
+def test_prompt_text_comment_edge_cases() -> None:
+    text = dedent(
+        """\
+        Before.
+
+        <!-- guide
+        ## Context
+        -->
+
+        After.
+        Inline `<!-- coga:blackboard -->` code stays.
+        <!-- one line -->
+        <!-- kept --> trailing prose
+        ```markdown
+        <!-- fenced
+        -->
+        ```
+        <!-- unterminated
+        Tail text.
+        """
+    )
+
+    out = _prompt_text(text, drop_title=False, frontmatter=False)
+
+    assert "guide" not in out and "one line" not in out
+    assert "Before.\n\nAfter.\n" in out
+    assert "Inline `<!-- coga:blackboard -->` code stays." in out
+    assert "<!-- kept --> trailing prose" in out
+    assert "```markdown\n<!-- fenced\n-->\n```\n" in out
+    assert out.endswith("<!-- unterminated\nTail text.\n")
+
+
+def test_prompt_text_drops_title_and_demotes_outside_fences() -> None:
+    text = dedent(
+        """\
+        # Document title
+
+        ## Section
+
+        #### Deep
+
+        ```markdown
+        # Fenced H1
+        ## Fenced H2
+        ```
+        """
+    )
+
+    out = _prompt_text(text, drop_title=True)
+
+    assert "Document title" not in out
+    assert "### Section\n" in out
+    assert "##### Deep\n" in out
+    assert "```markdown\n# Fenced H1\n## Fenced H2\n```\n" in out
+    # Only demote: a body already at level 3 is unchanged.
+    assert _prompt_text("### Kept\n", drop_title=False) == "### Kept\n"
+    # Two H1s: neither is a lone document title, both are demoted.
+    two = _prompt_text("# One\n\n# Two\n", drop_title=True)
+    assert two == "### One\n\n### Two\n"
+    # Clamped at level 6.
+    assert _prompt_text("# A\n###### B\n", drop_title=False) == "### A\n###### B\n"
+
+
+def _comment_and_heading_repo(repo: Path) -> tuple[Config, TaskRef]:
+    _write(
+        repo / "contexts" / "email" / "payment-flow" / "SKILL.md",
+        """
+        ---
+        name: email/payment-flow
+        description: Retries.
+        ---
+
+        # Payment flow
+
+        Stripe retries on 429.
+
+        ## Backoff
+
+        <!-- maintainer note: keep in sync -->
+
+        ```markdown
+        # Fenced title example
+        ---
+        ```
+        """,
+    )
+    cfg = load_config(repo)
+    slug = _write_workflow_less_task(repo, title="Normalized layers")
+    path = repo / "tasks" / slug / "ticket.md"
+    text = path.read_text(encoding="utf-8")
+    text = text.replace(
+        "## Description\n",
+        "## Description\n\n### Goal\n\nShip it.\n",
+    ).replace(
+        "## Context\n",
+        "## Context\n\nVisible.\n\n<!-- Ticket guide\n## Context\n## Example\n"
+        "HIDDEN-GUIDE-TEXT\n-->\n\nVisible tail.\n",
+    )
+    path.write_text(text, encoding="utf-8", newline="\n")
+    ticket = read_ticket(resolve_task(cfg, slug))
+    ticket.frontmatter["contexts"] = ["email/payment-flow"]
+    ticket.write(path)
+    return cfg, resolve_task(cfg, slug)
+
+
+def test_compose_normalizes_every_file_backed_layer(repo: Path) -> None:
+    cfg, ref = _comment_and_heading_repo(repo)
+    before = ref.ticket_path.read_bytes()
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    prompt = report.prompt
+    layers = {layer.layer: layer for layer in report.layers}
+
+    # Comments and frontmatter never compose; the file keeps them.
+    assert not re.search(r"(?m)^ {0,3}<!--", prompt)
+    assert "HIDDEN-GUIDE-TEXT" not in prompt and "maintainer note" not in prompt
+    assert "name: email/payment-flow" not in prompt
+    assert ref.ticket_path.read_bytes() == before
+    # A complete comment holding `## Context` neither truncates nor forks it.
+    assert layers["task_context"].text.strip() == "Visible.\n\nVisible tail."
+    # Exactly one H1: the header. Layer headings are `##`, bodies `###`+.
+    assert _unfenced_heading_levels(prompt).count(1) == 1
+    for layer in report.layers:
+        if layer.layer == "header":
+            continue
+        assert layer.rendered.startswith(f"## {layer.title}\n")
+        assert all(level >= 3 for level in _unfenced_heading_levels(layer.text)), layer.layer
+    # Document titles do not repeat; fenced lines are byte-identical.
+    assert "Payment flow" not in prompt
+    assert prompt.count("Coga base prompt") == 1
+    assert "### Backoff" in layers["ticket_context"].text
+    assert "```markdown\n# Fenced title example\n---\n```" in prompt
+    assert "### Goal" in layers["task_description"].text
+    # Report accounting is measured on the normalized text.
+    for layer in report.layers:
+        assert layer.byte_count == len(layer.rendered.encode())
+    assert report.byte_count == len(prompt.encode())
+
+
+@pytest.mark.parametrize(
+    ("launch_context", "title"),
+    [
+        ("attended", "Session conduct — attended"),
+        ("megalaunch", "Session conduct — megalaunch queue"),
+        ("recurring", "Session conduct — recurring queue"),
+    ],
+)
+def test_compose_conduct_layer_heading_names_the_context(
+    repo: Path, launch_context: str, title: str
+) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Conduct heading")
+    ref = list_tasks(cfg)[0]
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref), launch_context=launch_context)
+    conduct = next(l for l in report.layers if l.layer == "session_conduct")
+
+    assert conduct.title == title
+    assert conduct.raw is False
+    assert f"\n## {title}\n\n" in report.prompt
+    assert report.prompt.count(title) == 1
+
+
+def test_compose_conduct_override_without_heading_falls_back(repo: Path) -> None:
+    _write(repo / "resources" / "prompt-attended.md", "Plain conduct marker.\n")
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Plain conduct")
+    ref = list_tasks(cfg)[0]
+
+    prompt = compose_prompt(cfg, ref, read_ticket(ref))
+
+    assert "## Session conduct\n\nPlain conduct marker." in prompt
+
+
+def _blocker_board() -> str:
+    return dedent(
+        """
+        ## Blockers
+
+        - [ ] [2026-09-18 12:00] [agent:claude] id=open1 Which retry ceiling?
+        - [x] [2026-09-18 11:00] [agent:claude] id=done1 Which queue?
+          resolved: [2026-09-18 11:30] [human:marc] The main queue.
+        - [ ] [2026-09-18 11:10] [agent:claude] id=late1 Which region?
+
+        Note between.
+          resolved: [2026-09-18 11:40] [human:marc] us-east-1.
+        """
+    )
+
+
+def test_compose_lists_open_blockers_once(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Blockers once")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, _blocker_board())
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    board = next(l for l in report.layers if l.layer == "blackboard")
+    preamble = next(l for l in report.layers if l.layer == "blocker_preamble")
+
+    assert report.prompt.count("Which retry ceiling?") == 1
+    assert "Which retry ceiling?" in preamble.text
+    assert "Which region?" not in preamble.text
+    assert OPEN_BLOCKERS_POINTER in board.text
+    assert "### Blockers" in board.text
+    for kept in (
+        "id=done1 Which queue?",
+        "resolved: [2026-09-18 11:30] [human:marc] The main queue.",
+        "id=late1 Which region?",
+        "resolved: [2026-09-18 11:40] [human:marc] us-east-1.",
+    ):
+        assert kept in board.text
+
+
+def test_compose_without_preamble_keeps_open_blockers_in_blackboard(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Authoring blockers")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, _blocker_board())
+
+    report = compose_prompt_report(
+        cfg, ref, read_ticket(ref), include_blocker_preamble=False
+    )
+    board = next(l for l in report.layers if l.layer == "blackboard")
+
+    assert not any(l.layer == "blocker_preamble" for l in report.layers)
+    assert "id=open1 Which retry ceiling?" in board.text
+    assert OPEN_BLOCKERS_POINTER not in report.prompt
+
+
+_STOCK = files("coga.resources").joinpath("blackboard.md").read_text(encoding="utf-8")
+
+
+def test_compose_placeholder_only_blackboard_says_no_state(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Fresh ticket")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\n" + _STOCK)
+    before = ref.ticket_path.read_bytes()
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    board = next(l for l in report.layers if l.layer == "blackboard")
+
+    assert board.text == EMPTY_BLACKBOARD_TEXT
+    assert _STOCK.strip() not in report.prompt
+    assert ref.ticket_path.read_bytes() == before
+
+
+@pytest.mark.parametrize("live", ["", "## Notes\n\nLive note.\n\n"])
+def test_compose_placeholder_removed_before_archive_pointer(
+    repo: Path, live: str
+) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Placeholder history")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path,
+        "\n" + _STOCK + "\n" + live + "## Superseded designs\n\nOld plan.\n",
+    )
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    board = next(l for l in report.layers if l.layer == "blackboard")
+
+    assert _STOCK.strip() not in report.prompt
+    assert "Old plan." not in report.prompt
+    assert "Superseded design history omitted" in board.text
+    if live:
+        assert "### Notes\n\nLive note." in board.text
+
+
+def test_compose_placeholder_after_dev_section_is_removed(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Launched ticket")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path, "\n## Dev\n\nbranch: feature\n\n\n" + _STOCK + "\n## Notes\n\nKept.\n"
+    )
+
+    board = next(
+        l for l in compose_prompt_report(cfg, ref, read_ticket(ref)).layers
+        if l.layer == "blackboard"
+    )
+
+    assert _STOCK.strip() not in board.text
+    assert "### Dev\n\nbranch: feature" in board.text
+    assert "### Notes\n\nKept." in board.text
+
+
+def test_compose_placeholder_override_rendered_with_title_is_removed(repo: Path) -> None:
+    _write(repo / "resources" / "blackboard.md", "Notes for {task_title} go here.\n")
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Override stub")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\nNotes for Override stub go here.\n")
+
+    board = next(
+        l for l in compose_prompt_report(cfg, ref, read_ticket(ref)).layers
+        if l.layer == "blackboard"
+    )
+
+    assert board.text == EMPTY_BLACKBOARD_TEXT

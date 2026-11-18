@@ -27,7 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
 ---
 
@@ -232,6 +232,7 @@ same duplication through the launch class.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1242
 branch: coga/v1-microkernel-avoid-duplicate-attended-launch-p-f53f94
 
 ## Handoff (implement, 2026-11-16)
@@ -275,61 +276,89 @@ render**.
 - Megalaunch untouched (it composes through spawn_agent_session without
   resolved layers, so its behavior is unchanged).
 
+## Peer review
+
+Independent Codex direct review completed on 2026-11-16. Implementer identity
+is Claude, as recorded in the implementation handoff; this session reviewed
+rather than authored the implementation. Reviewed head
+`ea5a21984b7cf4ce06c3989de5540c2d84d436dc` against base
+`d8a5b02355b6defd1be7fd68d690566e8c4062b7` after fetching and
+unconditionally rebasing onto current main. No must-fix findings; no code
+changes needed. Branch pushed with `--force-with-lease`.
+
+Reviewed resolve/render equivalence, layer-selection invalidation, context,
+skill and resource diagnostics, blocker-template handling, generated checkout
+notice, managed startup publication, plain startup, confirm-time recomposition,
+chaining and before-recompose boundaries. Tests count `coga.launch.compose_prompt`
+and underlying resolution and assert fresh status/checkout text. Managed
+missing-layer coverage retains the draft ticket and log bytes unchanged.
+Preflight stays before secrets, command-line admission, push auth and lifecycle
+writes. File-backed layers intentionally retain their preflight snapshot;
+ticket and runtime notice are rendered fresh. No terminal loop, pager, TTY
+input or Slack rendering changed, so an interactive rendering exercise is
+inapplicable. Full Linux suite completed successfully: `.venv/bin/python -m pytest -q
+-p no:cacheprovider` returned 4905 passed, 33 skipped in 1264.25s on
+Pop!_OS 24.04 LTS, Python 3.12.12. `git diff --check` passed. Final fetch
+confirmed origin/main remained at the reviewed base. Native Windows/macOS verification is deferred to
+release per coga-dev/testing; this run uses Python 3.12.12 rather than the
+3.11 floor.
+
 ## PR
 
 ```yaml
-title: Compose an attended launch's first prompt once
-author: claude
-author_evidence: >-
-  Implement session ran in Claude Code on claude-opus-5-5 (attended launch).
-head: 47b9c5d2e6f3c904d94938f14bedf83a18ef9a18
-base: af84e4b95b1775ce0fe7bd27ee72896e02ad423e
-depth: deep
-rationale: >-
-  Changes the launch preflight and prompt-composition internals on every
-  attended agent launch; no code review has run yet.
-implementation: >-
-  Splits compose into resolve_prompt_layers (file-backed layers, all
-  missing-layer refusals) and a render that places the fresh ticket and
-  checkout notice around them. The launch entry preflight resolves instead
-  of composing a discarded prompt, and the first step's single
-  compose_prompt reuses those layers, re-resolving when the ticket selects
-  different contexts, skills, step, or workflow.
-deviations: >-
-  None from the ticket. The confirm-time recompose also reuses the resolved
-  layers when the selection still matches.
-limitations: >-
-  First-step file-backed layer text is captured at the entry preflight rather
-  than at spawn; ticket and checkout-notice layers stay fresh.
-files:
-  src/coga/compose.py: "Add ResolvedPromptLayers / resolve_prompt_layers and the resolved= render path."
-  src/coga/launch.py: "Preflight resolves layers; first step's single composition reuses them."
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "Describe the new Agent preflight order sequence."
-  docs/contexts/coga-dev/internals/compose/SKILL.md: "Document the resolve/render split for maintainers."
-  tests/test_launch.py: "Plain-launch single-composition and pre-write refusal tests; rewrite two tests that assumed two compositions."
-  tests/test_checkouts.py: "Managed-checkout single-composition regression test."
-  tests/test_compose.py: "Unit tests for layer reuse and re-resolution on a changed selection."
-review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: >-
-    Code review belongs to the later self-qa / peer-review steps of
-    code/with-review.
-checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    status: passed
-    head: 47b9c5d2e6f3c904d94938f14bedf83a18ef9a18
-    base: af84e4b95b1775ce0fe7bd27ee72896e02ad423e
-    detail: >-
-      4905 passed, 33 skipped. Ran on the uncommitted tree before commit;
-      the committed src/tests/docs are identical, and the rebase pulled in
-      only a ticket-state commit.
-  - command: .venv/bin/python -m pytest -q tests/test_launch.py tests/test_checkouts.py -k "composes_its_first_prompt_once or refuses_missing_layer or preflight_names"
-    status: passed
-    head: 47b9c5d2e6f3c904d94938f14bedf83a18ef9a18
-    base: af84e4b95b1775ce0fe7bd27ee72896e02ad423e
-    detail: >-
-      4 new/rewritten tests pass; the same 4 failed against the pre-change
-      src/coga/compose.py and launch.py.
+"title": "Compose an attended launch's first prompt once"
+"author": "claude"
+"author_evidence": "Implement session ran in Claude Code on claude-opus-5-5 (attended launch)."
+"head": "ea5a21984b7cf4ce06c3989de5540c2d84d436dc"
+"base": "d8a5b02355b6defd1be7fd68d690566e8c4062b7"
+"depth": "deep"
+"rationale": "Independent review completed with no must-fix findings and the full Linux suite\
+  \ passed. Retain deep because this refactors prompt preflight on every attended launch and\
+  \ deliberately captures file-backed layers earlier."
+"implementation": "Splits compose into resolve_prompt_layers (file-backed layers, all missing-layer\
+  \ refusals) and a render that places the fresh ticket and checkout notice around them. The\
+  \ launch entry preflight resolves instead of composing a discarded prompt, and the first step's\
+  \ single compose_prompt reuses those layers, re-resolving when the ticket selects different\
+  \ contexts, skills, step, or workflow."
+"deviations": "None from the ticket. The confirm-time recompose also reuses the resolved layers\
+  \ when the selection still matches."
+"limitations": "First-step file-backed layer text is captured at entry preflight rather than\
+  \ spawn; ticket and checkout-notice layers stay fresh. Native Windows/macOS checks and Python\
+  \ 3.11 floor verification are deferred to release; this check used Python 3.12.12. No interactive\
+  \ rendering exercise: terminal interaction and rendered layer contents are unchanged."
+"files":
+  "src/coga/compose.py": "Add ResolvedPromptLayers / resolve_prompt_layers and the resolved=\
+    \ render path."
+  "src/coga/launch.py": "Preflight resolves layers; first step's single composition reuses them."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md": "Describe the\
+    \ new Agent preflight order sequence."
+  "docs/contexts/coga-dev/internals/compose/SKILL.md": "Document the resolve/render split for\
+    \ maintainers."
+  "tests/test_launch.py": "Plain-launch single-composition and pre-write refusal tests; rewrite\
+    \ two tests that assumed two compositions."
+  "tests/test_checkouts.py": "Managed-checkout single-composition regression test."
+  "tests/test_compose.py": "Unit tests for layer reuse and re-resolution on a changed selection."
+"review":
+  "reviewer": "codex"
+  "kind": "independent"
+  "status": "passed"
+  "head": "ea5a21984b7cf4ce06c3989de5540c2d84d436dc"
+  "base": "d8a5b02355b6defd1be7fd68d690566e8c4062b7"
+  "detail": "Independent Codex direct review completed after rebase. No must-fix findings. Reviewed\
+    \ layer order/provenance, selection invalidation, pre-write diagnostics and admission order,\
+    \ ticket/notice freshness, blocker template, confirm-time recompose, chaining and before_recompose\
+    \ boundaries. No code fixes required."
+"checks":
+- "command": ".venv/bin/python -m pytest -q -p no:cacheprovider"
+  "status": "passed"
+  "head": "ea5a21984b7cf4ce06c3989de5540c2d84d436dc"
+  "base": "d8a5b02355b6defd1be7fd68d690566e8c4062b7"
+  "detail": "4905 passed, 33 skipped in 1264.25s (21m04s). Pop!_OS 24.04 LTS, Linux, Python\
+    \ 3.12.12. Tested the rebased committed implementation; only the projected ticket was dirty."
+- "command": "git diff --check"
+  "status": "passed"
+  "head": "ea5a21984b7cf4ce06c3989de5540c2d84d436dc"
+  "base": "d8a5b02355b6defd1be7fd68d690566e8c4062b7"
+  "detail": "No whitespace errors. Final git fetch origin main confirmed the reviewed base remains\
+    \ current."
 ```

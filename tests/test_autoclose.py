@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from report_helpers import report_module
+
 from collections.abc import Callable
 import subprocess
 from pathlib import Path
@@ -2051,7 +2053,7 @@ def test_coga_status_does_not_auto_bump(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/40": "MERGED"})
 
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    result = runner.invoke(report_module("status").app, [])
     assert result.exit_code == 0, result.output
     # Ticket is untouched — still active, never marked done.
     assert Ticket.read(path).status == "active"
@@ -2073,7 +2075,7 @@ def test_coga_status_never_calls_gh(
     monkeypatch.setattr(am, "pr_state", boom)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    result = runner.invoke(report_module("status").app, [])
     assert result.exit_code == 0, result.output
     assert Ticket.read(path).status == "active"
 

@@ -2362,6 +2362,30 @@ def _next_firing(cron: str, now: datetime) -> datetime:
 
 def _period_key(cron: str, fire_time: datetime) -> str:
     """Heuristic bucket for a cron schedule's firing."""
+    key = _period_bucket(cron, fire_time)
+    if key in (fire_time.strftime("%Y-%m-%d-%H"), fire_time.strftime("%Y%m%dT%H%M")):
+        return key
+    # A month/week/day bucket is only safe when the schedule fires at most
+    # once in it: `0 9 * * 1-5` fires five times per ISO week, and bucketing
+    # by week made Tuesday..Friday look already serviced. When a neighbouring
+    # firing shares the bucket, step down to the day, then the hour (never
+    # finer, so sub-hourly schedules keep their once-an-hour key).
+    from croniter import croniter
+
+    near = (
+        croniter(cron, fire_time).get_prev(datetime),
+        croniter(cron, fire_time).get_next(datetime),
+    )
+    if all(_period_bucket(cron, t) != key for t in near):
+        return key
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d-%H"):
+        key = fire_time.strftime(fmt)
+        if all(t.strftime(fmt) != key for t in near):
+            break
+    return key
+
+
+def _period_bucket(cron: str, fire_time: datetime) -> str:
     parts = cron.split()
     if len(parts) != 5:
         return fire_time.strftime("%Y%m%dT%H%M")

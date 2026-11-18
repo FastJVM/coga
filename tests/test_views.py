@@ -17,13 +17,14 @@ from coga.config import load_config
 from coga.git import FeatureSyncPlan
 from coga.recurring import TemplateStatus
 from coga.tasks import TaskNotFoundError, TaskRef, UnknownDirectoryError
-from coga.views import (
-    feature_sync_message,
-    ViewError,
-    _print_recurring_templates,
-    render_show,
-    render_status,
-)
+from report_helpers import report_module
+
+status_report = report_module("status")
+render_show = report_module("show").render_show
+feature_sync_message = status_report.feature_sync_message
+ViewError = status_report.ViewError
+_print_recurring_templates = status_report._print_recurring_templates
+render_status = status_report.render_status
 
 
 def _write(path: Path, text: str) -> None:
@@ -127,7 +128,7 @@ def test_render_status_warns_when_control_ref_ahead(
     stderr staleness warning (stdout stays parseable)."""
     _task(repo, "fix-retry-logic")
     monkeypatch.setattr(
-        "coga.views.stale_coga_task_rels",
+        "coga_report_status.stale_coga_task_rels",
         lambda cfg: ["coga/tasks/fix-retry-logic/ticket.md"],
     )
     console = _recording_console()
@@ -182,8 +183,8 @@ def test_render_status_prints_the_feature_sync_command(
         tracked=("coga/log.md", "coga/tasks/a b.md"),
         untracked=("coga/tasks/it's.md",),
     )
-    monkeypatch.setattr("coga.views.feature_sync_plan", lambda cfg: plan)
-    monkeypatch.setattr("coga.views.os.name", "posix")
+    monkeypatch.setattr("coga_report_status.feature_sync_plan", lambda cfg: plan)
+    monkeypatch.setattr("coga_report_status.os.name", "posix")
 
     console = _render(repo)
 
@@ -201,8 +202,8 @@ def test_render_status_omits_empty_parts_of_the_sync_command(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     plan = _plan(Path("/w"), untracked=("coga/tasks/new.md",))
-    monkeypatch.setattr("coga.views.feature_sync_plan", lambda cfg: plan)
-    monkeypatch.setattr("coga.views.os.name", "posix")
+    monkeypatch.setattr("coga_report_status.feature_sync_plan", lambda cfg: plan)
+    monkeypatch.setattr("coga_report_status.os.name", "posix")
 
     _render(repo)
 
@@ -219,7 +220,7 @@ def test_render_status_names_differing_state_without_a_command(
         tracked=("coga/log.md",),
         manual=(("coga/tasks/[x].md", "differs from control"),),
     )
-    monkeypatch.setattr("coga.views.feature_sync_plan", lambda cfg: plan)
+    monkeypatch.setattr("coga_report_status.feature_sync_plan", lambda cfg: plan)
 
     _render(repo)
 
@@ -259,7 +260,7 @@ def test_render_status_warns_about_an_index_lock(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     lock = Path("/w/.git/index.lock")
-    monkeypatch.setattr("coga.views.stale_index_lock", lambda cfg: lock)
+    monkeypatch.setattr("coga_report_status.stale_index_lock", lambda cfg: lock)
 
     _render(repo)
 

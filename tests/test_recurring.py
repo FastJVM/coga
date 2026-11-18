@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from report_helpers import report_cli
+
 import json
 import os
 import shlex
@@ -1761,7 +1763,7 @@ def test_recurring_list_is_read_only_and_shows_schedule(
 ) -> None:
     monkeypatch.chdir(repo)
     monkeypatch.setenv("COLUMNS", "200")  # avoid Rich truncating the cells
-    result = CliRunner().invoke(app, ["recurring", "list"])
+    result = report_cli(["recurring", "list"])
     assert result.exit_code == 0, result.output
     assert "weekly-check" in result.output
     assert "0 9 * * 1" in result.output  # the schedule cron
@@ -1777,7 +1779,7 @@ def test_recurring_list_shows_picked_tasks(
     scan_due(cfg, now=fixed_now)  # instantiate this period's task
     monkeypatch.chdir(repo)
     monkeypatch.setenv("COLUMNS", "200")
-    result = CliRunner().invoke(app, ["recurring", "list"])
+    result = report_cli(["recurring", "list"])
     assert result.exit_code == 0, result.output
     assert "Picked tasks" in result.output
     assert "recurring/weekly-check" in result.output
@@ -1839,7 +1841,8 @@ def test_recurring_list_reports_reaped_serviced_period_as_ran(
     monkeypatch.chdir(repo)
     monkeypatch.setenv("COLUMNS", "200")
     _freeze_recurring_now(monkeypatch, week_17)
-    result = CliRunner().invoke(app, ["recurring", "list"])
+    from report_helpers import report_module
+    result = CliRunner().invoke(report_module("recurring-list").app, [])
     assert result.exit_code == 0, result.output
     assert "ran this period — task reaped" in result.output
     assert "due — not created" not in result.output
@@ -11448,7 +11451,7 @@ def test_recurring_views_render_malformed_period_as_error(
         (["recurring", "list"], "error: invalid serviced period 'none'"),
         (["status"], "error: weekly-check — invalid serviced period 'none'"),
     ):
-        result = CliRunner().invoke(app, argv)
+        result = report_cli(argv)
         assert result.exit_code == 0, result.output
         assert expected in result.output
         assert "ran this period" not in result.output

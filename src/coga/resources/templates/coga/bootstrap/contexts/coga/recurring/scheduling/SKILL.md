@@ -13,7 +13,11 @@ The repo-inactivity gate and `run_when_inactive` are in the leaf
 The scan takes each template's last firing strictly before now and buckets it
 into a period key: hourly → `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly
 (day-of-week set) → `YYYY-Www`, monthly (day-of-month set) → `YYYY-MM`,
-anything else → `YYYYMMDDTHHMM`.
+anything else → `YYYYMMDDTHHMM`. When the schedule fires more than once in
+its month, week or day bucket (`0 9 * * 1-5`, `0 9 1,15 * *`, `0 9,17 * * *`),
+the key steps down to the day, then the hour, so each firing gets its own
+period; it never goes finer than an hour, so sub-hourly schedules keep one
+period per hour.
 
 The high-water mark is a `created|reused <task-ref> for <period>` line tagged
 `recurring/<name>` in the repo-global `coga/log.md`. It is not in the template
@@ -149,7 +153,10 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
   identifies a possible unpublished tail and offers
   [publication recovery](../../state-publication/SKILL.md#a-stranded-log-tail-blocking-catch-up).
   It preserves the tail and the refusal; no recovery runs automatically.
-- `coga recurring list` is read-only: templates, firings, period state.
+- `coga recurring list` forwards to the editable
+  [bootstrap/recurring-list](../../../../recurring-list/ticket.md) report through
+  read-only launch. The fixed adapter preserves the two-word spelling;
+  selection and presentation live beside the ticket.
   `coga recurring promote` is in [templates](../templates/SKILL.md#promotion).
 
 Every launching entry point runs from the control branch and honors the

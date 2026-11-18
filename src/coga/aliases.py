@@ -17,15 +17,12 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "create",
         "launch",
         "megalaunch",
-        "status",
-        "show",
         "bump",
         "block",
         "unblock",
         "owner",
         "delete",
         "slack",
-        "usage",
         "skill",
         "mark",
         "recurring",
@@ -64,6 +61,9 @@ ONBOARDING_TASK = "coga-build"
 # ``--agent`` and ``--no-launch`` away from launch's own parser, so they reach
 # the script's argv.
 DEFAULT_ALIASES: dict[str, str] = {
+    "usage": "launch --read-only bootstrap/usage --",
+    "status": "launch --read-only bootstrap/status --",
+    "show": "launch --read-only bootstrap/show --",
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
     "build": f"launch {ONBOARDING_TASK}",

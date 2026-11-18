@@ -692,7 +692,10 @@ def _configure_agent_tables(
     machine has decides what the repo declares. Every registry agent absent
     from `found` gets its `[agents.<name>]` table commented out rather than
     deleted, which makes enabling it later an uncomment rather than an edit
-    the user has to compose. Returns the names the file now declares, in
+    the user has to compose. An empty `found` is the exception: with no agent
+    to choose, the packaged file stands untouched and keeps declaring every
+    supported agent, so installing any one CLI is the whole remedy and no
+    first step is a `coga.toml` edit. Returns the names the file now declares, in
     declaration order, which is the first-is-default order
     `Config.default_agent` reads; returns None, leaving coga.toml untouched, on
     any failure.
@@ -719,6 +722,8 @@ def _configure_agent_tables(
     declared = before.get("agents")
     if not isinstance(declared, dict):
         declared = {}
+    if not found:
+        return [agent.name for agent in AGENT_CLIS if agent.name in declared]
     expected = [
         agent.name
         for agent in AGENT_CLIS
@@ -1609,20 +1614,17 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     declared_agents, commented_out_agents = _agent_table_state(
         coga_os / "coga.toml"
     )
-    if commented_out_agents:
+    # Init comments a table out only beside one it kept, so a file with every
+    # table commented out is a scaffold's choice, which the agent step below
+    # reports, not something this run did.
+    if commented_out_agents and declared_agents:
         tables = ", ".join(f"[agents.{name}]" for name in commented_out_agents)
         missing = ", ".join(f"`{name}`" for name in commented_out_agents)
-        if declared_agents:
-            kept = ", ".join(agent_label(name) for name in declared_agents)
-            typer.echo(
-                f"Declared {kept} in {coga_os / 'coga.toml'}; commented out "
-                f"{tables} ({missing} not on PATH) — uncomment once installed."
-            )
-        else:
-            typer.echo(
-                f"No agent CLI found, so every [agents.*] table in "
-                f"{coga_os / 'coga.toml'} is commented out."
-            )
+        kept = ", ".join(agent_label(name) for name in declared_agents)
+        typer.echo(
+            f"Declared {kept} in {coga_os / 'coga.toml'}; commented out "
+            f"{tables} ({missing} not on PATH) — uncomment once installed."
+        )
     if found_agent_clis is not None and configured_agents is None:
         typer.secho(
             f"Could not configure the agent tables in {coga_os / 'coga.toml'}: "
@@ -1690,20 +1692,18 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         steps.append(
             "Put `coga` on your PATH — init scaffolds this repo but installs no "
             "software, so the CLI you run is your own:\n"
-            "       uv tool install coga"
+            "       uv tool install --python 3.11 coga"
         )
     # `coga build` / `coga launch` drive an agent CLI that init deliberately
     # neither requires nor installs (see `coga.dependencies`) — name the
     # prerequisite here, and only for the user the scan shows has none, so a
     # fresh user isn't sent into the flow only to hit "not found".
     #
-    # This is the one place the next steps send a reader to a `.toml`, and only
-    # when there is a table there to uncomment. Configuring commented every
-    # agent out, so installing the binary is half the remedy and the other half
-    # is in the file. When the tables are still live — a non-interactive run, or
-    # a configuration that bailed — installing the binary is the whole remedy,
-    # and naming coga.toml would send the reader to edit a file that is already
-    # right.
+    # Init leaves every table live when it finds no agent CLI, so installing
+    # the binary is the whole remedy and the step names no `.toml`. Only a
+    # coga.toml that declares no agent at all (a scaffold shipping its tables
+    # commented out) sends the reader to the file, because there installing is
+    # half the remedy and the other half is an uncomment.
     if not (found_agent_clis if found_agent_clis is not None else _installed_agent_clis()):
         drivable = " or ".join(f"{agent.display} (`{agent.name}`)" for agent in AGENT_CLIS)
         remedy = (

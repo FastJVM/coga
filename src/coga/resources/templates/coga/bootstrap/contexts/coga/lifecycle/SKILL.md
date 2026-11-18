@@ -113,7 +113,9 @@ refuse a blocked ticket until `coga unblock` records an answer.
 
 `step:` is `N (step-name)`, owned entirely by `coga bump`.
 
-- Bare `coga bump <ref>` requires `in_progress`, checks the leaving step's
+- Bare `coga bump <ref>` requires `in_progress`, or `active` when a human
+  runs it outside a supervised launch on an owner-held step (launch refuses
+  that step, so it could not otherwise reach `in_progress`), checks the leaving step's
   `requires:` gate, and advances one step, or on the final step delegates to
   `mark_done`. A supervised bump whose session was composed for a step
   other than the one reconciled with control refuses as stale context. A
@@ -140,7 +142,8 @@ Pausing preserves the step; cancellation clears it.
 
 ## Triage: `coga status`
 
-A pure read: no mutation, no network. It lists live tasks; `--all` adds
+The editable report lives in [bootstrap/status](../../../status/ticket.md),
+reached through a read-only alias. A pure read: no mutation, no network. It lists live tasks; `--all` adds
 terminal ones with separate counts. `coga status <dir>` limits to a subtree,
 `--no-recurse` to one level, `--dirs` lists plain directories instead; an
 unknown directory fails listing those that exist. `updated` comes from the

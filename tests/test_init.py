@@ -3183,7 +3183,7 @@ def test_init_on_a_clone_neither_scans_nor_rewrites_coga_toml(
         ({"claude"}, ["claude"], "claude", None),
         ({"codex"}, ["codex"], "codex", None),
         ({"claude", "codex"}, ["claude", "codex"], "claude", "codex"),
-        (set(), [], "claude", None),
+        (set(), ["claude", "codex"], "claude", "codex"),
     ],
     ids=["only-claude", "only-codex", "both", "none"],
 )
@@ -3198,8 +3198,8 @@ def test_init_declares_the_agents_the_scan_found(
 ) -> None:
     """End to end: PATH decides what coga.toml declares, which decides the
     default agent, the delivered ticket's `agent:` and the build coax. With
-    nothing found the delivered ticket keeps the template default, because
-    there is no declared agent to point it at."""
+    nothing found there is nothing to choose between, so every agent stays
+    declared and the delivered ticket keeps the template default."""
     target = _make_git_repo(tmp_path / "company")
     real_which = shutil.which
     _agent_picker(monkeypatch, have=have)
@@ -3241,9 +3241,8 @@ def test_init_declares_the_agents_the_scan_found(
     [
         ({"claude"}, "Declared Claude Code"),
         ({"codex"}, "Declared Codex"),
-        (set(), "No agent CLI found, so every [agents.*] table"),
     ],
-    ids=["only-claude", "only-codex", "none"],
+    ids=["only-claude", "only-codex"],
 )
 def test_init_summary_says_what_it_commented_out(
     tmp_path: Path,
@@ -3269,12 +3268,37 @@ def test_init_summary_says_what_it_commented_out(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert expected in result.output
-    if have:
-        missing = next(n for n in ("claude", "codex") if n not in have)
-        assert f"[agents.{missing}]" in result.output
-    else:
-        # Nothing declared: the prerequisite names the table to uncomment.
-        assert "uncomment its [agents.*] table" in result.output
+    missing = next(n for n in ("claude", "codex") if n not in have)
+    assert f"[agents.{missing}]" in result.output
+
+
+def test_init_with_no_agent_cli_ships_the_packaged_toml_and_names_no_edit(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing found leaves nothing to choose between: every table stays live,
+    so installing an agent CLI is the remedy and no next step is a coga.toml
+    edit."""
+    target = _make_git_repo(tmp_path / "company")
+    real_which = shutil.which
+    _agent_picker(monkeypatch, have=set())
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: None if name in {"claude", "codex"} else real_which(name),
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert (target / "coga" / "coga.toml").read_text(
+        encoding="utf-8"
+    ) == _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
+    assert "No agent CLI was found" in result.output
+    assert "commented out" not in result.output
+    assert "uncomment" not in result.output
+    agent_step = next(
+        line for line in result.output.splitlines() if "No agent CLI was found" in line
+    )
+    assert "coga.toml" not in agent_step
 
 
 def test_init_both_found_says_nothing_and_ships_the_packaged_toml(
@@ -3336,18 +3360,11 @@ def test_init_warns_and_keeps_the_packaged_toml_when_configuring_fails(
 def test_init_validates_clean_for_every_configured_outcome(
     tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga validate` passes on the repo init generates whenever an agent was
-    found. With none found its only complaints are coga-build's two agent
-    issues, which is the accurate state — no agent is configured — and both
-    messages already say to restore the table."""
+    """`coga validate` passes on the repo init generates for every scan
+    outcome, including none found, where every agent stays declared."""
     import json as _json
 
-    for have, clean in (
-        ({"claude"}, True),
-        ({"codex"}, True),
-        ({"claude", "codex"}, True),
-        (set(), False),
-    ):
+    for have in ({"claude"}, {"codex"}, {"claude", "codex"}, set()):
         target = _make_git_repo(tmp_path / f"repo-{'-'.join(sorted(have)) or 'none'}")
         real_which = shutil.which
         with monkeypatch.context() as m:
@@ -3372,15 +3389,7 @@ def test_init_validates_clean_for_every_configured_outcome(
             validated = CliRunner().invoke(app, ["validate", "--json"])
         payload = _json.loads(validated.output)
         kinds = sorted(issue["kind"] for issue in payload["issues"])
-        if clean:
-            assert kinds == [], f"{have}: {payload['issues']}"
-        else:
-            assert kinds == ["unknown-agent", "unresolvable-operator"], payload[
-                "issues"
-            ]
-            assert all(
-                "coga-build" in issue["task"] for issue in payload["issues"]
-            ), payload["issues"]
+        assert kinds == [], f"{have}: {payload['issues']}"
 
 
 def _packaged_toml_copy(tmp_path: Path) -> tuple[Path, str]:
@@ -3409,7 +3418,7 @@ def _commented_table_lines(text: str, name: str) -> list[str]:
         (["claude"], ["claude"], ["codex"], {"codex": 6}),
         (["codex"], ["codex"], ["claude"], {"claude": 7}),
         (["claude", "codex"], ["claude", "codex"], [], {}),
-        ([], [], ["claude", "codex"], {"claude": 7, "codex": 6}),
+        ([], ["claude", "codex"], [], {}),
     ],
     ids=["only-claude", "only-codex", "both", "none"],
 )

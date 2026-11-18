@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from coga import recurring_autofix as autofix
+from coga.compose import _prompt_text
 from coga.config import AgentType, load_config
 from coga.recurring import DueScan, DueTask
 from coga.recurring_autofix import (
@@ -1208,10 +1209,14 @@ def test_run_autofix_attaches_and_composes_repo_default_contexts(
     layers = [layer for layer in report.layers if layer.layer == "ticket_context"]
     assert [layer.ref for layer in layers] == refs
     assert [layer.text for layer in layers] == [
-        (repo / "contexts" / "team" / "triage" / "SKILL.md").read_text(encoding="utf-8"),
-        (repo / "contexts" / "coga" / "architecture" / "SKILL.md").read_text(encoding="utf-8"),
-        bootstrap_context_path(cfg, "coga/context-layout").read_text(encoding="utf-8"),
+        _prompt_text(path.read_text(encoding="utf-8"), drop_title=True)
+        for path in (
+            repo / "contexts" / "team" / "triage" / "SKILL.md",
+            repo / "contexts" / "coga" / "architecture" / "SKILL.md",
+            bootstrap_context_path(cfg, "coga/context-layout"),
+        )
     ]
+    assert "Use this repo's team/triage guidance" in layers[0].text
 
 
 def test_autofix_context_defaults_leave_existing_tickets_unchanged(cfg_repo) -> None:

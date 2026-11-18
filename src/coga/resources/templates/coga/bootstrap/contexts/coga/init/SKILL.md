@@ -122,20 +122,22 @@ nothing; an agent that was not found is named with its binary so you can
 install it or put it on `PATH`.
 
 That one `PATH` read is also what configures the repo, so the rows you read are
-the agents your `coga.toml` ends up declaring. Before the commit, init comments
-out the `[agents.*]` table of every supported agent whose binary it did not
-find. The table stays in the file, so enabling that agent later is uncommenting
+the agents your `coga.toml` ends up declaring. When it found at least one,
+init comments out the `[agents.*]` table of every supported agent whose binary
+it did not find before the commit. The table stays in the file, so enabling that agent later is uncommenting
 a block rather than writing one. No `default_agent` key is written: the default
 is the first table the file still declares, which is the first agent found. Init
 also repoints delivered tickets that name the old default, such as the
 onboarding ticket's `agent:`, at that agent. A machine with one agent CLI
 therefore needs no config edit to start working.
 
-Found nothing? Every agent table is commented out. That is the honest state —
-no agent is configured — and the next steps say to install an agent CLI and
-uncomment its `[agents.*]` table. Until you do, `coga validate` reports the
-onboarding ticket's `agent:` as unknown, and the message names the table to
-restore.
+Found nothing? Init leaves the packaged `coga.toml` as it shipped, declaring
+every supported agent, because there is nothing to choose between. This is
+the same file a non-interactive init leaves. The next steps say to install an
+agent CLI and never send you to edit `coga.toml`; the `coga build` line names
+the `--agent` choice for an agent other than the default. The table of an
+agent you never install stays declared; comment it out if you want that agent
+to read as not configured.
 
 The rewrite is all or nothing. If the result would not parse back to exactly the
 expected declarations, or the write fails, init keeps the packaged `coga.toml`
@@ -144,9 +146,10 @@ tickets, and prints a warning saying so. A non-interactive init prints no scan,
 configures nothing and leaves the packaged file as it shipped: a scripted run
 saw no scan to act on. Init asks no agent question in any case.
 
-The printed next steps are: put `coga` on `PATH` if it is missing; state that
-agent-backed commands need an agent CLI when the scan found none, naming the
-table to uncomment when there is one; then `coga build` (empty repo) or
+The printed next steps are: put `coga` on `PATH` if it is missing, with
+`uv tool install --python 3.11 coga`; state that agent-backed commands need an
+agent CLI when the scan found none, naming a table to uncomment only when
+`coga.toml` declares no agent at all; then `coga build` (empty repo) or
 `coga ticket "<title>"` (filled repo). The `coga build` line offers only the
 agents `coga.toml` declares, so a one-agent repo is given no `--agent`
 alternative.

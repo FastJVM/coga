@@ -42,7 +42,8 @@ syntax authority for every flag.
   agent is reported and the draft left.
 - `coga show <ref>` renders the ticket and its `coga/log.md` history for
   humans; bootstrap targets show only `ticket.md`. Read files directly for
-  scripting.
+  scripting. The editable report is owned by
+  [bootstrap/show](../../../../show/ticket.md), reached through a read-only alias.
 
 The interview preserves the ticket's guide comment and supplies only the
 authoring process and its metadata-edit exception; readers need no separate
