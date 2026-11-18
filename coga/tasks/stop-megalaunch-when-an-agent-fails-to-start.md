@@ -2,14 +2,16 @@
 title: Stop megalaunch when an agent fails to start
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-On 2026-11-14, `coga megalaunch --pick` launched v1/microkernel/06 and 07 with codex. Each agent exited with code 1 within about 4 s ('Error loading configuration: default_permissions requires a `[permissions]` table', caused by a stray repo-local .codex/config.toml). Megalaunch logged `outcome_status: failed` for each, left both tickets `in_progress` with no agent work behind them, and went on to the next pick (08 was activated before the run was interrupted). Getting them back took `coga mark paused` then `coga mark active`, and 08 could not go back to `draft`.
+On 2026-11-14, `coga megalaunch --pick` launched v1/microkernel/06 and 07 with codex. Each agent exited with code 1 within about 4 s ('Error loading configuration: default_permissions requires a `[permissions]` table', caused by a stray repo-local `.codex/config.toml`). Megalaunch logged `outcome_status: failed` for each, left both tickets `in_progress` with no agent work behind them, and went on to the next pick (08 was activated before the run was interrupted). Getting them back took `coga mark paused` then `coga mark active`, and 08 could not go back to `draft`.
 
-Wanted: when the agent process exits non-zero before doing any work (no rollout or session, a short elapsed time, or an equivalent signal), megalaunch should stop the run rather than move on, and should not leave the ticket `in_progress`. Decide whether to put it back to its pre-launch status, mark it `blocked` with the agent's stderr as the reason, or something else, and whether single `coga launch` should behave the same way. Check coga/megalaunch and coga/launch for the current contract before changing it.
+Wanted: when a launched agent process exits non-zero before doing any work, megalaunch stops the whole run instead of moving on to the next task, in every megalaunch loop (bare sweep, dependency drain, and explicit `--pick`/`--relaunch` selection), and restores the failed ticket to its pre-launch status (for example `active`, or `draft` for a pick megalaunch itself activated). The ticket is not marked `blocked`: an agent that cannot start is a Coga/environment problem, not a problem with the ticket, so no ask is recorded against it. The summary row names the failed-to-start task and the agent's exit code; the agent's own error stays visible on the console above (the PTY does not buffer it, and capturing stderr is out of scope). The operator fixes the environment and runs `coga megalaunch --relaunch`.
+
+Done when: a megalaunch run whose first picked task's agent fails to start (reproducible with a fake agent command that exits 1 immediately) ends after that task with exit 1, launches and activates no later pick, leaves that ticket at its pre-launch status with no live launch claim, and reports the task and exit code in the summary; and an agent that does real work and then exits non-zero still follows today's `failed` path unchanged. Tests cover both cases.
 
 ## Context
 
@@ -97,6 +99,36 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope
+
+- Megalaunch only. Single `coga launch` is out of scope: the operator is present and sees the failure, and the owner confirmed it has no equivalent problem.
+- Do not fix the codex config itself; the stray `.codex/config.toml` was only the trigger.
+
+### Current contract (read before changing)
+
+- `coga/megalaunch` topic — `src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md` — is edited by this ticket (cited, not attached). Today's rule (Sessions): "an exit that changes neither step nor status is `failed`", and the run keeps going; any `failed` row only makes the final exit 1 (Budget, agent, scope, summary). Explicit selection stage 3 activates each pick only when reached, so the pre-launch status to restore is the one read at that reread (`draft`/`paused`/`blocked`/`active`/`in_progress`). Update the Sessions and summary sections in the same PR to describe the new stop-and-restore rule.
+- `coga/launch` topic (`.../contexts/coga/launch/SKILL.md`) owns the per-launch claim and activation; read it, change it only if the shared launch path changes.
+- Launch claims and their recovery: `docs/contexts/coga-dev/internals/launch-claims/SKILL.md` (`launch_generation` is megalaunch's session claim). Restoring status must also release the claim and publish like other lifecycle mutations; do not hand-edit frontmatter.
+
+### Code pointers
+
+- `src/coga/megalaunch.py` — the run loop, per-task classification, and summary rows.
+- `src/coga/launch.py` — session outcome classification (`_session_outcome_status`) and where `outcome_status = "failed"` is set for usage records; `src/coga/usage.py` holds `OutcomeStatus`.
+- PTY supervisor: `src/coga/repl_supervisor.py` (POSIX) and `src/coga/repl_supervisor_nt.py` (Windows) owns the agent process exit.
+
+### Restoring the pre-launch status
+
+There is no existing transition back to `draft`, and none from `in_progress` back to `active`: CLI `mark` only allows `active` from `draft`/`paused`, and activation freezes the workflow snapshot and may add a default `agent:`. Megalaunch already holds the exact pre-activation ticket bytes (the exact-byte preflight/reread). Restore by a compare-and-set write of those exact bytes back, publish it, and log it, so that a draft, paused, blocked, or active pick returns exactly as it was, with any `launch_generation` claim gone. Follow `src/coga/commands/mark.py` as the pattern for publishing a lifecycle mutation with strict compare-and-set; never hand-edit frontmatter. A task that was already `in_progress` before this run resumes to `in_progress` with the run's claim cleared.
+
+### Tests
+
+Reuse the fake-agent patterns in `tests/test_megalaunch.py` and `tests/conftest.py`; the fake must go through the same session spawn path megalaunch uses, so a fake that exits 1 immediately exercises the real failure classification.
+
+### Open design choice for the implementer
+
+Pick the "failed to start" signal and record why on the blackboard. Candidates: non-zero exit with no agent transcript/session id recorded (launch already captures transcript identity for usage; verify it works for both claude and codex), no prompt consumed, or elapsed time under a small threshold. Prefer a structural signal over a pure timer, but keep a short elapsed-time fallback in case the transcript signal is unreliable for one agent; name any threshold as a constant and say why. If stderr capture turns out to be wanted, file it as a separate ticket (a bounded PTY output buffer in both supervisors) rather than growing this one. When restore is impossible (the ticket changed underneath, or publication fails), stop the run anyway and report that the ticket needs manual reconciliation.
+
 
 <!-- coga:blackboard -->
 
