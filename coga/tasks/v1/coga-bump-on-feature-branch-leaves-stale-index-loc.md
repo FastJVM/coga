@@ -776,3 +776,10 @@ and the optional-lock mitigation addresses a verified real-index write.
 - No ticket-body, frontmatter, source, test, branch, or PR changes were made.
   Owner review should resolve the four findings and the existing latency
   question before advancing to implementation.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record Git-lock, blocker-id, gh-repository and Windows-suite hazards

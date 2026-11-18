@@ -277,3 +277,10 @@ checks:
   status: not-run
   detail: The owner waived native Windows full-suite verification for this ticket; no Windows host was provisioned.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record Git-lock, blocker-id, gh-repository and Windows-suite hazards

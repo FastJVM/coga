@@ -318,3 +318,10 @@ checks:
     58% without reported failures before stopping; its partial results do not verify this integrated head.
     The full native receipt remains required before merge. Host teardown and exclusion removal are complete.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Record Git-lock, blocker-id, gh-repository and Windows-suite hazards
