@@ -43,9 +43,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: cbc9d672-1982-4bf1-abfc-8a90f1b2c633
 ---
 
 ## Description
@@ -651,3 +650,106 @@ doc sweep). How it was derived:
    tests need edits. Keep it as one PR (repo rule: the owner topic changes in
    the same PR), or split the docs-only follow-through into a sibling ticket
    that merges back-to-back?
+
+## Evaluator review
+
+**Needs revision before implementation.** The ticket's Description and Context
+carry the requirements in the right body regions. The frozen workflow routes
+this review to the owner gate next. The named dependency is still at
+`review-design`, and current `origin/main` has no `src/coga/sync.py`. Keep
+the implementation gate and recheck against 01's landed contract.
+
+### Must fix
+
+1. **Make admission enforce the stated definition of unsynced state.**
+   `git._plan_preparation` can accept dirty paths that match control through
+   `_published_proof`. It checks local control divergence and checkout
+   safety, and does not implement the proposed merge-base test on the
+   invoking feature HEAD. `launch._CheckoutBoundary.enter` also accepts an
+   exempt preparation. Therefore removing the sweep and changing the text
+   cannot enforce decision 1. In addition, `commands/megalaunch.py` refreshes
+   and can pick before it calls `run_megalaunch`. Specify the check on the
+   actual entry paths before mutations, which control tip it uses, and what
+   happens when the tip or merge-base is unavailable or Git is disabled.
+   Cover a clean feature checkout with committed state, dirty bytes already
+   represented on control, and the CLI entry before its refresh. Preserve
+   checkout safety refusals for unrelated dirt where those apply.
+
+2. **Specify sync policy and failure propagation for nested supervisors.**
+   `launch._launch`, `spawn_agent_session` and
+   `_CheckoutBoundary.settle` would all sync under the proposed rules, but
+   the spec only passes the recurring subject at final teardown. The
+   recurring runner also calls `settle_delegated_period` directly and can
+   create state before invoking a delegated launch. That state would either
+   trigger the nested start-clean gate or be landed under the ordinary
+   subject before the final recurring sync, defeating the inactivity rule.
+   Conversely, disabling sync only in the spawn call does not exempt a
+   discussion from settlement. Define which invocation owns admission,
+   the publication policy and subject at every boundary, and the mechanism
+   that carries a latched sync failure separately from the child result to
+   the command's exit code. State whether later finally blocks may retry or
+   prepare the checkout after a failure. Test actual nested recurring and
+   discussion paths with a remote, and verify no further pick or return
+   mutation follows the first sync failure.
+
+3. **Preserve failed recurring work in temporary checkouts.**
+   `recurring_runner._service_from_control_worktree` unconditionally calls
+   `_cleanup_control_worktree` from its finally. Cleanup preserves run logs
+   and then force-removes the checkout. A sync precondition refusal can
+   leave dirty state there, and crash recovery through
+   `_reap_stale_control_worktree` can remove the checkout before a new
+   start check. Specify when the worktree must be retained, how the operator
+   finds it and recovers, and how the next unattended run reports it without
+   reaping the only copy. Cover a refused sync before commit and recovery
+   after interruption. Tie the retention wording to 01's actual failure
+   stages, including a branch-push failure after landing and rebase.
+
+4. **Resolve the scope of publication and the required PR diff.**
+   The owner statement and Removal criteria call sync the only path, but
+   `coga_edge/trim_log.py` has guarded archive/trim and report publication.
+   Record owner approval and the exact boundary of the temporary exception,
+   including how 01 fences pending `log_transaction` receipts. Scope the
+   prohibition to Coga-state publication to control so it does not imply
+   removing feature pushes such as `open_pr.open_pr`'s PR presentation.
+   Separately, 01 lands every configured root change, including committed
+   knowledge, before stripping it from the feature diff. This ticket
+   requires owner-topic edits in the behavior PR, and
+   `git.coga_root_paths` includes the configured contexts root. Specify how
+   the workflow preserves review of any required owner topic inside those
+   roots. Package-owned topics under `src/` are outside those roots in
+   this repo, but the local Coga-dev owners need the same check.
+
+5. **Make the duplicate-admission test distinguish update conflicts from
+   add/add and late syncs.** `git.merge_ticket_bytes` requires base, local
+   and control tickets and conflicts on different updates to an ordinary
+   frontmatter key. A newly created recurring period has no base ticket.
+   Also, a clone whose admission reaches sync only after it has already
+   observed another run is different from two admissions against the same
+   base. Specify the two-clone ordering, when the generation remains on disk,
+   the competing-create behavior required from 01, and what state is retained
+   after the conflict. Explicitly decide whether duplicate external effects
+   are accepted for guarded sites such as
+   `coga_edge/phone_home.py` and `blocker_reminders.py`. A sync conflict
+   occurs after those effects and cannot prevent them.
+
+6. **Define the lifecycle test's ref contract in terms of fresh reads.**
+   The spec requires prepared-ticket reads and also requires
+   `refs/remotes/origin/main` to remain unchanged after every command.
+   `git.prepare_ticket` can fetch control, so the tracking ref can move
+   when another client has advanced main. Use up-to-date tracking refs for
+   the local-write matrix and assert that Coga never changes the remote
+   branch. Add a stale-clone case that permits the fetch and verifies the
+   next local transition preserves both earlier local writes and fresh
+   control edits. Clarify the notification expectation per command, since
+   preserving existing notifications differs from adding one to every verb.
+
+### Optional
+
+- Keep the behavior and owning topics together. The AST inventory is a useful
+  search bound, not a count of tests to rewrite. Leave tests of legacy Git
+  internals where they still enforce contracts used by trim-log or retained
+  for ticket 03. Name the replacement coverage for the public CLI, launch,
+  megalaunch, direct recurring recipes and the temporary-worktree child.
+- Attach the publication, checkout and recurring scheduling topics most
+  relevant to implementation, or give their exact owner paths in Context.
+  The current principles attachment is appropriate for the decision.
