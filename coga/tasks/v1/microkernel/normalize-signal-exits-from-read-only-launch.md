@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 0ca1e388-8b05-41c2-9124-3ef01d885154
 ---
 
 ## Description
@@ -216,3 +215,88 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: normalize-signal-exits-from-read-only-launch
+
+## Handoff (implement)
+
+- `launch_script._normalize_exit_code` (private, beside `run_script_phase`)
+  maps a negative POSIX returncode `-N` to `128 + N`; non-negative codes
+  (75, Windows NTSTATUS) pass through. Applied right after `subprocess.run`
+  and before the `read_only` early return, so the read-only result,
+  `append_log`, the `💥 script failed` notice and `_exit_failed_script`
+  all see the same value. Read-only gained no new effects.
+- Tests in `tests/test_launch_script.py`:
+  `test_signal_killed_script_exits_128_plus_signal` (stateful launch via
+  CliRunner: exit 143, log line, notice) and
+  `test_read_only_signal_killed_script_exits_128_plus_signal` (real
+  `python -m coga.cli launch --read-only` subprocess: shell sees 143). Both
+  skip on Windows. Without the fix they fail with -15 and 241.
+- `coga/script-tickets` item 5 now states the `128 + N` convention.
+- Other consumers checked (retire/ticket.py, runner._escaping_exit_code,
+  recurring delegation): they only report the integer; no change needed.
+- Process note: no launch preparation was supplied, so the manual
+  `coga/checkouts` flow was used; the code edit was made before the branch
+  was claimed, then carried across the switch (branch claim published first).
+- Local env: use `.venv/bin/python`; the PATH `python` lacks `tomlkit`.
+
+## PR
+
+```yaml
+title: Normalize signal-killed ticket.py exits to 128 + signal
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Opus 5.5 (claude-opus-5-5) under megalaunch
+  (coga-launch d902ba98-161a-48db-b625-a2216b97516e).
+head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
+base: 89503cec07b530a8ae79b639df796d2e25a7b66f
+depth: skim
+rationale: >-
+  One-line status mapping in the shared script executor plus two regression
+  tests and a doc sentence; check that read-only stays effect-free and that
+  non-negative codes (75) are untouched.
+implementation: >-
+  Adds a private _normalize_exit_code helper in launch_script and applies it
+  to the ticket.py child's returncode before the read-only return, so every
+  script launch path reports 128 + N for a signal-killed child.
+deviations: None.
+limitations: >-
+  POSIX only by construction; Windows never yields negative returncodes and
+  the new tests skip there. Windows/macOS not run (release-only tier).
+files:
+  src/coga/launch_script.py: >-
+    Normalize the ticket.py child's negative returncode to 128 + signal
+    before any consumer sees it.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: >-
+    Item 5 documents that a signal-killed child is reported as 128 + N.
+  tests/test_launch_script.py: >-
+    Regression tests for a self-SIGTERM child on the stateful and read-only
+    paths asserting 143 in exit status, audit line and notice.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    No code review yet; the workflow's peer-review step follows implement.
+checks:
+  - command: .venv/bin/python -m pytest -q tests/test_launch_script.py
+    status: passed
+    head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
+    base: 89503cec07b530a8ae79b639df796d2e25a7b66f
+    detail: 92 passed on the committed, rebased head.
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
+    base: 89503cec07b530a8ae79b639df796d2e25a7b66f
+    detail: >-
+      4976 passed, 33 skipped. Ran on the uncommitted working tree before
+      commit; the three diff paths are byte-identical in the commit, and the
+      rebase only brought in this ticket's own state publication.
+  - command: >-
+      git stash -- src && .venv/bin/python -m pytest -q
+      tests/test_launch_script.py -k signal_killed
+    status: passed
+    head: 1bf7a10ecea389e721d3ac86b6d6d45dd91ec88f
+    base: 89503cec07b530a8ae79b639df796d2e25a7b66f
+    detail: >-
+      Regression check, fix removed: both new tests failed (-15 and 241), as
+      expected; restored and they pass.
+```

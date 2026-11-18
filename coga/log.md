@@ -11366,3 +11366,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 16:23 v1 [v1/microkernel/normalize-signal-exits-from-read-only-launch] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 16:23 v1 [v1/microkernel/normalize-signal-exits-from-read-only-launch] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 16:23 v1 [v1/microkernel/normalize-signal-exits-from-read-only-launch] [megalaunch] launched via coga megalaunch
+2026-11-17 16:40 v1 [v1/microkernel/normalize-signal-exits-from-read-only-launch] [agent:claude] advanced to step 2 (peer-review) → codex
