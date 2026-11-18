@@ -96,10 +96,8 @@ sees the admitted UUID only after the child can run. Recovery:
 
 ## Failed agent start
 
-When `_agent_failed_to_start` classifies a session (natural non-zero exit,
-no done signal, `AgentSessionResult.elapsed_seconds` under
-`STARTUP_FAILURE_WINDOW_SECONDS`, ticket equal to the claim the child ran
-under), `_restore_after_failed_start` undoes the claim. Under
+When the supervisor reports `AgentSessionResult.exec_failed`,
+`_restore_after_failed_start` undoes the claim. Under
 `git.state_lock` it requires the local ticket to equal that claim (the
 admitted rendering, or the start write without Git), writes back the step's
 pre-launch bytes (the deferred-activation capture or the preflight read)

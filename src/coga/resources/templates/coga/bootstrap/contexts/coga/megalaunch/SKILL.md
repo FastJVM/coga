@@ -24,12 +24,12 @@ agent steps per run (`failed: exceeded 8 unattended steps`), and an exit that
 changes neither step nor status is `failed`.
 
 An agent that **fails to start** stops the whole run, in the sweep, the
-dependency drain, and an explicit selection alike. That is a non-zero exit
-of the agent's own (not a signal, timeout, or done teardown), with no done
-signal, a ticket byte-identical to the launch claim, and a run shorter than
-20 seconds — for example an agent CLI refusing its configuration. An agent
-that touched its ticket, or ran longer, follows the `failed` rule above and
-the run continues. Megalaunch restores the ticket to the exact bytes that
+dependency drain, and an explicit selection alike. The POSIX terminal
+supervisor confirms this when the operating system refuses to execute the
+agent command. A CLI that executes and then returns a nonzero code follows
+the ordinary `failed` rule and the run continues. This includes an agent
+that starts and rejects its configuration. Supervisors without a confirmed
+execution-failure signal retain the ordinary behavior. Megalaunch restores the ticket to the exact bytes that
 step found (a pick's `draft`, `paused`, or `blocked`; otherwise `active` or
 `in_progress`, which a drained ticket reaches with its dependency answer
 kept), drops the launch claim, and records no blocker: the environment is at
@@ -150,8 +150,7 @@ draft interviews plus each task's first launched step only. `DIR` scopes to
 
 The summary counts launched, drained, completed, canceled, blocked,
 skipped-human-gate, skipped-unresolved-blocker, skipped-unlaunchable, and
-failed, one row per task; one notification line follows. A failed start is
-the run's last row (`failed - agent failed to start (exited with code N);
+failed, one row per task; one notification line follows. A failed start has a row naming the task (`failed - agent failed to start (exited with code N);
 run stopped; restored to <status>`). Any `failed` row exits 1; usage errors
 exit 2. Claims and recovery:
 [launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md).

@@ -3813,9 +3813,7 @@ class AgentSessionResult(NamedTuple):
     # `termination_kind` (a signal followed by a crash is still a `crash`).
     # False also means "no sentinel channel"; see `ReplOutcome`.
     done_signalled: bool = False
-    # Wall-clock seconds the supervised child ran, measured around the PTY
-    # watcher (held-child admission included). `None` when not measured.
-    elapsed_seconds: float | None = None
+    exec_failed: bool = False
 
 
 def missing_launch_file_message(exc: FileNotFoundError) -> str:
@@ -4177,7 +4175,6 @@ def spawn_agent_session(
         # (or any other checkout of the repo) writes a different path, the
         # poll never matches, and the REPL hangs. The slug is the same from
         # any checkout, so teardown fires regardless of the bump's cwd.
-        supervised_since = time.monotonic()
         outcome = run_with_done_marker(
             cmd,
             env,
@@ -4199,14 +4196,13 @@ def spawn_agent_session(
                 rollback_spawn_admission if gated_spawn_admission else None
             ),
         )
-        supervised_seconds = time.monotonic() - supervised_since
         outcome_status = _session_outcome_status(outcome)
         return AgentSessionResult(
             outcome.exit_code,
             outcome.kind,
             outcome.reason,
             outcome.done_signalled,
-            supervised_seconds,
+            outcome.exec_failed,
         )
     except KeyboardInterrupt:
         outcome_status = "interrupted"

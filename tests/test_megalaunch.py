@@ -6581,14 +6581,10 @@ def test_windows_ctrl_c_signal_quits_the_picker_without_launching(
 # --- an agent that fails to start stops the run ------------------------------
 
 
-def _agent_exits_on_spawn(
-    monkeypatch: pytest.MonkeyPatch, code: int = 1, *, work=None
+def _agent_exec_fails(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> list[str]:
-    """Run the real `spawn_agent_session` around a child that exits `code`.
-
-    Only the PTY watcher is modeled: admission, the gated launch audit, the
-    elapsed measurement, and the session result all stay the real launch path.
-    `work(ref_slug)` runs as the child's own work before it exits.
+    """Model a PTY exec failure while exercising launch admission and audit.
     """
     from coga.repl_supervisor import ReplOutcome
 
@@ -6605,9 +6601,7 @@ def _agent_exits_on_spawn(
         elif after_spawn is not None:
             after_spawn()
         spawned.append(session_id)
-        if work is not None:
-            work(session_id)
-        return ReplOutcome(code, "natural")
+        return ReplOutcome(127, "natural", exec_failed=True)
 
     monkeypatch.setattr("coga.launch.run_with_done_marker", child)
     return spawned
@@ -6638,7 +6632,7 @@ def test_megalaunch_sweep_stops_and_restores_when_agent_fails_to_start(
         ticket.frontmatter["launch_generation"] = "0f3c2a51-1111-4222-8333-944455556666"
         ticket.write(first["path"])
     before = {task["slug"]: Path(task["path"]).read_bytes() for task in (first, second)}
-    spawned = _agent_exits_on_spawn(monkeypatch)
+    spawned = _agent_exec_fails(monkeypatch)
     monkeypatch.setattr("coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True)
 
     result = CliRunner().invoke(app, ["megalaunch"])
@@ -6652,12 +6646,12 @@ def test_megalaunch_sweep_stops_and_restores_when_agent_fails_to_start(
         assert Path(first["path"]).read_bytes() == before[first["slug"]]
     assert Path(second["path"]).read_bytes() == before[second["slug"]]
     assert (
-        f"- {first['slug']}: failed - agent failed to start (exited with code 1); "
+        f"- {first['slug']}: failed - agent failed to start (exited with code 127); "
         f"run stopped; restored to {status}"
     ) in result.output
     assert second["slug"] not in result.output.split("Outcomes:")[1]
     log = (repo / "log.md").read_text(encoding="utf-8")
-    assert f"restored (in_progress → {status}) — agent failed to start (exit 1)" in log
+    assert f"restored (in_progress → {status}) — agent failed to start (exit 127)" in log
     assert "blocked" not in Ticket.read(first["path"]).frontmatter.get("status", "")
 
 
@@ -6669,7 +6663,7 @@ def test_megalaunch_pick_restores_draft_and_activates_no_later_pick(
     cfg = load_config(repo)
     first, second = _two_tasks(repo, "draft")
     before = {task["slug"]: Path(task["path"]).read_bytes() for task in (first, second)}
-    spawned = _agent_exits_on_spawn(monkeypatch, code=1)
+    spawned = _agent_exec_fails(monkeypatch)
 
     run = run_megalaunch(cfg, selection=[first["slug"], second["slug"]])
 
@@ -6677,7 +6671,7 @@ def test_megalaunch_pick_restores_draft_and_activates_no_later_pick(
     assert [result.slug for result in run.results] == [first["slug"]]
     row = run.results[0]
     assert row.outcome == "failed" and row.stops_run and row.launched
-    assert "exited with code 1" in row.detail and "restored to draft" in row.detail
+    assert "exited with code 127" in row.detail and "restored to draft" in row.detail
     # Exactly as picked: draft again, no frozen workflow, no claim, no ask.
     assert Path(first["path"]).read_bytes() == before[first["slug"]]
     assert Path(second["path"]).read_bytes() == before[second["slug"]]
@@ -6708,7 +6702,7 @@ def test_megalaunch_drain_stops_when_drained_agent_fails_to_start(
         ticket.frontmatter["status"] = "blocked"
         ticket.write(task["path"])
     other_before = Path(other["path"]).read_bytes()
-    spawned = _agent_exits_on_spawn(monkeypatch)
+    spawned = _agent_exec_fails(monkeypatch)
 
     run = run_megalaunch(cfg)
 
@@ -6721,53 +6715,57 @@ def test_megalaunch_drain_stops_when_drained_agent_fails_to_start(
     assert Path(other["path"]).read_bytes() == other_before
 
 
-def test_megalaunch_agent_that_worked_then_failed_keeps_failed_path(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+@windows_skip("Uses a real POSIX PTY and a script with a missing interpreter.")
+@pytest.mark.parametrize("exit_code", [None, 1, 127])
+def test_megalaunch_posix_pty_distinguishes_exec_failure_from_agent_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, exit_code: int | None,
 ) -> None:
-    """A non-zero exit after real work continues the run, as before."""
-    from coga.taskfile import read_blackboard, replace_blackboard
+    import os
+    import shlex
+    import sys
 
     cfg = load_config(repo)
-    first, second = _two_tasks(repo, "active")
-    paths = {task["slug"]: Path(task["path"]) for task in (first, second)}
-
-    def work(slug: str) -> None:
-        path = paths[slug]
-        replace_blackboard(path, read_blackboard(path) + "\nStarted; then crashed.\n")
-
-    spawned = _agent_exits_on_spawn(monkeypatch, code=1, work=work)
-
-    run = run_megalaunch(cfg)
-
-    assert spawned == [first["slug"], second["slug"]]
-    assert [result.outcome for result in run.results] == ["failed", "failed"]
-    assert all(not result.stops_run for result in run.results)
-    assert run.results[0].detail == "agent exited with code 1"
-    assert Ticket.read(first["path"]).status == "in_progress"
-
-
-def test_megalaunch_untouched_ticket_after_startup_window_keeps_failed_path(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from coga.megalaunch import STARTUP_FAILURE_WINDOW_SECONDS
-
-    cfg = load_config(repo)
-    first, second = _two_tasks(repo, "active")
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
-    spawned: list[str] = []
-
-    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
-        spawned.append(ref_obj.id_slug)
-        return AgentSessionResult(
-            1, "natural", elapsed_seconds=STARTUP_FAILURE_WINDOW_SECONDS + 1
+    first, second = _two_tasks(repo, "draft")
+    before = [Path(task["path"]).read_bytes() for task in (first, second)]
+    artifact = repo / "work.txt"
+    agent = repo / "claude"
+    if exit_code is None:
+        _write(agent, "#!/coga-test-missing-interpreter\n")
+    else:
+        _write(
+            agent,
+            f"#!/bin/sh\nprintf worked >> {shlex.quote(str(artifact))}\nexit {exit_code}\n",
         )
+    agent.chmod(0o755)
+    monkeypatch.setenv("PATH", str(repo))
 
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    # Give the real supervisor terminal descriptors without forwarding input
+    # from pytest or relying on the runner's console.
+    master, slave = os.openpty()
+    try:
+        with (
+            os.fdopen(os.dup(slave), "w", buffering=1) as terminal,
+            monkeypatch.context() as patch,
+        ):
+            patch.setattr(sys, "stdin", terminal)
+            patch.setattr(sys, "stdout", terminal)
+            run = run_megalaunch(cfg, selection=[first["slug"], second["slug"]])
+    finally:
+        os.close(slave)
+        os.close(master)
 
-    run = run_megalaunch(cfg)
-
-    assert spawned == [first["slug"], second["slug"]]
-    assert [result.detail for result in run.results] == ["agent exited with code 1"] * 2
+    if exit_code is None:
+        assert [row.slug for row in run.results] == [first["slug"]]
+        assert run.results[0].stops_run
+        assert "exited with code 127" in run.results[0].detail
+        assert [Path(task["path"]).read_bytes() for task in (first, second)] == before
+        assert not artifact.exists()
+    else:
+        assert artifact.read_text() == "workedworked"
+        assert [row.slug for row in run.results] == [first["slug"], second["slug"]]
+        assert all(not row.stops_run for row in run.results)
+        assert [row.detail for row in run.results] == [f"agent exited with code {exit_code}"] * 2
+        assert all(Ticket.read(task["path"]).status == "in_progress" for task in (first, second))
 
 
 def test_megalaunch_failed_start_publishes_restore_against_the_claim(
@@ -6787,7 +6785,7 @@ def test_megalaunch_failed_start_publishes_restore_against_the_claim(
     start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
     monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.launch.usage_tracking.capture_session", append_test_usage)
-    spawned = _agent_exits_on_spawn(monkeypatch)
+    spawned = _agent_exec_fails(monkeypatch)
 
     run = run_megalaunch(cfg, selection=[created["slug"]])
 

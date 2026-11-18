@@ -63,6 +63,7 @@ from uuid import uuid4
 import typer
 
 from coga import git
+from coga.atomicio import atomic_write_bytes
 from coga.authoring import resolve_authoring_agent
 from coga.blackboard import (
     Blocker,
@@ -155,17 +156,6 @@ MegalaunchOutcome = Literal[
     "skipped-unlaunchable",
     "failed",
 ]
-
-
-# An agent whose process exits non-zero this soon after the supervisor started
-# it, without a done signal and without changing its claimed ticket, never
-# started its work: the incident that motivated this rule was a CLI refusing
-# its configuration after about 4 s. The window also covers the held-child
-# proof and the launch-admission publication the supervisor runs around the
-# spawn, so a slow push does not hide a refusal. The ticket-bytes check is the
-# structural signal; the window keeps an agent that worked for a while without
-# touching its ticket (then crashed) on the ordinary `failed` path.
-STARTUP_FAILURE_WINDOW_SECONDS = 20.0
 
 
 @dataclass(frozen=True)
@@ -1569,12 +1559,11 @@ def _launch_until_stop(
         ]
 
         def admit_released_launch_claim() -> None:
-            _admit_launch_claim_after_release(
+            claimed_bytes[0] = _admit_launch_claim_after_release(
                 cfg,
                 ref,
                 expected_started_bytes=expected_started_bytes,
             )
-            claimed_bytes[0] = _ticket_bytes(ref)
 
         before = prepared_launch.ticket
         try:
@@ -1632,8 +1621,7 @@ def _launch_until_stop(
             )
 
         launched = True
-        if _agent_failed_to_start(session, ref, claimed_bytes[0]):
-            assert claimed_bytes[0] is not None
+        if getattr(session, "exec_failed", False):
             return _restore_after_failed_start(
                 cfg,
                 ref,
@@ -1705,35 +1693,12 @@ def _launch_until_stop(
         ticket = after
 
 
-def _agent_failed_to_start(
-    session: object, ref: TaskRef, claimed_bytes: bytes | None
-) -> bool:
-    """True when the agent process exited before doing any work.
-
-    Structural first: the child exited on its own (`natural`, not a signal,
-    timeout, or done teardown) with a non-zero code, never signalled done, and
-    left its ticket byte-identical to the claim it ran under — no blackboard
-    note, no transition. The short elapsed window (see
-    `STARTUP_FAILURE_WINDOW_SECONDS`) then separates a refusal at startup from
-    a session that worked without touching its ticket. A result that does not
-    report its elapsed time is never classified as a failed start.
-    """
-    if getattr(session, "termination_kind", None) != "natural":
-        return False
-    if session.exit_code == 0 or getattr(session, "done_signalled", False):  # type: ignore[attr-defined]
-        return False
-    elapsed = getattr(session, "elapsed_seconds", None)
-    if elapsed is None or elapsed >= STARTUP_FAILURE_WINDOW_SECONDS:
-        return False
-    return claimed_bytes is not None and _ticket_bytes(ref) == claimed_bytes
-
-
 def _restore_after_failed_start(
     cfg: Config,
     ref: TaskRef,
     *,
     exit_code: int,
-    claimed_bytes: bytes,
+    claimed_bytes: bytes | None,
     pre_launch_bytes: bytes | None,
     agent: str | None,
 ) -> MegalaunchResult:
@@ -1763,6 +1728,8 @@ def _restore_after_failed_start(
             stops_run=True,
         )
 
+    if claimed_bytes is None:
+        return stopped("launch claim unavailable; ticket needs manual reconciliation")
     if pre_launch_bytes is None:
         return stopped(
             "no pre-launch snapshot to restore; ticket needs manual reconciliation"
@@ -1782,14 +1749,19 @@ def _restore_after_failed_start(
         restored = source.render().encode("utf-8")
 
     with git.state_lock(cfg):
-        log_before = _log_bytes(cfg)
-        if _ticket_bytes(ref) != claimed_bytes:
+        try:
+            current_bytes = _ticket_bytes(ref)
+            log_before = _log_bytes(cfg)
+        except OSError as exc:
             return stopped(
-                "ticket changed after the agent exited; not restored, ticket "
-                "needs manual reconciliation"
+                f"could not read restore state ({exc}); ticket needs manual reconciliation"
+            )
+        if current_bytes != claimed_bytes:
+            return stopped(
+                "ticket changed since launch admission; ticket needs manual reconciliation"
             )
         try:
-            ref.ticket_path.write_bytes(restored)
+            atomic_write_bytes(ref.ticket_path, restored)
             append_log(
                 cfg,
                 ref.id_slug,
@@ -1815,11 +1787,13 @@ def _restore_after_failed_start(
             # control still holds rather than a restore nobody accepted.
             try:
                 _restore_ticket_bytes(cfg, ref, claimed_bytes, log_before=log_before)
-            except OSError:
-                pass
+            except OSError as rollback_exc:
+                return stopped(
+                    f"restore failed ({exc}) and local rollback failed ({rollback_exc}); "
+                    "ticket needs manual reconciliation"
+                )
             return stopped(
-                f"restore to {prior} could not be published ({exc}); ticket "
-                "left in_progress and needs manual reconciliation"
+                f"restore to {prior} failed ({exc}); ticket needs manual reconciliation"
             )
     return stopped(f"restored to {prior}; {next_step}")
 
@@ -2177,7 +2151,7 @@ def _admit_launch_claim_after_release(
     ref: TaskRef,
     *,
     expected_started_bytes: bytes,
-) -> None:
+) -> bytes:
     """Publish pending-to-admitted only after the held child is released.
 
     The supervisor calls this while retaining the same-checkout publication
@@ -2187,7 +2161,7 @@ def _admit_launch_claim_after_release(
     child can already execute, so ordinary lifecycle changes may proceed.
     """
     if not cfg.git_enabled:
-        return
+        return expected_started_bytes
     try:
         current_bytes = ref.ticket_path.read_bytes()
     except OSError as exc:
@@ -2232,7 +2206,8 @@ def _admit_launch_claim_after_release(
 
     try:
         ticket.frontmatter["launch_generation"] = admitted_generation
-        ticket.write(ref.ticket_path)
+        admitted_bytes = ticket.render().encode("utf-8")
+        atomic_write_bytes(ref.ticket_path, admitted_bytes)
         # The supervisor already holds `state_lock` through this callback;
         # `publish` re-enters it. `expect` pins the pending control copy the
         # seal accepts this exact prefix-stripped transition against.
@@ -2265,6 +2240,7 @@ def _admit_launch_claim_after_release(
         raise _LaunchClaimRefused(
             f"launch admission could not be recorded: {exc}{detail}"
         ) from exc
+    return admitted_bytes
 
 
 def _reblock_unresolved(
