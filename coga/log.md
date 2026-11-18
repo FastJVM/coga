@@ -4251,3 +4251,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 09:08 v1 [recurring/autoclose-merged] [system] script exited with code 0
 2026-11-18 09:08 v1 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-18 09:08 v1 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-18 09:40 v1 [recurring/dream] [agent:claude] slack: Dream retro: 5 knowledge PRs for review — #1255 agent-trial method, #1256 install pins, #1257 coga-dev hazards, #1258 init agent-selection gotchas, #1259 microkernel report startup cost; 23 no-knowledge tickets direct-deleted
