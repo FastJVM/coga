@@ -169,6 +169,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1253
 branch: stop-megalaunch-when-an-agent-fails-to-start
 
 ## Implement handoff (2026-11-17, claude)
