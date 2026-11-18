@@ -11479,3 +11479,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 22:39 v1 [git-sync/02-remove-implicit-publication-and-sync-at-session] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 22:39 v1 [git-sync/02-remove-implicit-publication-and-sync-at-session] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 22:39 v1 [git-sync/02-remove-implicit-publication-and-sync-at-session] [megalaunch] launched via coga megalaunch
+2026-11-17 22:47 v1 [git-sync/02-remove-implicit-publication-and-sync-at-session] [agent:claude] advanced to step 2 (evaluate-design) → codex — Design spec written; 5 open questions on the blackboard (launch-entry refuse vs sync, trim-log exception, inactivity subject, cross-clone CAS sites, PR size). Implement waits on git-sync/01 merging.
