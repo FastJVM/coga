@@ -4244,3 +4244,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 09:06 v1 [v1/microkernel/03-prompt-assembly/03-implement-the-proven-prompt-assembly] [human:nicktoper] auto-bumped on merge of PR #1238 → done
 2026-11-18 09:06 v1 [v1/microkernel/03-prompt-assembly/record-the-output-quality-comparison-result] [human:nicktoper] auto-bumped on merge of PR #1237 → done
 2026-11-18 09:06 v1 [v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling] [human:nicktoper] auto-bumped on merge of PR #1234 → done; 1 unanswered review thread: src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md:152
+2026-11-18 09:07 v1 [v1/microkernel/06-read-report-commands-as-ticket-workflows] [human:nicktoper] auto-bumped on merge of PR #1240 → done
