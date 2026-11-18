@@ -176,7 +176,9 @@ failure or makes a best-effort sync fatal.
 
 ## `state_lock`
 
-`publish` runs steps 2–5 under `git.state_lock`, the same-checkout lock
+`publish` runs steps 1–5 under `git.state_lock` (each retry resolves Base
+first and recomputes Candidates against it); only the soft-skip checks and
+`expect` blob hashing precede the lock. `state_lock` is the same-checkout lock
 lifecycle writers hold around read-modify-write; its contract is
 [`coga-dev/internals/launch-claims`](../../launch-claims/SKILL.md). It serializes one
 checkout only; across checkouts the push compare-and-swap decides. Two
