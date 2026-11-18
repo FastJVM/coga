@@ -220,3 +220,18 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: v1/microkernel/preserve-supervised-environment-in-megalaunch-wind
+
+## Plan (implement, 2026-11-17)
+
+- Add a keyword-only `env_transform` to `launch.prepare_agent_launch`, applied
+  to `build_launch_env(...)` before `agent_command_refusal`; the returned
+  `PreparedAgentLaunch.env` is the transformed mapping.
+- Megalaunch passes `build_supervised_step_env` (task/step/agent bound) through
+  it, so the check vouches for the exact env handed to spawn. One check, one
+  secrets resolution; tradeoff: shared API gains one optional parameter.
+- Ordinary launch unchanged (its step and `CHECKOUT_RETURN_ENV` are settled only
+  after checkout preparation, so folding it in is not free).
