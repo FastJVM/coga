@@ -157,6 +157,17 @@ MegalaunchOutcome = Literal[
 ]
 
 
+# An agent whose process exits non-zero this soon after the supervisor started
+# it, without a done signal and without changing its claimed ticket, never
+# started its work: the incident that motivated this rule was a CLI refusing
+# its configuration after about 4 s. The window also covers the held-child
+# proof and the launch-admission publication the supervisor runs around the
+# spawn, so a slow push does not hide a refusal. The ticket-bytes check is the
+# structural signal; the window keeps an agent that worked for a while without
+# touching its ticket (then crashed) on the ordinary `failed` path.
+STARTUP_FAILURE_WINDOW_SECONDS = 20.0
+
+
 @dataclass(frozen=True)
 class MegalaunchResult:
     slug: str
@@ -165,6 +176,8 @@ class MegalaunchResult:
     agent: str | None = None
     launched: bool = False
     drained: bool = False
+    # The agent failed to start: every megalaunch loop stops after this row.
+    stops_run: bool = False
 
 
 @dataclass(frozen=True)
@@ -428,6 +441,10 @@ def _run_sweep(
         if result.launched or not result.outcome.startswith("skipped-"):
             attempted += 1
         results.append(result)
+        if result.stops_run:
+            # An agent that cannot start is an environment problem every
+            # later launch would hit too: end the run, drain included.
+            return results
     return _drain_satisfied_blockers(
         cfg,
         results,
@@ -713,6 +730,8 @@ def _drain_satisfied_blockers(
             if result.launched or not result.outcome.startswith("skipped-"):
                 attempted += 1
             _replace_result(results, _as_drained(result, dependency))
+            if result.stops_run:
+                return results
             if result.launched:
                 launched_in_pass = True
                 break
@@ -774,12 +793,9 @@ def _replace_result(
 
 
 def _as_drained(result: MegalaunchResult, dependency: str) -> MegalaunchResult:
-    return MegalaunchResult(
-        slug=result.slug,
-        outcome=result.outcome,
+    return replace(
+        result,
         detail=f"dependency {dependency} finished; {result.detail}",
-        agent=result.agent,
-        launched=result.launched,
         drained=True,
     )
 
@@ -1008,6 +1024,9 @@ def _run_selection(
         if result.launched or not result.outcome.startswith("skipped-"):
             attempted += 1
         results.append(result)
+        if result.stops_run:
+            # Later picks stay untouched: none is reread or activated.
+            break
     return results
 
 
@@ -1386,6 +1405,10 @@ def _launch_until_stop(
         # prompt, environment, and agent this launch will use. Commit the flip
         # only once every refusal below has passed, so a ticket whose session
         # never starts is never left claiming it did.
+        # The exact bytes this step found before any lifecycle write: what a
+        # failed agent start restores (a deferred pick's draft/paused/blocked
+        # capture, otherwise the active or in_progress preflight read).
+        pre_launch_bytes = activation_bytes if activate else preflight_source_bytes
         preflight_view = ticket
         prepared_activation: Ticket | None = None
         if activate:
@@ -1539,12 +1562,19 @@ def _launch_until_stop(
                 expected_started_bytes=expected_started_bytes,
             )
 
+        # The exact claim the child ran under: the admitted rendering once the
+        # release publishes it, or the start write itself without Git.
+        claimed_bytes: list[bytes | None] = [
+            None if cfg.git_enabled else expected_started_bytes
+        ]
+
         def admit_released_launch_claim() -> None:
             _admit_launch_claim_after_release(
                 cfg,
                 ref,
                 expected_started_bytes=expected_started_bytes,
             )
+            claimed_bytes[0] = _ticket_bytes(ref)
 
         before = prepared_launch.ticket
         try:
@@ -1602,6 +1632,16 @@ def _launch_until_stop(
             )
 
         launched = True
+        if _agent_failed_to_start(session, ref, claimed_bytes[0]):
+            assert claimed_bytes[0] is not None
+            return _restore_after_failed_start(
+                cfg,
+                ref,
+                exit_code=session.exit_code,
+                claimed_bytes=claimed_bytes[0],
+                pre_launch_bytes=pre_launch_bytes,
+                agent=launch_agent,
+            )
         after = read_ticket(ref)
         # Advisory only, observed on the existing post-session read and before
         # any supervisor-owned reblock, so it can neither change the result
@@ -1663,6 +1703,125 @@ def _launch_until_stop(
                 launched=True,
             )
         ticket = after
+
+
+def _agent_failed_to_start(
+    session: object, ref: TaskRef, claimed_bytes: bytes | None
+) -> bool:
+    """True when the agent process exited before doing any work.
+
+    Structural first: the child exited on its own (`natural`, not a signal,
+    timeout, or done teardown) with a non-zero code, never signalled done, and
+    left its ticket byte-identical to the claim it ran under — no blackboard
+    note, no transition. The short elapsed window (see
+    `STARTUP_FAILURE_WINDOW_SECONDS`) then separates a refusal at startup from
+    a session that worked without touching its ticket. A result that does not
+    report its elapsed time is never classified as a failed start.
+    """
+    if getattr(session, "termination_kind", None) != "natural":
+        return False
+    if session.exit_code == 0 or getattr(session, "done_signalled", False):  # type: ignore[attr-defined]
+        return False
+    elapsed = getattr(session, "elapsed_seconds", None)
+    if elapsed is None or elapsed >= STARTUP_FAILURE_WINDOW_SECONDS:
+        return False
+    return claimed_bytes is not None and _ticket_bytes(ref) == claimed_bytes
+
+
+def _restore_after_failed_start(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    exit_code: int,
+    claimed_bytes: bytes,
+    pre_launch_bytes: bytes | None,
+    agent: str | None,
+) -> MegalaunchResult:
+    """Put a failed-to-start ticket back exactly as this step found it.
+
+    A compare-and-set against the claim the child ran under: the pre-launch
+    bytes (a pick's draft/paused/blocked capture, or the active/in_progress
+    preflight read) go back with any `launch_generation` claim dropped, the
+    audit line records why, and publication expects control's copy to be that
+    same claim. Nothing is blocked or asked: an agent that cannot start is an
+    environment problem, not the ticket's. Whatever happens, the returned row
+    stops the run; a restore that cannot complete says so.
+    """
+    head = f"agent failed to start (exited with code {exit_code}); run stopped"
+    next_step = (
+        "fix the agent environment, then rerun megalaunch "
+        "(`coga megalaunch --relaunch` replays a pick)"
+    )
+
+    def stopped(detail: str) -> MegalaunchResult:
+        return MegalaunchResult(
+            slug=ref.id_slug,
+            outcome="failed",
+            detail=f"{head}; {detail}",
+            agent=agent,
+            launched=True,
+            stops_run=True,
+        )
+
+    if pre_launch_bytes is None:
+        return stopped(
+            "no pre-launch snapshot to restore; ticket needs manual reconciliation"
+        )
+    try:
+        source = Ticket.parse(pre_launch_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError) as exc:
+        return stopped(
+            f"pre-launch snapshot unreadable ({exc}); ticket needs manual "
+            "reconciliation"
+        )
+    prior = source.status
+    if source.launch_generation is None:
+        restored = pre_launch_bytes
+    else:
+        source.frontmatter.pop("launch_generation", None)
+        restored = source.render().encode("utf-8")
+
+    with git.state_lock(cfg):
+        log_before = _log_bytes(cfg)
+        if _ticket_bytes(ref) != claimed_bytes:
+            return stopped(
+                "ticket changed after the agent exited; not restored, ticket "
+                "needs manual reconciliation"
+            )
+        try:
+            ref.ticket_path.write_bytes(restored)
+            append_log(
+                cfg,
+                ref.id_slug,
+                "megalaunch",
+                f"restored (in_progress → {prior}) — agent failed to start "
+                f"(exit {exit_code}); megalaunch run stopped",
+            )
+            if cfg.git_enabled:
+                git.sync_task_state(
+                    cfg,
+                    ref.path,
+                    message=f"Ticket: {ref.id_slug} — restored {prior}",
+                    expect={ref.ticket_path: claimed_bytes},
+                    strict=True,
+                )
+        except git.UncertainPublishError as exc:
+            return stopped(
+                f"restored to {prior} locally but publication is uncertain; "
+                f"ticket needs manual reconciliation — {exc}"
+            )
+        except (OSError, git.GitError) as exc:
+            # Definitely not on control: keep local state equal to the claim
+            # control still holds rather than a restore nobody accepted.
+            try:
+                _restore_ticket_bytes(cfg, ref, claimed_bytes, log_before=log_before)
+            except OSError:
+                pass
+            return stopped(
+                f"restore to {prior} could not be published ({exc}); ticket "
+                "left in_progress and needs manual reconciliation"
+            )
+    return stopped(f"restored to {prior}; {next_step}")
 
 
 # The refusals `prepare_active` raises before `mark_active` writes anything.
