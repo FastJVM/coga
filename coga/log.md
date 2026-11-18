@@ -4248,3 +4248,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 09:07 v1 [v1/microkernel/avoid-duplicate-attended-launch-prompt-composition] [human:nicktoper] auto-bumped on merge of PR #1242 → done
 2026-11-18 09:07 v1 [v1/microkernel/normalize-signal-exits-from-read-only-launch] [human:nicktoper] auto-bumped on merge of PR #1249 → done
 2026-11-18 09:07 v1 [recurring/autoclose-merged] [system] task done
+2026-11-18 09:08 v1 [recurring/autoclose-merged] [system] script exited with code 0
