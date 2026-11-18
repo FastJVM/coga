@@ -4256,3 +4256,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 09:42 v1 [correct-script-tickets-on-which-supervisor-variabl] [human:nicktoper] created (status=draft)
 2026-11-18 09:43 v1 [update-the-testing-topic-known-failure-note-on-the] [human:nicktoper] created (status=draft)
 2026-11-18 09:43 v1 [name-clone-scoped-recurring-scripts-among-the-scru] [human:nicktoper] created (status=draft)
+2026-11-18 09:43 v1 [fix-the-windows-aws-walk-step-and-add-the-v1-14-at] [human:nicktoper] created (status=draft)
