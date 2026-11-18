@@ -1,6 +1,6 @@
 ---
 title: Stop megalaunch when an agent fails to start
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
+launch_generation: pending:a177e353-8047-4b1b-b5cb-ec8869d7382a
 ---
 
 ## Description
