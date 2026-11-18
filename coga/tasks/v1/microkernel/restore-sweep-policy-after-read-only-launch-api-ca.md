@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 72dfd779-d938-4fe8-92a9-8a24c94870dd
 ---
 
 ## Description
@@ -249,55 +248,65 @@ Tests added:
 
 Note: the shell's `python` lacks `tomlkit`; use `.venv/bin/python -m pytest`.
 
+## Peer review
+
+Independent direct Codex review of Claude's implementation completed on
+head `4384e80416d19cfc354a7c21c1161fbae49b05f9` against base `3f206d29676ee19488097c7e26b842492631680d`.
+No must-fix findings. The token reset covers normal return, early refusal, and
+target resolution failure. The recurring adapter can rely on the restored
+policy. The CLI argv test and direct API test cover their respective entry
+points. `--force list` exits 2 before dispatching the adapter and
+`--interactive list` reaches it. Both exercise the exit sweep without a
+withheld warning. The diff changes no terminal rendering or input handling.
+
+The full Linux suite passed with 4992 tests passed and 33 skipped.
+Python 3.11 test dependencies were unavailable in the existing environment.
+Native Windows and macOS verification is deferred to release.
+
 ## PR
 
 ```yaml
-title: Restore caller sweep policy after read-only launch API calls
-author: claude
-author_evidence: >-
-  Implement session ran on Claude (Opus 5.5) in a megalaunch queue; commit
-  adc5516d4 authored there.
-head: adc5516d411f4b09401812d1e705993c046217c9
-base: 7c19b901c3ea0e1772d34169885c79c92f652742
-depth: skim
-rationale: >-
-  Small, contained fix. The read-only branch now restores the ContextVar with a
-  token, and one compensating workaround is removed. Reviewers should confirm
-  that try/finally covers every bail and that the recurring adapter needs no
-  reset.
-implementation: >-
-  launch.launch's read_only branch keeps the state_sweep_withheld token and
-  resets it in finally on both the return and LaunchBail paths. The
-  recurring list adapter's set/reset workaround is removed. coga/launch notes
-  that the withheld policy is scoped to the read-only call.
-deviations: >-
-  The ticket expected `coga recurring --force list` to reach the adapter. The
-  recurring callback refuses it first (exit 2), so the test also covers
-  `--interactive list`, which does reach the adapter and sweeps at exit.
-limitations: >-
-  Writer-side state_sweep_withheld.set(True) retention signals elsewhere are
-  intentionally unchanged (out of scope).
+title: "Restore caller sweep policy after read-only launch API calls"
+author: "claude"
+author_evidence: "Implement session ran on Claude (Opus 5.5) in a megalaunch queue; commit adc5516d4 authored there."
+head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+base: "3f206d29676ee19488097c7e26b842492631680d"
+depth: "skim"
+rationale: "The change is confined to one ContextVar scope and removal of its adapter workaround. Independent review\
+  \ and the Linux suite passed. The recurring option cases exercise distinct dispatch paths."
+implementation: "launch.launch's read_only branch keeps the state_sweep_withheld token and resets it in finally\
+  \ on both the return and LaunchBail paths. The recurring list adapter's set/reset workaround is removed. coga/launch\
+  \ notes that the withheld policy is scoped to the read-only call."
+deviations: "The ticket expected `coga recurring --force list` to reach the adapter. The recurring callback refuses\
+  \ it first (exit 2), so the test also covers `--interactive list`, which does reach the adapter and sweeps at\
+  \ exit."
+limitations: "Linux checks used Python 3.12.12. The Python 3.11 environment lacked test dependencies. Native Windows\
+  \ and macOS verification is deferred to release."
 files:
   src/coga/launch.py: "Scope the read-only branch's withheld policy with a token reset in finally."
   src/coga/commands/recurring.py: "Remove the now-redundant caller-policy set/reset around the read-only list call."
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "State that the read-only withheld policy is scoped to the call."
-  tests/test_launch_script.py: "Regression tests for caller False/True restoration on return and bail, and for a writer's exit sweep after an in-process read-only call."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "State that the read-only withheld\
+    \ policy is scoped to the call."
+  tests/test_launch_script.py: "Regression tests for caller False/True restoration on return and bail, and for a\
+    \ writer's exit sweep after an in-process read-only call."
   tests/test_recurring.py: "Show that recurring --force list and --interactive list sweep without a withheld warning."
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: "Code review not run yet; the peer-review step follows implement."
+  reviewer: "codex"
+  kind: "independent"
+  status: "passed"
+  head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+  base: "3f206d29676ee19488097c7e26b842492631680d"
+  detail: "Direct Codex peer review of Claude's implementation completed with no must-fix findings."
 checks:
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: adc5516d411f4b09401812d1e705993c046217c9
-    base: 7c19b901c3ea0e1772d34169885c79c92f652742
-    detail: "4992 passed, 33 skipped in 779s. Ran on the working tree, which was identical to the committed tree (git diff HEAD empty)."
-  - command: .venv/bin/python -m pytest -q tests/test_launch_script.py tests/test_recurring.py -k "restores_caller_sweep_policy or writer_command_sweeps or option_before_list"
-    status: passed
-    head: adc5516d411f4b09401812d1e705993c046217c9
-    base: 7c19b901c3ea0e1772d34169885c79c92f652742
-    detail: "9 passed. With launch.py reverted, 5 of these 9 fail."
+- command: "env PYTHONPATH=\"$PWD/src\" .venv/bin/python -m pytest -q"
+  status: "passed"
+  head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+  base: "3f206d29676ee19488097c7e26b842492631680d"
+  detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 4992 passed, 33 skipped in 854.82s."
+- command: ".venv/bin/python -m pytest -q tests/test_launch_script.py tests/test_recurring.py tests/test_cli.py\
+    \ -k 'restores_caller_sweep_policy or writer_command_sweeps or option_before_list or read_only_launch_finalization'"
+  status: "passed"
+  head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+  base: "3f206d29676ee19488097c7e26b842492631680d"
+  detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 10 passed, 669 deselected in 0.53s."
 ```
-
