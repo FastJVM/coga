@@ -1,6 +1,6 @@
 ---
 title: Stop megalaunch when an agent fails to start
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
