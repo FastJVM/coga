@@ -4213,3 +4213,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 08:43 v1 [recurring/phone-home] [system] script exited with code 0
 2026-11-18 08:43 v1 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-18 08:43 v1 [recurring/resolve-conflicts] [system] started (active → in_progress) via recurring delegation to bootstrap/resolve-conflicts
+2026-11-18 08:43 v1 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
