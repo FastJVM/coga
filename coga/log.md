@@ -11406,3 +11406,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 18:15 v1 [v1/microkernel/restore-sweep-policy-after-read-only-launch-api-ca] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 18:15 v1 [v1/microkernel/restore-sweep-policy-after-read-only-launch-api-ca] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 18:15 v1 [v1/microkernel/restore-sweep-policy-after-read-only-launch-api-ca] [megalaunch] launched via coga megalaunch
+2026-11-17 18:30 v1 [v1/microkernel/restore-sweep-policy-after-read-only-launch-api-ca] [agent:claude] advanced to step 2 (peer-review) → codex
