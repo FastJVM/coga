@@ -1,8 +1,34 @@
 ---
 title: Remove dead megalaunch agent lookup
-status: draft
+status: active
 owner: nicktoper
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+    checkout: create-or-reuse
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+    checkout: reuse-required
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+    checkout: control
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+    checkout: reuse-required
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
