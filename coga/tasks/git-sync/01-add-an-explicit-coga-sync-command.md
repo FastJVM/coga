@@ -1,6 +1,6 @@
 ---
 title: Add an explicit coga sync command
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -45,6 +45,7 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
+launch_generation: pending:dbabd0b0-5379-4fc8-9dc4-110b0dc0e900
 ---
 
 ## Description
