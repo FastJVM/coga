@@ -200,6 +200,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1252
 branch: restore-sweep-policy-after-read-only-launch
 
 ## Handoff (implement)
