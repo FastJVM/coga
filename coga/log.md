@@ -4237,3 +4237,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 09:06 v1 [recurring/address-pr-comments] [system] completed (delegated bootstrap/address-pr-comments run finished) via coga recurring
 2026-11-18 09:06 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-11-18 09:06 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
+2026-11-18 09:06 v1 [v1/45-fix-the-readme-s-native-windows-install-steps] [human:nicktoper] auto-bumped on merge of PR #1231 → done
