@@ -44,7 +44,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 ---
 
 ## Description
@@ -202,6 +202,106 @@ with launch framing on stderr, or limit the first migration to the
 interactive batch if preserving the direct command experience is more
 important? The proposed full move keeps one local implementation and avoids a
 new public primitive or an operand-aware dispatch rule.
+
+## Evaluator review
+
+Reviewed 2026-11-17 at `0cc1ad583` from the position of an implementer who
+did not write the design. Verdict: **not ready yet.** Two must-fix items need
+a decision from the owner. Everything else checks out against the repo.
+
+### Verified as stated
+
+- At HEAD the baselines still match `0eafc938`: `unblock.py` 293, `block.py` 106,
+  `owner.py` 148, `common.py` 190, `mark.py` 329, `bump.py` 523.
+- `_apply_unblock` uses one prepared write. The blocked path goes through
+  `mark_active`. The in-progress and paused-period paths share a single
+  `write_ticket` call but keep separate `append_log`/`sync_task_state` branches,
+  so step 2's dedup is real but small.
+- `block()` calls `prepare_lifecycle_ticket`, then `mark_blocked`, then
+  `emit_done_marker(session_id=ref.id_slug)`. `owner()` holds `git.state_lock`,
+  refuses its own supervised session, a claim, and an in-progress gate without
+  `--assist-stopped`, and covers the uncertain, retract, and restore branches.
+  Step 3's claims are accurate.
+- The bootstrap script path already does what the ticket needs here.
+  `run_script_phase` inherits stdin, so interactive prompts work. Stateless
+  runs write no log lines or failure notice. `Launch: task …` framing goes to
+  stderr when an entry exists. Exit 75 sets `script_retained_state` and
+  withholds the sweep (`launch.py` `_LaunchInvocation`). Bootstrap targets
+  other than `bootstrap/orient` skip checkout normalization, and push preflight
+  skips bootstrap. The alias shape copies `retire = "launch bootstrap/retire --"`.
+- The ticket's Body regions are correct, and the workflow and attached
+  contexts suit a kernel-boundary change. It is one coherent PR.
+
+### Must resolve before implementation
+
+1. **No mechanism exists to refuse a missing script, and no one owns building
+   it.** AC1 requires "A missing script fails visibly before an agent can
+   start." Under ordinary launch, `launch_script.run_script_phase` instead
+   returns `ran=False` when `script_entry_point` is `None`, and launch hands
+   off to an agent with the argv as a launch-arguments block. Only
+   `--read-only` refuses. The launch sibling
+   (`v1/microkernel/03-launch-decomposition`, at review, PR #1233)
+   explicitly keeps "ordinary script-to-agent behavior … unchanged". It will
+   not supply this guard, and `--read-only` is off-limits to a writer. So
+   "Coordinate any missing generic dispatch support with the launch sibling"
+   leaves the implementer to guess. The owner should choose one:
+   (a) this PR adds a generic launch-side guard that refuses a missing script,
+   such as a launch option the alias carries, with its contract in
+   `coga/launch` and `coga/script-tickets` (a reviewed kernel surface);
+   (b) drop the AC and accept the same fallback `retire` has today; or
+   (c) open a separate launch ticket and make this one depend on it.
+2. **"Carry over the shared preparation" can be read two ways.** It could mean
+   *import* `reconcile_lifecycle_ticket` from core or *copy* its logic into
+   `ticket.py`. Copying would duplicate review-conflict handling, which goes
+   against the objectives. Importing means `ticket.py` imports from
+   `coga.commands.common`, a CLI-head module. No bootstrap `ticket.py` does
+   that today: retire, show, status, usage and recurring-list import only
+   non-`commands` modules. Say which, and whether `reconcile_lifecycle_ticket`
+   or `prepare_lifecycle_ticket` should first move to a non-CLI module. After
+   the move it still has at least two consumers: bump, mark, block and owner.
+
+### Should address (recommended)
+
+3. **List what changes when unblock runs through launch instead of as a
+   built-in.** None of these are stated:
+   - after the script, `refresh_after_script` → `return_checkout` →
+     `git.refresh` runs, because a bootstrap boundary is unarmed. A blocked-resume
+     agent runs `coga unblock` mid-session (`launch.py` blocked-resume prompt
+     text) and would now refresh the checkout under the live session. That
+     is probably harmless on a feature branch and a fast-forward on control,
+     but AC4 should name it as expected.
+   - `coga unblock --help` now needs a configured workspace, as the retire
+     ticket.md already documents for `retire --help`.
+   - a repo `[aliases] unblock` entry stops colliding with a built-in.
+     `BUILTIN_COMMANDS` changes, and `tests/test_aliases.py` checks it against
+     Typer's registry.
+4. **Name a test strategy.** About 30 `tests/test_commands.py` cases call the
+   Typer `app` through `CliRunner` with `["unblock", …]` and `input=`. Once
+   unblock leaves `_LAZY_COMMANDS`, those calls stop resolving: alias
+   expansion happens in `cli.main`, and `CliRunner` input does not reach a
+   subprocess's stdin. AC2's "through the existing command and blocker
+   tests" therefore needs a translation. The `tests/test_retire.py` precedent
+   loads the packaged script by path with `importlib` for behavior tests and
+   runs `_run_coga` as a real subprocess for dispatch, stdout and stdin.
+5. **Evidence for step 2's fallback caution.** The `except git.GitError`
+   fallback in `_apply_unblock` is not fully redundant. In
+   `reconcile_lifecycle_ticket`, the `except git.GitError` handler does not
+   catch errors raised inside its own `except git.TicketConflictError` handler
+   (`review_conflict.escalate`, the merged-review `git.prepare_ticket`). Today
+   those errors reach `_apply_unblock`'s local fallback. Removing it changes
+   what the batch does on those errors, so either keep it or decide the change
+   deliberately.
+6. **The microkernel topic needs an explicit line edit.** The "kernel tier and
+   its edges" paragraph lists "the `block`/`unblock` state transitions" as
+   kernel. Step 4 should say that paragraph changes, beyond adding a placement
+   row.
+
+### Owner question already open
+
+The blackboard's Open Question asks whether to move both forms or only
+`--all`. That is the owner's call. Item 1 bears on it: the full move puts
+the more common single-ticket path, including the agent's mid-session call,
+behind whatever missing-script behavior is chosen.
 
 ## Superseded designs
 
