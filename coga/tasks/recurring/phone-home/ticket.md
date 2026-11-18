@@ -1,6 +1,6 @@
 ---
 title: Weekly Coga usage snapshot
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 1 (send)
 ---
 
 ## Description
@@ -220,3 +219,7 @@ Supporting Markdown stays with the template; it is not copied into a period task
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Phone home
+
+Run 9: capture suppressed; receipt suppressed.
