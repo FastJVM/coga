@@ -11488,3 +11488,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-17 22:49 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-17 22:49 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-17 22:49 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [megalaunch] launched via coga megalaunch
+2026-11-17 22:50 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [agent:claude] blocked: Depends on git-sync/01-add-an-explicit-coga-sync-command and git-sync/02-remove-implicit-publication-and-sync-at-session being merged; both are still at step 3 (review-design) and git.sync_coga_state is still live in src/coga/git.py, so there is no dead code to delete yet.
