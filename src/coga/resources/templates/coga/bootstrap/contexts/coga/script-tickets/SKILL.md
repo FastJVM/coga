@@ -56,10 +56,13 @@ lookup, skill refresh, or push probe.
    `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and
    `COGA_EXPECTED_AGENT`, so a
    child completion cannot finish an outer agent session.
-5. `script exited with code N` is logged even if the script deleted or broke
-   its ticket. A non-zero exit posts `💥 script failed` (non-fatal to the
-   post) and launch exits with that code. On success config, target, and
-   ticket are re-derived again. A bootstrap script keeps framing on stderr so
+5. Launch reports a child killed by signal `N` as exit status `128 + N`
+   (SIGINT 130, SIGKILL 137), including in read-only dispatch. A stateful
+   launch logs `script exited with code N` even if the script deleted or broke
+   its ticket, and a non-zero exit posts `💥 script failed` with posting
+   failures treated as non-fatal. Both use the reported exit status. On
+   success config, target, and ticket are re-derived
+   again. A bootstrap script keeps framing on stderr so
    `$(coga <verb>)` sees only its stdout. A bootstrap script that exits 75
    declares it retained local state:
    launch skips its teardown refresh, withholds the end-of-command sweep, and
