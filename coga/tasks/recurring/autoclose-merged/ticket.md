@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
