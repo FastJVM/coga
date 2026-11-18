@@ -1,6 +1,6 @@
 ---
 title: Trim retained audit history
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:

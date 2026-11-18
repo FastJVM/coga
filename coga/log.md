@@ -11510,3 +11510,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-18 08:41 v1 [recurring/trim-log] [system] created recurring/trim-log for 2026-W47
 2026-11-18 08:41 v1 [recurring/usage-report] [system] created (status=active)
 2026-11-18 08:41 v1 [recurring/usage-report] [system] created recurring/usage-report for 2026-W47
+2026-11-18 08:42 v1 [recurring/trim-log] [system] started (active → in_progress) via coga launch
