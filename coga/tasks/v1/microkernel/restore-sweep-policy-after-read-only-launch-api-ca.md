@@ -197,3 +197,14 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: restore-sweep-policy-after-read-only-launch
+
+## Plan
+
+Scope the `if read_only:` branch of `launch.launch` with a ContextVar token in
+try/finally (not delete the set), add API + CLI regression tests, drop the
+`recurring list` adapter's set/reset workaround, update `coga/launch` wording.
+
