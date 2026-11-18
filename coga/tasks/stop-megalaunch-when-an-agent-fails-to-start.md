@@ -1,6 +1,6 @@
 ---
 title: Stop megalaunch when an agent fails to start
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,7 +29,6 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
-launch_generation: fc1629b9-8ec4-4188-9006-9dae45e3e0a3
 ---
 
 ## Description
@@ -215,6 +214,34 @@ agent-spawn mentions `elapsed_seconds`.
   asked for it yet. Next step may file one if the reviewer wants it.
 - Single `coga launch` unchanged by design.
 
+## Peer review
+
+Codex independently completed a direct review of Claude's implementation on
+head `8358decdf9a675633c872cf0905af798ed3c1c85` against base `e8e2833d9b186c130aa253ba5483d6726761316b`. The branch was rebased onto current main
+and pushed with an explicit lease. The review found a must-fix behavioral
+regression that requires revisiting the startup signal.
+
+Linux PTY reproduction used `script -qec` with terminal sizes 80×24 (fake
+Claude) and 120×36 (fake Codex). In an isolated Git-disabled fixture, save two
+draft picks, run `coga megalaunch --relaunch` (add `--agent codex` for the
+Codex case), and decline draft interviews. In the cold case the fake CLI
+prints a diagnostic and exits 1. The diagnostic preceded the summary, the
+summary named the first pick and exit 1, megalaunch exited 1, and both drafts
+were byte-identical to their original state with no claim. In the work case
+add a shell write of a separate artifact before exit 1, leaving the ticket
+alone. The artifact existed, yet both providers' fake CLIs reproduced the
+same startup-failure summary, draft restoration and skipped second pick.
+The branch test for work followed by failure edits the blackboard and misses
+this case.
+
+The code cannot distinguish these two runs using ticket bytes and elapsed
+time. The owner needs to decide the evidence contract for transcriptless
+CLIs, where the current observations cannot distinguish startup failure
+from work. Claude and Codex have parsed activity evidence worth evaluating
+for that decision, and a regression test should exercise work outside the
+ticket through the real supervisor. Native Windows and macOS verification
+is deferred to release.
+
 ## PR
 
 ```yaml
@@ -223,14 +250,15 @@ author: claude
 author_evidence: >-
   Implement step ran as a Claude Code session (Opus 5.5) launched by coga
   megalaunch; this handoff was written by that session.
-head: b6bf135c8d4864ef2b832e8a68d72c260b2e84b4
-base: 4473202d762d6603761bab415d964712dcfc0481
+head: 8358decdf9a675633c872cf0905af798ed3c1c85
+base: e8e2833d9b186c130aa253ba5483d6726761316b
 depth: deep
 rationale: >-
   Changes megalaunch run control and adds a backward lifecycle compensation
   (restoring a claimed ticket to its pre-launch bytes); the failed-start
   heuristic (untouched ticket plus a 20 s window) is a judgment call worth
-  reviewing. No code review has run yet.
+  reviewing. Direct review found a reproducible false startup classification
+  after real work outside the ticket.
 implementation: >-
   AgentSessionResult gains elapsed_seconds measured around the PTY watcher.
   Megalaunch classifies a natural non-zero exit with no done signal, an
@@ -256,21 +284,46 @@ files:
   docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Document the restore compare-and-set as the one sanctioned backward compensation.
   docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Document elapsed_seconds on AgentSessionResult.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; peer-review is the next workflow step.
+  reviewer: codex
+  kind: independent
+  status: failed
+  head: 8358decdf9a675633c872cf0905af798ed3c1c85
+  base: e8e2833d9b186c130aa253ba5483d6726761316b
+  detail: >-
+    Direct review completed. Real PTY runs reproduced a false failed-to-start
+    classification after a child wrote a work artifact and exited 1.
 checks:
   - command: .venv/bin/python -m pytest
-    status: passed
-    head: b6bf135c8d4864ef2b832e8a68d72c260b2e84b4
-    base: 4473202d762d6603761bab415d964712dcfc0481
+    status: failed
+    head: 8358decdf9a675633c872cf0905af798ed3c1c85
+    base: e8e2833d9b186c130aa253ba5483d6726761316b
     detail: >-
-      4990 passed, 33 skipped on Linux; run on the uncommitted tree that was
-      then committed unchanged as head (rebase was a no-op).
-  - command: .venv/bin/coga validate --json
+      Interrupted at 37% after the PTY regression blocked review. No full-suite result.
+  - command: .venv/bin/python -m pytest tests/test_megalaunch.py
     status: passed
-    head: b6bf135c8d4864ef2b832e8a68d72c260b2e84b4
-    base: 4473202d762d6603761bab415d964712dcfc0481
-    detail: Warnings only (existing idle in_progress notices), no errors.
+    head: 8358decdf9a675633c872cf0905af798ed3c1c85
+    base: e8e2833d9b186c130aa253ba5483d6726761316b
+    detail: >-
+      169 passed on Linux.
+  - command: git diff origin/main...HEAD --check
+    status: passed
+    head: 8358decdf9a675633c872cf0905af798ed3c1c85
+    base: e8e2833d9b186c130aa253ba5483d6726761316b
+    detail: >-
+      No whitespace errors in the reviewed diff.
+  - command: >-
+      script -qec 'stty rows 24 cols 80; coga megalaunch --relaunch' /dev/null
+    status: failed
+    head: 8358decdf9a675633c872cf0905af798ed3c1c85
+    base: e8e2833d9b186c130aa253ba5483d6726761316b
+    detail: >-
+      Ran with two draft picks and a fake Claude. The cold exit passed, but
+      the fast exit after creating an artifact restored the first draft and
+      stopped the run. Repeated at 120×36 with a fake Codex and --agent codex.
 ```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-17 21:30] [agent:codex] id=20261117T213044 Decide what startup evidence transcriptless agent CLIs must provide, or narrow the guarantee for those CLIs. A real PTY reproduction shows the current 20-second rule rolls back a ticket and stops the queue after an agent creates a work artifact and exits 1 without touching the ticket.
