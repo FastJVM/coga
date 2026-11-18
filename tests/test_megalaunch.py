@@ -4227,6 +4227,7 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
 ) -> None:
     """A peer transition cannot overtake the final proof and child release."""
     from coga import git as git_module
+    from coga.repl_supervisor import ReplOutcome
 
     cfg = load_config(git_repo.coga_os)
     active = create_task(
@@ -4267,12 +4268,6 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
     remote_during_gate: Ticket | None = None
     admitted_after_gate: Ticket | None = None
     gate_delivered = False
-
-    class _Outcome:
-        exit_code = 0
-        kind = "natural"
-        reason = None
-        done_signalled = False
 
     def race_after_final_fetch(
         _cmd,
@@ -4327,7 +4322,7 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
                     "show", f"main:{ticket_rel}", cwd=git_repo.origin
                 )
             )
-        return _Outcome()
+        return ReplOutcome(0, "natural")
 
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker", race_after_final_fetch
