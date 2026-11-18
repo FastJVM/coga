@@ -1,6 +1,6 @@
 ---
 title: Decompose launch into substrate plus ticket orchestration
-status: in_progress
+status: done
 owner: nicktoper
 agent: codex
 contexts:
@@ -31,7 +31,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 5 (review)
 ---
 
 ## Description
