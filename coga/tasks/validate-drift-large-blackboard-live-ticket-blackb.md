@@ -28,12 +28,12 @@ Add a dedicated recurring task, independent of Dream. Use the existing `large-bl
 
 ### Remove stale notes during normal ticket work
 
-Add a blackboard cleanup instruction to the agent workflow. Before opening a PR, the agent rereads its ticket's blackboard and removes notes that no longer help the work. Age is a cue to check usefulness. Keep current decisions and rationale, active blockers, the worklist, and verification evidence still needed for handoff. Obsolete notes can be deleted directly. Update the owning `coga/blackboard` topic and the agent instructions that apply the policy.
+Add a blackboard cleanup instruction to the agent workflow. Whenever the agent loads or resumes a ticket, it checks the blackboard as part of reading it and removes notes that clearly no longer help the work. This is a light pass during normal ticket work and requires no separate review step. Age is a cue to check usefulness. Keep current decisions and rationale, active blockers, the worklist, and verification evidence still needed for handoff. Obsolete notes can be deleted directly. Update the owning `coga/blackboard` topic and the agent instructions that apply the policy.
 
 ### Completion
 
 - The dedicated recurring task reports oversized blackboards independently of Dream.
-- The pre-PR instructions tell agents to prune obsolete notes, and the blackboard topic documents when deletion is appropriate.
+- The ticket-loading instructions tell agents to prune obsolete notes, and the blackboard topic documents when deletion is appropriate.
 - Verify both behaviors without editing the completed agent-selection ticket.
 
 ## Context
@@ -128,5 +128,5 @@ ordinary ticket.
 
 The owner redirected this follow-up from a one-off ticket restructure to two
 independent mechanisms: recurring size alerts and routine cleanup by agents
-before opening a PR. The completed agent-selection ticket is the motivating
+whenever they load or resume a ticket. The completed agent-selection ticket is the motivating
 example.
