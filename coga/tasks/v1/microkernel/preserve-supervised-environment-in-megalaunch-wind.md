@@ -223,6 +223,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1250
 branch: v1/microkernel/preserve-supervised-environment-in-megalaunch-wind
 
 ## Implement handoff (2026-11-17, claude)
