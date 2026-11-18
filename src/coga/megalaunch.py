@@ -2251,15 +2251,17 @@ def _preflight_agent_launch(
         if cfg.git_enabled
         else generation
     )
+    # The supervised identity is applied inside preparation so the Windows
+    # command check vouches for the exact env handed to spawn.
     try:
         prepared = prepare_agent_launch(
             cfg, ref, launch_ticket, launch_agent or "", launch_context="megalaunch",
+            env_transform=lambda env: build_supervised_step_env(
+                env, task_path=ref.path, step=launch_ticket.step, agent=launch_agent,
+            ),
         )
     except AgentPreparationError as exc:
         return str(exc)
-    env = build_supervised_step_env(
-        prepared.env, task_path=ref.path, step=launch_ticket.step, agent=launch_agent,
-    )
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:
@@ -2269,7 +2271,7 @@ def _preflight_agent_launch(
         ticket=launch_ticket,
         source_ticket_bytes=expected_source_bytes,
         agent=prepared.agent,
-        env=env,
+        env=prepared.env,
         prompt=prepared.prompt,
     )
 
