@@ -27,18 +27,17 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: a177e353-8047-4b1b-b5cb-ec8869d7382a
 ---
 
 ## Description
 
 On 2026-11-14, `coga megalaunch --pick` launched v1/microkernel/06 and 07 with codex. Each agent exited with code 1 within about 4 s ('Error loading configuration: default_permissions requires a `[permissions]` table', caused by a stray repo-local `.codex/config.toml`). Megalaunch logged `outcome_status: failed` for each, left both tickets `in_progress` with no agent work behind them, and went on to the next pick (08 was activated before the run was interrupted). Getting them back took `coga mark paused` then `coga mark active`, and 08 could not go back to `draft`.
 
-Wanted: when a launched agent process exits non-zero before doing any work, megalaunch stops the whole run instead of moving on to the next task, in every megalaunch loop (bare sweep, dependency drain, and explicit `--pick`/`--relaunch` selection), and restores the failed ticket to its pre-launch status (for example `active`, or `draft` for a pick megalaunch itself activated). The ticket is not marked `blocked`: an agent that cannot start is a Coga/environment problem, not a problem with the ticket, so no ask is recorded against it. The summary row names the failed-to-start task and the agent's exit code; the agent's own error stays visible on the console above (the PTY does not buffer it, and capturing stderr is out of scope). The operator fixes the environment and runs `coga megalaunch --relaunch`.
+Wanted: when the POSIX terminal supervisor confirms that the operating system refused to execute the agent command, megalaunch stops the whole run instead of moving on to the next task, in every megalaunch loop (bare sweep, dependency drain, and explicit `--pick`/`--relaunch` selection), and restores the failed ticket to its pre-launch status (for example `active`, or `draft` for a pick megalaunch itself activated). The ticket is not marked `blocked`: an agent that cannot start is a Coga/environment problem, not a problem with the ticket, so no ask is recorded against it. The summary row names the failed-to-start task and the agent's exit code; the agent's own error stays visible on the console above (the PTY does not buffer it, and capturing stderr is out of scope). The operator fixes the environment and runs `coga megalaunch --relaunch`.
 
-Done when: a megalaunch run whose first picked task's agent fails to start (reproducible with a fake agent command that exits 1 immediately) ends after that task with exit 1, launches and activates no later pick, leaves that ticket at its pre-launch status with no live launch claim, and reports the task and exit code in the summary; and an agent that does real work and then exits non-zero still follows today's `failed` path unchanged. Tests cover both cases.
+Done when: a megalaunch run whose first picked agent cannot execute (reproducible with an executable script whose interpreter is missing) ends after that task with exit 1, launches and activates no later pick, leaves that ticket at its pre-launch status with no live launch claim, and reports the task and exit code in the summary; and an agent that does real work and then exits non-zero still follows today's `failed` path unchanged. Tests cover both cases. The owner approved this narrower guarantee after the review. An agent that executes and then exits nonzero, including the reported Codex configuration refusal, continues through the ordinary failed path. Supervisors without confirmed execution-failure evidence retain the existing behavior.
 
 ## Context
 
@@ -150,11 +149,17 @@ There is no existing transition back to `draft`, and none from `in_progress` bac
 
 ### Tests
 
-Reuse the fake-agent patterns in `tests/test_megalaunch.py` and `tests/conftest.py`; the fake must go through the same session spawn path megalaunch uses, so a fake that exits 1 immediately exercises the real failure classification.
+Use the real POSIX supervisor with a fake agent executable whose interpreter is missing.
+Reproduce an ordinary failed run with a fake CLI that writes a separate work
+artifact and then exits nonzero while leaving the ticket alone.
 
-### Open design choice for the implementer
+### Startup evidence
 
-Pick the "failed to start" signal and record why on the blackboard. Candidates: non-zero exit with no agent transcript/session id recorded (launch already captures transcript identity for usage; verify it works for both claude and codex), no prompt consumed, or elapsed time under a small threshold. Prefer a structural signal over a pure timer, but keep a short elapsed-time fallback in case the transcript signal is unreliable for one agent; name any threshold as a constant and say why. If stderr capture turns out to be wanted, file it as a separate ticket (a bounded PTY output buffer in both supervisors) rather than growing this one. When restore is impossible (the ticket changed underneath, or publication fails), stop the run anyway and report that the ticket needs manual reconciliation.
+The POSIX PTY child reports an OS execution failure before the agent can run.
+An ordinary exit code, elapsed time, or missing transcript alone cannot
+establish that no work occurred. When restoration is unavailable or
+publication fails, stop the queue and report that the ticket needs manual
+reconciliation.
 
 
 <!-- coga:blackboard -->
@@ -243,87 +248,100 @@ for that decision, and a regression test should exercise work outside the
 ticket through the real supervisor. Native Windows and macOS verification
 is deferred to release.
 
+Codex completed a direct review of the final diff on head `948d8c88430f083d91209eae0a559736e33cb37c` against
+base `96f680ad78b6149e4ff39b5638330b9024d8a2cf`. Claude authored the original change. Codex authored the
+review fixes and self-reviewed them, so the final diff has mixed authorship
+and no independent review of those fixes. The owner accepted the limited
+guarantee for a rare failure. The review replaced the timing heuristic with
+the POSIX supervisor's explicit execution-failure observation. The admitted
+bytes come from the admission write, so a subsequent ticket edit cannot
+become the rollback baseline. The earlier outside-ticket work regression
+is resolved.
+
+Re-ran `coga megalaunch --relaunch` under Linux PTYs at 80×24 with a fake
+Claude executable whose interpreter was missing, and 120×36 with a fake
+Codex that wrote a separate artifact and exited 1. The first displayed
+the OS diagnostic above the summary, restored the first draft byte for
+byte, kept the second draft untouched, and exited 1. The second attempted
+both picks, reported both ordinary failures and preserved the work
+artifact. Automated tests also distinguish a real execution failure from
+a working CLI that exits 127. Native Windows and macOS verification is
+deferred to release.
+
 ## PR
 
 ```yaml
-title: Stop megalaunch when an agent fails to start
-author: claude
-author_evidence: >-
-  Implement step ran as a Claude Code session (Opus 5.5) launched by coga
-  megalaunch; this handoff was written by that session.
-head: 8358decdf9a675633c872cf0905af798ed3c1c85
-base: e8e2833d9b186c130aa253ba5483d6726761316b
+title: Stop megalaunch on confirmed agent execution failure
+author: claude-codex
+author_evidence: Claude Code (Opus 5.5) wrote the initial implementation. Codex wrote the
+  startup-evidence and recovery fixes during peer review.
+head: 948d8c88430f083d91209eae0a559736e33cb37c
+base: 96f680ad78b6149e4ff39b5638330b9024d8a2cf
 depth: deep
-rationale: >-
-  Changes megalaunch run control and adds a backward lifecycle compensation
-  (restoring a claimed ticket to its pre-launch bytes); the failed-start
-  heuristic (untouched ticket plus a 20 s window) is a judgment call worth
-  reviewing. Direct review found a reproducible false startup classification
-  after real work outside the ticket.
-implementation: >-
-  AgentSessionResult gains elapsed_seconds measured around the PTY watcher.
-  Megalaunch classifies a natural non-zero exit with no done signal, an
-  untouched claimed ticket and elapsed under STARTUP_FAILURE_WINDOW_SECONDS as
-  a failed start, restores the step's pre-launch bytes by compare-and-set
-  without the launch claim, logs and strictly publishes it, and sets
-  stops_run so the sweep, drain and selection loops all stop.
-deviations: >-
-  Transcript identity was not used as the structural signal (see blackboard
-  rationale); the untouched claimed ticket is the structural signal instead.
-  A drained ticket restores to active, keeping its dependency answer.
-limitations: >-
-  A failed start slower than 20 s, or one that writes its ticket, keeps the
-  old failed-and-continue path. No real claude or codex binary was exercised;
-  tests model the PTY watcher. Windows not run (release-only per testing topic).
+rationale: Changes queue control and introduces a backward compensation for an admitted
+  ticket. The owner approved requiring confirmed execution failure, and the reviewer authored
+  the final fix.
+implementation: The POSIX PTY supervisor records an OS execution failure separately from
+  the exit code. Megalaunch stops any queue loop on that observation, atomically restores
+  the pre-launch bytes with the generation cleared by compare-and-set, and publishes the
+  result strictly. Restoration failures stop the queue and report that manual reconciliation
+  is needed.
+deviations: Uses positive OS execution-failure evidence in place of the original timing
+  heuristic. The original Codex configuration error still follows the ordinary failed path.
+  A drained ticket restores to active and keeps its dependency answer.
+limitations: The positive signal is available on the POSIX PTY path. Native Windows and
+  macOS verification is deferred to release. Terminal checks used fake executables. Linux
+  checks use Python 3.12.12 and do not establish the Python 3.11 floor.
 files:
-  src/coga/launch.py: Report the supervised session's elapsed seconds on AgentSessionResult.
-  src/coga/megalaunch.py: Detect a failed agent start, restore the ticket, stop every loop.
-  tests/test_megalaunch.py: >-
-    Cover sweep (active, in_progress), pick of drafts, drain, git publication,
-    worked-then-failed and over-window cases.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Document the stop-and-restore rule and summary row.
-  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Document the restore compare-and-set as the one sanctioned backward compensation.
-  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Document elapsed_seconds on AgentSessionResult.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Document transport of the OS execution-failure
+    observation.
+  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Document the guarded claim compensation
+    and publication recovery.
+  src/coga/launch.py: Carry the supervisor observation through the session result.
+  src/coga/megalaunch.py: Stop every queue loop and compensate the claim using its exact
+    admitted bytes.
+  src/coga/repl_supervisor.py: Identify failure of exec separately from a CLI exit with
+    the same code.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Specify
+    when the run stops and what the operator sees.
+  tests/test_megalaunch.py: Exercise sweep, drain, picks, Git publication and real PTY evidence.
+    The POSIX PTY test is excluded on Windows because the Windows supervisor does not emit
+    the signal.
 review:
   reviewer: codex
-  kind: independent
-  status: failed
-  head: 8358decdf9a675633c872cf0905af798ed3c1c85
-  base: e8e2833d9b186c130aa253ba5483d6726761316b
-  detail: >-
-    Direct review completed. Real PTY runs reproduced a false failed-to-start
-    classification after a child wrote a work artifact and exited 1.
+  kind: self
+  status: passed
+  head: 948d8c88430f083d91209eae0a559736e33cb37c
+  base: 96f680ad78b6149e4ff39b5638330b9024d8a2cf
+  detail: Direct review of the final diff completed. Codex independently reviewed Claude's
+    original diff, identified the regression, and implemented and self-reviewed the final
+    fixes. Linux PTY checks verified both the stop and continue paths.
 checks:
-  - command: .venv/bin/python -m pytest
-    status: failed
-    head: 8358decdf9a675633c872cf0905af798ed3c1c85
-    base: e8e2833d9b186c130aa253ba5483d6726761316b
-    detail: >-
-      Interrupted at 37% after the PTY regression blocked review. No full-suite result.
-  - command: .venv/bin/python -m pytest tests/test_megalaunch.py
-    status: passed
-    head: 8358decdf9a675633c872cf0905af798ed3c1c85
-    base: e8e2833d9b186c130aa253ba5483d6726761316b
-    detail: >-
-      169 passed on Linux.
-  - command: git diff origin/main...HEAD --check
-    status: passed
-    head: 8358decdf9a675633c872cf0905af798ed3c1c85
-    base: e8e2833d9b186c130aa253ba5483d6726761316b
-    detail: >-
-      No whitespace errors in the reviewed diff.
-  - command: >-
-      script -qec 'stty rows 24 cols 80; coga megalaunch --relaunch' /dev/null
-    status: failed
-    head: 8358decdf9a675633c872cf0905af798ed3c1c85
-    base: e8e2833d9b186c130aa253ba5483d6726761316b
-    detail: >-
-      Ran with two draft picks and a fake Claude. The cold exit passed, but
-      the fast exit after creating an artifact restored the first draft and
-      stopped the run. Repeated at 120×36 with a fake Codex and --agent codex.
+- command: TMPDIR=/home/n/Code/coga-test-tmp.pNzcsj .venv/bin/python -m pytest
+  status: passed
+  head: 948d8c88430f083d91209eae0a559736e33cb37c
+  base: 96f680ad78b6149e4ff39b5638330b9024d8a2cf
+  detail: Pop!_OS 24.04 LTS, Python 3.12.12. 4991 passed, 33 skipped in 893.27 seconds.
+    No failures.
+- command: .venv/bin/python -m pytest tests/test_megalaunch.py -k 'posix_pty_distinguishes
+    or fails_to_start or restores_draft or failed_start or pending_claim_blocks_remote_lifecycle'
+    -q
+  status: passed
+  head: 948d8c88430f083d91209eae0a559736e33cb37c
+  base: 96f680ad78b6149e4ff39b5638330b9024d8a2cf
+  detail: Pop!_OS 24.04 LTS, Python 3.12.12. Nine focused tests passed.
+- command: .venv/bin/python /tmp/coga-stop-megalaunch-terminal.py
+  status: passed
+  head: 948d8c88430f083d91209eae0a559736e33cb37c
+  base: 96f680ad78b6149e4ff39b5638330b9024d8a2cf
+  detail: Pop!_OS 24.04 LTS, Python 3.12.12. The harness drove script -qec with a real terminal
+    at 80×24 and 120×36. Both expected queue and ticket outcomes passed.
+- command: git diff origin/main...HEAD --check
+  status: passed
+  head: 948d8c88430f083d91209eae0a559736e33cb37c
+  base: 96f680ad78b6149e4ff39b5638330b9024d8a2cf
+  detail: No whitespace errors in the reviewed diff.
 ```
-
----
 
 ## Blockers
 
