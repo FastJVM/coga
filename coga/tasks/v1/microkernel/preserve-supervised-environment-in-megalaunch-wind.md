@@ -2,14 +2,108 @@
 title: Preserve supervised environment in megalaunch Windows preflight
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-Peer review of PR #1233, finding 2, observed megalaunch Windows agent_command_refusal using the plain launch environment rather than the supervised step environment. Restore equivalent command representability checks using the environment the agent will actually receive; add focused regression coverage. Owner explicitly deferred this finding from the report extraction PR on 2026-11-16. Source: v1/microkernel/06-read-report-commands-as-ticket-workflows, Peer review.
+Megalaunch's native-Windows preflight decides whether the agent's command line
+is representable using the plain launch environment, not the supervised step
+environment the agent actually receives. PR #1233 (merge `93c95405e`, commit
+`0bf44d2a1`) introduced this. It moved megalaunch onto the shared
+`launch.prepare_agent_launch` readiness operation, which runs
+`agent_command_refusal` against `build_launch_env(...)` alone. Megalaunch wraps
+the result with `build_supervised_step_env` only afterwards. Before that PR,
+`_preflight_agent_launch` built the supervised environment first and planned
+against it.
+
+The impact today is not observable. The Windows planner reads the environment
+only through `resolve_executable` (PATH/PATHEXT), and the supervised builder
+never changes those keys. So the plain and supervised environments produce the
+same plan. This is a consistency and drift-proofing fix. The preflight must
+vouch for the exact mapping it hands to `spawn_agent_session`, so a future
+environment-sensitive check cannot silently diverge. Megalaunch must still
+refuse before claim admission or any startup write, and a refusal must still
+fail only that ticket.
+
+Done when:
+
+- megalaunch's representability check receives the supervised step
+  environment;
+- a wiring test proves it. Fake `os.name` / spy on `agent_command_refusal` or
+  the Windows planner, assert that the env it receives carries the supervised
+  witnesses, and show the test fails on current `main`;
+- a separate test covers the refusal path: an unrepresentable command fails
+  only that ticket and writes no claim. No such megalaunch test exists today;
+- `coga-dev/internals/agent-spawn` states which environment the check uses.
 
 ## Context
+
+### Where the code is
+
+- `megalaunch._preflight_agent_launch` calls `launch.prepare_agent_launch(...,
+  launch_context="megalaunch")`, then
+  `repl_supervisor.build_supervised_step_env(prepared.env, task_path=ref.path,
+  step=launch_ticket.step, agent=launch_agent)`. The supervised result is what
+  `_PreparedAgentLaunch.env` carries to spawn. The check inside
+  `prepare_agent_launch` saw only the plain `prepared.env`.
+- `launch.agent_command_refusal(agent, *, env, ref, name, discussion, kickoff)`
+  returns None unless `os.name == "nt"`. It plans the pointer form via
+  `_plan_windows_agent_command` → `repl_supervisor_nt.plan_agent_command`,
+  where `resolve_executable` is the only consumer of the environment.
+  `fresh_batch_variable` runs only at spawn (`_prepare_spawn`), not in
+  planning.
+- The supervised builder sets `COGA_SUPERVISED=1` and the expected
+  task/step/agent witnesses, and drops `CHECKOUT_RETURN_ENV`.
+- Pre-PR shape: `git show 64dff1e1e:src/coga/megalaunch.py`, then search for
+  `_preflight_agent_launch`. It built
+  `build_supervised_step_env(build_launch_env(cfg, launch_ticket.secrets), ...)`
+  and then called `agent_command_refusal(agent, env=env, ...)`.
+
+### Design constraints
+
+- Keep one shared readiness operation. Do not bring back megalaunch's own copy
+  of the CLI/prompt/secrets sequence, because removing it was the point of PR
+  #1233. The implementer chooses the approach and records it, with its tradeoff,
+  in the PR. Two options:
+  - Let `prepare_agent_launch` accept the supervised identity, or an env
+    transform, and apply it before the check. This gives one check, but widens
+    the shared API.
+  - Have megalaunch re-run `agent_command_refusal` on its supervised env. This
+    leaves the API unchanged, but plans twice.
+- Ordinary launch (`_LaunchInvocation._prepare_agent`) also checks `self.env`
+  and spawns with the supervised env plus `CHECKOUT_RETURN_ENV`. That predates
+  PR #1233 and is out of scope unless the chosen design fixes both at no extra
+  cost. Either way, say so in the PR.
+- Resolve secrets once per preparation, and do not cache across the
+  publication boundary.
+- The sibling tickets for the other deferred PR #1233 findings stay out of
+  scope. Finding 9 (dead megalaunch agent lookup) touches the same function, so
+  expect a small conflict.
+- The `peer-review` step needs a configured peer agent (`other-agent`).
+
+### Tests and verification
+
+Put the tests in `tests/test_megalaunch.py`, next to the existing preflight
+tests. Follow `coga-dev/testing` for the Linux receipts. It is cited, not
+attached: `docs/contexts/coga-dev/testing/SKILL.md`, "Verification tiers and
+receipts". Native Windows verification is owned by the release process.
+
+### Doc to update (cited, not attached)
+
+`docs/contexts/coga-dev/internals/agent-spawn/SKILL.md` has two passages to fix:
+
+- "Launch API and phases": the `prepare_agent_launch` paragraph that says
+  "megalaunch adds its supervised identity to the prepared environment";
+- "Large prompts": the `agent_command_refusal` caller list.
+
+`coga/megalaunch` has no preflight-environment text and needs no change.
+
+### Provenance
+
+This is finding 2 of the PR #1233 independent review, recorded in
+`v1/microkernel/06-read-report-commands-as-ticket-workflows` under "Publication
+obligations — 2026-11-16". The owner deferred it to this ticket on 2026-11-16.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
