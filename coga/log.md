@@ -4376,3 +4376,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 23:57 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 23:57 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 23:57 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [megalaunch] launched via coga megalaunch
+2026-11-18 23:57 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [agent:claude] blocked: Waiting on PRs #1255 (retro prompt-assembly trials knowledge) and #1259 (retro 06 read/report commands knowledge) to merge; both are still OPEN. The ticket says to refresh the READMEs only after they merge (their deletions and merge commits are what the rows must cite). Unblock once both are merged.
