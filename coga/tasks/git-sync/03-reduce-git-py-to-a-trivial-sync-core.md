@@ -1,6 +1,6 @@
 ---
 title: Reduce git.py to a trivial sync core
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,7 +29,6 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
-launch_generation: ca37c892-0457-4b48-9aef-7f32fd475a4d
 ---
 
 ## Description
