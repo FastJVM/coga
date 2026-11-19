@@ -148,4 +148,11 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/add-the-megalaunch-dependency-resolution-append-lo
+
+## Plan
+
+- Add a `coga/megalaunch.py::_publish_partial_dependency_resolution` (1) row to the log-writers table and change the count 32 -> 33.
+- Overlapping PRs #1247 and #1248 are still OPEN (checked 2026-11-18). Their diffs to the target only rewrite the slack row (#1247, also adds a `_finish_stateless_command` row without updating the count) and the recurring row (#1248); neither touches the count line. The new row is inserted after the launch-audit row so the hunks do not touch. Whichever lands later must recount.
