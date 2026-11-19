@@ -58,6 +58,10 @@ Store the key's contents in the automation vault for headless runs, or map
 A manual run outside launch exports either variable itself. A service account
 authenticates headlessly — the point, for an unattended cron.
 
+To migrate an existing `[calendar]` entry, export its key path as
+`GCAL_SERVICE_ACCOUNT_FILE` or store the key contents in the automation vault,
+then remove the retired table from `coga.local.toml` so Coga can load the repo.
+
 **Important limitation.** A service account is a robot identity. On a personal
 (non-Workspace) Google account there is no domain-wide delegation, so it can
 only read/write a calendar that has been **shared with the service account's

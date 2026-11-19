@@ -84,8 +84,10 @@ def resolve_service_account_info() -> dict[str, Any]:
         source = f"{FILE_VAR} ({path})"
         try:
             raw = Path(path).expanduser().read_text(encoding="utf-8")
-        except OSError as exc:
-            _bail(f"could not read service-account key from {source}: {exc}")
+        except (OSError, RuntimeError):
+            _bail(f"could not read service-account key from {source}")
+        except UnicodeDecodeError:
+            _bail(f"service-account key in {source} is not UTF-8")
     try:
         info = json.loads(raw)  # type: ignore[arg-type]
     except json.JSONDecodeError as exc:

@@ -62,6 +62,10 @@ enable the Gmail API, download the client-secret JSON, then run
 mailbox to read) and store the four printed values in the automation vault (or
 your environment). Never commit them.
 
+To migrate an existing `[gmail]` entry, reuse its four values under the
+corresponding environment names above, then remove the retired table from
+`coga.local.toml` so Coga can load the repo.
+
 ## Dependencies
 
 `google-api-python-client`, `google-auth`, `google-auth-oauthlib` (in

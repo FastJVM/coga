@@ -81,7 +81,7 @@ def test_gcal_ignores_local_config_and_names_both_variables(
     assert "coga.local.toml" not in err
 
 
-def test_gcal_rejects_non_object_key(clean_env: pytest.MonkeyPatch,
+def test_gcal_rejects_invalid_json(clean_env: pytest.MonkeyPatch,
                                      capsys: pytest.CaptureFixture[str]) -> None:
     clean_env.setenv(gcal.JSON_VAR, "not json")
 
@@ -89,6 +89,20 @@ def test_gcal_rejects_non_object_key(clean_env: pytest.MonkeyPatch,
         gcal.resolve_service_account_info()
 
     assert "not valid JSON" in capsys.readouterr().err
+
+
+def test_gcal_rejects_non_utf8_key_file(
+    clean_env: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key_file = tmp_path / "sa.json"
+    key_file.write_bytes(b"\xff")
+    clean_env.setenv(gcal.FILE_VAR, str(key_file))
+
+    with pytest.raises(SystemExit) as exc:
+        gcal.resolve_service_account_info()
+
+    assert exc.value.code == gcal.EXIT_ERROR
+    assert "not UTF-8" in capsys.readouterr().err
 
 
 def test_gmail_reads_credentials_from_env(clean_env: pytest.MonkeyPatch) -> None:
