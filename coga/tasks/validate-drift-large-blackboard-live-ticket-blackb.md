@@ -1,6 +1,6 @@
 ---
 title: 'validate-drift: large-blackboard — live ticket blackboard over the size threshold'
-status: in_progress
+status: canceled
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -14,7 +14,6 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 2 (human-executes)
 agent: claude
 ---
 
