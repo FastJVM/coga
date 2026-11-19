@@ -1,6 +1,6 @@
 ---
 title: Refresh the v1 microkernel task READMEs after the W47 Retro deletions
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:6f2aa0e1-7a7c-4dd2-bfa8-1368a37d9499
 ---
 
 ## Description
