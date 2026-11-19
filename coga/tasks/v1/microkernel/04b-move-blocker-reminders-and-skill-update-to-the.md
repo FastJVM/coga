@@ -29,9 +29,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
-launch_generation: 7f13c5cd-09dc-4d5e-89c4-85a6e0ca618e
 ---
 
 ## Description
@@ -218,6 +217,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1272
 branch: coga/v1-microkernel-04b-blocker-reminders-skill-update-to-edge
 
 ---
@@ -344,66 +344,170 @@ before the next sweep, otherwise it fails with `unknown recipe`. No skill-update
 period, parked copy or customized copy exists (`recipe-shim-callers` inventory
 on main: only that file).
 
+Filed as draft `v1/microkernel/roll-out-the-04b-edge-shims-on-this-repo-s-blocker`
+(open-pr step, 2026-11-19); the merge does not discharge it.
+
 ---
+
+## Peer review
+
+Direct review by Codex completed independently of Claude Opus 5.5's
+implementation. Final reviewed head `23e60fa0f07b4d85a1e39c4867c52021614fce39`, base `e190b7ebdd405bc332c1874cab0fdd688c65aa31`.
+Codex authored the peer-review corrective commit and checked its final diff.
+
+- Fixed a lifecycle regression in the new entrypoints. A manual invocation
+  could inherit a valid launched script's task metadata and complete the outer
+  task. Packaged shims now opt in explicitly. The standalone `ticket.py` fork
+  still completes its launched step, and module entrypoints default to manual.
+- Confirmed the reminder worker's post-before-watermark order and skill-update's
+  report and 0/1/2 paths, registry removals, shared publication and bump contract,
+  and standard-library/shared-core dependency boundary. Verified the old-shim
+  runbook preserves customized files until deliberately hand-ported, including
+  `--no-pr` with the read-only installed wheel. No remaining must-fix findings.
+- In a real TTY using a disposable seeded repo, ran
+  `python -m coga_edge.blocker_reminders` and
+  `python -m coga_edge.skill_update --no-pr`. Saw the expected no-op status
+  and report. Both removed names through `python -m coga.cli run` displayed
+  the unknown-recipe diagnostic and exited 2.
+- Linux full suite: 5013 passed, 33 skipped, 0 failed in 1126.05 s. Python 3.11 focused: 138 passed, 0 skipped, 0 failed in 59.57 s.
+  Native Windows and macOS deferred to release.
+
+Final production line counts below use `wc -l` at the base and head above.
+Shim paths are relative to the packaged `templates/coga/recurring/` directory.
+
+| Path | Layer | Base | Head | Change |
+| --- | --- | ---: | ---: | --- |
+| `src/coga/blocker_reminders.py` | core | 244 | 0 | Moved |
+| `src/coga/skill_update.py` | core | 438 | 0 | Moved, private report wrapper removed |
+| `src/coga_edge/blocker_reminders.py` | edge | 0 | 270 | Moved worker, added entrypoint |
+| `src/coga_edge/skill_update.py` | edge | 0 | 459 | Moved worker, added entrypoint |
+| `src/coga/runner.py` | core | 364 | 356 | Removed two recipes and one resolver |
+| `src/coga/skill_manager.py` | core | 2123 | 2123 | Docstring only |
+| `blocker-reminders/ticket.py` | script | 25 | 8 | Replaced local bump with shared entry |
+| `skill-update/ticket.py` | script | 25 | 8 | Replaced local bump with shared entry |
+
+Production changes primarily relocate the workers. Deletion accounts for the private report wrapper, registry wiring and shim-local bumps. Documentation and packaged definitions excluding executable shims: +189/−36. Tests and their fixtures: +439/−66 (git diff --numstat).
 
 ## PR
 
 ```yaml
-"title": "Move blocker-reminders and skill-update jobs to the edge"
-"author": "claude"
-"author_evidence": "Claude Opus 5.5 (claude-opus-5-5) implemented this in the 2026-11-19 megalaunch implement session; commit 337329c1d."
-"head": "337329c1d4ff83011c0f0db18141d2f6e7e7b695"
-"base": "48fc239bc033d41b8309defd645dc13c791b404d"
-"depth": "skim"
-"rationale": "Job logic moves unchanged (rename-detected, 87%+ similarity); review the new main/run_entry entry semantics (scheduled=True gated by COGA_SCRIPT_TASK) and the old-shim adoption runbook section, which operators run against their repos."
-"implementation": "Both jobs move to coga_edge with a main() running runner.run_entry; their recipe names and skill-update's root resolver leave the registry (exit 2 via coga run). Packaged shims become import shims. skill_update's private append_report is deleted. The upgrade runbook ships old-shim inventory, baselines, locate, hand-port and fork-copy commands, exercised against a read-only installed wheel and a local fork."
-"deviations": "main() always passes scheduled=True and relies on run_entry's COGA_SCRIPT_TASK guard so a module copied over ticket.py is a complete fork; hand runs still never bump (tested). Workers renamed from *_recipe."
-"limitations": "Native Windows/macOS deferred to release. 04d (#1265) touches the same shared files; the second to merge rebases. Adopting on this repo's own frozen blocker-reminders period is a separate rollout."
-"files":
-  "AGENTS.md": "Name the jobs now shipped as edge implementations and that a moved job leaves runner.RECIPES."
-  "docs/contexts/coga-dev/codebase/SKILL.md": "Map the two edge job modules."
-  "docs/contexts/coga-dev/codebase/gotchas/SKILL.md": "Describe the edge-shim shape for these jobs."
-  "docs/contexts/coga-dev/internals/notifications/SKILL.md": "Point the producer inventory at the moved module."
-  "docs/contexts/coga-dev/microkernel/SKILL.md": "Record the append_report deletion rule and the jobs' edge placement."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md": "Remove both names from the recipe list."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md": "Document the jobs' fork boundary."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md": "Ship old-shim inventory, baselines, locate, hand-port and fork-copy procedure."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md": "Distinguish registry shims from edge shims."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md": "Mention run_entry for edge code."
-  "src/coga/resources/templates/coga/bootstrap/skills/bootstrap/skill-update/SKILL.md": "Update invocation and hand-run contract."
-  "src/coga/resources/templates/coga/bootstrap/skills/coga/blockers/remind/SKILL.md": "Update invocation and hand-run contract."
-  "src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md": "Name the edge job the shim runs."
-  "src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py": "Import shim running the edge main."
-  "src/coga/resources/templates/coga/recurring/skill-update/ticket.md": "Name the edge job the shim runs."
-  "src/coga/resources/templates/coga/recurring/skill-update/ticket.py": "Import shim running the edge main."
-  "src/coga/runner.py": "Remove both registry entries, the resolver entry and imports."
-  "src/coga/skill_manager.py": "Docstring no longer names the moved module."
-  "src/coga/blocker_reminders.py": "Moved to the edge."
-  "src/coga/skill_update.py": "Moved to the edge."
-  "src/coga_edge/blocker_reminders.py": "The job with its run_entry main."
-  "src/coga_edge/skill_update.py": "The job with its run_entry main; private append_report deleted."
-  "tests/fixtures/edge-migration/README.md": "Describe the old-shim baselines."
-  "tests/fixtures/edge-migration/blocker-reminders-old-705.py": "Stock PR 705 baseline."
-  "tests/fixtures/edge-migration/blocker-reminders-old-827.py": "Stock PR 827 baseline."
-  "tests/fixtures/edge-migration/skill-update-old-705.py": "Stock PR 705 baseline."
-  "tests/fixtures/edge-migration/skill-update-old-827.py": "Stock PR 827 baseline."
-  "tests/test_blocker_reminders.py": "Edge import; watermark retry; main bump gating; removed name."
-  "tests/test_edge_distribution.py": "Import purity; documented shim adoption against read-only wheel and fork."
-  "tests/test_megalaunch.py": "Edge import."
-  "tests/test_packaging.py": "Wheel contents; installed smoke stubs the edge workers."
-  "tests/test_recurring_activity.py": "Moved module path."
-  "tests/test_recurring_shims.py": "Edge shim contract and end-to-end launches."
-  "tests/test_runner.py": "Registry list, removed names, cwd containment via edge worker."
-  "tests/test_skill_manager.py": "Edge import."
-  "tests/test_skill_update.py": "Edge import; hand run via python -m; removed name."
-"checks":
-  - "command": "python -m pytest -q -p no:cacheprovider"
-    "result": "5013 passed, 33 skipped, 0 failed (978s), head 337329c1d, clean tree, Linux Pop!_OS 24.04, Python 3.12.12"
-  - "command": "coga validate --json (disposable seeded-repo copy)"
-    "result": "exit 0, 0 issues"
-  - "command": "native Windows/macOS"
-    "result": "deferred to release"
-"reviews": "none yet; code review runs in later workflow steps"
+title: Move blocker-reminders and skill-update jobs to the edge
+author: claude
+author_evidence: Claude Opus 5.5 (claude-opus-5-5) implemented this in the 2026-11-19
+  megalaunch implement session; commit 337329c1d.
+head: 23e60fa0f07b4d85a1e39c4867c52021614fce39
+base: e190b7ebdd405bc332c1874cab0fdd688c65aa31
+depth: skim
+rationale: The worker behavior is preserved and the changes to invocation and migration
+  are bounded. Skim the explicit scheduling selection and the operator procedure for
+  migrating old local shims.
+implementation: Both jobs move to coga_edge and use the shared report, publish, and
+  bump sequence. The registry names and the skill-update resolver entry are removed.
+  The skill-update report uses the shared appender. The runbook migration is tested
+  with stock, customized, and parked callers, a read-only wheel, and a local fork.
+deviations: Packaged shims explicitly pass scheduled=True. A full fork installed as
+  ticket.py also opts in. The module entrypoints default to manual execution even
+  with inherited script attribution. Custom shims must opt in and remove their old
+  separate bump.
+limitations: 'Native Windows and macOS verification deferred to release. The separate
+  rollout to this repository''s frozen blocker-reminders period remains pending. Shared
+  surfaces overlap with PR #1265.'
+files:
+  AGENTS.md: Name the jobs now shipped as edge implementations and that a moved job
+    leaves runner.RECIPES.
+  docs/contexts/coga-dev/codebase/SKILL.md: Map the two edge job modules.
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Describe the edge-shim shape for
+    these jobs.
+  docs/contexts/coga-dev/internals/notifications/SKILL.md: Point the producer inventory
+    at the moved module.
+  docs/contexts/coga-dev/microkernel/SKILL.md: Record the append_report deletion rule
+    and the jobs' edge placement.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Remove both
+    names from the recipe list.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Document
+    the jobs' fork boundary.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md: Ship
+    old-shim inventory, baselines, locate, hand-port and fork-copy procedure.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Distinguish
+    registry shims from edge shims.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Mention
+    run_entry for edge code.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/skill-update/SKILL.md: Update
+    invocation and hand-run contract.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/blockers/remind/SKILL.md: Update
+    invocation and hand-run contract.
+  src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md: Name the
+    edge job the shim runs.
+  src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py: Import
+    shim running the edge main.
+  src/coga/resources/templates/coga/recurring/skill-update/ticket.md: Name the edge
+    job the shim runs.
+  src/coga/resources/templates/coga/recurring/skill-update/ticket.py: Import shim
+    running the edge main.
+  src/coga/runner.py: Remove both registry entries, the resolver entry and imports.
+  src/coga/skill_manager.py: Docstring no longer names the moved module.
+  src/coga/blocker_reminders.py: Moved to the edge.
+  src/coga/skill_update.py: Moved to the edge.
+  src/coga_edge/blocker_reminders.py: Move the reminder worker and expose the shared
+    entry sequence with explicit scheduled mode.
+  src/coga_edge/skill_update.py: Move the reporting worker, share the appender, and
+    expose the shared entry sequence with explicit scoped scheduling.
+  tests/fixtures/edge-migration/README.md: Describe the old-shim baselines.
+  tests/fixtures/edge-migration/blocker-reminders-old-705.py: Stock PR 705 baseline.
+  tests/fixtures/edge-migration/blocker-reminders-old-827.py: Stock PR 827 baseline.
+  tests/fixtures/edge-migration/skill-update-old-705.py: Stock PR 705 baseline.
+  tests/fixtures/edge-migration/skill-update-old-827.py: Stock PR 827 baseline.
+  tests/test_blocker_reminders.py: Edge import; watermark retry; main bump gating;
+    removed name.
+  tests/test_edge_distribution.py: Exercise installed-wheel adoption for old shims,
+    the documented hand-port with custom argv, and a complete local fork.
+  tests/test_megalaunch.py: Edge import.
+  tests/test_packaging.py: Wheel contents; installed smoke stubs the edge workers.
+  tests/test_recurring_activity.py: Moved module path.
+  tests/test_recurring_shims.py: Edge shim contract and end-to-end launches.
+  tests/test_runner.py: Registry list, removed names, cwd containment via edge worker.
+  tests/test_skill_manager.py: Edge import.
+  tests/test_skill_update.py: Edge import; hand run via python -m; removed name.
+checks:
+- command: TERM=dumb TMPDIR=/home/n/Code/.coga-review-tmp .venv/bin/python -m pytest
+    -q -p no:cacheprovider
+  status: passed
+  head: 23e60fa0f07b4d85a1e39c4867c52021614fce39
+  base: e190b7ebdd405bc332c1874cab0fdd688c65aa31
+  detail: Pop!_OS 24.04 LTS, Python 3.12.12. 5013 passed, 33 skipped, 0 failed in
+    1126.05 s.
+- command: TERM=dumb TMPDIR=/home/n/Code/.coga-review-tmp /home/n/Code/.coga-review-tmp/py311/bin/python
+    -m pytest -q -p no:cacheprovider tests/test_blocker_reminders.py tests/test_skill_update.py
+    tests/test_runner.py tests/test_recurring_shims.py tests/test_edge_distribution.py
+  status: passed
+  head: 23e60fa0f07b4d85a1e39c4867c52021614fce39
+  base: e190b7ebdd405bc332c1874cab0fdd688c65aa31
+  detail: Pop!_OS 24.04 LTS, Python 3.11.15. 138 passed, 0 skipped, 0 failed in 59.57
+    s.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: 23e60fa0f07b4d85a1e39c4867c52021614fce39
+  base: e190b7ebdd405bc332c1874cab0fdd688c65aa31
+  detail: Disposable copy of the seeded repo. Exit 0, five successful checks, zero
+    issues, zero fixes.
+- command: git diff origin/main...HEAD --check
+  status: passed
+  head: 23e60fa0f07b4d85a1e39c4867c52021614fce39
+  base: e190b7ebdd405bc332c1874cab0fdd688c65aa31
+  detail: Exit 0.
+- command: Native Windows and macOS full suites
+  status: not-run
+  detail: Deferred to release per coga-dev/testing.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 23e60fa0f07b4d85a1e39c4867c52021614fce39
+  base: e190b7ebdd405bc332c1874cab0fdd688c65aa31
+  detail: Direct Codex peer review completed. Codex fixed a manual-run lifecycle regression
+    and exercised the documented customized shim migration. Final re-review found
+    no remaining must-fix issues.
 ```
 
 ## Implement attempt — 2026-11-16 (not started)

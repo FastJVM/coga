@@ -7,7 +7,6 @@ import os
 import shlex
 import signal
 import sys
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -427,8 +426,6 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
             return False
         subcommand = args[1] if len(args) > 1 else None
         return subcommand is None or subcommand.startswith("-") or subcommand == "launch"
-    if command == "secret":
-        return False
     return False
 
 
@@ -517,7 +514,7 @@ def main() -> None:
     try:
         find_repo_root()
         cfg = load_config(require_user=False)
-    except (ConfigError, tomllib.TOMLDecodeError) as exc:
+    except ConfigError as exc:
         msg = str(exc)
         if "No coga.toml found" in msg:
             help_invoked = any(arg in ("--help", "-h") for arg in sys.argv[1:])

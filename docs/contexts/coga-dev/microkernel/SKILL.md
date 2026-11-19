@@ -29,18 +29,21 @@ Everything else stays at the edge. A single-consumer helper lives beside the
 ticket or skill that uses it, or in the wheel-distributed `src/coga_edge/`
 package, and imports only appropriate shared core infra. Edge shipping does
 not confer kernel status. Production `src/coga/` never imports or path-loads
-`coga_edge` or ticket/skill implementations; repo shims choose their imports.
+`coga_edge` or ticket/skill implementations; repo shims choose their imports,
+and packaged instructions name the module they run (Dream's Phase 1/5
+`python -m coga_edge.<worker>`).
 Distribution, upgrades and overrides are owned by
 [coga/edge-code](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md). Skills are invocation contracts and
 never executable launch plugins.
 
 - **Count callers of one symbol, not copies of one body.** Three
-  byte-identical private `append_report` helpers (`skill_update.py`,
-  `dream_validate_drift.py`, `dream_cleanup_orphan_markers.py`) were three
-  single-consumer copies. A helper earns a shared home only when the change
-  that adds it migrates the existing duplicates onto it in the same PR; moving
-  a job to the edge deletes its copy in favor of
-  `blackboard.append_blackboard_report`.
+  byte-identical private `append_report` helpers (`skill_update.py` and
+  Dream's two workers, now `coga_edge.validate_drift` and
+  `coga_edge.cleanup_orphan_markers`) were three single-consumer copies; all
+  three edge modules, `coga_edge.skill_update` included, now call
+  `blackboard.append_blackboard_report` directly. A helper earns a shared home
+  only when the change that adds it migrates the existing duplicates onto it in
+  the same PR.
 - **The consumer test can keep a symbol in core.** When an implementation
   moves to the edge, any helper it shares with another core consumer stays.
 
@@ -55,11 +58,9 @@ effects, or calling shared infrastructure does not settle their placement.
 | Command surface | Open decision | Cleanup ticket |
 | --- | --- | --- |
 | `megalaunch`, `slack` | Placement of queue orchestration and the user-facing notification head | `work-orchestration-commands-to-tickets` |
-| `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `residual-command-surfaces` |
-| `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
-| `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
+| `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `move-ticket-authoring-to-a-command-ticket` |
+| `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `move-skill-management-to-command-tickets` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
-| `recurring promote` | Placement of the task-to-template move | `residual-command-surfaces` (scope proposed by the refresh) |
 
 These tickets live under `coga/tasks/v1/microkernel/`; the owner's
 2026-11-12 decision in [current direction](../current-direction/SKILL.md)
@@ -89,9 +90,9 @@ these reports. `views.last_updated_map` (status and megalaunch) and
 and rollups remain shared with the weekly usage report; recurring catalog
 selection remains shared with status and scheduling.
 
-Validation stays in core: its public CLI and the fixed `validate-drift` recipe
-consume the fix-capable module entry and JSON serialization. Both parsers call
-one core execution/rendering contract. Safe local fixes retain the state lock,
+Validation stays in core: its public CLI and Dream's edge
+`coga_edge.validate_drift` worker consume the fix-capable module entry and
+JSON serialization. Both parsers call one core execution/rendering contract. Safe local fixes retain the state lock,
 concurrent-byte refusal and atomic write, without publication or user setup.
 
 The fixed `recurring list` adapter is a settled co-versioned exception: its
@@ -101,6 +102,53 @@ all catalog presentation. Launch's prompt-report diagnostic also stays: it
 reports launch-selected composition/provenance, refuses script targets and
 refreshes the ignored skill view. The write-free compose API remains separate.
 These decisions do not claim that diagnostic rendering has two consumers.
+
+Running `show`, `status`, `usage` and `recurring list` as script tickets adds
+a second interpreter startup per call. The owner accepted that cost in
+exchange for editable reports and set no latency target. Paired medians at
+migration (Linux, Python 3.12, one fixture) were about +0.16 s per command
+under light load; under full-suite load `show` went 0.36→0.53 s and `status`
+0.28→0.49 s. Do not move these reports back in-process for speed without
+reopening that decision; to cut the overhead, trim the scripts' import cost
+first.
+
+## Retained support commands
+
+Owner-reviewed boundary (2026-11-16): retain `secret get` and `uninstall`
+as co-versioned built-ins. Neither uses a bootstrap override or a second
+recovery launcher.
+
+- **Secret inspection.** `commands.secret.get` calls
+  `config.select_launch_secrets` in the CLI parent, where `op read` inherits
+  the operator's authentication. `config.build_launch_env` scrubs that auth
+  from task children. Moving the query to `ticket.py` would break the
+  service-account verification in [coga/secrets](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md),
+  or silently use a broader personal login. Preserving it there would require
+  a new privileged child policy or argv-aware acquisition in the executor.
+  The retained contract couples parent-side resolution to launch's private
+  environment policy and keeps the value out of composition and publication.
+  This gives up repo-local customization of this head. Reopen only with a
+  reviewed execution policy that preserves operator authentication without
+  widening ordinary task access; read-only execution alone is insufficient.
+- **Removal recovery.** `cli.main` admits `uninstall` despite malformed
+  shared/local config and dispatches before alias validation. It returns
+  without publication, checkout refresh or audit after roots are deleted.
+  An alias cannot preserve this spelling and admission boundary: it runs
+  after config and alias validation. Early dispatch into `coga_edge` would
+  invert the dependency rule. A separate recovery loader adds config bypass
+  and teardown machinery for one procedure without an identified saving.
+  `commands.uninstall` owns its installer detection, package name and managed
+  gitignore removal; marker constants remain shared with init's writer in
+  `commands.update`, and the guide template remains shared with init.
+
+Launch-adjacent checks retain independent core justifications:
+`launch._preflight_push_auth` is used by launch and recurring admission;
+`github_preflight.check_git_auth` also serves the shared preflight and
+megalaunch. Keep authentication enforced before the relevant startup writes,
+not deferred to a later failing subprocess. `agent_skills.refresh_agent_skill_view`
+is shared by init and ordinary launch. No installed/source skew diagnostic
+exists in launch or validate; documentation must not promise one. No readiness
+check moves into agent instructions as part of this classification.
 
 ## The `ticket.py` script phase
 
@@ -192,3 +240,5 @@ the invoking root. Their packaged shims call `main([], scheduled=True)`, and a c
 module over `ticket.py` is a complete fork. Their recipe names left
 `runner.RECIPES`. `skill_manager` and `coga skill update` stay in core for
 their own consumers; only the reporting job moved.
+
+Size exception: placement rules, open decisions and retained proofs stay together so reviewers can assess each command against the same kernel boundary.

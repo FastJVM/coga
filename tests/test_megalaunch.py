@@ -596,6 +596,114 @@ def test_megalaunch_step_env_pins_expected_task_and_step(
     assert captured_env[EXPECTED_AGENT_ENV] == "claude"
 
 
+def test_megalaunch_command_check_sees_supervised_step_env(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Windows representability check plans against the spawned env."""
+    from coga.repl_supervisor import (
+        CHECKOUT_RETURN_ENV,
+        EXPECTED_AGENT_ENV,
+        EXPECTED_STEP_ENV,
+        EXPECTED_TASK_ENV,
+    )
+
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Check the spawned env",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    # An inherited return witness must be gone before the check, as at spawn.
+    monkeypatch.setenv(CHECKOUT_RETURN_ENV, "1")
+    checked: list[dict[str, str]] = []
+
+    def spy_refusal(agent, *, env, **kwargs):  # type: ignore[no-untyped-def]
+        checked.append(dict(env))
+        return None
+
+    monkeypatch.setattr("coga.launch.agent_command_refusal", spy_refusal)
+    spawned: list[dict[str, str]] = []
+    launched = _done_on_spawn(monkeypatch)
+    from coga import megalaunch as megalaunch_module
+
+    real_spawn = megalaunch_module.spawn_agent_session
+
+    def recording_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
+        spawned.append(dict(kwargs["env"]))
+        return real_spawn(cfg_, ref_obj, ticket, agent, **kwargs)
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", recording_spawn)
+
+    run = run_megalaunch(cfg, selection=[ref["slug"]])
+
+    assert run.counts["completed"] == 1, run.results
+    assert launched == [ref["slug"]]
+    assert len(checked) == 1
+    env = checked[0]
+    assert env["COGA_SUPERVISED"] == "1"
+    assert env[EXPECTED_TASK_ENV] == str(Path(ref["path"]).resolve())
+    assert env[EXPECTED_STEP_ENV] == "1 (implement)"
+    assert env[EXPECTED_AGENT_ENV] == "claude"
+    assert CHECKOUT_RETURN_ENV not in env
+    assert spawned == checked
+
+
+def test_megalaunch_command_refusal_fails_only_that_ticket(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unrepresentable command fails its row before any claim is written."""
+    cfg = load_config(repo)
+    refused = create_task(
+        cfg=cfg,
+        title="Command refused",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    healthy = create_task(
+        cfg=cfg,
+        title="Healthy command",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    before = Path(refused["path"]).read_bytes()
+
+    def refuse_one(agent, *, env, ref, **kwargs):  # type: ignore[no-untyped-def]
+        if ref.id_slug == refused["slug"]:
+            return "agent command line cannot be represented on Windows"
+        return None
+
+    monkeypatch.setattr("coga.launch.agent_command_refusal", refuse_one)
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[refused["slug"], healthy["slug"]])
+
+    # Creation times have minute precision. These slugs put the refused ticket
+    # first even when the queue breaks a timestamp tie by slug.
+    assert [r.slug for r in run.results] == [refused["slug"], healthy["slug"]]
+    result, healthy_result = run.results
+    assert result.outcome == "failed"
+    assert "cannot be represented" in result.detail
+    assert result.launched is False
+    # No claim admission or startup write: same bytes, no generation, no log.
+    assert Path(refused["path"]).read_bytes() == before
+    assert Ticket.read(refused["path"]).launch_generation is None
+    assert Ticket.read(refused["path"]).status == "active"
+    assert _log_lines_for(cfg, refused["slug"], "launch") == []
+    # The queue carried on to the healthy ticket.
+    assert healthy_result.outcome == "completed"
+    assert launched == [healthy["slug"]]
+
+
 def test_megalaunch_step_env_refuses_stale_step_bump(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3101,6 +3209,43 @@ def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
     assert _log_lines_for(cfg, draft["slug"], "activated") == []
 
 
+def test_preflight_agent_launch_refuses_unconfigured_agent_without_writes(
+    repo: Path,
+) -> None:
+    """`prepare_agent_launch` alone resolves the agent; its refusal is the
+    `ConfigError` text, and preflight writes nothing.
+
+    `megalaunch()` validates names before preflight, so only a direct call
+    reaches this refusal.
+    """
+    from coga.config import ConfigError
+    from coga.megalaunch import _preflight_agent_launch
+    from coga.paths import log_path
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    task = create_task(
+        cfg=cfg,
+        title="Ghost agent pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    ref = resolve_task(cfg, task["slug"])
+    ticket_before = Path(task["path"]).read_bytes()
+    log_before = log_path(cfg).read_bytes()
+    with pytest.raises(ConfigError) as expected:
+        cfg.agent_type("ghost")
+
+    refusal = _preflight_agent_launch(cfg, ref, Ticket.read(ref.path), "ghost")
+
+    assert refusal == str(expected.value)
+    assert Path(task["path"]).read_bytes() == ticket_before
+    assert log_path(cfg).read_bytes() == log_before
+
+
 def test_megalaunch_selection_preserves_peer_edit_during_preflight(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -4227,6 +4372,7 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
 ) -> None:
     """A peer transition cannot overtake the final proof and child release."""
     from coga import git as git_module
+    from coga.repl_supervisor import ReplOutcome
 
     cfg = load_config(git_repo.coga_os)
     active = create_task(
@@ -4267,12 +4413,6 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
     remote_during_gate: Ticket | None = None
     admitted_after_gate: Ticket | None = None
     gate_delivered = False
-
-    class _Outcome:
-        exit_code = 0
-        kind = "natural"
-        reason = None
-        done_signalled = False
 
     def race_after_final_fetch(
         _cmd,
@@ -4327,7 +4467,7 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
                     "show", f"main:{ticket_rel}", cwd=git_repo.origin
                 )
             )
-        return _Outcome()
+        return ReplOutcome(0, "natural")
 
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker", race_after_final_fetch
@@ -6576,3 +6716,230 @@ def test_windows_ctrl_c_signal_quits_the_picker_without_launching(
     with pytest.raises(MegalaunchError):
         load_selection(load_config(repo))
     assert all(Ticket.read(ref.ticket_path).status == "active" for ref, _ in candidates)
+
+
+# --- an agent that fails to start stops the run ------------------------------
+
+
+def _agent_exec_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[str]:
+    """Model a PTY exec failure while exercising launch admission and audit.
+    """
+    from coga.repl_supervisor import ReplOutcome
+
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    spawned: list[str] = []
+
+    def child(cmd, env, *, session_id=None, after_spawn=None, spawn_release_guard=None,  # type: ignore[no-untyped-def]
+              after_spawn_release=None, **kwargs):
+        if spawn_release_guard is not None:
+            with spawn_release_guard():
+                after_spawn()
+                if after_spawn_release is not None:
+                    after_spawn_release()
+        elif after_spawn is not None:
+            after_spawn()
+        spawned.append(session_id)
+        return ReplOutcome(127, "natural", exec_failed=True)
+
+    monkeypatch.setattr("coga.launch.run_with_done_marker", child)
+    return spawned
+
+
+def _two_tasks(repo: Path, status: str) -> tuple[dict, dict]:
+    cfg = load_config(repo)
+    return tuple(  # type: ignore[return-value]
+        create_task(
+            cfg=cfg, title=title, workflow_name="code", contexts=[],
+            owner="marc", agent="claude", status=status,
+        )
+        for title in ("First broken", "Second untouched")
+    )
+
+
+@pytest.mark.parametrize("status", ["active", "in_progress"])
+def test_megalaunch_sweep_stops_and_restores_when_agent_fails_to_start(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    from typer.testing import CliRunner
+
+    first, second = _two_tasks(repo, "active")
+    if status == "in_progress":
+        # An earlier session's admitted claim: the restore drops it.
+        ticket = Ticket.read(first["path"])
+        ticket.frontmatter["status"] = "in_progress"
+        ticket.frontmatter["launch_generation"] = "0f3c2a51-1111-4222-8333-944455556666"
+        ticket.write(first["path"])
+    before = {task["slug"]: Path(task["path"]).read_bytes() for task in (first, second)}
+    spawned = _agent_exec_fails(monkeypatch)
+    monkeypatch.setattr("coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True)
+
+    result = CliRunner().invoke(app, ["megalaunch"])
+
+    assert result.exit_code == 1, result.output
+    assert spawned == [first["slug"]]
+    restored = Ticket.read(first["path"])
+    assert restored.status == status
+    assert restored.launch_generation is None
+    if status == "active":
+        assert Path(first["path"]).read_bytes() == before[first["slug"]]
+    assert Path(second["path"]).read_bytes() == before[second["slug"]]
+    assert (
+        f"- {first['slug']}: failed - agent failed to start (exited with code 127); "
+        f"run stopped; restored to {status}"
+    ) in result.output
+    assert second["slug"] not in result.output.split("Outcomes:")[1]
+    log = (repo / "log.md").read_text(encoding="utf-8")
+    assert f"restored (in_progress → {status}) — agent failed to start (exit 127)" in log
+    assert "blocked" not in Ticket.read(first["path"]).frontmatter.get("status", "")
+
+
+def test_megalaunch_pick_restores_draft_and_activates_no_later_pick(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga.blackboard import open_blockers
+
+    cfg = load_config(repo)
+    first, second = _two_tasks(repo, "draft")
+    before = {task["slug"]: Path(task["path"]).read_bytes() for task in (first, second)}
+    spawned = _agent_exec_fails(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[first["slug"], second["slug"]])
+
+    assert spawned == [first["slug"]]
+    assert [result.slug for result in run.results] == [first["slug"]]
+    row = run.results[0]
+    assert row.outcome == "failed" and row.stops_run and row.launched
+    assert "exited with code 127" in row.detail and "restored to draft" in row.detail
+    # Exactly as picked: draft again, no frozen workflow, no claim, no ask.
+    assert Path(first["path"]).read_bytes() == before[first["slug"]]
+    assert Path(second["path"]).read_bytes() == before[second["slug"]]
+    assert open_blockers(Path(first["path"])) == []
+
+
+def test_megalaunch_drain_stops_when_drained_agent_fails_to_start(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    tasks = [
+        create_task(
+            cfg=cfg, title=title, workflow_name="code", contexts=[],
+            owner="marc", agent="claude", status="active",
+        )
+        for title in ("A done", "B dependent", "C dependent")
+    ]
+    finished, dependent, other = tasks
+    ticket = Ticket.read(finished["path"])
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(finished["path"])
+    for task in (dependent, other):
+        append_blocker(Path(task["path"]), actor="claude", reason=f"Waits for {finished['slug']}")
+        ticket = Ticket.read(task["path"])
+        ticket.frontmatter["status"] = "blocked"
+        ticket.write(task["path"])
+    other_before = Path(other["path"]).read_bytes()
+    spawned = _agent_exec_fails(monkeypatch)
+
+    run = run_megalaunch(cfg)
+
+    assert spawned == [dependent["slug"]]
+    row = next(result for result in run.results if result.slug == dependent["slug"])
+    assert row.stops_run and row.drained and "restored to active" in row.detail
+    # The dependency answer stands; only the start claim is undone.
+    restored = Ticket.read(dependent["path"])
+    assert restored.status == "active" and restored.launch_generation is None
+    assert Path(other["path"]).read_bytes() == other_before
+
+
+@windows_skip("Uses a real POSIX PTY and a script with a missing interpreter.")
+@pytest.mark.parametrize("exit_code", [None, 1, 127])
+def test_megalaunch_posix_pty_distinguishes_exec_failure_from_agent_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, exit_code: int | None,
+) -> None:
+    import os
+    import shlex
+    import sys
+
+    cfg = load_config(repo)
+    first, second = _two_tasks(repo, "draft")
+    before = [Path(task["path"]).read_bytes() for task in (first, second)]
+    artifact = repo / "work.txt"
+    agent = repo / "claude"
+    if exit_code is None:
+        _write(agent, "#!/coga-test-missing-interpreter\n")
+    else:
+        _write(
+            agent,
+            f"#!/bin/sh\nprintf worked >> {shlex.quote(str(artifact))}\nexit {exit_code}\n",
+        )
+    agent.chmod(0o755)
+    monkeypatch.setenv("PATH", str(repo))
+
+    # Give the real supervisor terminal descriptors without forwarding input
+    # from pytest or relying on the runner's console.
+    master, slave = os.openpty()
+    try:
+        with (
+            os.fdopen(os.dup(slave), "w", buffering=1) as terminal,
+            monkeypatch.context() as patch,
+        ):
+            patch.setattr(sys, "stdin", terminal)
+            patch.setattr(sys, "stdout", terminal)
+            run = run_megalaunch(cfg, selection=[first["slug"], second["slug"]])
+    finally:
+        os.close(slave)
+        os.close(master)
+
+    if exit_code is None:
+        assert [row.slug for row in run.results] == [first["slug"]]
+        assert run.results[0].stops_run
+        assert "exited with code 127" in run.results[0].detail
+        assert [Path(task["path"]).read_bytes() for task in (first, second)] == before
+        assert not artifact.exists()
+    else:
+        assert artifact.read_text() == "workedworked"
+        assert [row.slug for row in run.results] == [first["slug"], second["slug"]]
+        assert all(not row.stops_run for row in run.results)
+        assert [row.detail for row in run.results] == [f"agent exited with code {exit_code}"] * 2
+        assert all(Ticket.read(task["path"]).status == "in_progress" for task in (first, second))
+
+
+def test_megalaunch_failed_start_publishes_restore_against_the_claim(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    from coga import git as git_module
+
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg, title="Broken agent", workflow_name="code", contexts=[],
+        owner="marc", agent="claude", status="draft",
+    )
+    path = Path(created["path"])
+    rel = path.relative_to(git_repo.root).as_posix()
+    git_module.sync_task_state(cfg, path, message="Seed draft")
+    before = path.read_bytes()
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.launch.usage_tracking.capture_session", append_test_usage)
+    spawned = _agent_exec_fails(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[created["slug"]])
+
+    assert spawned == [created["slug"]]
+    assert run.results[0].stops_run and "restored to draft" in run.results[0].detail
+    assert path.read_bytes() == before
+    control = git_repo.git("show", f"main:{rel}", cwd=git_repo.origin)
+    assert control.encode("utf-8") == before
+    subjects = git_repo.git(
+        "log", "--reverse", "--format=%s", f"{start}..main", cwd=git_repo.origin
+    ).splitlines()
+    assert subjects[:3] == [
+        f"Ticket: {created['slug']} — active",
+        f"Ticket: {created['slug']} — in_progress",
+        f"Ticket: {created['slug']} — launch admitted",
+    ]
+    assert f"Ticket: {created['slug']} — restored draft" in subjects

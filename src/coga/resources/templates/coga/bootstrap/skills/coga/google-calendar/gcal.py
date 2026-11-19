@@ -5,7 +5,7 @@ The reusable way for coga skills to create/read/update/delete Google Calendar
 events without a per-host `gws`/`gcloud` binary. Other skills shell to this
 script (the calendar analogue of shelling to `coga slack`):
 
-    python <coga>/skills/coga/google-calendar/gcal.py get \
+    python /resolved/coga/google-calendar/gcal.py get \
         --calendar-id <id> --event-id <id>
     python .../gcal.py create --calendar-id <id> --body '<json event>'
     python .../gcal.py update --calendar-id <id> --event-id <id> --body '<json>'
@@ -19,9 +19,12 @@ script (the calendar analogue of shelling to `coga slack`):
     3  event not found (so a caller can tell "gone" from "broken")
 
 Auth — service account
-  Reads a service-account JSON key whose path comes from `coga.local.toml`
-  `[calendar].service_account_file` (env:VAR indirection supported). A service
-  account authenticates headlessly, which is what an unattended cron needs.
+  Reads a service-account JSON key from the environment: its contents from
+  `GCAL_SERVICE_ACCOUNT_JSON`, else a path from `GCAL_SERVICE_ACCOUNT_FILE`.
+  A consuming ticket delivers either through its `secrets:` frontmatter
+  (`op://` or `env:VAR`, see coga/secrets); a manual run exports one. A
+  service account authenticates headlessly, which is what an unattended cron
+  needs.
 
   Consequence: a service account is a robot identity. On a personal
   (non-Workspace) Google account there is no domain-wide delegation, so it can
@@ -40,7 +43,6 @@ import argparse
 import json
 import os
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -58,51 +60,44 @@ def _bail(message: str, code: int = EXIT_ERROR) -> None:
 # --- credentials ---------------------------------------------------------------
 
 
-def _coga_os_root() -> Path:
-    """Locate the coga dir holding coga.local.toml.
+JSON_VAR = "GCAL_SERVICE_ACCOUNT_JSON"
+FILE_VAR = "GCAL_SERVICE_ACCOUNT_FILE"
 
-    Prefers COGA_COGA_OS_ROOT (set for launched work), else walks up
-    from cwd looking for coga.local.toml or coga.toml.
+
+def resolve_service_account_info() -> dict[str, Any]:
+    """Return the service-account key as a dict, read from the environment.
+
+    `GCAL_SERVICE_ACCOUNT_JSON` (the key's JSON contents) wins over
+    `GCAL_SERVICE_ACCOUNT_FILE` (a path to it). Bails with a setup message
+    when neither is set or the key is not a JSON object.
     """
-    env_root = os.environ.get("COGA_COGA_OS_ROOT")
-    if env_root:
-        return Path(env_root)
-    cur = Path.cwd().resolve()
-    for candidate in [cur, *cur.parents]:
-        if (candidate / "coga.local.toml").is_file() or (candidate / "coga.toml").is_file():
-            return candidate
-        nested = candidate / "coga"
-        if (nested / "coga.toml").is_file():
-            return nested
-    return cur
+    raw = os.environ.get(JSON_VAR)
+    source = JSON_VAR
+    if not raw:
+        path = os.environ.get(FILE_VAR)
+        if not path:
+            _bail(
+                f"no service-account credentials configured. Set {JSON_VAR} "
+                f"(the JSON key contents) or {FILE_VAR} (a path to it), e.g. via "
+                "the ticket's secrets: frontmatter."
+            )
+        source = f"{FILE_VAR} ({path})"
+        try:
+            raw = Path(path).expanduser().read_text(encoding="utf-8")
+        except (OSError, RuntimeError):
+            _bail(f"could not read service-account key from {source}")
+        except UnicodeDecodeError:
+            _bail(f"service-account key in {source} is not UTF-8")
+    try:
+        info = json.loads(raw)  # type: ignore[arg-type]
+    except json.JSONDecodeError as exc:
+        _bail(f"service-account key in {source} is not valid JSON: {exc}")
+    if not isinstance(info, dict):
+        _bail(f"service-account key in {source} is not a JSON object")
+    return info  # type: ignore[return-value]
 
 
-def resolve_credentials_path() -> str:
-    """Read `[calendar].service_account_file` from coga.local.toml.
-
-    Supports `env:VAR` indirection (same convention as coga's `[secrets]`).
-    Returns the path, or bails with a clear setup message when unset.
-    """
-    local = _coga_os_root() / "coga.local.toml"
-    value: str | None = None
-    if local.is_file():
-        with local.open("rb") as fh:
-            data = tomllib.load(fh)
-        section = data.get("calendar")
-        if isinstance(section, dict):
-            raw = section.get("service_account_file")
-            if isinstance(raw, str) and raw:
-                value = os.environ.get(raw[4:]) if raw.startswith("env:") else raw
-    if not value:
-        _bail(
-            "no service-account credentials configured. Set "
-            "[calendar].service_account_file in coga.local.toml (a path to the "
-            "service-account JSON key, env:VAR-referenceable)."
-        )
-    return value  # type: ignore[return-value]
-
-
-def build_service(credentials_path: str) -> Any:
+def build_service(info: dict[str, Any]) -> Any:
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
@@ -114,11 +109,11 @@ def build_service(credentials_path: str) -> Any:
             "using the same Python that runs this script."
         )
     try:
-        creds = service_account.Credentials.from_service_account_file(
-            credentials_path, scopes=SCOPES
+        creds = service_account.Credentials.from_service_account_info(
+            info, scopes=SCOPES
         )
-    except (OSError, ValueError) as exc:
-        _bail(f"could not load service-account key {credentials_path!r}: {exc}")
+    except ValueError as exc:
+        _bail(f"could not load service-account key: {exc}")
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
@@ -205,7 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
-    service = build_service(resolve_credentials_path())
+    service = build_service(resolve_service_account_info())
     payload = run(service, args)
     sys.stdout.write(json.dumps(payload) + "\n")
 

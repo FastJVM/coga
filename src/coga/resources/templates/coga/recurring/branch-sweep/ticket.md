@@ -38,7 +38,7 @@ which:
    `branch:` line; a mere mention pins, because a false positive only defers
    a delete until the next pass. A recurring period task pins only its `## Dev`
    `branch:`, since its blackboard is generated reports naming branches,
-4. for the rest, authorizes deletion two independent ways — the local tip
+4. for the rest, authorizes deletion two independent ways for any branch — the local tip
    being reachable from the control branch, a merge-commit or fast-forward
    landing that needs no PR at all, or a merged PR for that head branch name
    with no PR currently open for it, where the merged PR vouches for the
@@ -50,7 +50,12 @@ which:
    `refs/pull/<n>/head` when it is not local), and a ref that walked past the
    merged head through Coga's own state-sync commits; a ref carrying real
    unmerged source commits stays, with the offending paths named. The remote
-   ref takes only a merged PR at its exact tip,
+   ref takes only a merged PR at its exact tip. A third path covers only a
+   branch a done or canceled ticket explicitly owns: a PR closed without
+   merging vouches for it under the same verdict once no live ticket in any
+   workspace records it, as
+   [coga/checkout-cleanup/terminal-owners](context:coga/checkout-cleanup/terminal-owners)
+   specifies; a closed PR alone authorizes nothing,
 5. for a branch whose local tip landed either way but is still held by a live worktree,
    preserves both refs and reports the distinct, non-fatal
    `skipped-worktree-pinned` outcome — unless `[git].worktrees_ticket_owned`
@@ -70,7 +75,7 @@ which:
    deletion rules in
    [coga/checkout-cleanup](context:coga/checkout-cleanup) that
    `coga retire` also follows, skipping and reporting anything unmerged with no
-   merged PR,
+   merged PR or qualifying closed PR,
 7. from the control branch, disposes of the `retires.md` entries that record
    this clone as `owner` under the
    [checkout proofs](context:coga/checkout-cleanup) autoclose runs, and

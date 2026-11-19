@@ -20,14 +20,6 @@ from coga.branchsweep import run_branch_sweep_recipe
 from coga.checkouts import run_prepare_checkout_recipe
 from coga.config import Config, load_config
 from coga.delete_task import run_delete_task_recipe
-from coga.dream_cleanup_orphan_markers import (
-    run_cleanup_orphan_markers_recipe,
-    target_root as orphan_markers_root,
-)
-from coga.dream_validate_drift import (
-    run_validate_drift_recipe,
-    target_root as validate_drift_root,
-)
 from coga.git import RETRY_WITHOUT_SWEEP_EXIT_CODE
 from coga.open_pr import run_open_pr_recipe
 from coga.publish_state import run_publish_state_recipe
@@ -51,8 +43,6 @@ class RecipeFn(Protocol):
 RECIPES: dict[str, RecipeFn] = {
     "autoclose": run_autoclose_recipe,
     "branch-sweep": run_branch_sweep_recipe,
-    "validate-drift": run_validate_drift_recipe,
-    "cleanup-orphan-markers": run_cleanup_orphan_markers_recipe,
     "recurring-scan": run_recurring_scan_recipe,
     "autofix-analyze": run_autofix_analyze_recipe,
     "open-pr": run_open_pr_recipe,
@@ -65,8 +55,6 @@ RECIPES: dict[str, RecipeFn] = {
 # owner supplies its resolver, as an edge worker passes its own to
 # `run_reported`. An entry leaves with its job.
 RECIPE_ROOTS: dict[str, RootResolver] = {
-    "validate-drift": validate_drift_root,
-    "cleanup-orphan-markers": orphan_markers_root,
 }
 
 RECIPE_FAILURE_HEADING = "Recipe Failure"

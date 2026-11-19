@@ -93,7 +93,9 @@ Write every free-text value (`rationale`, `implementation`, `deviations`,
 a folded block scalar (`>-`) or a quoted string: a plain scalar containing
 `: ` or starting with `[` or `{` is invalid YAML, and `coga open-pr` refuses
 it. `review` is always a nested mapping, never a string, and `depth` is exactly
-`merge`, `skim`, or `deep`.
+`merge`, `skim`, or `deep`. `author` is one compact identity (1–32 letters,
+digits, `.`, `_`, `-`, `/`), which `coga open-pr` refuses otherwise; put
+multi-author or co-author detail in `author_evidence`.
 
 The formatter enumerates paths using Git's NUL-delimited rename-aware diff.
 The file table shows only each path and its change type (`M`, `A`, `D`, or the

@@ -13,7 +13,7 @@ a self-contained script other skills shell to.
 ## Invocation
 
 ```
-python <coga>/skills/coga/google-calendar/gcal.py get \
+python /resolved/coga/google-calendar/gcal.py get \
     --calendar-id <id> --event-id <id>
 python .../gcal.py create --calendar-id <id> --body '<json event resource>'
 python .../gcal.py update --calendar-id <id> --event-id <id> --body '<json>'
@@ -32,21 +32,40 @@ Exit codes are the contract:
 | 1 | config / auth / API error (message on stderr) |
 | 3 | event not found (caller can distinguish "gone" from "broken") |
 
-Locate the helper via `COGA_COGA_OS_ROOT` (set during launched work)
-so it resolves regardless of the consuming repo.
+`/resolved/coga/google-calendar/` stands for this skill's resolved
+directory: the repo's local `coga/skills/coga/google-calendar/` override
+if one exists, else the installed bundled skill (resolution as in
+`coga/checkouts/sandbox-clone`, "What a fresh checkout lacks"). Bundled
+skills are not copied into the repo, so
+`$COGA_COGA_OS_ROOT/skills/coga/google-calendar/` exists only for a local
+override.
 
 ## Auth — service account
 
-Credentials are a Google **service-account JSON key**. Its path is read from
-`coga.local.toml`:
+Credentials are a Google **service-account JSON key**, read from the
+environment — never from Coga config:
 
-```toml
-[calendar]
-service_account_file = "/path/to/service-account.json"   # or "env:GCAL_SA_KEY"
+| variable | value |
+|----------|-------|
+| `GCAL_SERVICE_ACCOUNT_JSON` | the key's JSON contents (wins when both are set) |
+| `GCAL_SERVICE_ACCOUNT_FILE` | a path to the key file |
+
+The consuming ticket declares one of them in its `secrets:` frontmatter, and
+launch resolves it into the child environment (`coga/secrets`):
+
+```yaml
+secrets:
+  - GCAL_SERVICE_ACCOUNT_JSON: op://<automation-vault>/<item>/<field>
 ```
 
-`env:VAR` indirection is supported (same convention as coga's `[secrets]`).
-A service account authenticates headlessly — the point, for an unattended cron.
+Store the key's contents in the automation vault for headless runs, or map
+`GCAL_SERVICE_ACCOUNT_FILE: env:<VAR>` to a path the operator already exports.
+A manual run outside launch exports either variable itself. A service account
+authenticates headlessly — the point, for an unattended cron.
+
+To migrate an existing `[calendar]` entry, export its key path as
+`GCAL_SERVICE_ACCOUNT_FILE` or store the key contents in the automation vault,
+then remove the retired table from `coga.local.toml` so Coga can load the repo.
 
 **Important limitation.** A service account is a robot identity. On a personal
 (non-Workspace) Google account there is no domain-wide delegation, so it can
@@ -57,9 +76,9 @@ this skill surfaces with a "share the calendar with the SA's email" hint.
 
 Setup once:
 1. Create a service account + JSON key in Google Cloud, enable the Calendar API.
-2. Share the target calendar (e.g. a dedicated "FastJVM Patent" calendar) with
+2. Share the target calendar (e.g. a dedicated reminders calendar) with
    the service account's email, granting "Make changes to events".
-3. Point `[calendar].service_account_file` at the key.
+3. Store the key as above and declare it in the consuming ticket's `secrets:`.
 
 (A durable auth-hardening story — rotation, alternative backends — is tracked
 as a separate ticket.)
@@ -68,8 +87,8 @@ as a separate ticket.)
 
 `requirements.txt` declares `google-api-python-client` and `google-auth`.
 Coga installs nothing for a skill — run `python -m pip install -r
-requirements.txt` from this skill's dir, using the same Python that runs
-`gcal.py`.
+requirements.txt` from this skill's resolved dir, using the same Python
+that runs `gcal.py`.
 
 ## Out of scope
 

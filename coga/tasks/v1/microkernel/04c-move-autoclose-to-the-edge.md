@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 3: move autoclose to the edge'
-status: blocked
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -31,6 +31,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: c0117d6c-1cbb-4f9e-8860-df6265c0f1d5
 ---
 
 ## Description
@@ -229,9 +230,16 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ---
 
+## Dev
+
+branch: coga/v1-microkernel-04c-autoclose-to-edge
+
+---
+
 ## Blockers
 
-- [ ] [2026-11-16 22:18] [agent:claude] id=20261116T221849 Prerequisite not merged: v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245, open, step review) must merge first. This ticket must start from main after that merge and use its run_entry report→publish→bump sequence and run_reported root resolver, which are absent from main at 58697fc1f.
+- [x] [2026-11-16 22:18] [agent:claude] id=20261116T221849 Prerequisite not merged: v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245, open, step review) must merge first. This ticket must start from main after that merge and use its run_entry report→publish→bump sequence and run_reported root resolver, which are absent from main at 58697fc1f.
+  resolved: [2026-11-19 10:44] [human:nicktoper] Prerequisite merged: PR #1245 (v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co) merged 2026-11-19 as 133bb5fe; origin/main now carries runner.run_entry and runner.run_reported. Start implementation from current main.
 
 ---
 

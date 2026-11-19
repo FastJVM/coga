@@ -51,6 +51,15 @@ Phone-home's module is self-contained, so a copy of the single file works as
 a local fork. The migration procedure includes source inspection and copy
 commands; do not run production telemetry to find its source.
 
+Dream's Phase 1 and 5 workers (`coga_edge.validate_drift`,
+`coga_edge.cleanup_orphan_markers`) are ordinary attachments of this kind:
+the packaged Dream body runs them as `python -m coga_edge.<worker>`. Each
+imports only the standard library, Coga's own runtime dependencies and shared
+`coga` infrastructure — never another `coga_edge` module — so a full local
+Dream fork copies the module beside its `ticket.md` and points that
+phase's command at the copy. The [upgrade procedure](edge-code-upgrades.md)
+ships the exact old, new and fork passages.
+
 The blocker-reminders and skill-update recurring jobs
 (`coga_edge.blocker_reminders`, `coga_edge.skill_update`) are self-contained
 the same way. Their packaged shim calls the module's `main`, which runs

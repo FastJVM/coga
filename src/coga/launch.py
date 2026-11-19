@@ -313,21 +313,27 @@ def launch(
     No command-line parser objects or process exits cross this boundary.
     """
     if read_only:
-        git.state_sweep_withheld.set(True)
-        if (agent_override is not None or prompt_report or idle_timeout is not None
-                or max_session is not None or return_timeout or script_failure_important):
-            _bail("--read-only cannot be combined with agent, report or REPL options.")
+        # Withhold publication only for this read-only call: the caller's
+        # policy comes back on return and on LaunchBail, so a writer command
+        # that makes an in-process read-only call still sweeps at exit.
+        policy_token = git.state_sweep_withheld.set(True)
         try:
-            cfg = load_config(require_user=False)
-            ref = resolve_target(cfg, task)
-            if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
-                _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
-            ticket = read_ticket(ref)
-            result = run_script_phase(
-                cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
-            )
-        except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
-            _bail(str(exc))
+            if (agent_override is not None or prompt_report or idle_timeout is not None
+                    or max_session is not None or return_timeout or script_failure_important):
+                _bail("--read-only cannot be combined with agent, report or REPL options.")
+            try:
+                cfg = load_config(require_user=False)
+                ref = resolve_target(cfg, task)
+                if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
+                    _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
+                ticket = read_ticket(ref)
+                result = run_script_phase(
+                    cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
+                )
+            except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
+                _bail(str(exc))
+        finally:
+            git.state_sweep_withheld.reset(policy_token)
         return LaunchResult(kind="script", exit_code=result.exit_code)
     with ExitStack() as local_scope:
         if task == "bootstrap/orient" and not prompt_report:
@@ -3689,6 +3695,7 @@ def prepare_agent_launch(
     discussion: bool = False,
     kickoff: str | None = None,
     defer_prompt: bool = False,
+    env_transform: Callable[[dict[str, str]], dict[str, str]] | None = None,
 ) -> PreparedAgentLaunch:
     """Validate CLI, prompt layers, secrets and command without repo writes.
 
@@ -3697,6 +3704,9 @@ def prepare_agent_launch(
 
     Callers own prospective lifecycle, admission and publication. Secret
     resolution may call an external provider; the result is not cached.
+    ``env_transform`` maps the launch env to the env the caller will spawn
+    with (megalaunch's supervised step identity); the command check and the
+    returned ``env`` both use its result.
     """
     try:
         agent = cfg.agent_type(launch_agent)
@@ -3712,6 +3722,8 @@ def prepare_agent_launch(
         else:
             prompt = compose_prompt(cfg, ref, ticket, launch_context=launch_context)
         env = build_launch_env(cfg, ticket.secrets)
+        if env_transform is not None:
+            env = env_transform(env)
     except FileNotFoundError as exc:
         raise AgentPreparationError(missing_launch_file_message(exc)) from exc
     except (ConfigError, ComposeError, SecretError) as exc:
@@ -3813,6 +3825,7 @@ class AgentSessionResult(NamedTuple):
     # `termination_kind` (a signal followed by a crash is still a `crash`).
     # False also means "no sentinel channel"; see `ReplOutcome`.
     done_signalled: bool = False
+    exec_failed: bool = False
 
 
 def missing_launch_file_message(exc: FileNotFoundError) -> str:
@@ -4201,6 +4214,7 @@ def spawn_agent_session(
             outcome.kind,
             outcome.reason,
             outcome.done_signalled,
+            outcome.exec_failed,
         )
     except KeyboardInterrupt:
         outcome_status = "interrupted"

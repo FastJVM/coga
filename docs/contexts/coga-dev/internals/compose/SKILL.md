@@ -129,6 +129,26 @@ Guided `coga ticket` authoring composes `commands/ticket.py`
 `_authoring_ticket`: `skills:` becomes only `bootstrap/ticket`, `step:` is
 removed, and `include_blocker_preamble=False`.
 
+Known limits, left out of scope by the 2026-11-15 defect fix and not tracked
+by any ticket: the CLI-maintained `## Blocker reminders` blackboard section
+(`blocker_reminders.REMINDERS_HEADING`, reminder fingerprints rather than
+working state) still composes as a demoted heading; and a `---` thematic break
+inside a ticket or blackboard region is indistinguishable from the
+`\n\n---\n\n` layer separator `PromptComposition.prompt` joins with. Changing
+the separator is a composition-contract change owned by
+`coga/prompt-composition`.
+
+Open placement question: the shipped
+[coga/prompt-composition](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md#assembler-ruling)
+`## Assembler ruling` carries Coga's own 2026-11 trial evidence and owner
+rulings, which by `coga/context-layout` audiences reads as development
+knowledge. A P1 review thread on PR #1234
+(<https://github.com/FastJVM/coga/pull/1234#discussion_r4570620245>) asked to
+keep that ruling in a local `coga-dev` topic and was never answered. Unresolved:
+whether to move the evidence here (or to
+[agent-behavior trials](../../testing/agent-trials/SKILL.md)) and leave the
+shipped topic a one-line "the current assembler is retained" statement.
+
 ## Conduct selection
 
 `compose.SESSION_CONDUCT_RESOURCES` maps the ephemeral `LaunchContext`

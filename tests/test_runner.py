@@ -22,8 +22,6 @@ from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 EXPECTED_RECIPES = (
     "autoclose",
     "branch-sweep",
-    "validate-drift",
-    "cleanup-orphan-markers",
     "recurring-scan",
     "autofix-analyze",
     "open-pr",
@@ -69,7 +67,6 @@ def test_no_arg_recipes_reject_unexpected_tokens() -> None:
     for name in (
         "autoclose",
         "branch-sweep",
-        "cleanup-orphan-markers",
     ):
         assert run_recipe(cfg, name, ["unexpected"]) == 2
 
@@ -109,7 +106,9 @@ def test_run_command_rejects_unknown_recipe_with_known_names(monkeypatch) -> Non
         assert name in result.output
 
 
-@pytest.mark.parametrize("name", ["blocker-reminders", "skill-update"])
+@pytest.mark.parametrize(
+    "name", ["blocker-reminders", "skill-update", "validate-drift", "cleanup-orphan-markers"]
+)
 def test_edge_jobs_left_the_registry_without_a_stub(monkeypatch, name: str) -> None:
     # Their jobs run from `coga_edge`; the old spelling takes the ordinary
     # unknown-recipe exit rather than forwarding.
@@ -353,9 +352,17 @@ def test_unwritable_blackboard_never_outranks_the_recipe_failure(
 
 
 def _run_cwd_worker(cfg: Config, name: str, argv: list[str]) -> int:
-    """A registered recipe through the registry; an edge job as its entry does."""
+    """A registered recipe through the registry; an edge job through the
+    failure floor it shares, with its own root resolver."""
     if name in RECIPES:
         return run_recipe(cfg, name, argv)
+    if name == "validate-drift":
+        from coga_edge import validate_drift
+
+        return runner_module.run_reported(
+            cfg, name, validate_drift.run_validate_drift_recipe, argv,
+            root=validate_drift.target_root,
+        )
     from coga_edge import skill_update
 
     assert name == "skill-update"
@@ -367,7 +374,7 @@ def _run_cwd_worker(cfg: Config, name: str, argv: list[str]) -> int:
 @pytest.mark.parametrize(
     ("recipe", "worker"),
     [
-        ("validate-drift", "coga.dream_validate_drift.run_validate_json"),
+        ("validate-drift", "coga_edge.validate_drift.run_validate_json"),
         ("skill-update", "coga_edge.skill_update.run_update_json"),
     ],
 )
@@ -408,7 +415,7 @@ def test_failure_respects_cwd_blackboard_containment(
 @pytest.mark.parametrize(
     ("recipe", "worker"),
     [
-        ("validate-drift", "coga.dream_validate_drift.run_validate_json"),
+        ("validate-drift", "coga_edge.validate_drift.run_validate_json"),
         ("skill-update", "coga_edge.skill_update.run_update_json"),
     ],
 )

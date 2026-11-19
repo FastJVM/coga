@@ -1,6 +1,6 @@
 ---
 title: Fix the windows-aws walk step and add the v1-14 attended-launch harness gotchas
-status: blocked
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 3 (open-pr)
 agent: claude
+launch_generation: 818df4ff-e47d-4b29-882c-a3767027db61
 ---
 
 ## Description
