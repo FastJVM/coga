@@ -13,13 +13,14 @@ finishes.
    While reading it, whether the ticket is new to you or resumed, delete notes
    that clearly no longer help the work: finished scratch, stale status,
    superseded plans with no live rationale, dead ends already ruled out.
-   Age only prompts the check; it is not a reason to delete. Keep current
-   decisions and their reasons, open blockers, the worklist, and verification
-   evidence the handoff still needs. Never delete CLI-maintained sections
-   (`## Dev`, `## Blockers`, `## Blocker reminders`), `## PR` receipts, or the
-   `## Superseded designs` record. Delete obsolete notes directly. This is a
-   light pass, not a separate review step. If unsure, keep the note.
-   `coga/blackboard` ("Stale-note cleanup") owns this policy.
+   Age only prompts the check. Keep current decisions and their reasons, open
+   blockers, the worklist, and verification evidence the handoff still needs.
+   Never delete a section a Coga command or runner wrote (`## Dev`,
+   `## Blockers`, `## Blocker reminders`, `## Recipe Failure`), `## PR`,
+   `## Superseded designs`, an `## Evaluator review` or `## Production notes`
+   a gate still reads, or recurring cross-run state. This light pass needs no
+   separate review; if unsure, keep the note. `coga/blackboard` ("Stale-note
+   cleanup") owns this policy.
 2. **Do the current step.** Follow the ticket, contexts, and step skill. Record
    useful findings and decisions, with reasons, on the blackboard as you go.
    Keep it concise enough to compose into the next launch.

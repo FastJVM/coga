@@ -106,9 +106,13 @@ ticket work. It needs no separate review step, ticket, or approval.
   needs. Git keeps the old text.
 - **Keep:** current decisions and their reasons, active blockers, the
   worklist, and verification evidence the handoff still needs.
-- **Never delete:** the CLI-maintained `## Dev`, `## Blockers` and
-  `## Blocker reminders` sections, the `## PR` preparation record, or the
-  `## Superseded designs` record. A design that changes moves into
+- **Never delete:** any section a Coga command or runner wrote (the
+  CLI-maintained `## Dev`, `## Blockers` and `## Blocker reminders`, a
+  runner's `## Recipe Failure`), the `## PR` preparation record, the
+  `## Superseded designs` record, an `## Evaluator review` or
+  `## Production notes` a live step or gate still reads
+  ([above](#draft-activation-readiness)), or a recurring carrier's cross-run
+  state. A design that changes moves into
   `## Superseded designs` [as below](#superseded-designs); it is not deleted.
 
 Age only prompts the check; an old note that still carries a live decision
@@ -119,8 +123,9 @@ blackboard is the [size remedy](#size-and-its-remedy).
 ## Size and its remedy
 
 `coga validate` (`large-blackboard`) and launch warn above 32 KiB of live
-notes. The bundled `blackboard-size` recurring job reports the same findings
-weekly: each flagged ticket's ref, measured size and the threshold. Its alert
+notes. The bundled `blackboard-size` recurring job, when selected in
+`recurring/jobs.toml` ([selection](../recurring/templates/SKILL.md#selection-and-state)),
+reports the same findings weekly: each flagged ticket's ref, measured size and the threshold. Its alert
 is informational. It creates no ticket, review or block, and an exceptional
 large blackboard may stay as it is. When `coga launch --prompt-report` shows the blackboard as the
 largest layer, do not delete history. Promote a file-form task to directory

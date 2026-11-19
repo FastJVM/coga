@@ -41,7 +41,7 @@ Then init:
    ignored `contexts/_template/`, `skills/_template/` and
    `workflows/_template.md` authoring starters, and `tasks/coga-build.md`
    (pruned on a filled repo). It also writes `recurring/jobs.toml` once,
-   selecting the nine bundled recurring jobs with explicit `true` entries
+   selecting the ten bundled recurring jobs with explicit `true` entries
    ([coga/recurring/templates](../recurring/templates/SKILL.md#selection-and-state)).
    No reusable definition is copied: contexts, skills, workflows, bootstrap
    tickets and recurring jobs (with their scripts and runbooks) resolve from
