@@ -4403,3 +4403,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 01:00 v1 [decide-where-the-google-helper-skills-read-their-c] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-11-19 01:00 v1 [decide-where-the-google-helper-skills-read-their-c] [megalaunch] launched via coga megalaunch
 2026-11-19 01:00 v1 [fix-the-google-skills-dead-helper-invocation-paths] [human:nicktoper] created (status=draft)
+2026-11-19 01:01 v1 [decide-where-the-google-helper-skills-read-their-c] [agent:claude] advanced to step 4 (review) → nicktoper
