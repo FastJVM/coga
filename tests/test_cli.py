@@ -290,6 +290,7 @@ def test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit(
     [
         (["coga", "launch", "x", "--prompt-report"], 0),
         (["coga", "launch", "--prompt-report", "bootstrap/orient"], 0),
+        (["coga", "slack", "--task", "x", "--message", "--prompt-report"], 1),
         (["coga", "launch", "x"], 1),
     ],
 )

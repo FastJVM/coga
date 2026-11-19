@@ -271,8 +271,8 @@ CONDUCT_CASES = {
             "one task in a sequential automated queue (a `coga recurring`"
             " sweep)",
             "A stateless `bootstrap/<name>` command ticket has no task"
-            " lifecycle to bump, mark, or block.",
-            "`coga slack --task bootstrap/<name> ...` posts its roll-up",
+            " lifecycle to bump or block.",
+            "`coga mark done bootstrap/<name>` releases that stateless session",
         ),
         _ATTENDED_CLAUSES,
     ),

@@ -58,7 +58,6 @@ _LAZY_COMMANDS: dict[str, tuple[str, str, dict[str, object]]] = {
     "unblock": ("coga.commands.unblock", "unblock", {}),
     "owner": ("coga.commands.owner", "owner", {}),
     "delete": ("coga.commands.delete", "delete", {}),
-    "slack": ("coga.commands.slack", "slack", {}),
     "validate": ("coga.commands.validate", "validate", {}),
     "skill": ("coga.commands.skill", "app", {}),
     "mark": ("coga.commands.mark", "app", {}),
@@ -157,7 +156,6 @@ _SWEEPING_COMMANDS = frozenset(
         "unblock",
         "owner",
         "delete",
-        "slack",
         "run",
     }
 )

@@ -359,10 +359,9 @@ def test_slack_fyi_includes_title(
     slug, _ = _make_task(repo, status="in_progress")
     urls: list[str] = []
     posts = _capture(monkeypatch, urls=urls)
-    result = CliRunner().invoke(
-        app, ["slack", "--task", slug, "--message", "tests still flaky"]
-    )
-    assert result.exit_code == 0, result.output
+    from coga_edge.slack import main as slack_main
+
+    assert slack_main(["--task", slug, "--message", "tests still flaky"]) == 0
     assert urls == [FLOW_WEBHOOK]
     assert _body(posts, "💬") == (
         f"💬 claude on *{slug}* \"Work\": tests still flaky"

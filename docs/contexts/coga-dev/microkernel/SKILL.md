@@ -56,7 +56,6 @@ effects, or calling shared infrastructure does not settle their placement.
 
 | Command surface | Open decision | Cleanup ticket |
 | --- | --- | --- |
-| `slack` (retained core head) | Reviewed co-versioning proof below; any future migration must preserve matching-session completion | `move-slack-fyis-to-a-command-ticket` |
 | `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `move-ticket-authoring-to-a-command-ticket` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `move-skill-management-to-command-tickets` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
@@ -136,12 +135,17 @@ private CLI flag or copy an authoring executor.
 `move-ticket-authoring-to-a-command-ticket` still owns the authoring
 coordinator's eventual placement.
 
-Slack's retained head joins notification delivery, audit append and matching
-bootstrap-session completion through the CLI's deferred finalization. Script
-isolation deliberately clears the supervisor and expected identity, so a script
-cannot preserve this transaction without parent-owned completion support.
-The draft Slack sibling owns that support's design and audit-gate tightening;
-this migration neither implements it nor claims Slack forkability.
+Slack is settled by separating completion from notification (owner decision,
+2026-11-17, `move-slack-fyis-to-a-command-ticket`). The former head joined
+notification delivery, audit append and bootstrap-session completion, and
+script isolation clears the supervisor identity a completion needs. Stateless
+command completion is therefore a lifecycle case of `mark done` on a
+`bootstrap/<name>` ref, run in the agent's own supervised process and gated on
+its audit line reaching control. `coga slack` is a pure FYI: the
+`bootstrap/slack` script ticket over `coga_edge.slack`, forkable like
+megalaunch and never terminal. No parent callback, new transport or completion
+credential was added; the cost is that the roll-up FYI and completion are two
+commands rather than one atomic one.
 
 ## Retained support commands
 

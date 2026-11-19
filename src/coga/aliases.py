@@ -21,7 +21,6 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "unblock",
         "owner",
         "delete",
-        "slack",
         "skill",
         "mark",
         "recurring",
@@ -58,7 +57,8 @@ ONBOARDING_TASK = "coga-build"
 # launch-argument prompt block through the same argv rewrite. ``retire`` fronts
 # the script command ticket ``bootstrap/retire``; its trailing ``--`` keeps
 # ``--agent`` and ``--no-launch`` away from launch's own parser, so they reach
-# the script's argv.
+# the script's argv. ``slack`` fronts the script command ticket
+# ``bootstrap/slack`` the same way, so ``--task``/``--message`` reach its script.
 DEFAULT_ALIASES: dict[str, str] = {
     "usage": "launch --read-only bootstrap/usage --",
     "status": "launch --read-only bootstrap/status --",
@@ -75,7 +75,13 @@ DEFAULT_ALIASES: dict[str, str] = {
     "address-pr-comments": "launch bootstrap/address-pr-comments",
     "retire": "launch bootstrap/retire --",
     "promote-recurring": "launch bootstrap/recurring-promote --",
+    "slack": "launch bootstrap/slack --",
 }
+
+
+# Former built-ins now fronted by a stateless script command ticket of the same
+# name; an alias still targeting one gets the replacement expansion.
+_RETIRED_BUILTINS = frozenset({"megalaunch", "slack"})
 
 
 def validate_aliases(aliases: dict[str, str]) -> None:
@@ -89,10 +95,10 @@ def validate_aliases(aliases: dict[str, str]) -> None:
         if not tokens:
             raise ConfigError(f"alias {name!r} expands to empty command")
         target = tokens[0]
-        if target == "megalaunch":
+        if target in _RETIRED_BUILTINS:
             raise ConfigError(
-                f"alias {name!r} targets retired built-in megalaunch; "
-                "use launch bootstrap/megalaunch -- followed by its arguments"
+                f"alias {name!r} targets retired built-in {target}; "
+                f"use launch bootstrap/{target} -- followed by its arguments"
             )
         if target not in BUILTIN_COMMANDS:
             raise ConfigError(

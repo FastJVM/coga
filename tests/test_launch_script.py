@@ -2371,7 +2371,7 @@ def test_report_dispatch_uses_read_executor_without_writer_effects(
     assert "COGA_SUPERVISED" not in calls[0][1]["env"]
 
 
-@pytest.mark.parametrize("command", ["megalaunch", "pick", "retire"])
+@pytest.mark.parametrize("command", ["megalaunch", "pick", "retire", "slack"])
 @pytest.mark.parametrize("workspace", ["absent", "no-user", "invalid-config"])
 def test_command_script_help_without_setup(tmp_path: Path, command: str, workspace: str) -> None:
     cwd = tmp_path / "help"
@@ -2388,7 +2388,7 @@ def test_command_script_help_without_setup(tmp_path: Path, command: str, workspa
     assert {p.name: p.read_bytes() for p in cwd.iterdir()} == before
 
 
-@pytest.mark.parametrize("argv", [["megalaunch", "--agent", "--help"], ["retire", "1", "--agent", "--help"]])
+@pytest.mark.parametrize("argv", [["megalaunch", "--agent", "--help"], ["retire", "1", "--agent", "--help"], ["slack", "--task", "x", "--message", "--help"]])
 def test_command_script_help_consumed_as_value_fails_closed(tmp_path: Path, argv: list[str]) -> None:
     result = subprocess.run(
         [sys.executable, "-m", "coga.cli", *argv], cwd=tmp_path,
@@ -2558,3 +2558,80 @@ raise SystemExit(main([]))
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGKILL)
             process.communicate(timeout=10)
+
+
+# --- `coga slack` through its default alias and real script phase -------------
+
+
+def _run_slack(cwd: Path, *argv: str, env: dict[str, str] | None = None):
+    return subprocess.run(
+        [sys.executable, "-m", "coga.cli", "slack", *argv],
+        cwd=cwd, capture_output=True, text=True, encoding="utf-8", check=False,
+        env=env,
+    )
+
+
+def test_slack_alias_runs_the_edge_script_end_to_end(script_repo: Path, tmp_path: Path) -> None:
+    """Notifications are off here, so the real child never reaches a webhook."""
+    cfg = load_config(script_repo)
+    slug = create_task(
+        cfg=cfg, title="Work", workflow_name="direct/body", contexts=[],
+        owner="marc", agent="claude", status="active",
+    )["slug"]
+    sentinel = tmp_path / "outer.done"
+    env = {**os.environ, "COGA_DONE_SENTINEL": str(sentinel)}
+
+    result = _run_slack(script_repo, "--task", slug, "--message", "hi there", env=env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip().splitlines()[-1] == "posted"
+    assert "no channels configured" in result.stderr
+    assert "slack: hi there" in (script_repo / "log.md").read_text(encoding="utf-8")
+    assert not sentinel.exists()
+
+
+def test_slack_alias_on_bootstrap_target_never_completes(script_repo: Path, tmp_path: Path) -> None:
+    sentinel = tmp_path / "outer.done"
+    env = {**os.environ, "COGA_DONE_SENTINEL": str(sentinel)}
+
+    result = _run_slack(
+        script_repo, "--task", "bootstrap/resolve-conflicts", "--message", "1 conflict",
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "slack: 1 conflict" in (script_repo / "log.md").read_text(encoding="utf-8")
+    assert not sentinel.exists()
+
+
+@pytest.mark.parametrize(
+    "argv", [["--task", "no-such-task", "--message", "hi"], ["--task", "x", "--message", " "]]
+)
+def test_slack_alias_propagates_refusal_status(script_repo: Path, argv: list[str]) -> None:
+    result = _run_slack(script_repo, *argv)
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    log = script_repo / "log.md"
+    assert not log.exists() or "slack:" not in log.read_text(encoding="utf-8")
+
+
+def test_slack_alias_works_from_inside_a_running_script_phase(script_repo: Path) -> None:
+    """`coga.reminders` posts by running `coga slack` from a script ticket."""
+    ref = _create_script_task(
+        script_repo,
+        "import os, subprocess, sys\n"
+        "slug = os.environ['COGA_TASK_SLUG']\n"
+        "coga = [sys.executable, '-m', 'coga.cli']\n"
+        "subprocess.run([*coga, 'slack', '--task', slug, '--message', 'nested fyi'], check=True)\n"
+        "subprocess.run([*coga, 'bump', slug], check=True)\n",
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "launch", ref.id_slug],
+        cwd=script_repo, capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "posted" in result.stdout
+    assert f"[{ref.id_slug}]" in (script_repo / "log.md").read_text(encoding="utf-8")
+    assert "slack: nested fyi" in (script_repo / "log.md").read_text(encoding="utf-8")

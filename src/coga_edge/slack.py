@@ -1,15 +1,20 @@
-"""`coga slack` — post an FYI through the notification system.
+"""`coga slack` — post a one-line FYI through the notification system.
 
-The manual broadcast escape hatch: state-machine transitions
-(`launch`, `bump`, `block`, `recurring`) already broadcast on
-their own; this command covers the cases that don't fit one of those —
-e.g. a human announcing they hand-edited a ticket, or an agent calling
-out a non-transition event mid-step. For FYIs that *do* coincide with
-a step transition, prefer `bump --message`.
+The manual broadcast escape hatch: state-machine transitions (`launch`, `bump`,
+`block`, `recurring`) already broadcast on their own; this command covers the
+cases that don't fit one of those — e.g. a human announcing they hand-edited a
+ticket, or an agent calling out a non-transition event mid-step. For FYIs that
+*do* coincide with a step transition, prefer `bump --message`.
+
+The stateless `bootstrap/slack` command ticket runs this through its
+`ticket.py` shim, reached by the default `slack = "launch bootstrap/slack --"`
+alias. An FYI never completes a session, a stateless bootstrap one included:
+that is `coga mark done bootstrap/<name>`.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 
 import typer
@@ -19,7 +24,6 @@ from coga.commands.common import current_operator
 from coga.config import ConfigError, load_config
 from coga.logfile import append_log
 from coga.notification import post
-from coga.repl_supervisor import emit_done_marker
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -42,6 +46,10 @@ def slack(
     ),
 ) -> None:
     """Post an FYI through the configured notification channel(s)."""
+    # Launch requested help: a value-taking option may have consumed `--help`
+    # as its value, so refuse before any effect instead of posting it.
+    if os.environ.get("COGA_SCRIPT_HELP") == "1":
+        raise typer.Exit(2)
     if not message.strip():
         _bail("--message cannot be empty")
 
@@ -79,16 +87,23 @@ def slack(
         important=important,
     )
     append_log(cfg, ref.id_slug, actor, f"slack: {message}")
-    # A stateless agent-backed command ticket has no workflow transition it can
-    # use to release `coga launch`'s REPL supervisor. Its final roll-up FYI is
-    # the natural completion boundary: after the post succeeds and its audit
-    # line is durable, signal this bootstrap session done. Ordinary task FYIs
-    # remain non-terminal; their workflow still ends through bump/mark/block.
-    if isinstance(ref, BootstrapRef):
-        emit_done_marker(session_id=ref.id_slug)
     typer.echo("posted")
 
 
 def _bail(msg: str) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
     sys.exit(2)
+
+
+def main(argv: list[str]) -> int:
+    app = typer.Typer(add_completion=False)
+    app.command()(slack)
+    try:
+        app(args=argv, prog_name="coga slack")
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

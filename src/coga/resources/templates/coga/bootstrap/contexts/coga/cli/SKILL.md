@@ -57,8 +57,30 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | --- | --- |
 | `run <recipe>` and `[aliases]` | [coga/extension-model](../extension-model/SKILL.md) |
 | `skill` | [coga/skill-management](../skill-management/SKILL.md) |
-| `slack` | [coga/notifications](../notifications/SKILL.md) |
+| `slack` → `launch bootstrap/slack --` | [coga/notifications](../notifications/SKILL.md); packaged `bootstrap/slack/ticket.md` |
 | `usage` → `launch --read-only bootstrap/usage --` | [report ticket](../../../usage/ticket.md); [read API](../usage/SKILL.md) |
+
+## Stateless command completion
+
+`coga mark done bootstrap/<name>` ends a stateless agent-backed command's
+supervised session; it is that command's only completion signal (`coga
+slack` is a non-terminal FYI for every target). It writes no ticket, runs no
+workflow or completion gate, and posts no notification: the command's own
+roll-up FYI is the notification. It appends one `done (stateless command)`
+audit line, credited as `agent:<name>` from the command ticket's `agent:` or
+the configured default (the FYI rule; a lifecycle exception, since no
+supervised task identity exists to verify). With Git enabled the line must be
+confirmed on control before the done marker is requested; otherwise the line
+is kept, the sweep is withheld, the command exits 75 with the
+`coga run publish-state <log>` recovery. The session can still exit normally
+or reach a configured idle or max-session limit. With Git disabled the local
+append suffices.
+`--message` and `--force` exit 2 before any effect, as do the other `mark`
+verbs on a bootstrap ref.
+
+`coga slack --task <ref> --message --help` exits 2 without posting: the
+launch help marker makes the script refuse a `--help` its `--message` option
+consumed. `coga slack --help` prints the script's usage.
 
 ## Aliases and recipes
 

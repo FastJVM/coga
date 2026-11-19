@@ -37,9 +37,9 @@ the period ticket, so sweeps, named retries, and direct
 dispatch. The runner marks the period task `in_progress`, launches
 `bootstrap/address-pr-comments` in-process (honouring the sweep's `--agent`
 override and selected queue session conduct), and marks the period task
-`done` only after the delegated command's final `coga slack` roll-up emits
-its bootstrap done sentinel. Everything else about how a delegated period is
-preflighted, leased, published, timed out, and left retryable is the
+`done` after the delegated command emits its scoped completion sentinel.
+How a delegated period is preflighted, leased, published, timed out, and left
+retryable is part of the
 `delegate` contract in the `coga/recurring/delegation` context, shared with
 `recurring/resolve-conflicts`.
 

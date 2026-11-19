@@ -179,12 +179,13 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "## Blockers" in bb
     assert Ticket.read(ref2["path"]).status == "blocked"
 
-    r = runner.invoke(app, [
-        "slack",
+    # `coga slack` is the `bootstrap/slack` script; call its edge module.
+    from coga_edge.slack import main as slack_main
+
+    assert slack_main([
         "--task", ref2["slug"],
         "--message", "checked DNS resolver logs, no answer",
-    ])
-    assert r.exit_code == 0
+    ]) == 0
     log2 = "\n".join(task_log_lines(cfg, ref2["slug"]))
     assert "checked DNS resolver logs" in log2
 

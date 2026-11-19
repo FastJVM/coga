@@ -564,3 +564,155 @@ def test_emit_outside_main_still_writes_immediately(sentinel: Path) -> None:
         emit_done_marker("v1/b")
         assert not sentinel.exists()
     assert sentinel.read_text(encoding="utf-8").strip() == "v1/b"
+
+
+# --- stateless bootstrap completion (`mark done bootstrap/<name>`) -------------
+
+
+def _bootstrap_log_lines(repo: Path, ref: str) -> list[str]:
+    from coga.logfile import task_log_lines
+
+    return list(task_log_lines(load_config(repo), ref))
+
+
+def test_mark_done_bootstrap_signals_only_after_the_boundary(
+    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = "bootstrap/resolve-conflicts"
+    calls = _boundary_recorder(monkeypatch, sentinel)
+
+    assert _main(monkeypatch, "mark", "done", ref) == 0
+
+    assert calls == [("sweep", False, True), ("warn", False, True)]
+    assert sentinel.read_text(encoding="utf-8").strip() == ref
+    lines = _bootstrap_log_lines(repo, ref)
+    assert len(lines) == 1
+    assert "[agent:claude] done (stateless command)" in lines[0]
+
+
+def test_mark_done_bootstrap_publication_miss_keeps_line_without_signal(
+    repo: Path,
+    sentinel: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ref = "bootstrap/resolve-conflicts"
+    calls = _boundary_recorder(monkeypatch, sentinel)
+    monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: None)
+
+    assert _main(monkeypatch, "mark", "done", ref) == 75
+
+    assert not sentinel.exists()
+    assert not list(sentinel.parent.glob("sentinel.pending-*"))
+    # The sweep is withheld: the retained line is reported, not republished.
+    assert [stage for stage, _w, _p in calls] == ["warn"]
+    assert len(_bootstrap_log_lines(repo, ref)) == 1
+    err = capsys.readouterr().err
+    assert "completion not signalled" in err
+    assert "coga run publish-state" in err
+
+
+def test_mark_done_bootstrap_with_git_disabled_signals_after_local_append(
+    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = repo / "coga.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\n[git]\nenabled = false\n",
+        encoding="utf-8", newline="\n",
+    )
+    monkeypatch.setattr(
+        "coga.git.sync_log",
+        lambda *a, **k: pytest.fail("Git-disabled completion tried to publish"),
+    )
+
+    result = CliRunner().invoke(app, ["mark", "done", "bootstrap/resolve-conflicts"])
+
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text(encoding="utf-8").strip() == "bootstrap/resolve-conflicts"
+    assert len(_bootstrap_log_lines(repo, "bootstrap/resolve-conflicts")) == 1
+
+
+@pytest.mark.parametrize("agent_field", ["agent: null", 'agent: ""', "agent: removed"])
+def test_mark_done_bootstrap_invalid_agent_refuses_before_effects(
+    repo: Path, sentinel: Path, agent_field: str
+) -> None:
+    _write(
+        repo / "bootstrap" / "completion-check" / "ticket.md",
+        f"---\ntitle: Completion check\n{agent_field}\n---\n\nDone.\n",
+    )
+
+    result = CliRunner().invoke(app, ["mark", "done", "bootstrap/completion-check"])
+
+    assert result.exit_code == 2, result.output
+    assert "agent" in result.output
+    assert not sentinel.exists()
+    assert _bootstrap_log_lines(repo, "bootstrap/completion-check") == []
+
+
+def test_mark_done_bootstrap_credits_the_command_tickets_agent(
+    repo: Path, sentinel: Path
+) -> None:
+    config = repo / "coga.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
+    _write(
+        repo / "bootstrap" / "completion-check" / "ticket.md",
+        "---\ntitle: Completion check\nagent: codex\n---\n\nDone.\n",
+    )
+    before = (repo / "bootstrap" / "completion-check" / "ticket.md").read_bytes()
+
+    result = CliRunner().invoke(app, ["mark", "done", "bootstrap/completion-check"])
+
+    assert result.exit_code == 0, result.output
+    (line,) = _bootstrap_log_lines(repo, "bootstrap/completion-check")
+    assert "[agent:codex] done (stateless command)" in line
+    assert (repo / "bootstrap" / "completion-check" / "ticket.md").read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "extra", [["--message", "roll-up"], ["--message", ""], ["--force"]]
+)
+def test_mark_done_bootstrap_rejects_options_before_effects(
+    repo: Path, sentinel: Path, extra: list[str]
+) -> None:
+    result = CliRunner().invoke(
+        app, ["mark", "done", "bootstrap/resolve-conflicts", *extra]
+    )
+
+    assert result.exit_code == 2, result.output
+    assert not sentinel.exists()
+    assert _bootstrap_log_lines(repo, "bootstrap/resolve-conflicts") == []
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["mark", "active", "bootstrap/resolve-conflicts"],
+        ["mark", "paused", "bootstrap/resolve-conflicts"],
+        ["mark", "canceled", "bootstrap/resolve-conflicts", "--message", "stop"],
+        ["mark", "done", "bootstrap/no-such-command"],
+    ],
+)
+def test_other_mark_verbs_and_unknown_bootstrap_refuse(
+    repo: Path, sentinel: Path, argv: list[str]
+) -> None:
+    result = CliRunner().invoke(app, argv)
+
+    assert result.exit_code == 2, result.output
+    assert not sentinel.exists()
+    assert _bootstrap_log_lines(repo, argv[2]) == []
+
+
+def test_bootstrap_completion_is_scoped_to_its_own_command(
+    repo: Path, sentinel: Path
+) -> None:
+    _write(repo / "bootstrap" / "a" / "ticket.md", "---\ntitle: A\n---\n\nA.\n")
+
+    result = CliRunner().invoke(app, ["mark", "done", "bootstrap/a"])
+
+    assert result.exit_code == 0, result.output
+    assert _sentinel_signals_done(str(sentinel), "bootstrap/a")
+    assert not _sentinel_signals_done(str(sentinel), "bootstrap/b")

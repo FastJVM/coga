@@ -32,6 +32,10 @@ The repo separates implementation from the OS it operates:
   and [skill-update](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/skill-update/ticket.md)
   tickets own their contracts.
 
+- `src/coga_edge/slack.py`: the `coga slack` FYI behind the
+  `bootstrap/slack` shim; stateless completion is `commands/mark.py`
+  `_finish_stateless_command`.
+
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
   with no business logic are the target; `init.py` still carries substantial
   logic. Launch's command adapter calls shared `coga.launch`. `update.py` (init's

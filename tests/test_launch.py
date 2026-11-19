@@ -7059,7 +7059,8 @@ def test_queue_conduct_resources_require_durable_terminal_transitions() -> None:
     assert "coga block" in recurring
     assert "coga bump" in recurring
     assert "stateless `bootstrap/<name>` command ticket" in recurring
-    assert "coga slack --task bootstrap/<name>" in recurring
+    assert "coga mark done bootstrap/<name>" in recurring
+    assert "`coga slack` is only a non-terminal FYI" in recurring
     assert "does not release the queue" in recurring
 
 

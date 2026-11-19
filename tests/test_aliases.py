@@ -252,6 +252,42 @@ def test_default_retire_alias_keeps_its_options_for_the_script(
     ]
 
 
+def test_slack_is_default_alias_for_script_command_ticket() -> None:
+    """`slack` fronts the stateless FYI script ticket, past launch's options."""
+    assert _DEFAULT_ALIASES["slack"] == "launch bootstrap/slack --"
+    assert "slack" not in _BUILTIN_COMMANDS
+
+
+def test_default_slack_alias_dispatches_without_user_aliases_section(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An existing repo with no slack alias of its own keeps `coga slack`."""
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["coga", "slack", "--task", "fix-it", "--message", "hi", "--important"],
+    )
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+    main()
+    assert captured["argv"] == [
+        "coga", "launch", "bootstrap/slack", "--",
+        "--task", "fix-it", "--message", "hi", "--important",
+    ]
+
+
+def test_old_slack_alias_target_names_new_expansion() -> None:
+    with pytest.raises(ConfigError, match="launch bootstrap/slack --"):
+        _validate_aliases({"fyi": "slack --task x --message y"})
+
+
 def test_default_resolve_conflicts_alias_carries_optional_pr(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
