@@ -191,7 +191,8 @@ the spec against main.
 
 ## Blockers
 
-- [ ] [2026-11-16 22:20] [agent:claude] id=20261116T222004 Activation condition unmet: design needs v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245; 04b-04d also wait on it) and v1/microkernel/06-read-report-commands-as-ticket-workflows (PR #1240, stateless publication contract) merged to main first. Unblock once both merge, or tell me to design against the open PR heads instead.
+- [x] [2026-11-16 22:20] [agent:claude] id=20261116T222004 Activation condition unmet: design needs v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245; 04b-04d also wait on it) and v1/microkernel/06-read-report-commands-as-ticket-workflows (PR #1240, stateless publication contract) merged to main first. Unblock once both merge, or tell me to design against the open PR heads instead.
+  resolved: [2026-11-18 18:22] [human:nicktoper] PR #1245 (part 04) and PR #1240 (part 06 stateless publication contract) both merged to main. Owner chose to design both moves (branch-sweep and autofix-analyze replay) now against current main, accepting that the branch-sweep part may need rework once v1/why-is-the-code-so-big and 04b-04d land; implementation still waits on those.
 
 ## Coordination: branch-sweep simplification first (2026-11-17)
 
