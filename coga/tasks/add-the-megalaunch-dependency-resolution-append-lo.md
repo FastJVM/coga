@@ -235,3 +235,12 @@ checks:
 ## Blockers
 
 - [ ] [2026-11-18 21:07] [agent:codex] id=20261118T210707 Reconcile this inventory after v1/microkernel/move-slack-fyis-to-a-command-ticket (PR #1247) and v1/microkernel/08-residual-command-surfaces (PR #1248) land, or provide a reconciled stacked base for both. Recount append_log calls after incorporating their changes before opening this PR.
+
+- [ ] [2026-11-19 11:18] [agent:codex] id=20261119T111841 PRs #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) and #1248 (v1/microkernel/08-residual-command-surfaces) are both still open. Resume after both land, or provide the intended reconciled stacked base. Recount append_log call sites on that base before publishing.
+
+
+---
+
+## Blocker reminders
+
+- 075595a1991e last_reminded: 2026-11-19 09:03

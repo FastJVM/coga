@@ -13,7 +13,7 @@ a self-contained script other skills shell to.
 ## Invocation
 
 ```
-python <coga>/skills/coga/google-calendar/gcal.py get \
+python /resolved/coga/google-calendar/gcal.py get \
     --calendar-id <id> --event-id <id>
 python .../gcal.py create --calendar-id <id> --body '<json event resource>'
 python .../gcal.py update --calendar-id <id> --event-id <id> --body '<json>'
@@ -32,8 +32,13 @@ Exit codes are the contract:
 | 1 | config / auth / API error (message on stderr) |
 | 3 | event not found (caller can distinguish "gone" from "broken") |
 
-Locate the helper via `COGA_COGA_OS_ROOT` (set during launched work)
-so it resolves regardless of the consuming repo.
+`/resolved/coga/google-calendar/` stands for this skill's resolved
+directory: the repo's local `coga/skills/coga/google-calendar/` override
+if one exists, else the installed bundled skill (resolution as in
+`coga/checkouts/sandbox-clone`, "What a fresh checkout lacks"). Bundled
+skills are not copied into the repo, so
+`$COGA_COGA_OS_ROOT/skills/coga/google-calendar/` exists only for a local
+override.
 
 ## Auth — service account
 
@@ -71,7 +76,7 @@ this skill surfaces with a "share the calendar with the SA's email" hint.
 
 Setup once:
 1. Create a service account + JSON key in Google Cloud, enable the Calendar API.
-2. Share the target calendar (e.g. a dedicated "FastJVM Patent" calendar) with
+2. Share the target calendar (e.g. a dedicated reminders calendar) with
    the service account's email, granting "Make changes to events".
 3. Store the key as above and declare it in the consuming ticket's `secrets:`.
 
@@ -82,8 +87,8 @@ as a separate ticket.)
 
 `requirements.txt` declares `google-api-python-client` and `google-auth`.
 Coga installs nothing for a skill — run `python -m pip install -r
-requirements.txt` from this skill's dir, using the same Python that runs
-`gcal.py`.
+requirements.txt` from this skill's resolved dir, using the same Python
+that runs `gcal.py`.
 
 ## Out of scope
 

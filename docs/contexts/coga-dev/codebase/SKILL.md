@@ -18,6 +18,8 @@ The repo separates implementation from the OS it operates:
 
 - `src/coga_edge/phone_home.py`: the default telemetry implementation behind
   the repo shim; [phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md) owns its contract.
+- `src/coga_edge/blackboard_size.py`: the weekly oversized-blackboard report
+  behind the `blackboard-size` shim; its [template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blackboard-size/ticket.md) owns the contract.
 
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
   with no business logic are the target; `init.py` still carries substantial
@@ -57,7 +59,9 @@ The repo separates implementation from the OS it operates:
   shares CLI/prompt/secret/command readiness with megalaunch, and explicit
   read-only invocation reuses `launch_script.run_script_phase`),
   `checkout_policy.py` (pure entry-checkout selection: the frozen step's
-  `checkout:`, else the legacy table for older snapshots) and
+  `checkout:`, else the legacy table for older snapshots; the draft
+  `v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac`
+  owns that table's retirement under the `coga/checkouts` rule) and
   `checkouts.py` (shared branch preparation for launch and the
   `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
@@ -71,7 +75,8 @@ The repo separates implementation from the OS it operates:
   state-only carriers (`parent_state_path`, `ensure_parent_state`), so
   definition lookup and repo-local state writes stay separate. Definition
   resolution for other refs (`resolve_skill_path`, `local_definition_entry`)
-  is in `paths.py`.
+  is in `paths.py`. Task-to-template promotion lives in the packaged
+  `bootstrap/recurring-promote` command ticket.
 - `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
   disposal order), `retire_worklist.py` (`retires.md`).
 - `dependencies.py` (supporting-tool install manifest, supported agent CLI

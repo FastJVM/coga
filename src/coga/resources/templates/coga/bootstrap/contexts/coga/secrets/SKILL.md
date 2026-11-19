@@ -29,8 +29,20 @@ variable. Messages name the Coga secret and reference, never the value.
 
 A human-facing query: resolve one `op://…` or `env:VAR` ref through the same
 launch path and print the value to stdout, never logged or posted. It needs
-no `user`. A raw literal, unset variable, or `op` failure exits 2 without
-printing a value. Agents do not call it.
+no `user`, configured agent, or terminal, but requires a discoverable repo
+with valid config. It remains a built-in: resolution runs in the CLI parent,
+so `op read` inherits the operator's service-account, Connect or session auth.
+A task child receives the scrubbed environment described below; a read-only
+script would not preserve that authentication. This query has no repo-local
+bootstrap override.
+
+A raw literal, unset variable, missing `op`, or failed `op read` exits 2
+without printing a value to stdout. Argument failures also exit 2 on stderr.
+Bare `coga secret` prints usage on stdout and exits 2; explicit `--help`
+prints help on stdout and exits 0. Success prints only the resolved value
+and the usual trailing newline. The query never publishes existing dirty
+state, composes a prompt, writes usage or audit, or sends notifications.
+Agents do not call it.
 
 ## Vault policy: one service account, one automation vault
 
@@ -64,10 +76,12 @@ launched task. Launch resolves the declared refs in the parent, then builds
 the child environment from the parent's minus every 1Password CLI auth
 variable (`OP_SERVICE_ACCOUNT_TOKEN`, `OP_CONNECT_TOKEN`, `OP_CONNECT_HOST`,
 `OP_SESSION_*`) and each named `env:VAR` source, then adds each resolved value
-under its declared name. The same scrub covers the `coga ticket` interviewer
-and the recurring autofix analysis call. Coga's own child processes are not
-tasks and keep it: `coga recurring` runs its inner scan unscrubbed, so the
-launches it makes can still resolve `op://` refs.
+under its declared name. The same scrub covers the `coga ticket` interviewer,
+the recurring autofix analysis call, and a `scope: clone` recurring template's
+`ticket.py`, which gets its template's `secrets` this way. Coga's own child
+processes are not tasks and keep it: `coga recurring` runs its inner scan
+unscrubbed, so the launches it makes can still resolve `op://` refs. The clone
+scripts that scan runs are scrubbed children, not part of the scan.
 
 - A launched agent cannot `op read` through an inherited token, whatever its
   ticket declared. A launch started from inside a task, of a ticket that

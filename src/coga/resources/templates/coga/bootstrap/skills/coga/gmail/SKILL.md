@@ -17,7 +17,7 @@ document (e.g. forwarding patent docs to counsel) needs this.
 ## Commands
 
 ```sh
-python <coga>/skills/coga/gmail/gmail.py search \
+python /resolved/coga/gmail/gmail.py search \
     --query 'from:uspto.gov has:attachment newer_than:12m' --max 50
 python .../gmail.py get --message-id <id>
 python .../gmail.py download --message-id <id> --attachment-id <id> --out /path/file.pdf
@@ -32,6 +32,11 @@ python .../gmail.py authorize --client-secret /path/to/client_secret.json
 
 Exit codes are the contract: `0` ok · `1` config/auth/API error (stderr) · `3`
 message/attachment not found.
+
+`/resolved/coga/gmail/` stands for this skill's resolved directory: the repo's
+local `coga/skills/coga/gmail/` override if one exists, else the installed
+bundled skill (resolution as in `coga/checkouts/sandbox-clone`, "What a fresh
+checkout lacks"). Bundled skills are not copied into the repo.
 
 ## Auth — OAuth user credentials
 
@@ -70,5 +75,5 @@ corresponding environment names above, then remove the retired table from
 
 `google-api-python-client`, `google-auth`, `google-auth-oauthlib` (in
 `requirements.txt`). Coga installs nothing for a skill — run
-`python -m pip install -r requirements.txt` from this skill's dir, using the
-same Python that runs `gmail.py`.
+`python -m pip install -r requirements.txt` from this skill's resolved dir,
+using the same Python that runs `gmail.py`.

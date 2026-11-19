@@ -42,7 +42,7 @@ from coga.validate import _check_recurring_templates
 
 NOW = datetime(2026, 4, 22, 10, 0, 0)
 BUNDLED = (
-    "address-pr-comments", "autoclose-merged", "blocker-reminders", "branch-sweep",
+    "address-pr-comments", "autoclose-merged", "blackboard-size", "blocker-reminders", "branch-sweep",
     "dream", "phone-home", "resolve-conflicts", "skill-update", "trim-log",
 )
 

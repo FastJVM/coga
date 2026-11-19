@@ -19,7 +19,7 @@ run.
 - Purpose: detect already-processed done tickets that are eligible for
   delete-only cleanup.
 - Runs: `coga run cleanup-orphan-markers` from the active Dream task.
-- Inputs: task directories under `coga/tasks/`, the source task's
+- Inputs: top-level task directories directly under `coga/tasks/`, the source task's
   `## Retro` marker in its `ticket.md` blackboard region, GitHub open PR
   metadata when available, and the public delete surface
   `bootstrap/delete-task` (`coga run delete-task`).
@@ -44,9 +44,15 @@ A task is a cleanup candidate only when all of these are true:
 - the `ticket.md` blackboard region of `coga/tasks/<slug>/` has a `## Retro` block containing both
   `skill: retro/done-ticket` and `status: processed`;
 - that Retro block does not contain `result: no-new-durable-knowledge`;
-- `<slug>` is the exact task directory name, not a prefix match;
+- `<slug>` is the exact task directory name, not a prefix match, and that
+  directory sits directly under `coga/tasks/`;
 - no open PR is already touching `coga/tasks/<slug>/`;
 - the public delete surface `bootstrap/delete-task` is available.
+
+The scan reads only the direct children of `coga/tasks/`. A done ticket in a
+grouped directory (a nested slug such as `recurring/<name>` or
+`v1/<group>/<ticket>`) is never examined, so a `no-op` report says nothing
+about orphaned markers under grouped slugs.
 
 `bootstrap/delete-task` now ships, but until cleanup's PR-dispatch wiring
 follows that contract, this skill reports eligible candidates as

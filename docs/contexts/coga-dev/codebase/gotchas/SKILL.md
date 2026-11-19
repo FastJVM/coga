@@ -81,6 +81,23 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
 
 ## Code-level hazards
 
+- **Patch a name where it is used.** `commands/init.py` imports `AGENT_CLIS`
+  and `packaged_template_root` by name, so monkeypatching
+  `coga.dependencies.AGENT_CLIS` or `coga.commands.update.packaged_template_root`
+  does not reach init: patch `coga.commands.init.AGENT_CLIS` /
+  `init_cmd.packaged_template_root`. `tests/test_init.py`'s `fake_vendor`
+  patches only `update_cmd`, so `_do_init` still copies the real packaged
+  template; tests comparing against the packaged `coga.toml` use
+  `_PACKAGED_COGA_TOML`.
+- **`coga validate` does not check bootstrap tickets' pinned `agent:`.** Its
+  `unknown-agent` / `missing-main-agent` check (`validate._check_main_agent`)
+  runs only on refs from `list_tasks(cfg)`, which walks `coga/tasks/`, so a
+  `bootstrap/ticket` or `bootstrap/orient` whose `agent: claude` names an
+  undeclared type (a Codex-only repo) validates clean and fails only when
+  `coga ticket` or `coga chat` resolves the operator. A delivered onboarding
+  ticket such as `coga-build` lives under `tasks/` and is checked. Separately,
+  validate's success line prints `All good (1 tasks checked).` with no
+  singular form (`validate.py`, cosmetic, no ticket).
 - **Calling a Typer command from Python passes `OptionInfo` sentinels** for
   every omitted option, not defaults (this crashed `repl_supervisor`'s timeout
   comparison once). Pass every parameter, or better call a non-Typer helper.
@@ -161,3 +178,35 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   run off the control branch can still meet the dirty-tracked-files preflight
   refusal. Both were left out of scope by v1/10 (PR #1168, 2026-11-04); no
   follow-up ticket is filed.
+- **Route every Git subprocess through `git._git_env`.** Prefer
+  `git._run`/`git.run_git`. A module that must call `subprocess` directly for
+  a Git argv passes `env=git._git_env(...)`, including callers that also run
+  `gh` (`open_pr._run`, `skill_manager.run_subprocess`); pass any overlay
+  through it, as `branchcleanup._git` does with `{"LC_ALL": "C"}`. `_git_env`
+  forces `GIT_OPTIONAL_LOCKS=0` after overlays. Without it a read such as
+  `git status` refreshes the real index under `<git-dir>/index.lock`, and a
+  SIGKILL during supervisor teardown leaves a 0-byte lock: every later Git
+  write in that checkout fails with only `fatal: stash failed`. Deliberately
+  left alone: `recurring_activity`, `retire_worklist`, `github_preflight`,
+  `commands/update` and `config` (ref-only or `ls-files`/`check-ignore`
+  queries, no optional index lock), and `dream_validate_drift` and
+  `commands/init` (deliberate index writes outside session-ending
+  publication). Re-audit that list when you add a direct caller.
+- **The deferred done marker has known limits.** `completion_pending` treats
+  any pending file whose PID `oscompat.process_is_running` reports alive as
+  live, so on POSIX a SIGKILLed Coga command left as an unreaped zombie holds
+  off the terminal-status backstop until it is reaped (the idle and
+  max-session backstops still apply). The deferral only removes Coga's own
+  teardown race: an external kill (idle or max-session timeout, or Ctrl-C
+  escalated to SIGKILL) during a control checkout's deliberate real-index
+  writes (`_stage_landed`, `read-tree -m -u`) can still leave `index.lock`.
+  Coga never deletes the lock; `coga status` only reports it.
+- **Blocker ids are not unique.** `blackboard._blocker_id` formats only whole
+  seconds (`%Y%m%dT%H%M%S`), so two asks appended in the same second (for
+  example back-to-back `coga block` calls) share an `id=`. Never key
+  resolution, deduplication or lookup on `Blocker.id` alone:
+  `resolve_blockers_text` takes `dict[Blocker, str]` and matches whole frozen
+  `Blocker` records, and `blocker_reminders` fingerprints id, stamp, actor and
+  reason together. ID generation is unchanged and no follow-up ticket exists;
+  a consumer that must address blockers by id first has to make ids unique
+  (for example with a sub-second or counter suffix).

@@ -17,9 +17,9 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | Command | Owner |
 | --- | --- |
 | `init` | [coga/init](../init/SKILL.md) (install first: [Get started](https://github.com/FastJVM/coga/blob/main/README.md#get-started)) |
-| `uninstall` | [coga/uninstall](../uninstall/SKILL.md) |
+| `uninstall` (built-in recovery) | [coga/uninstall](../uninstall/SKILL.md) |
 | `build` → `launch coga-build` | [coga/init](../init/SKILL.md) |
-| `secret get` | [coga/secrets](../secrets/SKILL.md) |
+| `secret get` (built-in parent query) | [coga/secrets](../secrets/SKILL.md) |
 | `validate` | [coga/first-task](../first-task/SKILL.md) |
 | `--version` | The installed package version (`unknown` without package metadata); one CLI serves every repo, so there is no per-repo version |
 
@@ -33,6 +33,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `owner` | [coga/tickets](../tickets/SKILL.md#owner-and-relationships) |
 | `mark`, `bump`, `block`, `unblock` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete` | [coga/checkout-cleanup](../checkout-cleanup/SKILL.md) |
+| `promote-recurring` → `launch bootstrap/recurring-promote --` | packaged `bootstrap/recurring-promote/ticket.md` |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
 | `open-pr` → `run open-pr` | [coga/pr-publication](../pr-publication/SKILL.md) |
 | `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [coga/checkouts](../checkouts/SKILL.md) |
@@ -44,7 +45,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `launch` | [coga/launch](../launch/SKILL.md); script phase: [coga/script-tickets](../script-tickets/SKILL.md) |
 | `chat` → `launch bootstrap/orient` | [coga/launch](../launch/SKILL.md) |
 | `megalaunch`, `pick` → `megalaunch --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
-| `recurring` (`--force`, `--all`, `launch`, `promote`) | [coga/recurring](../recurring/SKILL.md) and its children |
+| `recurring` (`--force`, `--all`, `launch`) | [coga/recurring](../recurring/SKILL.md) and its children |
 | `recurring list` → `launch --read-only bootstrap/recurring-list --` (fixed adapter) | [report ticket](../../../recurring-list/ticket.md) |
 | `dream` → `recurring launch dream` | [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) |
 | `autoclose` → `recurring launch autoclose-merged --rerun` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |

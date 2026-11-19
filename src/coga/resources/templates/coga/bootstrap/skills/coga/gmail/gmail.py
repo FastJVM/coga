@@ -6,7 +6,7 @@ parsed message, and **download attachment bytes** — without a per-host binary.
 Other skills shell to this script (the Gmail analogue of shelling to `gcal.py`
 or `coga slack`):
 
-    python <coga>/skills/coga/gmail/gmail.py search \
+    python /resolved/coga/gmail/gmail.py search \
         --query 'from:uspto.gov has:attachment newer_than:12m' --max 50
     python .../gmail.py get --message-id <id>
     python .../gmail.py download --message-id <id> --attachment-id <id> \
