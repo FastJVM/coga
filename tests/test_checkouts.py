@@ -698,10 +698,10 @@ def test_extra_state_publications_are_counted_outside_the_ordinary_bound(
     def work(seen: dict) -> None:
         _handoff(git_repo, ref, "First handoff edit.")
         if extra == "command":
-            # A separate real mutating command sweeps the early blackboard.
+            # A separate real worker publishes the early blackboard on exit.
             env = {k: v for k, v in os.environ.items() if not k.startswith("COGA_")}
             env["PYTHONPATH"] = str(Path(checkouts.__file__).resolve().parents[1])
-            result = subprocess.run([sys.executable, "-m", "coga.cli", "run", "cleanup-orphan-markers"], cwd=git_repo.coga_os, env=env, capture_output=True, text=True, encoding="utf-8")
+            result = subprocess.run([sys.executable, "-m", "coga_edge.cleanup_orphan_markers"], cwd=git_repo.coga_os, env=env, capture_output=True, text=True, encoding="utf-8")
             assert result.returncode == 0, result.stdout + result.stderr
         _handoff(git_repo, ref, "Final handoff edit.")
         _bump(git_repo, ref.id_slug, subprocess_run=True)

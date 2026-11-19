@@ -53,8 +53,8 @@ warns when `user` is unset. Network probes are opt-in:
 `--task`.
 
 Validation remains a core command. Its CLI and `python -m coga.validate`
-entry share execution and JSON/text rendering; `validate-drift` consumes the
-module entry. Both need no configured user and never publish, including
+entry share execution and JSON/text rendering; Dream's
+`coga_edge.validate_drift` worker consumes the module entry. Both need no configured user and never publish, including
 `--fix`, which only applies conservative local blackboard-fence repairs under
 a state lock and refuses concurrent changes.
 

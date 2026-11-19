@@ -18,11 +18,12 @@ rg --files --hidden --no-ignore -g '*.py' coga/recurring coga/tasks | LC_ALL=C s
 
 For a release removing recipe targets, also inventory their exact callers in
 Python shims and markdown, including Dream Phase 1/5 in templates and all
-outstanding/parked period bodies. Search names even when callers are customized:
+outstanding/parked period bodies. Search names even when callers are customized.
+The removed names so far are `validate-drift` and `cleanup-orphan-markers`:
 
 <!-- migration:callers -->
 ```sh
-rg -n --hidden --no-ignore -g '*.md' -g '*.py' 'coga run (validate-drift|cleanup-orphan-markers|delete-task)' coga/recurring coga/tasks
+rg -n --hidden --no-ignore -g '*.md' -g '*.py' 'coga run (validate-drift|cleanup-orphan-markers)' coga/recurring coga/tasks
 ```
 
 2. Quiesce affected launches and sweeps in **all participating checkouts**.
@@ -149,15 +150,116 @@ git diff -- "$CANDIDATE"
 Retain any previous customized source in Git before replacement. Restore the
 stock shim to rejoin upstream implementation updates.
 
-### Instruction reconciliation for the later recipe-removal release
+### Dream Phase 1/5 reconciliation (recipe removal)
 
-`_v2/gigantic-refactor-move-recurring-recipes-out-of-co` must use this same adoption
-policy for old shims **and** old Dream Phase 1/5 instructions before deleting
-registry targets. That release supplies reviewed old/new passages from its
-artifacts; use `OLD_PASSAGE` and `NEW_PASSAGE` text files for each exact passage,
-and `CANDIDATE` for each selected template or period markdown. After reviewing
-the diff, this bounded edit preserves all bytes outside that passage and fails
-on missing or ambiguous matches:
+The release that moved Dream's workers to `coga_edge` removed the
+`validate-drift` and `cleanup-orphan-markers` recipe names; `coga run` now
+refuses both with exit 2. Dream bodies written before it still name them: a
+local Dream override's `ticket.md`, outstanding and parked Dream periods, and
+customized copies. A stale passage fails its phase loudly; it never runs other
+code. Reconcile each selected markdown file after installing the new wheel and
+before resuming Dream. Write each passage below to a text file, without its
+fence lines and without a trailing newline, and set `OLD_PASSAGE` to the old
+passage and `NEW_PASSAGE` to the replacement.
+
+Phase 1, as shipped before the move:
+
+<!-- migration:dream-phase-1-old -->
+```text
+Read `bootstrap/dream/tasks/validate-drift`, then run
+`coga run validate-drift`. The recipe runs the same deterministic surface as
+`coga validate --json`, classifies every issue, and appends
+`## Dream Skill: validate-drift` to this task's blackboard.
+```
+
+Phase 1 for a package-backed Dream (the shipped body):
+
+<!-- migration:dream-phase-1-new -->
+```text
+Read `bootstrap/dream/tasks/validate-drift`, then run
+`python -m coga_edge.validate_drift`. The worker runs the same deterministic
+surface as `coga validate --json`, classifies every issue, and appends
+`## Dream Skill: validate-drift` to this task's blackboard.
+```
+
+Phase 1 for a full local Dream fork that runs its own copy:
+
+<!-- migration:dream-phase-1-fork -->
+```text
+Read `bootstrap/dream/tasks/validate-drift`, then run
+`python "$COGA_COGA_OS_ROOT/recurring/dream/validate_drift.py"`. The worker
+runs the same deterministic surface as `coga validate --json`, classifies
+every issue, and appends `## Dream Skill: validate-drift` to this task's
+blackboard.
+```
+
+Phase 5, as shipped before the move:
+
+<!-- migration:dream-phase-5-old -->
+```text
+Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
+`coga run cleanup-orphan-markers`. The recipe detects cleanup candidates and
+gates deletion through `bootstrap/delete-task` (`coga run delete-task`). That
+delete surface ships, but until its cleanup PR-dispatch wiring is finished the
+recipe reports `human-needed` and deletes nothing.
+```
+
+Phase 5 for a package-backed Dream (the shipped body):
+
+<!-- migration:dream-phase-5-new -->
+```text
+Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
+`python -m coga_edge.cleanup_orphan_markers`. The worker detects cleanup
+candidates and gates deletion through `bootstrap/delete-task`
+(`coga run delete-task`). That delete surface ships, but until its cleanup
+PR-dispatch wiring is finished the worker reports `human-needed` and deletes
+nothing.
+```
+
+Phase 5 for a full local Dream fork that runs its own copy:
+
+<!-- migration:dream-phase-5-fork -->
+```text
+Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
+`python "$COGA_COGA_OS_ROOT/recurring/dream/cleanup_orphan_markers.py"`. The
+worker detects cleanup candidates and gates deletion through
+`bootstrap/delete-task` (`coga run delete-task`). That delete surface ships,
+but until its cleanup PR-dispatch wiring is finished the worker reports
+`human-needed` and deletes nothing.
+```
+
+Choose the fork passages only for a full local Dream override (its own
+`coga/recurring/dream/ticket.md` definition, not a state-only carrier) that
+should keep running a reviewed copy instead of following wheel updates, and
+for that override's periods. The fork path assumes the default
+`coga/recurring/` layout; adjust it to the configured recurring root. Copy the
+installed workers beside the override's ticket first, with `DREAM_DIR` set to
+that directory. The copy refuses to overwrite an existing file:
+
+<!-- migration:dream-fork-copy -->
+```sh
+"$COGA_PY" - <<'PY'
+import os
+import shutil
+from pathlib import Path
+import coga_edge.cleanup_orphan_markers
+import coga_edge.validate_drift
+destination = Path(os.environ["DREAM_DIR"])
+for module in (coga_edge.validate_drift, coga_edge.cleanup_orphan_markers):
+    target = destination / Path(module.__file__).name
+    assert not target.exists(), f"review existing {target}"
+    shutil.copyfile(module.__file__, target)
+    print(target)
+PY
+```
+
+Recurring creation copies only `ticket.py`, so the fork's periods run the
+copies beside the override's ticket. A copied worker imports nothing from
+`coga_edge` and stops receiving wheel fixes; restoring the
+package-backed passages rejoins them.
+
+After reviewing the diff, this bounded edit preserves all bytes outside the
+selected passage and fails on missing or ambiguous matches:
 
 <!-- migration:reconcile -->
 ```sh
@@ -173,20 +275,22 @@ path.write_bytes(raw.replace(old, new, 1))
 PY
 ```
 
-Export these variables for the Python command. Customized callers of removed
-symbols require reconciliation; preserving their bytes does not ensure they
-will run. Inventory again and review each remaining caller before removing its
-target. Record tester adoption before upgrading them to a contracting wheel;
-do not ship recipe removal as an unattended wheel-only upgrade. This release
-only tests representative instruction reconciliation in fixtures: it removes
-no recipes, edits no shipped Dream passages, and implements no Dream workers.
+Export these variables for the Python command. A refusal means a customized,
+missing or ambiguous passage: port that copy by hand to one of the new
+commands, keeping its other text. Preserving its bytes does not ensure it will
+run. Inventory callers again and review each remaining one; the command
+finding none (exit 1) is the expected result. Frontmatter, frozen workflows,
+`period_generation` and blackboards stay untouched. Record tester adoption
+before upgrading them to a contracting wheel; do not ship recipe removal as an
+unattended wheel-only upgrade.
 
 5. Review `git diff --check` and the precise file diff; merge through normal
    repo practice. In a scratch copy, verify with CI/pytest suppression and fake
    transport, never production phone-home merely to inspect code. The automated
    receipts are `tests/test_edge_distribution.py`: commands above are executed
-   against stock/edited/parked legacy copies and representative Dream passages,
-   with state and unrelated text checked byte-for-byte.
+   against stock/edited/parked legacy copies and the shipped Dream passages,
+   whose reconciled commands then run against the installed wheel and a full
+   local fork, with state and unrelated text checked byte-for-byte.
 
 Ensure every executing checkout and interpreter has the corresponding reviewed
 repo/wheel pair before resuming sweeps. For rollback, stop affected sessions

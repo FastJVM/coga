@@ -1,4 +1,9 @@
-"""Importable validate-drift recipe for Dream."""
+"""Dream's validate-drift worker: classify validator drift and report it.
+
+Dream's Phase 1 runs it as ``python -m coga_edge.validate_drift``; a full
+local Dream fork may instead run a copy of this file beside its ticket. It
+imports only the standard library and shared ``coga`` infrastructure.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +21,7 @@ from typing import Any
 from coga.blackboard import append_blackboard_report
 from coga.config import Config, ConfigError, find_repo_root, load_config
 from coga.notification import post
+from coga.runner import run_entry
 from coga.task_env import blackboard_from_env, cwd_option_root, discover_coga_os_root
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 
@@ -616,10 +622,6 @@ def render_blackboard_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def append_report(cfg: Config, blackboard: Path, report: str) -> None:
-    append_blackboard_report(cfg, blackboard, report)
-
-
 def build_slack_summary(
     fixes: list[ValidationFix],
     classified: list[ClassifiedIssue],
@@ -828,7 +830,7 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
             git_result=git_result,
         )
         if blackboard:
-            append_report(cfg, blackboard, report)
+            append_blackboard_report(cfg, blackboard, report)
         else:
             sys.stdout.write(report)
         if args.post_slack:
@@ -849,3 +851,14 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
         return 2
 
     return 0
+
+
+def main() -> int:
+    # Dream invokes this worker; it never advances the Dream task.
+    return run_entry(
+        "validate-drift", run_validate_drift_recipe, sys.argv[1:], root=target_root,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

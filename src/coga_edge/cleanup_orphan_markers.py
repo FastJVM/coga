@@ -1,4 +1,10 @@
-"""Importable cleanup-orphan-markers recipe for Dream."""
+"""Dream's cleanup-orphan-markers worker: report processed done tickets left behind.
+
+Dream's Phase 5 runs it as ``python -m coga_edge.cleanup_orphan_markers``; a
+full local Dream fork may instead run a copy of this file beside its ticket.
+It is report-only and imports only the standard library, PyYAML and shared
+``coga`` infrastructure.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +23,7 @@ import yaml
 
 from coga.blackboard import append_blackboard_report
 from coga.config import Config
+from coga.runner import run_entry
 from coga.task_env import blackboard_from_env
 
 
@@ -306,10 +313,6 @@ def render_report(
     return "\n".join(lines) + "\n"
 
 
-def append_report(cfg: Config, blackboard: Path, report: str) -> None:
-    append_blackboard_report(cfg, blackboard, report)
-
-
 def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
     if argv:
         sys.stderr.write(
@@ -335,10 +338,24 @@ def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
         # blackboard from another checkout falls back to stdout.
         blackboard = blackboard_from_env(coga_os)
         if blackboard:
-            append_report(cfg, blackboard, report)
+            append_blackboard_report(cfg, blackboard, report)
         else:
             sys.stdout.write(report)
     except RuntimeError as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
     return 0
+
+
+def main() -> int:
+    # Dream invokes this worker; it never advances the Dream task.
+    return run_entry(
+        "cleanup-orphan-markers",
+        run_cleanup_orphan_markers_recipe,
+        sys.argv[1:],
+        root=target_root,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

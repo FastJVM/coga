@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
-from typer.testing import CliRunner
 
-from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
 from coga.taskfile import read_blackboard
@@ -90,23 +90,32 @@ def _write_workflow(coga_os: Path, name: str, skill: str) -> None:
     )
 
 
-def _run_recipe_in_task(
+def _run_worker_in_task(
     repo: Path,
-    recipe: str,
+    worker: str,
     monkeypatch: pytest.MonkeyPatch,
-):
+) -> subprocess.CompletedProcess[str]:
+    """Run a Dream edge worker the way Dream's phase text does, from the task."""
     cfg = load_config(repo)
-    ref = next(ref for ref in list_tasks(cfg) if ref.slug == recipe)
+    ref = next(ref for ref in list_tasks(cfg) if ref.slug == worker)
     monkeypatch.setenv("COGA_TASK_SLUG", ref.id_slug)
     monkeypatch.setenv("COGA_TASK_DIR", str(ref.path.resolve()))
     monkeypatch.setenv("COGA_TASK_TICKET", str(ref.ticket_path.resolve()))
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(ref.ticket_path.resolve()))
     monkeypatch.setenv("COGA_COGA_OS_ROOT", str(repo.resolve()))
     monkeypatch.setenv("COGA_REPO_ROOT", str(repo.parent.resolve()))
-    return CliRunner().invoke(app, ["run", recipe])
+    module = "coga_edge." + worker.replace("-", "_")
+    return subprocess.run(
+        [sys.executable, "-m", module],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
 
 
-def test_validate_drift_runs_as_registered_recipe(
+def test_validate_drift_runs_as_edge_worker(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_dream_skill(repo, "validate-drift")
@@ -122,17 +131,17 @@ def test_validate_drift_runs_as_registered_recipe(
         status="active",
     )
 
-    result = _run_recipe_in_task(repo, "validate-drift", monkeypatch)
+    result = _run_worker_in_task(repo, "validate-drift", monkeypatch)
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     ref = list_tasks(cfg)[0]
-    # The recipe inherits the parent task's single-file blackboard path.
+    # The worker inherits the parent task's single-file blackboard path.
     blackboard = read_blackboard(ref.ticket_path)
     assert "## Dream Skill: validate-drift" in blackboard
     assert "Task: `validate-drift`" in blackboard
 
 
-def test_cleanup_orphan_markers_runs_as_recipe_and_gates_delete(
+def test_cleanup_orphan_markers_runs_as_edge_worker_and_gates_delete(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_dream_skill(repo, "cleanup-orphan-markers")
@@ -182,11 +191,11 @@ def test_cleanup_orphan_markers_runs_as_recipe_and_gates_delete(
         status="active",
     )
 
-    result = _run_recipe_in_task(
+    result = _run_worker_in_task(
         repo, "cleanup-orphan-markers", monkeypatch
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
     blackboard = read_blackboard(refs["cleanup-orphan-markers"].ticket_path)
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
@@ -241,11 +250,11 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(
         status="active",
     )
 
-    result = _run_recipe_in_task(
+    result = _run_worker_in_task(
         repo, "cleanup-orphan-markers", monkeypatch
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
     blackboard = read_blackboard(refs["cleanup-orphan-markers"].ticket_path)
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
@@ -302,11 +311,11 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(
         status="active",
     )
 
-    result = _run_recipe_in_task(
+    result = _run_worker_in_task(
         repo, "cleanup-orphan-markers", monkeypatch
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
     blackboard = read_blackboard(refs["cleanup-orphan-markers"].ticket_path)
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
