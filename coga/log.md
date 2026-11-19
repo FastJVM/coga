@@ -4277,3 +4277,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 17:30 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 17:30 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [megalaunch] launched via coga megalaunch
 2026-11-18 17:31 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [human:nicktoper] unblocked (asks resolved, still in_progress): Prerequisite resolved: PR #1245 (v1/microkernel/04) merged to main as 133bb5fee on 2026-11-18. Start 04d from current main, using 04's shared report->publish->bump entry sequence and run_reported root-resolver support.
+2026-11-18 17:55 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [agent:claude] advanced to step 2 (peer-review) → codex

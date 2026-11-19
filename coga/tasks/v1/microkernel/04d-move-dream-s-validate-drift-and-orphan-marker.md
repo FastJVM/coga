@@ -30,9 +30,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: fd1a07ab-da36-46d9-bca4-704c826ffd15
 ---
 
 ## Description
@@ -212,7 +211,94 @@ author, head/base OIDs, review depth, files, review, checks). Record only actual
 implementation and evidence, never placeholders; coga/pr-publication/
 preparation owns the fields and the publishing workflow the review rules.
 
-Optional ## Blockers and ## Blocker reminders are CLI-maintained. Preserve
+Optional ## PR
+
+```yaml
+title: Move Dream's validate-drift and orphan-marker workers to the edge
+author: claude
+author_evidence: >-
+  Attended megalaunch implement session run by Claude Opus 5.5; see the
+  implement handoff above.
+head: dd074a6bcfb5b6da3f81b205aad697531a086b47
+base: a2536cbbdd5e28bfed634af2b7f8b96bd8c7fab2
+depth: deep
+rationale: >-
+  Removes two coga run recipe names (a user-visible exit-2 change for frozen
+  Dream bodies) and ships a migration runbook; read the runbook passages, the
+  Dream phase text and the edge-distribution fixtures closely.
+implementation: >-
+  Moves Dream's two workers into coga_edge with main() over runner.run_entry
+  (report then publish, never bump) and their own target_root resolvers;
+  deletes both private append_report copies and the RECIPES/RECIPE_ROOTS
+  entries; rewrites Dream Phase 1/5, both skills and owner docs; ships old,
+  new and fork passages plus a fork copy command in the upgrade runbook.
+deviations: >-
+  The orphan worker keeps its PyYAML import (Coga's own runtime dependency)
+  to preserve load_status behavior, so its import rule is stdlib, PyYAML and
+  coga, not strictly stdlib and coga. The "older recipe" wording in Dream's
+  Phase 6 blackboard rule is kept as historical.
+limitations: >-
+  Rollout on this repo is not performed (plan on the blackboard). Native
+  Windows/macOS receipts are release-only and deferred. The Dream agent must
+  use the interpreter that runs coga; nothing resolves it automatically.
+files:
+  AGENTS.md: Edge implementations may also be selected by packaged instructions (Dream).
+  docs/contexts/coga-dev/codebase/SKILL.md: Source map entry for the two Dream edge workers.
+  docs/contexts/coga-dev/internals/notifications/SKILL.md: Live producer path renamed to coga_edge/validate_drift.py.
+  docs/contexts/coga-dev/microkernel/SKILL.md: append_report example, validation paragraph and edge invariant updated.
+  src/coga/resources/__init__.py: Docstring names the moved module.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Recipe index drops the two removed names.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Dream workers as forkable edge attachments.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md: Concrete old/new/fork Dream passages, fork copy command, callers regex.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Validation module entry consumer renamed.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/cleanup-orphan-markers/SKILL.md: Runs line points at the edge module.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/validate-drift/SKILL.md: Runs/How to Run point at the edge module.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Phase 1/5 invoke python -m coga_edge workers.
+  src/coga/runner.py: Removes the two RECIPES and RECIPE_ROOTS entries and their imports.
+  src/coga/validate.py: Docstring no longer names the removed recipe.
+  src/coga/dream_cleanup_orphan_markers.py: Moved to the edge (old name).
+  src/coga_edge/cleanup_orphan_markers.py: Moved worker with main() over run_entry; append_report deleted.
+  src/coga/dream_validate_drift.py: Moved to the edge (old name).
+  src/coga_edge/validate_drift.py: Moved worker with main() over run_entry; append_report deleted.
+  tests/fixtures/edge-migration/README.md: Describes the real Dream passage reconciliation.
+  tests/test_checkouts.py: Extra-publication case runs the edge orphan worker.
+  tests/test_dream_skill_scripts.py: Workers run as python -m coga_edge modules from the task.
+  tests/test_dream_validate_drift.py: Tests import and run coga_edge.validate_drift.
+  tests/test_dream_worker_templates.py: Pins new Dream/skill commands and absence of old ones.
+  tests/test_edge_distribution.py: Import purity, passage reconciliation and wheel/fork execution fixtures.
+  tests/test_runner.py: Registry list, removed names exit 2, cwd root cases through the edge worker.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Code review has not run yet; the workflow's peer-review step follows
+    this implement step.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: dd074a6bcfb5b6da3f81b205aad697531a086b47
+    base: a2536cbbdd5e28bfed634af2b7f8b96bd8c7fab2
+    detail: >-
+      5010 passed, 33 skipped in 809s on Linux, run on the working tree
+      committed as 983269bad; src/tests/docs trees are byte-identical in
+      dd074a6bc (rebase over a ticket-only state commit).
+  - command: coga validate --json (seeded fixture copy, .venv interpreter)
+    status: passed
+    head: dd074a6bcfb5b6da3f81b205aad697531a086b47
+    base: a2536cbbdd5e28bfed634af2b7f8b96bd8c7fab2
+    detail: >-
+      Disposable copy of tests/fixtures/seeded-repo; exit 0, 0 issues.
+      python -m coga_edge.validate_drift --no-fix there reported no drift;
+      coga run validate-drift exited 2 with unknown recipe.
+  - command: native Windows/macOS receipts
+    status: not-run
+    detail: Release-only per coga-dev/testing; deferred.
+```
+
+---
+
+## Blockers and ## Blocker reminders are CLI-maintained. Preserve
 blocker IDs, timestamps, actor names, resolved answers, and reminder fingerprints
 with last_reminded timestamps; use lifecycle commands to block or resolve them.
 
@@ -233,6 +319,101 @@ branch: coga/v1-microkernel-04d-dream-workers-to-edge
 
 ---
 
+## Implement handoff — 2026-11-18
+
+Attended megalaunch session (Claude Opus 5.5). Blocker resolved first: owner
+merged PR #1245 (`133bb5fee`) in-session; `coga unblock` recorded it. Branch
+started from main `b8429e30c`; implementation commit `983269bad`, rebased
+over the state-only `a2536cbbd` as `dd074a6bc` (identical `src`/`tests`/`docs`
+trees) and pushed.
+
+- **Edge modules.** `git mv` of `src/coga/dream_validate_drift.py` →
+  `src/coga_edge/validate_drift.py` and `src/coga/dream_cleanup_orphan_markers.py`
+  → `src/coga_edge/cleanup_orphan_markers.py`. Logic unchanged; each gains a
+  docstring and `main()` = `runner.run_entry(name, worker, sys.argv[1:],
+  root=target_root)` (`scheduled=False`: never bumps; exit publication of the
+  target root). Both private `append_report` copies deleted; call sites use
+  `blackboard.append_blackboard_report`. Imports: stdlib + `coga.*` (+ PyYAML
+  in the orphan worker, a Coga runtime dependency; kept for behavior
+  preservation of `load_status`), no `coga_edge` sibling import.
+- **Registry.** `validate-drift` / `cleanup-orphan-markers` removed from
+  `runner.RECIPES` and `RECIPE_ROOTS` (only `skill-update` remains there for
+  04b); runner imports no Dream module. Both names exit 2 via the existing
+  unknown-recipe path. No stub.
+- **Shared helpers audit (grep per symbol).** `task_env.cwd_option_root` and
+  `discover_coga_os_root` still used by `skill_update.py`; `blackboard_from_env`
+  and `append_blackboard_report` by many core modules. Nothing left core-only
+  for Dream.
+- **Dream body (package).** Phase 1/5 now `python -m coga_edge.validate_drift`
+  / `python -m coga_edge.cleanup_orphan_markers` (no flags, as before); run
+  order labels "edge worker"; dispatch paragraph says use the interpreter that
+  runs `coga`, worker publishes on exit and never advances Dream, an import
+  failure is a failed phase. "older recipe" wording in the Phase 6 blackboard
+  rule kept (historical; a test pins it).
+- **Skills** `bootstrap/dream/tasks/{validate-drift,cleanup-orphan-markers}`:
+  Runs/How to Run point at the module; fork note.
+- **Upgrade runbook** (`coga/edge-code/edge-code-upgrades.md`): callers regex
+  now only the removed names; the placeholder "later recipe-removal release"
+  section replaced by concrete `dream-phase-{1,5}-{old,new,fork}` passages, a
+  `dream-fork-copy` command (refuses overwrite), fork rules and reconcile.
+  `coga/edge-code` SKILL describes Dream workers as forkable attachments.
+- **Docs:** `coga/cli` recipe list, `coga/first-task`, `coga-dev/microkernel`
+  (append_report example, validation paragraph, invariants line),
+  `coga-dev/codebase` source map, `coga-dev/internals/notifications`,
+  AGENTS.md edge sentence, `resources/__init__.py` and `validate.py`
+  docstrings.
+- **Tests:** `test_runner` (registry, removed names exit 2, `--cwd` root cases
+  run the edge worker through `run_reported` with its resolver);
+  `test_dream_validate_drift`/`test_dream_skill_scripts` run `python -m
+  coga_edge.*`; `test_checkouts` extra-publication case uses the orphan
+  worker; `test_dream_worker_templates` pins new commands and absence of old;
+  `test_edge_distribution`: import purity for both workers; wheels tag Dream
+  reports per build; legacy adoption reconciles stock/period/parked Dream
+  copies with the shipped passages and refuses a customized copy (left in the
+  callers inventory); new test runs the reconciled package and fork commands
+  from a Dream period env against a **read-only installed wheel** and a full
+  local fork (report origin proves which code ran), checks a stale `coga run
+  validate-drift` exits 2, frontmatter/prior blackboard/other files unchanged.
+
+### Session incident (resolved)
+
+A manual smoke run of `python -m coga_edge.cleanup_orphan_markers` from a
+scratch fixture inherited this session's `COGA_*` env, so it reported a
+no-op `## Dream Skill: cleanup-orphan-markers` section into this ticket and
+its exit publication pushed it to control. Removed locally; the bump
+publishes the removal. Lesson for reviewers: run Dream workers by hand with
+`env -u COGA_TASK_BLACKBOARD -u COGA_COGA_OS_ROOT ...` inside a launched
+session.
+
+### Rollout plan for this repo (not performed here)
+
+After merge and installing the new wheel in every writer:
+`coga/recurring/dream/ticket.md` is a state-only carrier, so future Dream
+periods take the new packaged body automatically. The one existing period
+`coga/tasks/recurring/dream/ticket.md` is `status: done` and contains each
+old passage exactly once; if it is ever resumed instead of replaced, apply the
+runbook `reconcile` with `dream-phase-{1,5}-old` → `-new`. No parked or
+customized Dream copies exist (`rg` callers inventory: only that period plus
+historical mentions in ticket prose/evidence, which are not instructions).
+
+### Production line counts (`wc -l`, `b8429e30c` → `dd074a6bc`)
+
+| File | Layer | Before | After | Note |
+| --- | --- | --- | --- | --- |
+| `src/coga/dream_validate_drift.py` | core | 851 | 0 | moved |
+| `src/coga/dream_cleanup_orphan_markers.py` | core | 344 | 0 | moved |
+| `src/coga_edge/validate_drift.py` | edge | 0 | 864 | moved; −4 `append_report` (deleted dup), +17 docstring/`main` |
+| `src/coga_edge/cleanup_orphan_markers.py` | edge | 0 | 361 | moved; −4 `append_report` (deleted dup), +21 docstring/`main` |
+| `src/coga/runner.py` | core | 364 | 352 | −12: 2 RECIPES, 2 RECIPE_ROOTS entries, 8 import lines deleted |
+| `src/coga/validate.py`, `resources/__init__.py` | core | 2085, 27 | 2085, 27 | docstring only |
+
+Core −1,207; edge +1,225; net production +18 (entry points). Relocation, not
+reduction; deleted: two duplicate `append_report` helpers, two registry
+entries and two root-resolver entries plus core's imports of both parsers.
+Tests/docs reported separately in the PR receipt.
+
+---
+
 ## Blockers
 
 - [x] [2026-11-16 22:19] [agent:claude] id=20261116T221924 Prerequisite not merged: v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245, open, step review) must merge first. This ticket must start from main after that merge and use its shared report->publish->bump entry sequence and run_reported root-resolver support, which are absent from main at 77e263258.
@@ -243,10 +424,3 @@ branch: coga/v1-microkernel-04d-dream-workers-to-edge
 ## Blocker reminders
 
 - 576c34ebc29d last_reminded: 2026-11-18 09:02
-
-## Dream Skill: cleanup-orphan-markers
-
-Generated: 2026-11-19T01:41:47+00:00
-Task: `v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker`
-
-Result: no-op. No cleanup-eligible processed done tickets still have task directories.
