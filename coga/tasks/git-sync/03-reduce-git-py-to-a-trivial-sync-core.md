@@ -1,6 +1,6 @@
 ---
 title: Reduce git.py to a trivial sync core
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
