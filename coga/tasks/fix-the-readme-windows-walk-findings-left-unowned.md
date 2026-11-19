@@ -126,3 +126,14 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/fix-the-readme-windows-walk-findings-left-unowned
+
+## Plan (implement)
+
+- Finding 6: drop README's `git var GIT_AUTHOR_IDENT` pre-check; say init stops and prints the `git config --global` fix (agrees with `init._check_git_identity`).
+- Finding 7: spell out creating a new repo (`cd ~`, `mkdir`, `cd`, `git init`) — valid in PowerShell and sh; covers PowerShell opening in system32.
+- Finding 10: `uv python install 3.11 --default` (stable flag in current uv) so `python` resolves to the managed 3.11, not the Store stub.
+
