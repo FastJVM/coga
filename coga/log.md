@@ -4468,3 +4468,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 11:15 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-19 11:15 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-19 11:15 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [megalaunch] launched via coga megalaunch
+2026-11-19 11:17 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [agent:claude] blocked: Waiting on git-sync/01-add-an-explicit-coga-sync-command and git-sync/02-remove-implicit-publication-and-sync-at-session to merge (both at step 3 review-design as of 2026-11-19); git.sync_coga_state and publication machinery remain live in src/coga/git.py, so there is no dead code to delete yet. Owner confirmed: keep blocked.
