@@ -145,6 +145,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1271
 branch: coga/maintain-ticket-blackboards
 
 ## Handoff (self-qa, 2026-11-19)
@@ -218,13 +219,14 @@ files:
     End-to-end fixture run (one blackboard above and one below threshold),
     message-format pin, and prompt/topic cleanup-clause checks.
 review:
-  reviewer: Claude Opus 5.5 via /code-review (default effort) plus /simplify (4 angles)
+  reviewer: claude
   kind: self
   status: passed
   head: f1d68b6ec261b9e88e3d37e38f7112d619184c3b
   base: bb2665636e8954c8a6e30f7222fe53198001bfb9
   detail: >-
-    /code-review returned on implement head 9b139b329 (plus an uncommitted
+    Claude Opus 5.5 /code-review (default effort) plus /simplify (4 angles)
+    returned on implement head 9b139b329 (plus an uncommitted
     working tree); its fixes and /simplify's form f1d68b6, which got a completed
     direct self-review only. No independent review yet.
 checks:
