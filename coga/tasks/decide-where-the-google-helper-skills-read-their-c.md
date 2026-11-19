@@ -125,4 +125,19 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: google-helpers-read-env-credentials
+
+## Decision (implement step)
+
+Helpers read credentials from **environment variables**, delivered by the consuming
+ticket's `secrets:` (`env:VAR` or `op://`) per `coga/secrets`, or exported by the
+operator for a manual run. Reasons: it is the existing credential model ("tickets
+carry pointers, the machine carries values, config carries almost nothing"); it needs
+no core change (microkernel: helpers stay at the edge); allowing `[extensions]` in
+`coga.local.toml` would put literal tokens in config and widen the loader for one
+consumer pair; the config-directory option is a parked `_v2` draft. Non-secret calendar
+ids stay in shared `coga.toml` `[extensions.<ns>]`.
+
+In progress.
