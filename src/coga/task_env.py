@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import io
 import os
 import sys
 from pathlib import Path
+from typing import Callable
 
 from coga.config import Config, ConfigError, find_repo_root
 from coga.tasks import BootstrapRef, TargetRef
@@ -114,6 +118,37 @@ def discover_coga_os_root(cwd: Path | None) -> Path | None:
         return find_repo_root(cwd)
     except ConfigError:
         return None
+
+
+RootResolver = Callable[[Config, list[str]], Path | None]
+"""Select the Coga OS root a worker invoked with `argv` operates on.
+
+`None` means the target is unknown: report and publication then write
+nothing rather than falling back to the invoking repository.
+"""
+
+
+def cwd_option_root(parser: Callable[[], argparse.ArgumentParser]) -> RootResolver:
+    """A resolver that reads a worker's own `--cwd` option.
+
+    Reuses the worker's actual parser, so abbreviations, `--cwd=` and argv
+    the worker refused behave as they did for the worker. Unknown arguments
+    can still leave a known target. This second parse is silent: the worker
+    already emitted its help or errors.
+    """
+
+    def resolve(cfg: Config, argv: list[str]) -> Path | None:
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            try:
+                args, _ = parser().parse_known_args(argv)
+            except SystemExit:
+                return None
+        return discover_coga_os_root(args.cwd)
+
+    return resolve
 
 
 def blackboard_from_env(coga_os_root: Path | None) -> Path | None:

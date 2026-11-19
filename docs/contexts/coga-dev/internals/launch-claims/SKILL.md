@@ -47,7 +47,8 @@ preflight source bytes. Outcomes:
   claimed rendering; a peer change during that sync fails the launch and
   keeps current state.
 
-A refused claim is never compensated backward to `active`.
+A refused claim is never compensated backward to `active` (a failed agent
+start, below, is the one exception).
 
 ## The pending seal
 
@@ -92,6 +93,21 @@ launched. So the audit reaches `log.md` only once a child exists, and a
 cross-checkout transition after the last fetch is refused while pending or
 sees the admitted UUID only after the child can run. Recovery:
 [claim recovery](../claim-recovery/SKILL.md).
+
+## Failed agent start
+
+When the supervisor reports `AgentSessionResult.exec_failed`,
+`_restore_after_failed_start` undoes the claim. Under
+`git.state_lock` it requires the local ticket to equal that claim (the
+admitted rendering, or the start write without Git), writes back the step's
+pre-launch bytes (the deferred-activation capture or the preflight read)
+with any `launch_generation` dropped, logs `restored (in_progress → <status>)`,
+and publishes strictly with `expect` pinned to the claim. A refused
+publication puts the claim bytes back and retracts that log line; an
+uncertain one keeps the local restore. Either way the row sets `stops_run`
+and every megalaunch loop ends. This is the one sanctioned backward
+compensation of a claim; it is safe because the child is gone and never
+wrote.
 
 ## The local state lock
 

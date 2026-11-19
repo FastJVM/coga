@@ -134,8 +134,6 @@ is their hand-run counterpart: a first-time user installs on a fresh
   venv or prepending its `bin/` would put the branch install on both sides.
   Confirm with `command -v coga` from the session, and read the results with
   that split in mind (seen in the 2026-10-15 Codex SIGINT reproduction).
-- Installed-versus-source skew warnings from `launch`/`validate` are owned by
-  [coga/launch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md).
 
 ## Test-writing rules
 
@@ -221,16 +219,6 @@ Rule these out before blaming the change under test.
   run ended with 1,413 passed, 10 skipped and 2,708 errors, with 36 inodes
   left. Check `df -i /tmp`, remove only that run's fixtures, and rerun with
   `TMPDIR` on the main disk.
-- **`control_relay_started` leaks between tests (open, no ticket).**
-  `recurring_runner` sets the `git.control_relay_started` ContextVar when it
-  relays to a control worktree, and nothing resets it between tests. Running
-  `tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree`
-  before
-  `tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep`
-  fails the second one: `_sweep_coga_state` makes no sync call
-  (`assert 0 == 1`). Reproduced on control on 2026-11-02. The default
-  full-suite order passes, so the failure only shows up in reordered or
-  focused selections. Confirm by running the failing test alone.
 - **A Windows checkout and temp directory on different drives** break
   `os.path.relpath`, which raises `ValueError` across drives. A path computed
   between package resources and a fixture repo must fall back to an absolute
@@ -293,6 +281,16 @@ is not evidence for the floor. For per-change checks, when 3.11 is unavailable,
 report that gap with the actual interpreter and results. Reusable workflows
 cannot assume Python 3.11 is installed in a user's environment. Raising
 `requires-python` requires an owner decision.
+
+`requires-python` deliberately has no upper bound (owner-reviewed, v1/47,
+PR #1235). A cap does not make `uv tool install coga` choose an older
+interpreter: a resolver on a newer Python falls back to the newest *uncapped*
+release on PyPI (0.4.1), silently installing stale Coga. The too-new-Python
+failure is that uv picks the newest CPython (3.15), PyYAML has no wheel for it,
+and the source build needs macOS developer tools or MSVC on Windows. Pinning
+the interpreter at install time solves it: the README, init's PATH step
+(`commands/init.py`), and the clean-install harnesses all use
+`uv tool install --python 3.11`. Do not add a cap without re-deciding this.
 
 **Receipt fields.** Each run records the full commit SHA, the platform and OS
 version, the Python version, the exact command, pass/skip/fail counts, and

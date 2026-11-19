@@ -1,21 +1,24 @@
 ---
-title: Record the output-quality comparison result
-status: done
+title: Retire the legacy checkout-policy snapshot fallback
+status: blocked
 owner: nicktoper
 workflow:
-  name: docs/with-review
+  name: code/with-review
   steps:
   - name: implement
-    skills: []
+    skills:
+    - code/implement
     assignee: agent
     requires: branch
     checkout: create-or-reuse
   - name: peer-review
-    skills: []
+    skills:
+    - code/peer-review
     assignee: other-agent
     checkout: reuse-required
   - name: open-pr
-    skills: []
+    skills:
+    - code/open-pr
     assignee: agent
     requires: pr
     checkout: control
@@ -24,25 +27,13 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
+step: 1 (implement)
 agent: claude
 ---
 
 ## Description
 
-Record in `coga/prompt-composition` (`src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md`) the result of ticket `v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality`. The owner judged 8 blinded output pairs (PR body/diff, design spec, topic edit, authored ticket) comparing the current assembly against C1′, which is C1 with the baseline checkout/reconcile guidance restored. Result: baseline 4, C1′ 3, tie 1. Every mechanical gate passed in both arms. Owner decision (2026-11-15): **inconclusive**; keep the current assembly. No further trial was commissioned.
-
-### What to write
-
-- One or two sentences extending the assembler ruling that PR #1234 (`record-the-prompt-assembly-non-replacement-ruling`) adds. Ticket 02 measured rule compliance only. Ticket 04 measured output quality and found no clear difference. The current assembler stays.
-- Note the limits: a one-model pilot with two repetitions, judged from chat presentations with varying abridgment.
-- Link `coga/tasks/v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality/report.md` (§3, §5) the same way PR #1234 links ticket 02 evidence (GitHub main URL).
-
-### Sequencing and scope
-
-- Start after PR #1234 merges. This builds on its `## Assembler ruling` section; do not duplicate it.
-- Summarise and link only; do not restate the protocol.
-- Edit only the packaged topic. No production code.
-- Ticket 03 has been rescoped to fix current-assembly defects. Do not describe that work here.
+Owns retiring the legacy-snapshot fallback in src/coga/checkout_policy.py (checkout_policy.select_checkout_policy's _ROWS table plus _changed_skill/_changed_section/_lf), which selects an entry checkout for frozen workflow steps that have no checkout: key because they were frozen before the field existed. Decided by coga/tasks/decide-the-two-open-questions-left-by-the-checkout (2026-11-18). Premise: the retirement rule in coga/checkouts (Legacy snapshots) — delete the fallback only in a reviewed change after no live ticket in supported repos carries a code/docs snapshot without checkout:, or after an explicitly reviewed migration of those snapshots; never rewrite snapshots merely to delete it. Evidence at filing: this repo alone had 50 live (draft/active/in_progress/blocked/paused) code/ or docs/ workflow tickets with at least one frozen step lacking checkout:, so the condition did not hold. Before activating, re-count live legacy snapshots here and in any supported adopting repo; if the count is nonzero, choose between waiting and a reviewed migration that pins each such step to the policy the table currently selects, recording the choice. The removal must update coga/checkouts (Legacy snapshots), coga-dev/codebase (checkout_policy.py), validate's comment in _check_step_shape about absent checkout:, and the legacy cases in tests/test_checkouts.py.
 
 ## Context
 
@@ -133,92 +124,39 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-## Dev
-
-pr: https://github.com/FastJVM/coga/pull/1237
-branch: coga/v1-microkernel-03-prompt-assembly-record-the-out-38f7c9
-
-
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Handoff (implement, 2026-11-15)
+## Re-count (implement, 2026-11-19)
 
-- Sequencing: PR #1234 was still open. With the owner's explicit approval, I
-  merged it (merge commit 210a140fb) and fast-forwarded this branch onto it.
-- Change: commit 3685c8d38 adds one paragraph to `## Assembler ruling` in
-  `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md`.
-  It says ticket 02 measured rule compliance only. It records ticket 04's
-  output-quality result: baseline 4, C1' 3, tie 1, all gates passed in both
-  arms, and the owner ruled it inconclusive, so the current assembler stays.
-  It names the limits: one model, two reps, chat presentations with varying
-  abridgment. It links report.md §3, §5 by GitHub main URL, as the ticket-02
-  evidence is linked. It does not restate the protocol or mention ticket 03's
-  rescope.
-- Verified: the link target is tracked on main.
-  `python -m pytest -q tests/test_packaging.py` gave 40 passed.
-  `coga validate --json` exited 0.
-- Pushed. The PR is not opened yet; that is the next step.
+Counted on origin/main 849061e43 (script: parse each `coga/tasks/**/*.md`
+frontmatter; status in draft/active/in_progress/blocked/paused; workflow name
+`code/*` or `docs/*`; at least one frozen step without `checkout:`).
 
-## Peer review
+- This repo: **49** live legacy snapshots (50 at filing). Mostly `coga/tasks/_v2/*`
+  (draft/paused/in_progress), plus `v1/18`, `v1/44`, `v1/46`, `v1/49`, `v1/50`,
+  `v1/launch-on-a-stale-feature-branch-leaves-projected`,
+  `v1/microkernel/05-*`, `v1/microkernel/10-*`. Several are in_progress.
+- Supported adopting repos: no topic lists them (`coga-dev/project-stage`,
+  `coga-dev/current-direction` checked); not countable from here.
 
-- Independent Codex content review of Claude's commit 3685c8d38; authorship
-  confirmed by its Claude co-author trailer and the implement handoff.
-- No must-fix findings. The result, mechanical gates, owner decision and
-  limitations match report sections 2, 3 and 5; the GitHub main target is
-  tracked. Only the packaged topic changes; no duplicate definition is added.
-- The paragraph uses more than the suggested one or two sentences but remains
-  a concise summary; no protocol restatement or ticket-03 discussion.
-- Freshness: fetched origin/main twice. Its changes since the reviewed base
-  affect only this ticket and coga/log.md, not the topic or evidence. This
-  read-only review requires no branch merge; projected ticket state is preserved.
-- `git diff --check origin/main...HEAD` passed. Pytest was not run because
-  neither code nor fixtures changed. Branch push confirmed up to date.
+Condition in `coga/checkouts` "Legacy snapshots" does not hold. Nothing implemented.
 
-## PR
+## Decision needed (owner)
 
-```yaml
-title: Record the prompt-assembly output-quality result
-author: claude
-author_evidence: >-
-  Implementation commit 3685c8d38 has a Claude Opus 5.5 co-author trailer;
-  the implement handoff records that change.
-head: 3685c8d38f329eceee788833f18499fec768ec0f
-base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
-depth: merge
-rationale: >-
-  Small prose-only evidence summary; independent content review and whitespace
-  check passed, with no unresolved findings.
-implementation: >-
-  Extends the assembler ruling with the inconclusive output-quality pilot,
-  its 4/3/1 result, passed gates, limitations and report link.
-deviations: >-
-  Uses a short paragraph rather than the suggested one or two sentences to
-  preserve readability while including the requested evidence and limits.
-limitations: >-
-  The underlying comparison is a one-model pilot with two repetitions and
-  varying abridgment in chat presentations; it establishes no replacement.
-files:
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: >-
-    The packaged topic owns the assembler ruling and links the comparison evidence.
-review:
-  reviewer: codex
-  kind: independent
-  status: passed
-  head: 3685c8d38f329eceee788833f18499fec768ec0f
-  base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
-  detail: >-
-    Reviewed the complete Markdown diff, surrounding ruling, report sections
-    2/3/5, prerequisite merge and tracked link target; no must-fix findings.
-checks:
-  - command: git diff --check origin/main...HEAD
-    status: passed
-    head: 3685c8d38f329eceee788833f18499fec768ec0f
-    base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
-    detail: >-
-      Exit 0; no whitespace errors.
-  - command: python -m pytest
-    status: not-run
-    detail: >-
-      Pure prose change; the peer-review workflow directs pytest only for code
-      or fixture changes.
-```
+Wait vs. reviewed migration. The migration would rewrite the frozen
+`workflow.steps` of 49 tickets (adding `checkout:` = what
+`checkout_policy.select_checkout_policy` selects today, `manual` where the skill
+or inline section drifted), including in_progress tickets held by other
+sessions — a frontmatter field agents may not edit — and adopting repos would
+need the same migration before upgrading. Options:
+1. Wait: park this ticket until the count reaches zero (most `_v2` drafts may be
+   canceled by triage instead).
+2. Migrate: owner approves a one-off migration script (reviewed in this PR) run
+   over this repo's tickets at a quiet moment, plus a statement of which adopting
+   repos are supported and must be migrated/counted.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-19 11:14] [agent:claude] id=20261119T111458 Re-count on main 849061e43: 49 live code/docs tickets here still have frozen steps without checkout: (list on blackboard), and no topic names the supported adopting repos. Choose: (1) wait/park until the count is zero, or (2) approve a reviewed migration that rewrites those 49 frozen workflow snapshots (incl. in_progress tickets) to pin today's selected checkout, and name which adopting repos must be counted/migrated.

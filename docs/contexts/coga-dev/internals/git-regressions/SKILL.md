@@ -161,7 +161,7 @@ exits 75 so the sweep does not republish the retained local rewind.
 The provenance check is **not** a schema barrier: an older supervisor still
 running and level with control will restore a removed field and pass it. When
 a change converts committed `coga/tasks/**` (as `simplify-ticket-format` did;
-the no-compatibility-reader decision is recorded in `coga-dev/current-direction`):
+the no-compatibility-reader rule is recorded in [`coga/tickets`](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md)):
 
 1. **One PR carries everything** — code, converted tickets, fixtures, and
    context edits. A split merge leaves CLI and stored tickets disagreeing with

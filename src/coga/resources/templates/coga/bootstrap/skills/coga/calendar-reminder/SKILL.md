@@ -1,16 +1,22 @@
 ---
 name: coga-calendar-reminder
-description: Create, verify, update, or delete Google Calendar events that fire a coga ticket on a recurring schedule. Use whenever a coga ticket needs a manual-launch reminder and coga's native recurring-task scheduling hasn't shipped yet — the calendar event is the stopgap. Also use when the user asks for a "monthly nudge", "yearly reminder", "calendar trigger", or wants to attach a temporary schedule to a ticket. Required before calling Google Calendar directly to schedule a ticket; this skill encodes the title, description, timezone, reminders, and frontmatter conventions so every reminder event has the same shape and can be torn down cleanly.
+description: Create, verify, update, or delete Google Calendar events that fire a coga ticket on a recurring schedule. Use whenever a human should be nudged to launch a coga ticket on a schedule — for example a repo with no cron host running `coga recurring`, or work a human must start by hand. Also use when the user asks for a "monthly nudge", "yearly reminder", "calendar trigger", or wants to attach a calendar schedule to a ticket. Required before calling Google Calendar directly to schedule a ticket; this skill encodes the title, description, timezone, reminders, and frontmatter conventions so every reminder event has the same shape and can be torn down cleanly.
 ---
 
 # coga/calendar-reminder
 
-Manages Google Calendar events that serve as **temporary triggers**
-for coga tickets. A reminder fires on a recurring schedule (monthly,
-annually, etc.), the human sees it, the human launches the ticket.
-The event is operational scaffolding — when coga's native
-recurring-task machinery ships, every reminder event created through
-this skill gets deleted in one pass.
+Manages Google Calendar events that serve as **human-facing
+triggers** for coga tickets. A reminder fires on a recurring schedule
+(monthly, annually, etc.), the human sees it, the human launches the
+ticket.
+
+Coga's own recurring scheduling is a recurring template
+(`coga/recurring/<name>/ticket.md` with a `schedule:` cron) swept by
+`coga recurring`; Coga installs no scheduler, so that needs an operator
+cron entry (see `coga/recurring`). A calendar reminder is the optional
+alternative when no cron host runs `coga recurring`, or when a human
+should decide each time whether to launch. When a ticket moves onto a
+recurring template that cron drives, delete its reminder event.
 
 The skill encodes the event-shape convention (title, description,
 timezone, reminders) and records the resulting event ID into the
@@ -26,8 +32,14 @@ event operations; this skill only assembles the request bodies per the
 conventions below and shells out. Invoke via Bash:
 
 ```bash
-python "$COGA_COGA_OS_ROOT/skills/coga/google-calendar/gcal.py" <verb> ...
+python /resolved/coga/google-calendar/gcal.py <verb> ...
 ```
+
+`/resolved/coga/google-calendar/` stands for that skill's resolved
+directory: the repo's local `coga/skills/coga/google-calendar/` override
+if one exists, else the installed bundled skill (resolution as in
+`coga/checkouts/sandbox-clone`, "What a fresh checkout lacks"). The
+call shapes below use the same placeholder.
 
 The script speaks the Google event resource as JSON in and out. Exit
 codes: `0` ok, `1` config/auth/API error (message on stderr), `3` event
@@ -37,36 +49,39 @@ not found (so `verify`/`delete` can tell "already gone" from "broken").
 
 One-time service-account setup lives in the `coga/google-calendar`
 SKILL.md — read it. In short: create a Google service account + JSON
-key, enable the Calendar API, **share the reminders calendar with the
-service account's email** (grant "Make changes to events"), and point
-`[calendar].service_account_file` in `coga.local.toml` at the key. Install the
-Google client libs yourself: `python -m pip install -r requirements.txt` from
-the `coga/google-calendar` skill's dir.
+key, enable the Calendar API, and **share the reminders calendar with
+the service account's email** (grant "Make changes to events"). That
+SKILL.md also records the current credential-configuration gap: the
+helper reads a `[calendar]` table that Coga's config loader rejects.
+Install the Google client libs yourself: `python -m pip install -r
+requirements.txt` from the resolved `coga/google-calendar` skill dir.
 
 ### Calendar target — NOT `primary`
 
 A service account is a robot identity; on a personal (non-Workspace)
 Google account it **cannot write to a human's `primary` calendar**.
 Reminder events must target a calendar that has been **shared with the
-service account's email** — e.g. a dedicated "Coga reminders" (or
-"FastJVM Patent") calendar. Resolve the calendar id from `coga.toml`
-`[calendar]`, or ask the human which shared calendar to use. **Never
-pass `primary`** — it returns 403/404.
+service account's email** — e.g. a dedicated "Coga reminders" calendar.
+Resolve the calendar id from the repo's free-form `coga.toml`
+`[extensions.calendar]` table (`calendar_id = "..."`) when the repo
+records one there, or ask the human which shared calendar to use. Do not
+add a top-level `[calendar]` table: Coga's config loader rejects unknown
+sections. **Never pass `primary`** — it returns 403/404.
 
 Throughout the call shapes below, `<calendar-id>` means that shared
 calendar id, never `primary`.
 
 ## When to use this skill
 
-- A coga ticket needs to be manually launched on a schedule and
-  there's no other scheduling mechanism wired up.
+- A coga ticket needs to be manually launched on a schedule and no
+  cron host runs `coga recurring` for it.
 - The user says "remind me monthly to do X", "set a yearly reminder
   for Y", or "add a calendar nudge for this ticket".
 - The agent is about to create a Google Calendar event for a
   coga-related recurring reminder — route through this skill
   instead so the convention stays consistent.
-- Coga's recurring-task machinery has shipped and existing reminder
-  events need to be torn down.
+- A ticket has moved onto a cron-driven recurring template and its
+  reminder event needs to be torn down.
 
 ## When NOT to use this skill
 
@@ -85,7 +100,7 @@ after assembling the request per this skill's conventions.
 | `create` | Setting up a new reminder for a ticket | `gcal.py create` |
 | `verify` | Confirming an event still exists with the expected schedule | `gcal.py get` |
 | `update` | Schedule or content needs to change | `gcal.py update` |
-| `delete` | Recurring machinery taking over, or ticket retiring | `gcal.py delete` |
+| `delete` | Cron-driven recurring template taking over, or ticket retiring | `gcal.py delete` |
 
 ### create
 
@@ -93,7 +108,8 @@ Gather these inputs before calling the backend:
 
 1. **Ticket name** — e.g. `brex-automation`. Used to derive the
    default event title and to locate the `ticket.md` (or
-   `recurring/<name>.md`) for writing the event ID into frontmatter.
+   `recurring/<name>/ticket.md`) for writing the event ID into
+   frontmatter.
 2. **Schedule** — RRULE fragment without the `RRULE:` prefix.
    Examples: `FREQ=MONTHLY;BYMONTHDAY=1`,
    `FREQ=YEARLY;BYMONTH=5;BYMONTHDAY=1`.
@@ -124,10 +140,10 @@ Convention applied to the event body:
   ```
   <description body>
 
-  Coga ticket: <relative path to the ticket or recurring file>
+  Coga ticket: <relative path to the ticket or recurring template>
   Launch: see the ticket / recurring entry for the canonical invocation.
 
-  Temporary — delete this event once coga's recurring-task machinery lands and the ticket can fire on its own cron.
+  Calendar reminder managed by coga/calendar-reminder — delete this event if the ticket moves to a cron-driven recurring template.
   ```
 
 - **reminders.overrides**:
@@ -138,11 +154,11 @@ Convention applied to the event body:
 Call shape (monthly reminder, shared reminders calendar):
 
 ```bash
-python "$COGA_COGA_OS_ROOT/skills/coga/google-calendar/gcal.py" create \
+python /resolved/coga/google-calendar/gcal.py create \
   --calendar-id "<calendar-id>" \
   --body '{
     "summary": "Brex — review Missing GL Account charges",
-    "description": "Review the report and assign GL accounts in Brex.\n\nCoga ticket: coga/tasks/brex-automation/ticket.md\nLaunch: see the ticket / recurring entry for the canonical invocation.\n\nTemporary — delete this event once coga'\''s recurring-task machinery lands and the ticket can fire on its own cron.",
+    "description": "Review the report and assign GL accounts in Brex.\n\nCoga ticket: coga/tasks/brex-automation/ticket.md\nLaunch: see the ticket / recurring entry for the canonical invocation.\n\nCalendar reminder managed by coga/calendar-reminder — delete this event if the ticket moves to a cron-driven recurring template.",
     "start": {"dateTime": "2026-06-01T09:00:00", "timeZone": "America/Los_Angeles"},
     "end":   {"dateTime": "2026-06-01T10:00:00", "timeZone": "America/Los_Angeles"},
     "recurrence": ["RRULE:FREQ=MONTHLY;BYMONTHDAY=1"],
@@ -156,8 +172,8 @@ that's the event ID.
 After the call returns:
 
 - Open `coga/tasks/<ticket-name>/ticket.md`
-  (or `coga/recurring/<name>.md` if the artifact is a recurring
-  entry, not a ticket).
+  (or `coga/recurring/<name>/ticket.md` if the artifact is a
+  recurring template, not a ticket).
 - Add `calendar_reminder_event_id: <event-id>` to the frontmatter,
   alongside `title:`, `status:`, etc.
 - Save. Don't commit unless the user asks — they may want to bundle
@@ -171,14 +187,15 @@ acting on an assumption that the event exists.
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   python "$COGA_COGA_OS_ROOT/skills/coga/google-calendar/gcal.py" get \
+   python /resolved/coga/google-calendar/gcal.py get \
      --calendar-id "<calendar-id>" --event-id "<id>"
    ```
    Exit code `3` means the event is gone — surface that and offer to
    recreate it via `create`.
 3. Confirm: `status` is `confirmed`, `recurrence` matches what the
    ticket implies, `start.timeZone` is `America/Los_Angeles`, and the
-   description contains the "Temporary — delete this event…" line.
+   description contains the "Calendar reminder managed by
+   coga/calendar-reminder…" line.
    If any of those drift, the event was edited manually outside
    the skill — surface this and offer to bring it back into
    convention via `update`.
@@ -193,7 +210,7 @@ Use when the schedule, title, or description needs to change (e.g.
 2. Re-apply the create convention with the new inputs.
 3. Call:
    ```bash
-   python "$COGA_COGA_OS_ROOT/skills/coga/google-calendar/gcal.py" update \
+   python /resolved/coga/google-calendar/gcal.py update \
      --calendar-id "<calendar-id>" --event-id "<id>" \
      --body '{ <only the fields that changed> }'
    ```
@@ -204,22 +221,23 @@ Use when the schedule, title, or description needs to change (e.g.
 
 ### delete
 
-Use when coga's recurring machinery has shipped (so the reminder is
-no longer needed) or when a ticket is being retired entirely.
+Use when a cron-driven recurring template now fires the ticket (so
+the reminder is no longer needed) or when a ticket is being retired
+entirely.
 
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   python "$COGA_COGA_OS_ROOT/skills/coga/google-calendar/gcal.py" delete \
+   python /resolved/coga/google-calendar/gcal.py delete \
      --calendar-id "<calendar-id>" --event-id "<id>"
    ```
    A successful delete prints `{}` (exit `0`). Exit `3` means the
    event was already gone — treat that as success for cleanup.
 3. Open the ticket/recurring file and **remove** the
    `calendar_reminder_event_id` line from the frontmatter.
-4. If the deletion is part of a machinery-shipping migration, add
-   one line to the blackboard:
-   `Calendar reminder <event-id> deleted on <date> — recurring machinery now drives this ticket.`
+4. If the deletion is part of a move onto a cron-driven recurring
+   template, add one line to the blackboard:
+   `Calendar reminder <event-id> deleted on <date> — coga recurring now drives this ticket.`
 
 ## Convention: where the event ID lives
 
@@ -239,7 +257,7 @@ calendar_reminder_event_id: j3lt2meocjfetlbl6ga27jvvh8
 ```
 
 For recurring templates, the field goes in
-`recurring/<name>/ticket.md` frontmatter instead:
+`coga/recurring/<name>/ticket.md` frontmatter instead:
 
 ```yaml
 ---
@@ -269,37 +287,12 @@ Tickets without a `calendar_reminder_event_id` field have no active
 reminder. That's the truth source — don't infer reminders from the
 ticket body.
 
-## Legacy events on `primary` (need re-homing)
-
-Four calendar events were created via direct MCP calls on the human's
-`primary` calendar before this skill moved to the service-account
-backend. **The service account cannot see or manage events on
-`primary`** — `gcal.py get`/`delete` against `primary` will fail.
-These have to be re-homed: recreate each on the shared reminders
-calendar via `create` (which writes a fresh `calendar_reminder_event_id`),
-then delete the old `primary` event by hand in the Google Calendar UI.
-
-| Artifact | Old `primary` event ID | Schedule | First fire |
-|---|---|---|---|
-| `coga/tasks/brex-automation/ticket.md` | `j3lt2meocjfetlbl6ga27jvvh8` | Monthly, 1st 9 AM PT | 2026-06-01 |
-| `coga/tasks/xero-reconciliation/ticket.md` | `ns2of8i93mke579aedr927cv8k` | Monthly, 1st 9 AM PT | 2026-06-01 |
-| `coga/recurring/gusto-tax-forms-download.md` | `0vhr5me50sbohsq9afo7jf85qg` | Yearly, Jan 5 9 AM PT | 2027-01-05 |
-| `coga/tasks/insurance-payment-reminder/ticket.md` | `4jqgrfutdf6rctja3fo9kujrb0` | Yearly, May 1 9 AM PT | 2027-05-01 |
-
-After re-homing, the prose "Triggering (temporary)" bullets currently
-in each ticket can be removed — the frontmatter line is the only
-ticket-side record going forward.
-
-## Cleanup when coga recurring ships
-
-When coga's native recurring-task scheduling is shipped and firing
-each ticket reliably:
-
-1. For every artifact with a `calendar_reminder_event_id`, run the
-   `delete` operation.
-2. This skill becomes unused, but keep it in the repo — the next
-   "we don't have machinery for X yet" stopgap will want the same
-   shape.
+`calendar_reminder_event_id` is not part of the canonical ticket
+schema: `coga validate` reports it as a warn-level `orphan-extension`
+unless the repo declares it under `[ticket.fields]` in `coga.toml`
+(see `coga/configuration`). Note that a declared field is also written
+into every freshly created ticket, so a repo may prefer to accept the
+warning.
 
 ## Bundled scripts
 

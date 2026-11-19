@@ -58,6 +58,14 @@ def coga_os_root() -> Path:
     raise RuntimeError("could not find coga root")
 
 
+def target_root(cfg: Config, argv: list[str]) -> Path:
+    """Where this worker's failure report and exit publication belong.
+
+    The detector selects its root from the environment, not from `cfg`.
+    """
+    return coga_os_root()
+
+
 def repo_root(coga_os: Path) -> Path:
     env_root = os.environ.get("COGA_REPO_ROOT")
     if env_root:

@@ -25,7 +25,7 @@ from typing import Any
 
 from coga.blackboard import append_blackboard_report
 from coga.config import Config
-from coga.task_env import blackboard_from_env, discover_coga_os_root
+from coga.task_env import blackboard_from_env, cwd_option_root, discover_coga_os_root
 
 # Update statuses `coga skill update` emits, grouped into the three buckets
 # this skill reports. The buckets only drive the headline summary and the
@@ -342,6 +342,10 @@ def recipe_parser() -> argparse.ArgumentParser:
         help="Collect and classify updates without opening a PR.",
     )
     return parser
+
+
+# Where this worker's failure report and exit publication belong.
+target_root = cwd_option_root(recipe_parser)
 
 
 def run_skill_update_recipe(

@@ -86,6 +86,13 @@ held. Its decision logic is unchanged.
 
 ## The end-of-command sweep
 
+The mechanism is `state_sweep`: `sweep_suppressed` (the control-relay and
+withheld checks, with the withheld warning) and `sweep_root` (config reload and
+`git.sync_coga_state`). `cli._sweep_coga_state` adds the CLI's admission
+policy; `runner.run_entry` applies the same exclusions (`--help`/`-h`, exit
+75, withheld, relay) to an edge worker's own exit, over the root its resolver
+names, and never falls back to the invoking repo for an unknown root.
+
 `cli.main` calls `_sweep_coga_state` after a command returns or raises, except
 on exit code `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75), which a command uses when it
 deliberately left retryable state dirty (stale recurring control, refused

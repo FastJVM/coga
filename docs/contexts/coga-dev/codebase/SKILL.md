@@ -18,6 +18,8 @@ The repo separates implementation from the OS it operates:
 
 - `src/coga_edge/phone_home.py`: the default telemetry implementation behind
   the repo shim; [phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md) owns its contract.
+- `src/coga_edge/blackboard_size.py`: the weekly oversized-blackboard report
+  behind the `blackboard-size` shim; its [template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blackboard-size/ticket.md) owns the contract.
 
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
   with no business logic are the target; `init.py` still carries substantial
@@ -43,6 +45,10 @@ The repo separates implementation from the OS it operates:
   (`coga-dev/internals/git-regressions`).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
+  It also owns the shared `## Recipe Failure` floor (`run_reported`, with an
+  optional root resolver) and the edge entry sequence `run_entry`
+  (report → publish → bump). `state_sweep.py` is the end-of-invocation sweep
+  mechanism shared by `cli._sweep_coga_state` and `run_entry`.
 - `oscompat.py`: per-user lock paths and descriptor locks for publication
   and chat, and owned process trees for both recurring runners and the
   Windows agent supervisor. POSIX uses flock/process groups; Windows uses
@@ -53,7 +59,9 @@ The repo separates implementation from the OS it operates:
   shares CLI/prompt/secret/command readiness with megalaunch, and explicit
   read-only invocation reuses `launch_script.run_script_phase`),
   `checkout_policy.py` (pure entry-checkout selection: the frozen step's
-  `checkout:`, else the legacy table for older snapshots) and
+  `checkout:`, else the legacy table for older snapshots; the draft
+  `v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac`
+  owns that table's retirement under the `coga/checkouts` rule) and
   `checkouts.py` (shared branch preparation for launch and the
   `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`

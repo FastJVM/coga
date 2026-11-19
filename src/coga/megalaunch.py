@@ -63,6 +63,7 @@ from uuid import uuid4
 import typer
 
 from coga import git
+from coga.atomicio import atomic_write_bytes
 from coga.authoring import resolve_authoring_agent
 from coga.blackboard import (
     Blocker,
@@ -165,6 +166,8 @@ class MegalaunchResult:
     agent: str | None = None
     launched: bool = False
     drained: bool = False
+    # The agent failed to start: every megalaunch loop stops after this row.
+    stops_run: bool = False
 
 
 @dataclass(frozen=True)
@@ -428,6 +431,10 @@ def _run_sweep(
         if result.launched or not result.outcome.startswith("skipped-"):
             attempted += 1
         results.append(result)
+        if result.stops_run:
+            # An agent that cannot start is an environment problem every
+            # later launch would hit too: end the run, drain included.
+            return results
     return _drain_satisfied_blockers(
         cfg,
         results,
@@ -713,6 +720,8 @@ def _drain_satisfied_blockers(
             if result.launched or not result.outcome.startswith("skipped-"):
                 attempted += 1
             _replace_result(results, _as_drained(result, dependency))
+            if result.stops_run:
+                return results
             if result.launched:
                 launched_in_pass = True
                 break
@@ -774,12 +783,9 @@ def _replace_result(
 
 
 def _as_drained(result: MegalaunchResult, dependency: str) -> MegalaunchResult:
-    return MegalaunchResult(
-        slug=result.slug,
-        outcome=result.outcome,
+    return replace(
+        result,
         detail=f"dependency {dependency} finished; {result.detail}",
-        agent=result.agent,
-        launched=result.launched,
         drained=True,
     )
 
@@ -1008,6 +1014,9 @@ def _run_selection(
         if result.launched or not result.outcome.startswith("skipped-"):
             attempted += 1
         results.append(result)
+        if result.stops_run:
+            # Later picks stay untouched: none is reread or activated.
+            break
     return results
 
 
@@ -1386,6 +1395,10 @@ def _launch_until_stop(
         # prompt, environment, and agent this launch will use. Commit the flip
         # only once every refusal below has passed, so a ticket whose session
         # never starts is never left claiming it did.
+        # The exact bytes this step found before any lifecycle write: what a
+        # failed agent start restores (a deferred pick's draft/paused/blocked
+        # capture, otherwise the active or in_progress preflight read).
+        pre_launch_bytes = activation_bytes if activate else preflight_source_bytes
         preflight_view = ticket
         prepared_activation: Ticket | None = None
         if activate:
@@ -1539,8 +1552,14 @@ def _launch_until_stop(
                 expected_started_bytes=expected_started_bytes,
             )
 
+        # The exact claim the child ran under: the admitted rendering once the
+        # release publishes it, or the start write itself without Git.
+        claimed_bytes: list[bytes | None] = [
+            None if cfg.git_enabled else expected_started_bytes
+        ]
+
         def admit_released_launch_claim() -> None:
-            _admit_launch_claim_after_release(
+            claimed_bytes[0] = _admit_launch_claim_after_release(
                 cfg,
                 ref,
                 expected_started_bytes=expected_started_bytes,
@@ -1602,6 +1621,15 @@ def _launch_until_stop(
             )
 
         launched = True
+        if getattr(session, "exec_failed", False):
+            return _restore_after_failed_start(
+                cfg,
+                ref,
+                exit_code=session.exit_code,
+                claimed_bytes=claimed_bytes[0],
+                pre_launch_bytes=pre_launch_bytes,
+                agent=launch_agent,
+            )
         after = read_ticket(ref)
         # Advisory only, observed on the existing post-session read and before
         # any supervisor-owned reblock, so it can neither change the result
@@ -1663,6 +1691,110 @@ def _launch_until_stop(
                 launched=True,
             )
         ticket = after
+
+
+def _restore_after_failed_start(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    exit_code: int,
+    claimed_bytes: bytes | None,
+    pre_launch_bytes: bytes | None,
+    agent: str | None,
+) -> MegalaunchResult:
+    """Put a failed-to-start ticket back exactly as this step found it.
+
+    A compare-and-set against the claim the child ran under: the pre-launch
+    bytes (a pick's draft/paused/blocked capture, or the active/in_progress
+    preflight read) go back with any `launch_generation` claim dropped, the
+    audit line records why, and publication expects control's copy to be that
+    same claim. Nothing is blocked or asked: an agent that cannot start is an
+    environment problem, not the ticket's. Whatever happens, the returned row
+    stops the run; a restore that cannot complete says so.
+    """
+    head = f"agent failed to start (exited with code {exit_code}); run stopped"
+    next_step = (
+        "fix the agent environment, then rerun megalaunch "
+        "(`coga megalaunch --relaunch` replays a pick)"
+    )
+
+    def stopped(detail: str) -> MegalaunchResult:
+        return MegalaunchResult(
+            slug=ref.id_slug,
+            outcome="failed",
+            detail=f"{head}; {detail}",
+            agent=agent,
+            launched=True,
+            stops_run=True,
+        )
+
+    if claimed_bytes is None:
+        return stopped("launch claim unavailable; ticket needs manual reconciliation")
+    if pre_launch_bytes is None:
+        return stopped(
+            "no pre-launch snapshot to restore; ticket needs manual reconciliation"
+        )
+    try:
+        source = Ticket.parse(pre_launch_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError) as exc:
+        return stopped(
+            f"pre-launch snapshot unreadable ({exc}); ticket needs manual "
+            "reconciliation"
+        )
+    prior = source.status
+    if source.launch_generation is None:
+        restored = pre_launch_bytes
+    else:
+        source.frontmatter.pop("launch_generation", None)
+        restored = source.render().encode("utf-8")
+
+    try:
+        with git.state_lock(cfg):
+            if _ticket_bytes(ref) != claimed_bytes:
+                return stopped(
+                    "ticket changed since launch admission; ticket needs manual reconciliation"
+                )
+            log_before = _log_bytes(cfg)
+            try:
+                atomic_write_bytes(ref.ticket_path, restored)
+                append_log(
+                    cfg,
+                    ref.id_slug,
+                    "megalaunch",
+                    f"restored (in_progress → {prior}) — agent failed to start "
+                    f"(exit {exit_code}); megalaunch run stopped",
+                )
+                if cfg.git_enabled:
+                    git.sync_task_state(
+                        cfg,
+                        ref.path,
+                        message=f"Ticket: {ref.id_slug} — restored {prior}",
+                        expect={ref.ticket_path: claimed_bytes},
+                        strict=True,
+                    )
+            except git.UncertainPublishError as exc:
+                return stopped(
+                    f"restored to {prior} locally but publication is uncertain; "
+                    f"ticket needs manual reconciliation — {exc}"
+                )
+            except (OSError, git.GitError) as exc:
+                # Definitely not on control: keep local state equal to the claim
+                # control still holds rather than a restore nobody accepted.
+                try:
+                    _restore_ticket_bytes(cfg, ref, claimed_bytes, log_before=log_before)
+                except OSError as rollback_exc:
+                    return stopped(
+                        f"restore failed ({exc}) and local rollback failed ({rollback_exc}); "
+                        "ticket needs manual reconciliation"
+                    )
+                return stopped(
+                    f"restore to {prior} failed ({exc}); ticket needs manual reconciliation"
+                )
+    except (OSError, git.GitError) as exc:
+        return stopped(
+            f"restore could not be confirmed ({exc}); ticket needs manual reconciliation"
+        )
+    return stopped(f"restored to {prior}; {next_step}")
 
 
 # The refusals `prepare_active` raises before `mark_active` writes anything.
@@ -2018,7 +2150,7 @@ def _admit_launch_claim_after_release(
     ref: TaskRef,
     *,
     expected_started_bytes: bytes,
-) -> None:
+) -> bytes:
     """Publish pending-to-admitted only after the held child is released.
 
     The supervisor calls this while retaining the same-checkout publication
@@ -2028,7 +2160,7 @@ def _admit_launch_claim_after_release(
     child can already execute, so ordinary lifecycle changes may proceed.
     """
     if not cfg.git_enabled:
-        return
+        return expected_started_bytes
     try:
         current_bytes = ref.ticket_path.read_bytes()
     except OSError as exc:
@@ -2073,7 +2205,7 @@ def _admit_launch_claim_after_release(
 
     try:
         ticket.frontmatter["launch_generation"] = admitted_generation
-        ticket.write(ref.ticket_path)
+        admitted_bytes = git.write_ticket(cfg, ticket, ref.ticket_path)
         # The supervisor already holds `state_lock` through this callback;
         # `publish` re-enters it. `expect` pins the pending control copy the
         # seal accepts this exact prefix-stripped transition against.
@@ -2106,6 +2238,7 @@ def _admit_launch_claim_after_release(
         raise _LaunchClaimRefused(
             f"launch admission could not be recorded: {exc}{detail}"
         ) from exc
+    return admitted_bytes
 
 
 def _reblock_unresolved(
@@ -2251,15 +2384,17 @@ def _preflight_agent_launch(
         if cfg.git_enabled
         else generation
     )
+    # The supervised identity is applied inside preparation so the Windows
+    # command check vouches for the exact env handed to spawn.
     try:
         prepared = prepare_agent_launch(
             cfg, ref, launch_ticket, launch_agent or "", launch_context="megalaunch",
+            env_transform=lambda env: build_supervised_step_env(
+                env, task_path=ref.path, step=launch_ticket.step, agent=launch_agent,
+            ),
         )
     except AgentPreparationError as exc:
         return str(exc)
-    env = build_supervised_step_env(
-        prepared.env, task_path=ref.path, step=launch_ticket.step, agent=launch_agent,
-    )
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:
@@ -2269,7 +2404,7 @@ def _preflight_agent_launch(
         ticket=launch_ticket,
         source_ticket_bytes=expected_source_bytes,
         agent=prepared.agent,
-        env=env,
+        env=prepared.env,
         prompt=prepared.prompt,
     )
 

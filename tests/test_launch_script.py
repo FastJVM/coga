@@ -2195,6 +2195,59 @@ def test_read_only_python_api_reuses_script_executor_without_launch_effects(
     assert not {"capture_output", "stdin", "stdout", "stderr"} & kwargs.keys()
 
 
+@pytest.mark.parametrize("caller_withheld", [False, True])
+@pytest.mark.parametrize("outcome", ["returns", "option-bail", "target-bail"])
+def test_read_only_python_api_restores_caller_sweep_policy(
+    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch,
+    caller_withheld: bool, outcome: str,
+) -> None:
+    from types import SimpleNamespace
+    _write(read_only_repo / "bootstrap" / "inspect" / "ticket.py", "pass\n")
+    during = []
+    def script_spawn(argv, **kwargs):
+        during.append(git.state_sweep_withheld.get())
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr("coga.launch_script.subprocess.run", script_spawn)
+    token = git.state_sweep_withheld.set(caller_withheld)
+    try:
+        if outcome == "returns":
+            assert launch_module.launch("bootstrap/inspect", read_only=True).exit_code == 0
+            assert during == [True]
+        else:
+            target = "bootstrap/inspect" if outcome == "option-bail" else "bootstrap/missing"
+            options = {"prompt_report": True} if outcome == "option-bail" else {}
+            with pytest.raises(launch_module.LaunchBail) as exc:
+                launch_module.launch(target, read_only=True, **options)
+            assert exc.value.code == 2
+            assert during == []
+        assert git.state_sweep_withheld.get() is caller_withheld
+    finally:
+        git.state_sweep_withheld.reset(token)
+
+
+def test_writer_command_sweeps_after_in_process_read_only_call(
+    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from types import SimpleNamespace
+    from coga.cli import main
+
+    _write(read_only_repo / "bootstrap" / "inspect" / "ticket.py", "pass\n")
+    monkeypatch.setattr(
+        "coga.launch_script.subprocess.run", lambda *a, **k: SimpleNamespace(returncode=0),
+    )
+    sweeps = []
+    monkeypatch.setattr(git, "sync_coga_state", sweeps.append)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    monkeypatch.setattr(sys, "argv", ["coga", "launch", "writer"])
+    monkeypatch.setattr(
+        "coga.cli.app",
+        lambda: launch_module.launch("bootstrap/inspect", read_only=True),
+    )
+    main()
+    assert len(sweeps) == 1
+    assert "withheld" not in capsys.readouterr().err
+
+
 def test_agent_preparation_checks_order_without_repo_writes(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ref = _create_script_task(script_repo, "pass\n")
     cfg = load_config(script_repo)

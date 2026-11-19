@@ -254,15 +254,19 @@ def _stub_init_identity_check(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _scope_state_sweep_withholding():
-    """Give every test its own `git.state_sweep_withheld` scope.
+    """Give every test its own `git.state_sweep_withheld` and
+    `git.control_relay_started` scopes.
 
-    `cli.main` scopes it per invocation; tests that call launch helpers or
-    `CliRunner` directly would otherwise leak a refusal into later tests.
+    `cli.main` scopes both per invocation; tests that call launch or recurring
+    helpers or `CliRunner` directly would otherwise leak a refusal or a relay
+    into later tests, silently suppressing their exit publication.
     """
     from coga import git
 
     token = git.state_sweep_withheld.set(False)
+    relay_token = git.control_relay_started.set(False)
     yield
+    git.control_relay_started.reset(relay_token)
     git.state_sweep_withheld.reset(token)
 
 
