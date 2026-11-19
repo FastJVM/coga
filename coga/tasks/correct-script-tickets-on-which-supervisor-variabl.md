@@ -1,6 +1,6 @@
 ---
 title: Correct script-tickets on which supervisor variables a ticket.py child loses
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:aa4100da-8542-4779-b25d-7a20331a18e1
 ---
 
 ## Description
