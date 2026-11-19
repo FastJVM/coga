@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: dfee6cfc-4464-4f2b-9ddb-dab2d072abf9
 ---
 
 ## Description
@@ -131,9 +130,57 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: coga/fix-the-readme-windows-walk-findings-left-unowned
 
-## Plan (implement)
+## Implement handoff
 
-- Finding 6: drop README's `git var GIT_AUTHOR_IDENT` pre-check; say init stops and prints the `git config --global` fix (agrees with `init._check_git_identity`).
-- Finding 7: spell out creating a new repo (`cd ~`, `mkdir`, `cd`, `git init`) — valid in PowerShell and sh; covers PowerShell opening in system32.
-- Finding 10: `uv python install 3.11 --default` (stable flag in current uv) so `python` resolves to the managed 3.11, not the Store stub.
+Done on `coga/fix-the-readme-windows-walk-findings-left-unowned` (pushed, commit 1ceeb41f5, README.md only):
+- Finding 6: removed the `git var GIT_AUTHOR_IDENT` pre-check and the per-repo `git config` advice. The README now says init stops before writing anything and prints the `git config --global` commands, which matches `commands/init._check_git_identity` and init's fail-before-writes ordering (v1/31 S7a/S8 evidence).
+- Finding 7: "Initialize a repository" now explains how to create a new repo (`cd ~`, `mkdir my-project`, `cd my-project`, `git init`) and says PowerShell opens in system32. These lines run in both PowerShell and sh.
+- Finding 10: changed to `uv python install 3.11 --default`, plus a one-line note that without it `python` opens the Store stub. `scripts/clean-install/windows-walk.ps1` already uses `--default` for the same reason.
 
+Limitations / for review:
+- Not verified on Windows. The ticket names the human Windows 11 walk as the check. Not verified: whether uv's bin dir precedes `%LOCALAPPDATA%\Microsoft\WindowsApps` on a fresh user PATH, so `--default` actually shadows the stub.
+- Not changed (out of scope): the windows-aws walk skill (`skills/coga/testing/clean-install/windows-aws`, walk step 2) and `windows-walk.ps1` walk phase still run plain `uv python install 3.11` for the walk user, so a walk does not exercise the README's new `--default`. Consider aligning it in a follow-up if the walk should mirror the README exactly.
+- v1/31 Findings 6/7/10 still say "owner v1/33; open". After merge, whoever closes this should mark them resolved there.
+
+## PR
+
+```yaml
+title: Fix README init and Windows Python steps from the Windows walk
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Code (Opus 5.5) in a megalaunch queue step.
+head: 1ceeb41f5ae37d3e89f8d8112f28ee73736a5c8b
+base: 586aa99608ab6910c199f576a45be46b86c8867f
+depth: skim
+rationale: >-
+  README-only wording change in the install and init sections; check the
+  shell portability of the new-repo commands and the identity wording against init.
+implementation: >-
+  Drops the README's manual git identity pre-check in favor of init's own
+  guard, spells out creating a new repo from the home folder, and installs
+  uv's Python with --default so python is not the Microsoft Store stub.
+deviations: "None."
+limitations: >-
+  No Windows run; the human Windows 11 walk is the acceptance check. The
+  windows-aws walk harness still runs plain uv python install 3.11 for the
+  walk user.
+files:
+  README.md: >-
+    Fix v1/31 Windows walk findings 6, 7 and 10 in the install and
+    Initialize a repository sections.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Peer review is the next workflow step; no review has run yet.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 1ceeb41f5ae37d3e89f8d8112f28ee73736a5c8b
+    base: 586aa99608ab6910c199f576a45be46b86c8867f
+    detail: >-
+      5004 passed, 33 skipped in 777.90s. The shell python lacked tomlkit, so
+      the first plain python -m pytest run failed at collection; reran with
+      the repo venv.
+```

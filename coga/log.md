@@ -4337,3 +4337,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 22:10 v1 [fix-the-readme-windows-walk-findings-left-unowned] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 22:10 v1 [fix-the-readme-windows-walk-findings-left-unowned] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 22:10 v1 [fix-the-readme-windows-walk-findings-left-unowned] [megalaunch] launched via coga megalaunch
+2026-11-18 22:24 v1 [fix-the-readme-windows-walk-findings-left-unowned] [agent:claude] advanced to step 2 (peer-review) → codex
