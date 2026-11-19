@@ -156,7 +156,7 @@ Branch `coga/maintain-ticket-blackboards` at `f1d68b6` (pushed; rebased on `bb26
 - **Selection.** In `FRESH_RECURRING_SELECTION` (owner review decides that default list) and this repo's `jobs.toml`. Lazy carrier approved.
 - **Cleanup.** Ticket-loop step 1 in `prompt-ticket.md`; `coga/blackboard` "Stale-note cleanup" owns the policy. The protected list now covers runner- and gate-written sections. The prompt inlines the policy because the topic is not attached to every ticket.
 - **Walkthrough (completion criterion 2).** Sample blackboard: (a) a superseded plan with no live rationale, (b) a "tests running…" status, (c) a ruled-out dead end, (d) a decision with its reason, (e) an open `## Blockers` ask, (f) the worklist, (g) the suite receipt the PR needs. The instruction deletes (a)-(c) and keeps (d)-(g). Self-QA applied it here: the implement handoff was folded into this one.
-- **Follow-up for owner / retro.** Dream's validate-drift still classifies `large-blackboard` as human-needed, so oversized tickets can be reported twice. Use `.venv/bin/python` for tests (the uv-tool `python` lacks `tomlkit`).
+- **Follow-up for owner / retro.** Dream's validate-drift still classifies `large-blackboard` as human-needed, so oversized tickets can be reported twice. Filed as parked draft `_v2/stop-dream-double-reporting-large-blackboards` (pr step). Use `.venv/bin/python` for tests (the uv-tool `python` lacks `tomlkit`).
 
 ## Self-QA
 
@@ -234,3 +234,13 @@ checks:
       5011 passed, 33 skipped in 788.98s, on the working tree committed
       unchanged as head (rebase onto base was a no-op).
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `maintain-ticket-blackboards`
+Recorded: 2026-11-19T09:41:29+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: review kind must be independent, self, or none.
