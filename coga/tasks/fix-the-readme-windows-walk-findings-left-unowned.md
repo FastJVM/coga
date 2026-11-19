@@ -214,3 +214,9 @@ checks:
     base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
     detail: "No whitespace errors."
 ```
+
+## Open-PR handoff
+
+Opened https://github.com/FastJVM/coga/pull/1267 with `coga open-pr` from `main`. The peer-review note records a completed direct Codex review with no unresolved findings. Obligations the merge does not discharge:
+- Attended Windows 11 walk (acceptance check): owned by the live `v1/31-test-install-on-windows`. Its Findings 6, 7 and 10 now name this ticket and PR #1267 as "fixed pending Windows 11 re-walk".
+- Walk harness `--default` alignment (walk-user phase of `scripts/clean-install/windows-walk.ps1`, windows-aws skill Walk step 2): added as a finding to the existing draft `fix-the-windows-aws-walk-step-and-add-the-v1-14-at`, which already edits that step.
