@@ -107,6 +107,7 @@ src/coga/resources/templates/coga/bootstrap/ticket/ticket.md
 src/coga/resources/templates/coga/bootstrap/workflows/autoclose-merged/sweep.md
 src/coga/resources/templates/coga/bootstrap/workflows/blocker-reminders/run.md
 src/coga/resources/templates/coga/bootstrap/workflows/branch-sweep/sweep.md
+src/coga/resources/templates/coga/bootstrap/workflows/blackboard-size/run.md
 src/coga/resources/templates/coga/bootstrap/workflows/brief-for-human.md
 src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md
 src/coga/resources/templates/coga/bootstrap/workflows/code/agent-merge.md
@@ -128,6 +129,8 @@ src/coga/resources/templates/coga/recurring/address-pr-comments/ticket.md
 src/coga/resources/templates/coga/recurring/autoclose-merged/operations.md
 src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md
 src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py
+src/coga/resources/templates/coga/recurring/blackboard-size/ticket.md
+src/coga/resources/templates/coga/recurring/blackboard-size/ticket.py
 src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md
 src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py
 src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md

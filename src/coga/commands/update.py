@@ -79,6 +79,7 @@ FRESH_SCAFFOLDS: tuple[str, ...] = (
 FRESH_RECURRING_SELECTION: tuple[str, ...] = (
     "address-pr-comments",
     "autoclose-merged",
+    "blackboard-size",
     "blocker-reminders",
     "branch-sweep",
     "dream",
