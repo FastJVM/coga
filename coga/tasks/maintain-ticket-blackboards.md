@@ -29,7 +29,7 @@ workflow:
     checkout: reuse-required
 step: 2 (self-qa)
 agent: claude
-launch_generation: pending:00edf732-f9fa-4357-a843-f45d1ae1d6ec
+launch_generation: 00edf732-f9fa-4357-a843-f45d1ae1d6ec
 ---
 
 ## Description
