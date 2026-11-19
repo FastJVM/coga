@@ -1,6 +1,6 @@
 ---
 title: Decide where the Google helper skills read their credentials from
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:7c88c383-f4c5-4e99-bd83-95049c5fa2d4
 ---
 
 ## Description
