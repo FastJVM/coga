@@ -155,3 +155,18 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/fix-the-windows-aws-walk-step-and-add-the-v1-14-at
+
+## Plan (implement, 2026-11-18)
+
+- Skill Walk step 2: show the walk's real ByPass child-process uv installer,
+  `uv python install 3.11 --default` + `python --version`; note Server 2025
+  covers neither the client `Restricted` default nor the Store alias.
+- `windows-walk.ps1` walk phase: `--default`, then a `python --version` step
+  resolved against the registry PATH a new terminal would get.
+- Attended-session section: five short v1/14 gotcha bullets.
+- Dependencies for open-pr: #1256/#1257 (same skill, other hunks) and #1267
+  (README `--default`/`python --version`, which this aligns with) still open.
