@@ -219,8 +219,10 @@ files:
     message-format pin, and prompt/topic cleanup-clause checks.
 review:
   reviewer: Claude Opus 5.5 via /code-review (default effort) plus /simplify (4 angles)
-  kind: self-review
-  status: returned
+  kind: self
+  status: passed
+  head: f1d68b6ec261b9e88e3d37e38f7112d619184c3b
+  base: bb2665636e8954c8a6e30f7222fe53198001bfb9
   detail: >-
     /code-review returned on implement head 9b139b329 (plus an uncommitted
     working tree); its fixes and /simplify's form f1d68b6, which got a completed
@@ -244,3 +246,13 @@ Recorded: 2026-11-19T09:41:29+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: review kind must be independent, self, or none.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `maintain-ticket-blackboards`
+Recorded: 2026-11-19T09:41:43+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: reviewer must be a compact identity.
