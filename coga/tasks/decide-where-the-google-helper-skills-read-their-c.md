@@ -29,7 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
-launch_generation: pending:7c88c383-f4c5-4e99-bd83-95049c5fa2d4
+launch_generation: 7c88c383-f4c5-4e99-bd83-95049c5fa2d4
 ---
 
 ## Description
