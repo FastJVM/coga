@@ -1,6 +1,6 @@
 ---
 title: Decide the two open questions left by the checkout-policy declaration ticket
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:519a1ad6-a5c5-4118-9f5f-a42b70ce501f
 ---
 
 ## Description
