@@ -243,3 +243,10 @@ branch: coga/v1-microkernel-04d-dream-workers-to-edge
 ## Blocker reminders
 
 - 576c34ebc29d last_reminded: 2026-11-18 09:02
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-11-19T01:41:47+00:00
+Task: `v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
