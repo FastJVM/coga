@@ -216,6 +216,22 @@ ordinary ticket.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: coga/v1-microkernel-04b-blocker-reminders-skill-update-to-edge
+
+---
+
+## Implement attempt 2 — 2026-11-19 (in progress)
+
+Blocker resolved: #1245 merged (`133bb5fee`). Started from main `6e0cca987`.
+Note: 04d's PR #1265 (open) edits the same shared surfaces (runner
+RECIPES/RECIPE_ROOTS, edge-code-upgrades.md, coga/cli, coga-dev/microkernel,
+coga-dev/codebase, AGENTS.md, tests/test_edge_distribution.py); whichever
+merges second rebases.
+
+---
+
 ## Implement attempt — 2026-11-16 (not started)
 
 Precondition unmet: the body requires `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co`
