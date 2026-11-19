@@ -57,7 +57,9 @@ The repo separates implementation from the OS it operates:
   shares CLI/prompt/secret/command readiness with megalaunch, and explicit
   read-only invocation reuses `launch_script.run_script_phase`),
   `checkout_policy.py` (pure entry-checkout selection: the frozen step's
-  `checkout:`, else the legacy table for older snapshots) and
+  `checkout:`, else the legacy table for older snapshots; the draft
+  `v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac`
+  owns that table's retirement under the `coga/checkouts` rule) and
   `checkouts.py` (shared branch preparation for launch and the
   `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
