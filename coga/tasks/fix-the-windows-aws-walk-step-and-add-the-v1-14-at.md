@@ -29,7 +29,7 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
-launch_generation: pending:e5bc80c2-e351-41c9-b926-d81675a65f98
+launch_generation: e5bc80c2-e351-41c9-b926-d81675a65f98
 ---
 
 ## Description
