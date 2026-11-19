@@ -1,6 +1,6 @@
 ---
 title: Fix the windows-aws walk step and add the v1-14 attended-launch harness gotchas
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,7 +29,6 @@ workflow:
     checkout: reuse-required
 step: 3 (open-pr)
 agent: claude
-launch_generation: 432cf7d5-27d8-4f5f-991a-14255e5d4a24
 ---
 
 ## Description
@@ -304,3 +303,28 @@ checks:
     detail: >-
       Native Windows verification is deferred to release under coga-dev/testing.
 ```
+
+### Open-pr hold (2026-11-18)
+
+Did not run `coga open-pr`. The ticket's route is to open this PR only after
+the overlapping PRs land or rebase. All three are still open on
+`origin/main` `4b943120e`:
+
+- #1256 (`codex/retro-install-python-pins-knowledge`) and #1257
+  (`codex/retro-coga-dev-hazards-knowledge`): Retro PRs editing the same
+  windows-aws skill. #1256's Restricted paragraph overlaps this step-2 note.
+- #1267: README `--default` / `python --version`, which this aligns the walk
+  with. Its ticket `fix-the-readme-windows-walk-findings-left-unowned` is
+  still `in_progress`.
+
+Peer review (Codex, direct) completed with no unresolved findings, so the
+only gate is ordering. On resume: rebase the branch onto main after the
+dependencies merge, drop any duplicate Restricted explanation from #1256,
+re-run `python -m pytest`, push with `--force-with-lease`, then
+`coga open-pr`.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-18 23:15] [agent:claude] id=20261118T231524 Ticket route says open this PR only after overlapping PRs land: #1256 and #1257 (same windows-aws skill) and #1267 (README, task fix-the-readme-windows-walk-findings-left-unowned) are still open. Merge them, or say to open now and accept rebasing later.
