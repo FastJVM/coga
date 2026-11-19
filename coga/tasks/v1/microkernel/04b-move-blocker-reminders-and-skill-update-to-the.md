@@ -230,7 +230,8 @@ No branch created, no code changed. Resume from current main once #1245 merges
 
 ## Blockers
 
-- [ ] [2026-11-16 22:18] [agent:claude] id=20261116T221808 Waiting on v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co: its PR #1245 (runner.run_entry, RECIPE_ROOTS, state_sweep) is not merged, and this migration must start from main after that merge.
+- [x] [2026-11-16 22:18] [agent:claude] id=20261116T221808 Waiting on v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co: its PR #1245 (runner.run_entry, RECIPE_ROOTS, state_sweep) is not merged, and this migration must start from main after that merge.
+  resolved: [2026-11-19 09:33] [human:nicktoper] Precondition met: PR #1245 (v1/microkernel/04) merged 2026-11-19T01:31Z as 133bb5fe; origin/main now has runner.run_entry, RECIPE_ROOTS and state_sweep. Proceed from current main.
 
 ---
 
