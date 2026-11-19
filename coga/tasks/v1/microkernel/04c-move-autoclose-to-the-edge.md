@@ -29,9 +29,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 56560a97-7c56-4f58-a07e-f6c15be80d34
 ---
 
 ## Description
@@ -246,3 +245,204 @@ branch: coga/v1-microkernel-04c-autoclose-to-edge
 ## Blocker reminders
 
 - 9fadbd39834a last_reminded: 2026-11-18 09:02
+
+---
+
+## Implement handoff (2026-11-19, agent: claude / claude-opus-5-5, manual megalaunch session)
+
+A prior session committed `bb5911617` locally but never pushed or bumped.
+This session rebased it onto `origin/main` `a7b57a2d6` (119 commits, incl.
+sibling 04b blocker-reminders/skill-update and 04d Dream migrations) as
+`0489f1562` and resolved the conflicts:
+
+- `edge-code-upgrades.md` "Recipe-backed recurring shims" is now one section
+  for all three jobs (04b's section generalized): autoclose added to the
+  caller inventory, its three stock baselines (705/827/898) and blobs, the
+  PR 898 branch-sweep drop note, and an autoclose hand-port passage. The
+  `locate-job` / `job-fork-copy` commands now take an explicit `MODULE` (the
+  autoclose template name `autoclose-merged` does not derive its module);
+  04b's adoption test sets `MODULE` accordingly.
+- `tests/test_recurring_shims.py`: with every period shim now an edge shim,
+  the registry-shim test and `SHIMMED_TEMPLATES` had no consumer and were
+  removed; `EDGE_SHIMMED_TEMPLATES` lists all three jobs.
+- `coga/cli`, `coga/edge-code`, `coga-dev/codebase`, `coga-dev/microkernel`,
+  `coga-dev/internals/notifications`, AGENTS.md, test_runner/test_packaging/
+  test_edge_distribution: union of both sides.
+
+What changed overall: `src/coga/autoclose.py` deleted; the job is
+`src/coga_edge/autoclose.py` (`main` → `runner.run_entry`); shared `## Dev`
+parsers + `gh` lookups → new `src/coga/dev_links.py`; the `retires.md`
+backlog walk shared with branch-sweep → `checkout_disposal.py`; `autoclose`
+left `runner.RECIPES`; packaged shim is `main([], scheduled=True)` (autoclose
+then bump, no global branch sweep); private `_append_blackboard_report`
+deleted.
+
+## Per-symbol shared-helper audit (grep, production `src/` only, at 0489f1562)
+
+| Symbol (new home) | Other production consumers | Decision |
+|---|---|---|
+| `dev_links.parse_pr_url` | launch, open_pr, step_gate, checkout_disposal, branchcleanup, pr_assist, bootstrap/retire/ticket.py | core |
+| `dev_links.parse_branch_name` | launch, open_pr, step_gate, commands/bump, branchcleanup, retire ticket.py | core |
+| `dev_links.parse_branch_names` | checkout_disposal, retire_worklist, branchsweep, checkouts, retire ticket.py | core |
+| `dev_links.parse_worktree_path` | launch, open_pr, commands/bump, checkouts, checkout_disposal, branchcleanup, branchsweep, retire ticket.py | core |
+| `dev_links.dev_heading_line` | checkouts | core |
+| `dev_links.read_dev_blackboard` | checkout_disposal | core |
+| `dev_links.GhError` | branchcleanup, branchsweep, pr_assist | core |
+| `dev_links.pr_state` | branchcleanup, branchsweep | core |
+| `dev_links.pr_head` | branchcleanup | core |
+| `dev_links.prs_for_head` | branchcleanup, branchsweep | core |
+| `dev_links.pr_view` | pr_assist | core |
+| `dev_links.parse_pr_number` | used by `parse_pr_url` (`_looks_like_pr_url`) | core (dependency of shared parser) |
+| `checkout_disposal.dispose_worklist_backlog` | branchsweep | core |
+| `checkout_disposal.owner_held_branch` | branchsweep | core |
+| `checkout_disposal.CheckoutOutcome`, `describe_checkout` | return type / renderer of `dispose_worklist_backlog` | core (part of shared interface) |
+| `ReviewThread`, `ClosedTicket`, `AutocloseResult`, `pr_review_threads`, `unanswered_review_threads`, `sweep_merged`, `_try_bump_one`, `_dispose_checkouts`, report renderers, `run_autoclose`, `main` | none | edge (`coga_edge.autoclose`) |
+| `_append_blackboard_report` | none | deleted (uses `blackboard.append_blackboard_report`) |
+
+## Production code before/after (`wc -l`, base `a7b57a2d6` → head `0489f1562`)
+
+| File | Before | After | Δ | Kind |
+|---|---|---|---|---|
+| core `src/coga/autoclose.py` | 1842 | 0 | −1842 | deleted (moved) |
+| core `src/coga/dev_links.py` | 0 | 341 | +341 | moved shared helpers |
+| core `src/coga/checkout_disposal.py` | 429 | 755 | +326 | moved shared backlog walk |
+| core `runner.py` / `step_gate.py` / `workflow.py` / `branchsweep.py` | 344/115/218/1730 | 342/110/216/1729 | −10 | deleted registry entry, lazy-import workarounds |
+| core importers (launch, open_pr, bump, checkouts, git, pr_assist, branchcleanup, retire_worklist) | — | — | 0 | import path only |
+| edge `src/coga_edge/autoclose.py` | 0 | 1234 | +1234 | moved job |
+| script `recurring/autoclose-merged/ticket.py` | 25 | 8 | −17 | deleted (shim simplification) |
+| script `bootstrap/retire/ticket.py` | 423 | 423 | 0 | import path only |
+
+Core −1185, edge +1234, scripts −17: net +32 (module headers/imports).
+This is relocation, not reduction. Removed: the `autoclose` registry entry,
+the shim's own bump + global branch-sweep path, the private report wrapper,
+and the `step_gate`/`workflow` lazy imports that existed to avoid a cycle
+through the old module. Tests/docs/fixtures counted separately (git diff).
+
+## Rollout plan for this repo's own periods (not performed here)
+
+This repo's `coga/recurring/autoclose-merged/` is a state-only carrier
+(`ticket.md` + `retires.md`, no `ticket.py`), and the current period
+`coga/tasks/recurring/autoclose-merged/` is `done` with no `ticket.py`. The
+runbook inventory finds no autoclose caller. After merge and reinstall, the
+next period copies the new packaged shim; re-run the inventory then. (The
+inventory does find `coga/tasks/recurring/blocker-reminders/ticket.py` as an
+old 04b-era stock 827 shim — that is 04b's rollout, not this ticket's.)
+
+---
+
+## PR
+
+```yaml
+title: Move the autoclose job to the edge
+author: claude
+author_evidence: >-
+  Original commit bb5911617 by an earlier Claude implement session (not pushed);
+  rebased, conflict-resolved and verified by this Claude (claude-opus-5-5)
+  megalaunch implement session as 0489f1562691948bc8ed51bd2a8c920a1c18936d.
+head: 0489f1562691948bc8ed51bd2a8c920a1c18936d
+base: a7b57a2d6d4712a226cf49fae9c70b7f35ff02fc
+depth: deep
+rationale: >-
+  Large relocation (1842-line core module split into edge job, dev_links and
+  checkout_disposal) touching every Dev-parser importer, plus a merged
+  shim-adoption runbook shared with 04b; no code review has run yet.
+implementation: >-
+  Deletes src/coga/autoclose.py. The job lives in coga_edge.autoclose whose
+  main runs runner.run_entry; the packaged autoclose-merged shim calls
+  main([], scheduled=True) (autoclose then bump, no global branch sweep).
+  Shared Dev parsers and gh lookups move to coga.dev_links; the retires.md
+  backlog walk shared with branch-sweep moves to checkout_disposal. The
+  autoclose runner.RECIPES entry is removed, so coga run autoclose exits 2;
+  the autoclose alias still launches the period. The edge-code upgrade runbook
+  section for recipe-backed shims now covers all three moved jobs with an
+  explicit MODULE variable.
+deviations: >-
+  Rebase onto main with 04b merged required generalizing 04b's runbook section
+  (MODULE env var for locate-job/job-fork-copy) and removing the now-unused
+  registry-shim test in test_recurring_shims.
+limitations: >-
+  Relocation, not reduction (net +32 production lines). Native Windows/macOS
+  receipts are release-only and deferred. This repo's own period rollout is a
+  plan on the blackboard, not performed.
+files:
+  AGENTS.md: Name autoclose among the edge-shim jobs.
+  docs/contexts/coga-dev/codebase/SKILL.md: Source map for coga_edge/autoclose.py and dev_links.py.
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Point stale coga.autoclose references at new homes.
+  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: Point stale coga.autoclose references at new homes.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Point stale coga.autoclose references at new homes.
+  docs/contexts/coga-dev/internals/notifications/SKILL.md: Producer list names coga_edge/autoclose.py.
+  docs/contexts/coga-dev/microkernel/SKILL.md: Record the autoclose move and per-symbol audit outcome.
+  src/coga/branchcleanup.py: Import shared helpers from dev_links.
+  src/coga/branchsweep.py: Import from dev_links and checkout_disposal.
+  src/coga/checkout_disposal.py: Receives the shared retires.md backlog walk.
+  src/coga/checkouts.py: Import shared helpers from dev_links.
+  src/coga/commands/bump.py: Import shared helpers from dev_links.
+  src/coga/dev_links.py: New core home of the shared Dev parsers and gh lookups.
+  src/coga/git.py: Docstring reference to dev_links.
+  src/coga/launch.py: Import shared helpers from dev_links.
+  src/coga/open_pr.py: Import shared helpers from dev_links.
+  src/coga/pr_assist.py: Import shared helpers from dev_links.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Recipe index drops autoclose.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Autoclose is a self-contained edge job.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md: Old-shim inventory, baselines, hand-port and fork for autoclose.
+  src/coga/resources/templates/coga/bootstrap/retire/ticket.py: Import shared helpers from dev_links.
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Stale module reference updated.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Skill describes the edge job and its sequence.
+  src/coga/resources/templates/coga/bootstrap/workflows/autoclose-merged/sweep.md: Workflow text matches the edge shim.
+  src/coga/resources/templates/coga/recurring/autoclose-merged/operations.md: Runbook points at the edge module and upgrade procedure.
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: Template contract names the edge job.
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py: Shim runs coga_edge.autoclose main.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Stale autoclose reference updated.
+  src/coga/retire_worklist.py: Import shared helpers from dev_links.
+  src/coga/runner.py: Remove the autoclose registry entry.
+  src/coga/step_gate.py: Module-level dev_links import replaces cycle-avoiding lazy import.
+  src/coga/workflow.py: Module-level import replaces cycle-avoiding lazy import.
+  src/coga/autoclose.py: Removed (renamed to the edge module).
+  src/coga_edge/autoclose.py: The moved autoclose job with main/run_entry.
+  tests/fixtures/edge-migration/README.md: Document the autoclose shim baselines.
+  tests/fixtures/edge-migration/autoclose-old-705.py: Stock PR 705 shim baseline.
+  tests/fixtures/edge-migration/autoclose-old-827.py: Stock PR 827 shim baseline.
+  tests/fixtures/edge-migration/autoclose-old-898.py: Stock PR 898 shim baseline.
+  tests/test_autoclose.py: Eligibility/report tests against the edge module.
+  tests/test_autoclose_dispose.py: Disposal tests against the edge module.
+  tests/test_autoclose_sweep.py: Sweep skill tests against the edge module.
+  tests/test_branchsweep.py: Patch targets follow moved helpers.
+  tests/test_create.py: Patch targets follow moved helpers.
+  tests/test_edge_distribution.py: Forkability and documented old-shim adoption for autoclose.
+  tests/test_git.py: Patch targets follow moved helpers.
+  tests/test_notification_messages.py: Patch targets follow moved helpers.
+  tests/test_open_pr.py: Patch targets follow moved helpers.
+  tests/test_open_pr_command.py: Patch targets follow moved helpers.
+  tests/test_packaging.py: Wheel ships coga_edge/autoclose.py; installed smoke patches it.
+  tests/test_recurring_shims.py: Autoclose shim is an edge shim; obsolete registry-shim test removed.
+  tests/test_runner.py: autoclose takes the unknown-recipe exit 2.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Peer review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 0489f1562691948bc8ed51bd2a8c920a1c18936d
+    base: a7b57a2d6d4712a226cf49fae9c70b7f35ff02fc
+    detail: 5186 passed, 33 skipped in 842s (Linux).
+  - command: .venv/bin/python -m pytest -q -x tests/test_autoclose.py tests/test_autoclose_dispose.py tests/test_autoclose_sweep.py tests/test_recurring_shims.py tests/test_runner.py tests/test_edge_distribution.py tests/test_branchsweep.py
+    status: passed
+    head: 0489f1562691948bc8ed51bd2a8c920a1c18936d
+    base: a7b57a2d6d4712a226cf49fae9c70b7f35ff02fc
+    detail: 449 passed.
+  - command: coga validate --json (disposable copy of tests/fixtures/seeded-repo)
+    status: passed
+    head: 0489f1562691948bc8ed51bd2a8c920a1c18936d
+    base: a7b57a2d6d4712a226cf49fae9c70b7f35ff02fc
+    detail: ok_count 5, issues 0.
+  - command: coga run autoclose (disposable seeded fixture)
+    status: passed
+    head: 0489f1562691948bc8ed51bd2a8c920a1c18936d
+    base: a7b57a2d6d4712a226cf49fae9c70b7f35ff02fc
+    detail: "Exit 2, unknown recipe 'autoclose'."
+  - command: native Windows/macOS receipts
+    status: not-run
+    detail: Release-only per coga-dev/testing; deferred.
+```

@@ -4490,3 +4490,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 13:08 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-19 14:20 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [megalaunch] claimed in_progress resume via coga megalaunch (replaced earlier claim c0117d6c-1cbb-4f9e-8860-df6265c0f1d5)
 2026-11-19 14:20 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [megalaunch] launched via coga megalaunch
+2026-11-19 14:39 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [agent:claude] advanced to step 2 (peer-review) → codex
