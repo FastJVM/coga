@@ -24,7 +24,9 @@ this job sees was installed explicitly by an operator (`coga skill install`
 for a GitHub pack such as the Google agent skills, `install-url`, or
 `install-local`), and this job only updates what is installed: it never
 installs a pack that is absent. Once a week this ticket fires on its schedule
-and its `ticket.py` runs
+and its `ticket.py` runs the installed `coga_edge.skill_update` job (by hand,
+`python -m coga_edge.skill_update`; a full local fork is that one module copied
+over `ticket.py`, see [coga/edge-code](context:coga/edge-code)). The job runs
 `coga skill update --all --pr`, which:
 
 1. walks every installed skill under `coga/skills/`: a skill whose

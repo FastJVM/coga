@@ -33,10 +33,12 @@ PACKAGED = REPO_ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 
 # Every template that used to declare `recipe: <name>`, and the registry entry
 # its shim must now reach directly.
-SHIMMED_TEMPLATES = (
-    ("autoclose-merged", "autoclose"),
-    ("blocker-reminders", "blocker-reminders"),
-    ("skill-update", "skill-update"),
+SHIMMED_TEMPLATES = (("autoclose-merged", "autoclose"),)
+# Templates whose job moved to `coga_edge`: (template, module, worker). The
+# shim imports the module's `main`; the recipe name left the registry.
+EDGE_SHIMMED_TEMPLATES = (
+    ("blocker-reminders", "blocker_reminders", "run_blocker_reminders"),
+    ("skill-update", "skill_update", "run_skill_update"),
 )
 # `scope: clone` shims: no period task, so the exit code is the whole outcome.
 CLONE_SHIMMED_TEMPLATES = (("branch-sweep", "branch-sweep"),)
@@ -82,6 +84,31 @@ def test_shim_calls_the_registered_recipe_and_bumps_through_the_cli(
     assert argv[:1] == [_SYS_EXECUTABLE]
     assert argv[1:4] == ["-m", "coga.cli", "bump"]
     assert argv[4] == _TASK_SLUG_ENV
+
+
+@pytest.mark.parametrize(("template", "module", "worker"), EDGE_SHIMMED_TEMPLATES)
+def test_edge_shim_runs_its_installed_module_main(template: str, module: str, worker: str) -> None:
+    """The shim holds no job logic and no completion of its own.
+
+    `main` is the module's `runner.run_entry` sequence: report, publish, then
+    bump only a launched script task. The removed recipe name is not
+    registered, so `coga run <name>` takes the unknown-recipe exit.
+    """
+    script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT
+    tree = ast.parse(script.read_text(encoding="utf-8"), filename=str(script))
+    imported = {
+        alias.asname or alias.name: node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module != "__future__"
+        for alias in node.names
+    }
+    assert imported == {"main": f"coga_edge.{module}"}
+    assert not [node for node in ast.walk(tree) if isinstance(node, ast.Import)]
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    assert [ast.unparse(call) for call in calls] == ["SystemExit(main([], scheduled=True))", "main([], scheduled=True)"]
+    job = importlib.import_module(f"coga_edge.{module}")
+    assert callable(job.main) and callable(getattr(job, worker))
+    assert template not in RECIPES
 
 
 _SYS_EXECUTABLE = "<sys.executable>"
@@ -182,7 +209,8 @@ def test_clone_shim_bumps_only_when_run_as_a_period_task(
 
 def test_every_shimmed_template_dropped_the_recipe_field() -> None:
     """`recipe:` left the format; the file beside `ticket.md` is the signal."""
-    for template, _ in (*SHIMMED_TEMPLATES, *CLONE_SHIMMED_TEMPLATES):
+    templates = [t for t, *_ in (*SHIMMED_TEMPLATES, *CLONE_SHIMMED_TEMPLATES, *EDGE_SHIMMED_TEMPLATES)]
+    for template in templates:
         ticket = (PACKAGED / "recurring" / template / "ticket.md").read_text(encoding="utf-8")
         assert "\nrecipe:" not in ticket, template
 
@@ -253,20 +281,38 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return dest / "coga"
 
 
-@pytest.mark.parametrize(("template", "recipe_name"), SHIMMED_TEMPLATES)
+# How each shipped shim's production work is replaced with a no-op in a copied
+# period script: (template, shim text, replacement text).
+_NOOP_SHIM_PATCHES = [
+    (template, "from coga.runner import run_recipe",
+     "from coga.runner import RECIPES, run_recipe\n"
+     "RECIPES.clear()\n"
+     f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0")
+    for template, recipe_name in SHIMMED_TEMPLATES
+] + [
+    (template, f"from coga_edge.{module} import main",
+     f"import coga_edge.{module} as job\n"
+     f"job.{worker} = lambda cfg, args: 0\n"
+     f"from coga_edge.{module} import main")
+    for template, module, worker in EDGE_SHIMMED_TEMPLATES
+]
+
+
+@pytest.mark.parametrize(("template", "shim_text", "noop_text"), _NOOP_SHIM_PATCHES)
 def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
     seeded: Path,
     template: str,
-    recipe_name: str,
+    shim_text: str,
+    noop_text: str,
     capfd: pytest.CaptureFixture[str],
 ) -> None:
     """End-to-end: install a packaged template, create its period task, launch.
 
-    Replace the registry with one no-op recipe in the copied shim so production
-    maintenance never runs. The run proves the whole chain: `_create_at_slug`
-    copies `ticket.py`, `coga launch` classifies it, the recipe runs with no agent
-    and no TTY (CliRunner supplies neither), and the shim's own `coga bump`
-    finishes the one-step workflow.
+    Replace the production work with a no-op in the copied shim so maintenance
+    never runs. The run proves the whole chain: `_create_at_slug` copies
+    `ticket.py`, `coga launch` classifies it, the job runs with no agent and no
+    TTY (CliRunner supplies neither), and the shim's own `coga bump` (an edge
+    module's `runner.run_entry`) finishes the one-step workflow.
     """
     shutil.copytree(
         PACKAGED / "recurring" / template,
@@ -288,12 +334,9 @@ def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
         ("ticket.md", SCRIPT_ENTRY_POINT)
     )
     script = ref.task_dir / SCRIPT_ENTRY_POINT
-    script.write_text(script.read_text(encoding="utf-8").replace(
-        "from coga.runner import run_recipe",
-        "from coga.runner import RECIPES, run_recipe\n"
-        "RECIPES.clear()\n"
-        f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0",
-    ), encoding="utf-8", newline="\n")
+    source = script.read_text(encoding="utf-8")
+    assert source.count(shim_text) == 1
+    script.write_text(source.replace(shim_text, noop_text), encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
@@ -329,13 +372,13 @@ def test_period_task_left_unfinished_when_its_shim_fails(seeded: Path) -> None:
 def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
     seeded: Path,
 ) -> None:
-    """End-to-end for the recipe layer's failure surface.
+    """End-to-end for the shared failure surface, through the stock shim.
 
     The launcher hands `ticket.py` the period task's `COGA_TASK_BLACKBOARD`;
-    a recipe run through `run_recipe` that exits non-zero has its stderr
-    appended there as `## Recipe Failure`, which is what the sweep's run
-    record reads. The console output the child produced is discarded by the
-    sweep, so this section is the only reason the period keeps.
+    a job run through `runner.run_entry` (`run_reported`) that exits non-zero
+    has its stderr appended there as `## Recipe Failure`, which is what the
+    sweep's run record reads. The console output the child produced is
+    discarded by the sweep, so this section is the only reason the period keeps.
     """
     shutil.copytree(
         PACKAGED / "recurring" / "blocker-reminders",
@@ -347,17 +390,18 @@ def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
     )
     cfg = load_config(seeded)
     ref = create_named(cfg, "blocker-reminders").ref
-    (ref.task_dir / SCRIPT_ENTRY_POINT).write_text(
+    script = ref.task_dir / SCRIPT_ENTRY_POINT
+    stock = "from coga_edge.blocker_reminders import main"
+    source = script.read_text(encoding="utf-8")
+    assert source.count(stock) == 1
+    script.write_text(source.replace(stock,
         "import sys\n"
-        "from coga import runner\n"
-        "from coga.config import load_config\n"
+        "import coga_edge.blocker_reminders as job\n"
         "def fail(cfg, argv):\n"
         "    sys.stderr.write('[blockers] webhook refused the reminder\\n')\n"
         "    return 2\n"
-        "runner.RECIPES['blocker-reminders'] = fail\n"
-        "sys.exit(runner.run_recipe(load_config(), 'blocker-reminders', []))\n",
-        encoding="utf-8", newline="\n",
-    )
+        "job.run_blocker_reminders = fail\n" + stock,
+    ), encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 

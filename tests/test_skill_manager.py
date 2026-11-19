@@ -311,7 +311,7 @@ def test_update_all_reports_a_failed_gh_skill_as_followup_beside_the_updated_one
     """The ticket's regression: one skill updates, one fails. The summary must
     name both with their real statuses, and the skill-update recipe must count
     a follow-up from it — not `1 updated, 0 need follow-up` by construction."""
-    from coga import skill_update
+    from coga_edge import skill_update
 
     cfg = load_config(_repo(tmp_path, monkeypatch))
     bundled_root = _package_skill_root(tmp_path, monkeypatch)

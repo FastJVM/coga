@@ -9,7 +9,7 @@ from textwrap import dedent
 import pytest
 
 from coga import git as git_module
-from coga.blocker_reminders import (
+from coga_edge.blocker_reminders import (
     record_reminder,
     remind_blocked_tasks,
     scan_blocker_reminders,
@@ -294,3 +294,67 @@ def test_resolved_blockers_are_not_reminded(
 
     assert remind_blocked_tasks(load_config(repo)) == 0
     assert posts == []
+
+
+def test_failed_watermark_write_retries_the_reminder_next_run(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The watermark follows the post, so a lost write means one more reminder."""
+    from coga_edge import blocker_reminders
+
+    slug = _task_with_blocker(repo)
+    posts = _capture_posts(monkeypatch)
+    cfg = load_config(repo)
+    ticket_path = repo / "tasks" / f"{slug}.md"
+    real_update = blocker_reminders.update_blackboard_under_barrier
+
+    def refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise OSError("read-only checkout")
+
+    monkeypatch.setattr(blocker_reminders, "update_blackboard_under_barrier", refuse)
+    with pytest.raises(OSError, match="read-only checkout"):
+        remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 10, 0))
+    assert len(posts) == 1
+    assert "## Blocker reminders" not in read_blackboard(ticket_path)
+
+    monkeypatch.setattr(blocker_reminders, "update_blackboard_under_barrier", real_update)
+    assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 11, 0)) == 1
+    assert len(posts) == 2
+    assert "last_reminded: 2026-06-30 11:00" in read_blackboard(ticket_path)
+    # The fingerprint is a permanent dedup key once recorded.
+    assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 12, 0)) == 0
+    assert len(posts) == 2
+
+
+@pytest.mark.parametrize("scheduled", [False, True])
+def test_main_runs_from_the_edge_and_bumps_only_a_launched_script_task(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    scheduled: bool,
+) -> None:
+    from typer.testing import CliRunner
+
+    from coga import runner
+    from coga.cli import app
+    from coga_edge import blocker_reminders
+
+    slug = _task_with_blocker(repo)
+    _capture_posts(monkeypatch)
+    ref = resolve_task(load_config(repo), slug)
+    bumps: list[str] = []
+    monkeypatch.setattr(runner, "_bump", lambda slug: bumps.append(slug) or 0)
+    # The recipe name left the registry: the unknown-recipe exit, no stub.
+    removed = CliRunner().invoke(app, ["run", "blocker-reminders"])
+    assert removed.exit_code == 2
+    assert "unknown recipe 'blocker-reminders'" in removed.output
+
+    monkeypatch.setenv("COGA_TASK_SLUG", slug)
+    # A manual call can inherit even valid script attribution.
+    monkeypatch.setenv("COGA_SCRIPT_TASK", str(ref.path))
+    capsys.readouterr()
+    assert blocker_reminders.main([], scheduled=scheduled) == 0
+    assert "[blockers] reminded 1 blocker(s)." in capsys.readouterr().out
+    assert bumps == ([slug] if scheduled else [])
+    assert blocker_reminders.main(["--now"], scheduled=scheduled) == 2
+    assert bumps == ([slug] if scheduled else [])

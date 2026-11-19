@@ -25,6 +25,12 @@ The repo separates implementation from the OS it operates:
   `bootstrap/dream/tasks/*` skills own the contracts.
 - `src/coga_edge/blackboard_size.py`: the weekly oversized-blackboard report
   behind the `blackboard-size` shim; its [template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blackboard-size/ticket.md) owns the contract.
+- `src/coga_edge/blocker_reminders.py` and `src/coga_edge/skill_update.py`:
+  the recurring blocker-reminders and skill-update jobs. Their packaged
+  `ticket.py` shims call `main`, which runs `runner.run_entry`. The packaged
+  [blocker-reminders](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md)
+  and [skill-update](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/skill-update/ticket.md)
+  tickets own their contracts.
 
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
   with no business logic are the target; `init.py` still carries substantial

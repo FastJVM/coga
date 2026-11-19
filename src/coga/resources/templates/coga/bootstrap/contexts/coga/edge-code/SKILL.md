@@ -60,6 +60,16 @@ Dream fork copies the module beside its `ticket.md` and points that
 phase's command at the copy. The [upgrade procedure](edge-code-upgrades.md)
 ships the exact old, new and fork passages.
 
+The blocker-reminders and skill-update recurring jobs
+(`coga_edge.blocker_reminders`, `coga_edge.skill_update`) are self-contained
+the same way. Their packaged shim calls the module's `main`, which runs
+`runner.run_entry`: report, publish, and complete the step only when launch
+named that task as its script. A hand run (`python -m coga_edge.<module>`)
+never advances a task. A copy of the module over a template or period
+`ticket.py` is therefore a full local fork that still completes its step. The
+[upgrade procedure](edge-code-upgrades.md#recipe-backed-recurring-shims)
+covers shims written while these jobs were registered recipes.
+
 Report command tickets ship complete scripts under `bootstrap/`, rather
 than import wrappers in `coga_edge`. Copy the whole selected directory to
 `coga/bootstrap/<name>/` for a local fork, including any helpers. Removing

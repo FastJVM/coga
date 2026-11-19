@@ -30,8 +30,8 @@ def test_phone_home_is_a_forkable_edge_module():
     assert callable(phone_home._worker_main)
 
 
-@pytest.mark.parametrize("name", ["validate_drift", "cleanup_orphan_markers"])
-def test_dream_workers_are_forkable_edge_modules(name):
+@pytest.mark.parametrize("name", ["blocker_reminders", "skill_update", "validate_drift", "cleanup_orphan_markers"])
+def test_edge_jobs_are_forkable_edge_modules(name):
     import importlib
 
     module = importlib.import_module(f"coga_edge.{name}")
@@ -45,7 +45,8 @@ def test_dream_workers_are_forkable_edge_modules(name):
         elif isinstance(node, ast.Import):
             assert all(alias.name.split(".")[0] in allowed for alias in node.names)
     assert callable(module.main)
-    assert callable(module.target_root)
+    if name in ("validate_drift", "cleanup_orphan_markers"):
+        assert callable(module.target_root)
     assert not hasattr(module, "append_report")
 
 
@@ -73,6 +74,11 @@ def edge_wheels(tmp_path_factory):
         ))
         module = source / "src/coga_edge/phone_home.py"
         module.write_text(module.read_text(encoding="utf-8").replace("## Phone home\\n", f"## Phone home {label}\\n"), encoding="utf-8", newline="\n")
+        module = source / "src/coga_edge/blocker_reminders.py"
+        text = module.read_text(encoding="utf-8")
+        tagged = text.replace("no unresolved blockers to remind.", f"no unresolved blockers to remind (wheel {label}).")
+        assert tagged != text
+        module.write_text(tagged, encoding="utf-8", newline="\n")
         for worker in ("validate_drift", "cleanup_orphan_markers"):
             module = source / f"src/coga_edge/{worker}.py"
             text = module.read_text(encoding="utf-8")
@@ -736,4 +742,104 @@ def test_documented_trim_adoption_uses_resolved_interpreter(tmp_path, edge_wheel
                             capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "already installed" in result.stdout
+    assert not (guard / "called").exists()
+
+
+@pytest.mark.parametrize("layout", ["package", "fork"])
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
+def test_documented_recipe_shim_adoption_runs_the_installed_wheel_or_a_fork(tmp_path, edge_wheels, layout):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
+    coga_os = root / "coga"
+    env["PATH"] = str(installed / "bin") + os.pathsep + env["PATH"]
+    env["COGA_PY"] = _operator_command("interpreter", root, env).strip()
+    # A full local skill-update override, and blocker-reminders package-backed
+    # (a state-only carrier) with a frozen period and a parked copy.
+    _legacy_local_install(root, installed, "skill-update")
+    _run(root, env, "-c", """
+from pathlib import Path
+from coga.config import load_config
+from coga.recurring import create_named
+assert create_named(load_config(Path("coga")), "blocker-reminders").created
+""")
+    baselines = {(job, pr): FIXTURES / f"{job}-old-{pr}.py"
+                 for job in ("blocker-reminders", "skill-update") for pr in (705, 827)}
+    template = coga_os / "recurring/skill-update/ticket.py"
+    period = coga_os / "tasks/recurring/blocker-reminders/ticket.py"
+    parked = coga_os / "tasks/_parked/blocker-reminders/ticket.py"
+    edited = coga_os / "tasks/recurring/skill-update/ticket.py"
+    stock = {template: ("skill-update", 827), period: ("blocker-reminders", 827),
+             parked: ("blocker-reminders", 705)}
+    for path, key in stock.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(baselines[key].read_bytes())
+    parked.with_suffix(".md").write_text(period.with_suffix(".md").read_text(encoding="utf-8").replace(
+        "status: active", "status: paused"), encoding="utf-8", newline="\n")
+    edited.parent.mkdir(parents=True)
+    edited.write_bytes(baselines["skill-update", 827].read_bytes().replace(b'"skill-update", []', b'"skill-update", ["--no-pr"]'))
+    edited_before = edited.read_bytes()
+    with period.with_suffix(".md").open("a", encoding="utf-8", newline="\n") as stream:
+        stream.write("\nExisting findings remain.\n")
+    callers = _operator_command("recipe-shim-callers", root, env).splitlines()
+    assert sorted({line.split(":", 1)[0] for line in callers}) == sorted(
+        str(p.relative_to(root)) for p in (*stock, edited))
+    for path in (*stock, edited):
+        env["CANDIDATE"] = str(path)
+        labels = set()
+        for pr in (705, 827):
+            env["OLD_SOURCE"] = str(baselines[stock.get(path, ("skill-update", 0))[0], pr])
+            labels.add(_operator_command("compare", root, env).split(":")[0])
+        assert labels == ({"review"} if path == edited else {"stock", "review"})
+    preserved = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file() and p.suffix != ".py"}
+    _install(edge_wheels["B"], installed)
+    for path, (job, pr) in stock.items():
+        env.update(JOB=job, CANDIDATE=str(path), OLD_SOURCE=str(baselines[job, pr]))
+        implementation, shim = _operator_command("locate-job", root, env).splitlines()
+        assert Path(implementation) == installed / "coga_edge" / f"{job.replace('-', '_')}.py"
+        env["NEW_SHIM"] = shim
+        _operator_command("replace", root, env)
+        assert path.read_bytes() == Path(shim).read_bytes()
+    env.update(JOB="skill-update", CANDIDATE=str(edited), OLD_SOURCE=str(baselines["skill-update", 827]))
+    _operator_command("replace", root, env, success=False)
+    assert edited.read_bytes() == edited_before
+    # The customized copy stays a reviewed caller until it is ported by hand.
+    assert [line.split(":", 1)[0] for line in _operator_command("recipe-shim-callers", root, env).splitlines()] == [
+        str(edited.relative_to(root))]
+    # Apply the documented hand-port and verify it still honors the local argv.
+    passage = RUNBOOK.read_text(encoding="utf-8").split(
+        "becomes this, keeping its own argv and other customizations:", 1
+    )[1].split("```python\n", 1)[1].split("```", 1)[0]
+    edited.write_text(passage, encoding="utf-8", newline="\n")
+    if layout == "fork":
+        env.update(JOB="blocker-reminders", CANDIDATE=str(period))
+        env["NEW_SHIM"] = _operator_command("locate-job", root, env).splitlines()[1]
+        assert _operator_command("job-fork-copy", root, env).strip() == str(period)
+        assert period.read_bytes() == (installed / "coga_edge/blocker_reminders.py").read_bytes()
+        period.write_text(period.read_text(encoding="utf-8").replace("(wheel B)", "(local fork)"), encoding="utf-8", newline="\n")
+        # It refuses to overwrite a reviewed fork.
+        _operator_command("job-fork-copy", root, env, success=False)
+    assert all(p.read_bytes() == raw for p, raw in preserved.items())
+    origin = "(wheel B)" if layout == "package" else "(local fork)"
+    for path in [installed, *installed.rglob("*")]:
+        path.chmod(path.stat().st_mode & ~0o222)
+    try:
+        assert "coga.cli skill update --all --json`" in _run(coga_os, env, str(edited))
+        # A hand run of the parked copy reports but completes nothing.
+        assert "no unresolved blockers to remind (wheel B)." in _run(coga_os, env, str(parked))
+        result = subprocess.run([sys.executable, "-m", "coga.cli", "launch", "recurring/blocker-reminders"],
+                                cwd=coga_os, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert f"no unresolved blockers to remind {origin}." in result.stdout
+        stale = subprocess.run([sys.executable, "-m", "coga.cli", "run", "blocker-reminders"], cwd=coga_os, env=env,
+                               capture_output=True, text=True, encoding="utf-8", timeout=60)
+        assert stale.returncode == 2 and "unknown recipe 'blocker-reminders'" in stale.stderr + stale.stdout
+    finally:
+        for path in [installed, *installed.rglob("*")]:
+            path.chmod(path.stat().st_mode | 0o200)
+    from coga.ticket import Ticket
+    assert Ticket.read(period.with_suffix(".md")).status == "done"
+    assert period.with_suffix(".md").read_text(encoding="utf-8").endswith("\nExisting findings remain.\n")
+    assert Ticket.read(parked.with_suffix(".md")).status == "paused"
+    for path, raw in preserved.items():
+        if path not in (period.with_suffix(".md"), coga_os / "log.md"):
+            assert path.read_bytes() == raw, path
     assert not (guard / "called").exists()

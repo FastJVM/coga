@@ -14,17 +14,16 @@ from coga.cli import app
 from coga.commands import run as run_command
 from coga.config import Config, load_config
 from coga.recurring_autofix import RunRecord, TaskOutcome
+from coga import runner as runner_module
 from coga.runner import FAILURE_REPORT_CHARS, RECIPES, render_failure_section, run_recipe
 from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 
 
 EXPECTED_RECIPES = (
     "autoclose",
-    "blocker-reminders",
     "branch-sweep",
     "recurring-scan",
     "autofix-analyze",
-    "skill-update",
     "open-pr",
     "delete-task",
     "publish-state",
@@ -54,10 +53,10 @@ def test_run_recipe_forwards_argv_boundaries_and_spelling(monkeypatch) -> None:
         received.append((recipe_cfg, argv))
         return 9
 
-    monkeypatch.setitem(RECIPES, "skill-update", fake_recipe)
+    monkeypatch.setitem(RECIPES, "autofix-analyze", fake_recipe)
     argv = ["two words", "--no-fix", "--label=value"]
 
-    assert run_recipe(cfg, "skill-update", argv) == 9
+    assert run_recipe(cfg, "autofix-analyze", argv) == 9
     assert received == [(cfg, argv)]
     assert received[0][1] is not argv
 
@@ -67,7 +66,6 @@ def test_no_arg_recipes_reject_unexpected_tokens() -> None:
 
     for name in (
         "autoclose",
-        "blocker-reminders",
         "branch-sweep",
     ):
         assert run_recipe(cfg, name, ["unexpected"]) == 2
@@ -88,12 +86,12 @@ def test_run_command_passes_trailing_tokens_as_ordinary_argv(monkeypatch) -> Non
 
     result = CliRunner().invoke(
         app,
-        ["run", "skill-update", "two words", "--no-fix", "--label=value"],
+        ["run", "autofix-analyze", "two words", "--no-fix", "--label=value"],
     )
 
     assert result.exit_code == 0, result.output
     assert received == [
-        (cfg, "skill-update", ["two words", "--no-fix", "--label=value"])
+        (cfg, "autofix-analyze", ["two words", "--no-fix", "--label=value"])
     ]
 
 
@@ -108,16 +106,19 @@ def test_run_command_rejects_unknown_recipe_with_known_names(monkeypatch) -> Non
         assert name in result.output
 
 
-@pytest.mark.parametrize("name", ["validate-drift", "cleanup-orphan-markers"])
-def test_run_command_refuses_names_moved_to_the_edge(monkeypatch, name) -> None:
-    # Dream runs these workers as `python -m coga_edge.<worker>`; the old
-    # spelling takes the ordinary unknown-recipe path, with no forwarding stub.
+@pytest.mark.parametrize(
+    "name", ["blocker-reminders", "skill-update", "validate-drift", "cleanup-orphan-markers"]
+)
+def test_edge_jobs_left_the_registry_without_a_stub(monkeypatch, name: str) -> None:
+    # Their jobs run from `coga_edge`; the old spelling takes the ordinary
+    # unknown-recipe exit rather than forwarding.
     monkeypatch.setattr(run_command, "load_config", lambda: cast(Config, object()))
 
     result = CliRunner().invoke(app, ["run", name])
 
     assert result.exit_code == 2
     assert f"unknown recipe {name!r}" in result.output
+    assert name not in runner_module.RECIPE_ROOTS
 
 
 def test_run_command_preserves_output_and_exit_code(monkeypatch) -> None:
@@ -350,17 +351,23 @@ def test_unwritable_blackboard_never_outranks_the_recipe_failure(
     assert "could not record the autoclose failure" in capsys.readouterr().err
 
 
-def _run_cwd_worker(cfg: Config, recipe: str, argv: list[str]) -> int:
-    """A registered recipe through `run_recipe`; an edge worker through the
+def _run_cwd_worker(cfg: Config, name: str, argv: list[str]) -> int:
+    """A registered recipe through the registry; an edge job through the
     failure floor it shares, with its own root resolver."""
-    if recipe != "validate-drift":
-        return run_recipe(cfg, recipe, argv)
-    from coga.runner import run_reported
-    from coga_edge import validate_drift
+    if name in RECIPES:
+        return run_recipe(cfg, name, argv)
+    if name == "validate-drift":
+        from coga_edge import validate_drift
 
-    return run_reported(
-        cfg, recipe, validate_drift.run_validate_drift_recipe, argv,
-        root=validate_drift.target_root,
+        return runner_module.run_reported(
+            cfg, name, validate_drift.run_validate_drift_recipe, argv,
+            root=validate_drift.target_root,
+        )
+    from coga_edge import skill_update
+
+    assert name == "skill-update"
+    return runner_module.run_reported(
+        cfg, name, skill_update.run_skill_update, argv, root=skill_update.target_root
     )
 
 
@@ -368,7 +375,7 @@ def _run_cwd_worker(cfg: Config, recipe: str, argv: list[str]) -> int:
     ("recipe", "worker"),
     [
         ("validate-drift", "coga_edge.validate_drift.run_validate_json"),
-        ("skill-update", "coga.skill_update.run_update_json"),
+        ("skill-update", "coga_edge.skill_update.run_update_json"),
     ],
 )
 @pytest.mark.parametrize("cwd_option", ["--cwd", "--cwd=", "--cw"])
@@ -409,7 +416,7 @@ def test_failure_respects_cwd_blackboard_containment(
     ("recipe", "worker"),
     [
         ("validate-drift", "coga_edge.validate_drift.run_validate_json"),
-        ("skill-update", "coga.skill_update.run_update_json"),
+        ("skill-update", "coga_edge.skill_update.run_update_json"),
     ],
 )
 def test_cwd_recipe_failure_uses_the_target_blackboard_and_barrier(

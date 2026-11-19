@@ -39,10 +39,11 @@ never executable launch plugins.
 - **Count callers of one symbol, not copies of one body.** Three
   byte-identical private `append_report` helpers (`skill_update.py` and
   Dream's two workers, now `coga_edge.validate_drift` and
-  `coga_edge.cleanup_orphan_markers`) were three single-consumer copies; the
-  Dream workers now call `blackboard.append_blackboard_report` directly. A
-  helper earns a shared home only when the change that adds it migrates the
-  existing duplicates onto it in the same PR.
+  `coga_edge.cleanup_orphan_markers`) were three single-consumer copies; all
+  three edge modules, `coga_edge.skill_update` included, now call
+  `blackboard.append_blackboard_report` directly. A helper earns a shared home
+  only when the change that adds it migrates the existing duplicates onto it in
+  the same PR.
 - **The consumer test can keep a symbol in core.** When an implementation
   moves to the edge, any helper it shares with another core consumer stays.
 
@@ -230,5 +231,14 @@ module imports only stdlib and shared `coga.*`, never relative or sibling
 edge modules, and carries both normal and private `--worker` dispatch behind
 `__main__`; its worker executes that same file, including when copied to a
 local fork. Preserve these constraints when refactoring it.
+
+The recurring blocker-reminders and skill-update jobs
+(`coga_edge.blocker_reminders`, `coga_edge.skill_update`) follow the same
+import rule. Each exposes `main`, which runs `runner.run_entry` with its own
+root resolver: skill-update passes `target_root`, and blocker-reminders uses
+the invoking root. Their packaged shims call `main([], scheduled=True)`, and a copy of the
+module over `ticket.py` is a complete fork. Their recipe names left
+`runner.RECIPES`. `skill_manager` and `coga skill update` stay in core for
+their own consumers; only the reporting job moved.
 
 Size exception: placement rules, open decisions and retained proofs stay together so reviewers can assess each command against the same kernel boundary.

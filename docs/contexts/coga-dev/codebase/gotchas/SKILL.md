@@ -68,8 +68,9 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   function, so the recipe failure report applies;
   `tests/test_recurring_shims.py` pins that shape. The other sanctioned shape is
   a wheel-owned edge shim that runs a `coga_edge` module's `main` (phone-home:
-  `from coga_edge.phone_home import main`) and has no `RECIPES` entry; do not
-  turn it into a registry entry ([coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
+  `from coga_edge.phone_home import main`; blocker-reminders and skill-update:
+  `main([], scheduled=True)`, whose `runner.run_entry` reports, publishes and bumps) and has no
+  `RECIPES` entry; do not turn it into a registry entry ([coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
 - **`reminders.py` is only `run()` plus `SweepResult`** for downstream sweep
   scripts: it parses `--today` / `--tasks-dir` / `--dry-run`, prints the
   report, and posts alerts through `coga slack` by default (a `ticket.py` gets
