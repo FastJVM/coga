@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 2: move blocker-reminders and skill-update to the edge'
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
@@ -31,6 +31,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:8f34da2e-f10d-42d0-abec-be3426975b3f
 ---
 
 ## Description
