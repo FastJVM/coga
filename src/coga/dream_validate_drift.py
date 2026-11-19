@@ -16,7 +16,7 @@ from typing import Any
 from coga.blackboard import append_blackboard_report
 from coga.config import Config, ConfigError, find_repo_root, load_config
 from coga.notification import post
-from coga.task_env import blackboard_from_env, discover_coga_os_root
+from coga.task_env import blackboard_from_env, cwd_option_root, discover_coga_os_root
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 
 
@@ -783,6 +783,10 @@ def recipe_parser() -> argparse.ArgumentParser:
     parser.add_argument("--idle-hours", type=float)
     parser.add_argument("--max-blackboard-kb", type=float)
     return parser
+
+
+# Where this worker's failure report and exit publication belong.
+target_root = cwd_option_root(recipe_parser)
 
 
 def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:

@@ -22,6 +22,7 @@ from coga.aliases import (
 )
 from coga.config import Config, ConfigError, find_repo_root, load_config
 from coga.logfile import log_lines, log_path
+from coga.state_sweep import sweep_root, sweep_suppressed
 
 
 def _print_version_and_exit(value: bool) -> None:
@@ -178,20 +179,13 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     Wired only to mutating commands via `_NON_SWEEPING_COMMANDS` and the
     option/`--help` guards: a bare `coga`, `--version`, or any `--help` is not a
     state change and must not commit. No repo (`cfg is None`) → nothing to sweep.
-    The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
-    so it never masks the command's own exit. The exit diagnostic separately
-    checks for retained log lines, including ones the sweep excluded.
+    Admission policy lives here; the mechanism (withheld/relay suppression,
+    config reload, the guarded sync) is `state_sweep`, shared with edge
+    entrypoints. It is non-fatal, so it never masks the command's own exit.
+    The exit diagnostic separately checks for retained log lines, including
+    ones the sweep excluded.
     """
-    if git.control_relay_started.get():
-        return
-    if git.state_sweep_withheld.get():
-        typer.secho(
-            "[git] state sweep withheld: the command refused before changing "
-            "state, or preserved local changes after a refused or failed "
-            "publication or checkout return.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
+    if sweep_suppressed():
         return
     if cfg is None or not _should_sweep_coga_state(sys.argv):
         return
@@ -202,20 +196,7 @@ def _sweep_coga_state(cfg: Config | None) -> None:
         # host feature checkout's dirty `coga/` state on control. On control
         # this is the inner CLI (or an ordinary direct child) and sweeps.
         return
-    try:
-        # A launched agent may edit coga.toml and move the context tree while
-        # the command is running. The eager config fed aliases at dispatch;
-        # reusing it here would sweep the old root and could commit the new
-        # config without its destination. Reload at the publication boundary.
-        live_cfg = load_config(cfg.repo_root, require_user=False)
-    except ConfigError as exc:
-        typer.secho(
-            f"[git] current config is invalid (state sweep skipped): {exc}",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        return
-    git.sync_coga_state(live_cfg)
+    sweep_root(cfg.repo_root)
 
 
 # How many unpublished log lines an exit warning prints before it
