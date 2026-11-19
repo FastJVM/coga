@@ -1,6 +1,6 @@
 ---
 title: 'Simplify branchsweep (pilot: cut Coga''s code size)'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -43,6 +43,7 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
+launch_generation: pending:d8fde879-a52c-482d-9a10-04d07dbb8f13
 ---
 
 ## Description
