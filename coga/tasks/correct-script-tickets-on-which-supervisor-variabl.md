@@ -1,6 +1,6 @@
 ---
 title: Correct script-tickets on which supervisor variables a ticket.py child loses
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,6 +28,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
