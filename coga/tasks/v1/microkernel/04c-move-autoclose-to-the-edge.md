@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 3: move autoclose to the edge'
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
