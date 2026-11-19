@@ -1,6 +1,6 @@
 ---
 name: coga/blackboard
-description: The writer's contract for a ticket blackboard — locating the fence, scoping edits, live sections and superseded designs, the draft-activation readiness check, size limits and their remedy, and safe concurrent writes. Attach to tickets whose work writes blackboards programmatically.
+description: The writer's contract for a ticket blackboard — locating the fence, scoping edits, live sections and superseded designs, the stale-note cleanup pass, the draft-activation readiness check, size limits, the size report and their remedy, and safe concurrent writes. Attach to tickets whose work writes blackboards programmatically.
 ---
 
 # Writing to a ticket blackboard
@@ -93,10 +93,36 @@ exempting other notes. Later reactivations and forced recurring reruns do not
 recheck. An `## Evaluator review` written by a live workflow step is working
 state for the next owner gate, not residue.
 
+## Stale-note cleanup
+
+Keeping the blackboard useful is part of reading it. Each time an agent loads
+or resumes a ticket, it deletes notes that clearly no longer help the work, as
+the ticket-loop prompt layer instructs. This is a light pass during ordinary
+ticket work. It needs no separate review step, ticket, or approval.
+
+- **Delete directly:** finished scratch, status lines a later value replaced,
+  plans the work moved past and whose rationale nothing still relies on,
+  dead ends already ruled out, and step-local notes a completed step no longer
+  needs. Git keeps the old text.
+- **Keep:** current decisions and their reasons, active blockers, the
+  worklist, and verification evidence the handoff still needs.
+- **Never delete:** the CLI-maintained `## Dev`, `## Blockers` and
+  `## Blocker reminders` sections, the `## PR` preparation record, or the
+  `## Superseded designs` record. A design that changes moves into
+  `## Superseded designs` [as below](#superseded-designs); it is not deleted.
+
+Age only prompts the check; an old note that still carries a live decision
+stays. When unsure whether a note still helps, keep it. The pass trims live
+notes only; moving dated evidence that still matters out of an oversized
+blackboard is the [size remedy](#size-and-its-remedy).
+
 ## Size and its remedy
 
 `coga validate` (`large-blackboard`) and launch warn above 32 KiB of live
-notes. When `coga launch --prompt-report` shows the blackboard as the
+notes. The bundled `blackboard-size` recurring job reports the same findings
+weekly: each flagged ticket's ref, measured size and the threshold. Its alert
+is informational. It creates no ticket, review or block, and an exceptional
+large blackboard may stay as it is. When `coga launch --prompt-report` shows the blackboard as the
 largest layer, do not delete history. Promote a file-form task to directory
 form, move dated evidence into sibling attachments (`tasks/<slug>/<topic>.md`,
 opening with an HTML comment naming the task and move date), and leave the
