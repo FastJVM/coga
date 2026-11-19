@@ -188,7 +188,7 @@ The recurring blocker-reminders and skill-update jobs
 (`coga_edge.blocker_reminders`, `coga_edge.skill_update`) follow the same
 import rule. Each exposes `main`, which runs `runner.run_entry` with its own
 root resolver: skill-update passes `target_root`, and blocker-reminders uses
-the invoking root. Their packaged shims call `main([])`, and a copy of the
+the invoking root. Their packaged shims call `main([], scheduled=True)`, and a copy of the
 module over `ticket.py` is a complete fork. Their recipe names left
 `runner.RECIPES`. `skill_manager` and `coga skill update` stay in core for
 their own consumers; only the reporting job moved.

@@ -5,4 +5,4 @@ from __future__ import annotations
 from coga_edge.blocker_reminders import main
 
 if __name__ == "__main__":
-    raise SystemExit(main([]))
+    raise SystemExit(main([], scheduled=True))

@@ -105,7 +105,7 @@ def test_edge_shim_runs_its_installed_module_main(template: str, module: str, wo
     assert imported == {"main": f"coga_edge.{module}"}
     assert not [node for node in ast.walk(tree) if isinstance(node, ast.Import)]
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
-    assert [ast.unparse(call) for call in calls] == ["SystemExit(main([]))", "main([])"]
+    assert [ast.unparse(call) for call in calls] == ["SystemExit(main([], scheduled=True))", "main([], scheduled=True)"]
     job = importlib.import_module(f"coga_edge.{module}")
     assert callable(job.main) and callable(getattr(job, worker))
     assert template not in RECIPES

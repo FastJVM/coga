@@ -440,21 +440,20 @@ def run_skill_update(
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, scheduled: bool = False) -> int:
     """Report, publish and, for a launched period script, complete the step.
 
     Failure reports and exit publication go to the `--cwd` target's Coga root.
-    `runner.run_entry` advances the task only when launch named this exact
-    task as its script (`COGA_SCRIPT_TASK`), so a hand run never bumps.
+    A scheduled invocation advances only the task named by launch.
     """
     return run_entry(
         "skill-update",
         run_skill_update,
         sys.argv[1:] if argv is None else argv,
         root=target_root,
-        scheduled=True,
+        scheduled=scheduled,
     )
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(scheduled=Path(__file__).name == "ticket.py"))

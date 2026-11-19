@@ -483,7 +483,7 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     # The installed edge module's `main` (report, publish, bump);
     # `tests/test_recurring_shims.py` pins the shape structurally.
     assert "from coga_edge.skill_update import main" in script
-    assert "raise SystemExit(main([]))" in script
+    assert "raise SystemExit(main([], scheduled=True))" in script
 
     assert "name: skill-update/run" in workflow
     assert "- bootstrap/skill-update" in workflow
@@ -573,6 +573,7 @@ def test_skill_update_runs_from_the_edge_module_and_reports_no_op(
     ref = list_tasks(cfg)[0]
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(ref.ticket_path.resolve()))
     monkeypatch.setenv("COGA_TASK_SLUG", ref.id_slug)
+    monkeypatch.setenv("COGA_SCRIPT_TASK", str(ref.path))
     # `--pr` preflights the branch switch with git before applying updates, so
     # the checkout must be a repository, clean and on its control branch.
     for args in (

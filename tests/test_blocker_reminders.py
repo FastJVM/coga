@@ -350,13 +350,11 @@ def test_main_runs_from_the_edge_and_bumps_only_a_launched_script_task(
     assert "unknown recipe 'blocker-reminders'" in removed.output
 
     monkeypatch.setenv("COGA_TASK_SLUG", slug)
-    if scheduled:
-        monkeypatch.setenv("COGA_SCRIPT_TASK", str(ref.path))
-    else:
-        monkeypatch.delenv("COGA_SCRIPT_TASK", raising=False)
+    # A manual call can inherit even valid script attribution.
+    monkeypatch.setenv("COGA_SCRIPT_TASK", str(ref.path))
     capsys.readouterr()
-    assert blocker_reminders.main([]) == 0
+    assert blocker_reminders.main([], scheduled=scheduled) == 0
     assert "[blockers] reminded 1 blocker(s)." in capsys.readouterr().out
     assert bumps == ([slug] if scheduled else [])
-    assert blocker_reminders.main(["--now"]) == 2
+    assert blocker_reminders.main(["--now"], scheduled=scheduled) == 2
     assert bumps == ([slug] if scheduled else [])

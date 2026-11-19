@@ -221,10 +221,10 @@ becomes this, keeping its own argv and other customizations:
 ```python
 from coga_edge.skill_update import main
 
-raise SystemExit(main(["--no-pr"]))
+raise SystemExit(main(["--no-pr"], scheduled=True))
 ```
 
-`main` completes the step itself, so delete the shim's own `coga bump`; a
+`main(..., scheduled=True)` completes the step itself, so delete the shim's own `coga bump`; a
 second bump would advance the next step. It also writes the shared
 `## Recipe Failure` report and publishes the job's state on exit.
 
@@ -284,9 +284,9 @@ Export these variables for the Python command. Customized callers of removed
 symbols require reconciliation; preserving their bytes does not ensure they
 will run. Inventory again and review each remaining caller before removing its
 target. Record tester adoption before upgrading them to a contracting wheel;
-do not ship recipe removal as an unattended wheel-only upgrade. This release
-only tests representative instruction reconciliation in fixtures: it removes
-no recipes, edits no shipped Dream passages, and implements no Dream workers.
+do not ship recipe removal as an unattended wheel-only upgrade. The current migration removes the blocker-reminders and skill-update names.
+Dream passages and workers are outside this migration; the fixtures exercise
+representative instruction reconciliation for the later release.
 
 5. Review `git diff --check` and the precise file diff; merge through normal
    repo practice. In a scratch copy, verify with CI/pytest suppression and fake

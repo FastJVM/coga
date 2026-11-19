@@ -220,17 +220,16 @@ def run_blocker_reminders(cfg: Config, argv: list[str]) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, scheduled: bool = False) -> int:
     """Report, publish and, for a launched period script, complete the step.
 
-    `runner.run_entry` advances the task only when launch named this exact
-    task as its script (`COGA_SCRIPT_TASK`), so a hand run never bumps.
+    A scheduled invocation advances only the task named by launch.
     """
     return run_entry(
         "blocker-reminders",
         run_blocker_reminders,
         sys.argv[1:] if argv is None else argv,
-        scheduled=True,
+        scheduled=scheduled,
     )
 
 
@@ -268,4 +267,4 @@ __all__ = [
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(scheduled=Path(__file__).name == "ticket.py"))

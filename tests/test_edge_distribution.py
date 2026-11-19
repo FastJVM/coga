@@ -664,6 +664,11 @@ assert create_named(load_config(Path("coga")), "blocker-reminders").created
     # The customized copy stays a reviewed caller until it is ported by hand.
     assert [line.split(":", 1)[0] for line in _operator_command("recipe-shim-callers", root, env).splitlines()] == [
         str(edited.relative_to(root))]
+    # Apply the documented hand-port and verify it still honors the local argv.
+    passage = RUNBOOK.read_text(encoding="utf-8").split(
+        "becomes this, keeping its own argv and other customizations:", 1
+    )[1].split("```python\n", 1)[1].split("```", 1)[0]
+    edited.write_text(passage, encoding="utf-8", newline="\n")
     if layout == "fork":
         env.update(JOB="blocker-reminders", CANDIDATE=str(period))
         env["NEW_SHIM"] = _operator_command("locate-job", root, env).splitlines()[1]
@@ -677,6 +682,7 @@ assert create_named(load_config(Path("coga")), "blocker-reminders").created
     for path in [installed, *installed.rglob("*")]:
         path.chmod(path.stat().st_mode & ~0o222)
     try:
+        assert "coga.cli skill update --all --json`" in _run(coga_os, env, str(edited))
         # A hand run of the parked copy reports but completes nothing.
         assert "no unresolved blockers to remind (wheel B)." in _run(coga_os, env, str(parked))
         result = subprocess.run([sys.executable, "-m", "coga.cli", "launch", "recurring/blocker-reminders"],
