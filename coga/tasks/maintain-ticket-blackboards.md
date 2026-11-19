@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (self-qa)
 agent: claude
-launch_generation: 8feee019-a09a-4c07-a25b-66d391606818
 ---
 
 ## Description
@@ -147,7 +146,80 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: coga/maintain-ticket-blackboards
 
-## Plan
+## Handoff (implement, 2026-11-19)
 
-- Detection: script-backed recurring job `blackboard-size` (package template + `blackboard-size/run` workflow); its `ticket.py` runs `coga validate --json`, keeps only `large-blackboard` findings, and reports ref, measured size and threshold (period blackboard + one informational notification). Independent of Dream; no ticket, no block.
-- Cleanup: light stale-note pass on load/resume in the ticket-loop prompt layer, policy owned by `coga/blackboard`.
+Implemented on `coga/maintain-ticket-blackboards` (commit `0089457`, pushed). No PR yet.
+
+- **Detection.** Bundled script-backed recurring job `blackboard-size` (`src/coga/resources/templates/coga/recurring/blackboard-size/{ticket.md,ticket.py}`, workflow `bootstrap/workflows/blackboard-size/run.md`, Mondays 08:00). Its edge `ticket.py` imports only shared core infra (`runner.run_entry`, `blackboard.append_blackboard_report`, `notification.post`, `task_env.blackboard_from_env`). It subprocesses `coga validate --json`, keeps `large-blackboard` findings and writes `## Oversized blackboards` (ref, size, threshold) to the period blackboard. When something is flagged it posts one non-important FYI with `fatal=False`. It always bumps, and nothing is filed or blocked. Not in `runner.RECIPES` (microkernel: single consumer).
+- **Decision: size and threshold are parsed from the finding message.** The validate JSON `Issue` has no structured size fields. `test_reads_size_and_threshold_from_the_validator_warning` pins `blackboard.blackboard_size_warning`'s format, and an unreadable finding raises rather than being dropped. Adding structured fields to `validate.Issue` would be the cleaner core change if wanted.
+- **Selection.** Added to `commands/update.FRESH_RECURRING_SELECTION` (owner review decides that default list; flag in PR) and to this repo's `coga/recurring/jobs.toml`. Lazy state carrier approved in `tests/test_packaging.py`.
+- **Cleanup.** `src/coga/resources/prompt-ticket.md`, loop step 1: delete clearly obsolete notes on load/resume. Age is only a cue. Keep decisions+reasons, open blockers, worklist and handoff verification. Never delete `## Dev`/`## Blockers`/`## Blocker reminders`/`## PR`/`## Superseded designs`. If unsure, keep the note. Owning topic `coga/blackboard` gains "Stale-note cleanup", and "Size and its remedy" names the job. `coga/notifications/producers` lists the FYI.
+- **Walkthrough (completion criterion 2).** Sample blackboard: (a) "Plan: try approach X" after X was replaced and nothing relies on its rationale, (b) "tests running…" status, (c) a ruled-out dead end, (d) "Decision: parse message because Issue lacks fields", (e) an open `## Blockers` ask, (f) the remaining worklist, (g) the full-suite receipt the PR record needs. The instruction deletes (a)-(c) as superseded plan, stale status and dead end. It keeps (d) as decision+reason, (e) as open blocker and CLI section, (f) as worklist, and (g) as handoff verification. This handoff applied it: the finished `## Plan` was replaced.
+- **Verification.** Live-repo dry render flags `recurring/dream` 39.5 KiB, `v1/14-…` 49.3 KiB, and `v1/20-ask-which-agents-to-enable-during-coga-init` 36.8 KiB (the original example, left untouched).
+- **Follow-up for owner / retro (not done here).** Dream's validate-drift still classifies `large-blackboard` as human-needed (`dream_validate_drift.py`), so live oversized tickets can be reported twice. Decide whether Dream should defer to this job. Also, the shell's `python`/`coga` (uv tool) lacks `tomlkit` for tests; use `.venv/bin/python`.
+
+## PR
+
+```yaml
+title: Report oversized blackboards weekly and prune stale notes on read
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Opus 5.5 (claude-opus-5-5) in a megalaunch queue.
+head: 008945777714511550555ca7037892e1c6c2539c
+base: 052daf10b64a631ef5a85c721adda00113224a8c
+depth: deep
+rationale: >-
+  Adds a new bundled recurring job selected by default for fresh repos (owner
+  review decides that list) and changes the shipped ticket-loop prompt that
+  every agent session composes; no review has run yet.
+implementation: >-
+  New package-owned recurring template blackboard-size with an edge ticket.py
+  that reports coga validate --json large-blackboard findings (ref, size,
+  threshold) to the period blackboard and as one non-fatal FYI, then bumps.
+  Ticket-loop step 1 now instructs a light stale-note cleanup on load or
+  resume; coga/blackboard owns the policy in a new Stale-note cleanup section.
+deviations: >-
+  None from the ticket. Size and threshold are parsed from the finding message
+  because the validate JSON has no structured size fields; a test pins the format.
+limitations: >-
+  Dream validate-drift still files large-blackboard as human-needed, so a live
+  oversized ticket can surface in both places. The cleanup pass is prompt
+  guidance; its judgment was checked by walkthrough, not automated.
+files:
+  coga/recurring/jobs.toml: Select the new bundled job in this repo.
+  src/coga/commands/update.py: Add blackboard-size to the fresh-repo recurring selection.
+  src/coga/resources/prompt-ticket.md: Instruct the stale-note cleanup pass when loading or resuming a ticket.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: >-
+    Own the stale-note cleanup policy and name the size report job.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md: >-
+    Inventory the new job's informational FYI.
+  src/coga/resources/templates/coga/bootstrap/workflows/blackboard-size/run.md: One-step workflow for the script-backed period.
+  src/coga/resources/templates/coga/recurring/blackboard-size/ticket.md: Template contract and schedule for the size report.
+  src/coga/resources/templates/coga/recurring/blackboard-size/ticket.py: Edge script that reads validate findings and reports them.
+  tests/required_package_resources.txt: Require the new package owners.
+  tests/test_packaging.py: >-
+    Approve the lazy state carrier and run the new job in the installed-wheel smoke.
+  tests/test_recurring_state.py: Include the new job in the bundled catalog.
+  tests/test_blackboard_size.py: >-
+    End-to-end fixture run (one blackboard above and one below threshold),
+    message-format pin, and prompt/topic cleanup-clause checks.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Implement step; the workflow's self-qa step reviews next.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider -x
+    status: passed
+    head: 008945777714511550555ca7037892e1c6c2539c
+    base: 052daf10b64a631ef5a85c721adda00113224a8c
+    detail: >-
+      5011 passed, 33 skipped in 794.52s. Run on the working tree that was
+      committed unchanged as the head (git status clean after commit; rebase was a no-op).
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_blackboard_size.py tests/test_layout_contexts.py
+    status: passed
+    head: 008945777714511550555ca7037892e1c6c2539c
+    base: 052daf10b64a631ef5a85c721adda00113224a8c
+    detail: 35 passed.
+```
