@@ -4453,3 +4453,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 10:43 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-11-19 10:43 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [megalaunch] launched via coga megalaunch
 2026-11-19 10:43 v1 [v1/microkernel/roll-out-the-04b-edge-shims-on-this-repo-s-blocker] [human:nicktoper] created (status=draft)
+2026-11-19 10:43 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [agent:claude] advanced to step 4 (review) → nicktoper — PR #1272 opened; rollout follow-up filed as draft v1/microkernel/roll-out-the-04b-edge-shims-on-this-repo-s-blocker
