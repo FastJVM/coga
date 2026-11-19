@@ -43,8 +43,9 @@ sweeps**. It requires a reserved `ticket.py` and rejects `delegate`,
 `state_keys` and `workflow`. The sweep runs the script directly, after the
 shared launches. No period task is created, the runner commits nothing, and no
 log line is written; a script's own state changes and publication belong to
-its template. The script gets the template's `secrets` and
-`COGA_RECURRING_SCOPE=clone`, `COGA_RECURRING_TEMPLATE` and
+its template. The script gets the template's `secrets`, in the scrubbed
+environment [coga/secrets](../../secrets/SKILL.md#a-declaration-plus-an-env-scrub-not-a-sandbox)
+describes, and `COGA_RECURRING_SCOPE=clone`, `COGA_RECURRING_TEMPLATE` and
 `COGA_RECURRING_PERIOD`, but no `COGA_TASK_*` variables, so there is nothing to
 bump. Exit 0 records the period in `<primary checkout's coga
 dir>/.coga/recurring-clone/<name>.json`, with the output beside it in

@@ -64,10 +64,12 @@ launched task. Launch resolves the declared refs in the parent, then builds
 the child environment from the parent's minus every 1Password CLI auth
 variable (`OP_SERVICE_ACCOUNT_TOKEN`, `OP_CONNECT_TOKEN`, `OP_CONNECT_HOST`,
 `OP_SESSION_*`) and each named `env:VAR` source, then adds each resolved value
-under its declared name. The same scrub covers the `coga ticket` interviewer
-and the recurring autofix analysis call. Coga's own child processes are not
-tasks and keep it: `coga recurring` runs its inner scan unscrubbed, so the
-launches it makes can still resolve `op://` refs.
+under its declared name. The same scrub covers the `coga ticket` interviewer,
+the recurring autofix analysis call, and a `scope: clone` recurring template's
+`ticket.py`, which gets its template's `secrets` this way. Coga's own child
+processes are not tasks and keep it: `coga recurring` runs its inner scan
+unscrubbed, so the launches it makes can still resolve `op://` refs. The clone
+scripts that scan runs are scrubbed children, not part of the scan.
 
 - A launched agent cannot `op read` through an inherited token, whatever its
   ticket declared. A launch started from inside a task, of a ticket that
