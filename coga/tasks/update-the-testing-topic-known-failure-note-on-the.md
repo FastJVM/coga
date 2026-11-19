@@ -137,3 +137,13 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: docs/remove-control-relay-started-known-failure
+
+## Plan
+
+PR #1245 merged 2026-11-19T01:31Z; its `tests/conftest.py` fixture now scopes
+`git.control_relay_started` per test. The ticket says to remove the bullet once
+#1245 merges, so remove the "Known suite failures" bullet instead of relabeling it.
