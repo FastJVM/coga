@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from coga.session_limits import resolve_idle_timeout, resolve_max_session
+
 import argparse
 import json
-import math
 import os
 import re
 import shlex
@@ -24,7 +25,7 @@ import typer
 
 from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
-from coga.launch import LaunchBail, _interactive_stdio_has_tty, settle_delegated_period
+from coga.launch import LaunchBail, interactive_stdio_has_tty, settle_delegated_period
 from coga.launch_script import script_entry_point as resolve_script_entry_point
 from coga import oscompat
 from coga.oscompat import ProcessTree
@@ -387,38 +388,12 @@ def _relay_to_control_worktree(
         env[LOCAL_CONFIG_ENV] = str(local.resolve())
 
     control_relay_started.set(True)
-    process: subprocess.Popen[bytes] | None = None
-    terminated = False
+    from coga.process_relay import run_foreground_child
 
-    def forward_termination(signum: int, _frame: object) -> None:
-        nonlocal terminated
-        terminated = True
-        if process is not None:
-            process.send_signal(signum)
-
-    # Keep the inherited foreground terminal. An isolated session would break
-    # interactive admission; PID-targeted cancellation instead reaches the
-    # child's ordinary launch/supervisor signal handling through this relay.
-    previous_sigterm = signal.signal(signal.SIGTERM, forward_termination)
-    try:
-        process = subprocess.Popen(
-            [sys.executable, "-m", "coga.cli", *argv], cwd=workspace, env=env
-        )
-        # A signal during spawn is remembered until the child PID is available.
-        if terminated:
-            process.send_signal(signal.SIGTERM)
-        try:
-            code = process.wait()
-        except KeyboardInterrupt:
-            # Ctrl-C already reaches the child in our foreground process
-            # group. A second SIGINT would interrupt its shutdown cleanup.
-            process.wait()
-            raise
-        if terminated:
-            return 128 + signal.SIGTERM
-        return 128 - code if code < 0 else code
-    finally:
-        signal.signal(signal.SIGTERM, previous_sigterm)
+    code, terminated = run_foreground_child(
+        [sys.executable, "-m", "coga.cli", *argv], cwd=workspace, env=env,
+    )
+    return 128 + signal.SIGTERM if terminated else code
 
 
 def _relay_off_control_single_repo_run(cfg: Config, argv: list[str]) -> int | None:
@@ -1914,7 +1889,7 @@ def run_recurring_scan(
             cfg, control_worktree_host
         )
         agent_refusal_label = _CONTROL_WORKTREE_AGENT_LABEL
-    elif not _interactive_stdio_has_tty():
+    elif not interactive_stdio_has_tty():
         agent_spawn_refusal = _AGENT_NEEDS_TTY
     else:
         agent_spawn_refusal = None
@@ -2232,8 +2207,8 @@ def _launch_due_tasks(
     # `--interactive` is a human stepping through by hand, so leave the spawned
     # REPL unbounded; an automatic sweep arms the liveness backstops so one stuck
     # agent can't block the tasks behind it.
-    idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
-    max_session = None if interactive else _recurring_max_session(cfg)
+    idle_timeout = None if interactive else resolve_idle_timeout(cfg, default=_RECURRING_IDLE_TIMEOUT_SECONDS)
+    max_session = None if interactive else resolve_max_session(cfg)
     launch_context = _recurring_launch_context(interactive)
     from coga.launch import (
         RecurringPeriodLaunchResult,
@@ -3769,7 +3744,7 @@ def _resume_named_pause(cfg: Config, ref: TaskRef) -> int | None:
     if not origin:
         return None
     if resolve_script_entry_point(ref) is None:
-        if not _interactive_stdio_has_tty():
+        if not interactive_stdio_has_tty():
             typer.secho(
                 f"cannot resume {ref.id_slug}: {_AGENT_NEEDS_TTY}",
                 fg=typer.colors.RED,
@@ -3963,8 +3938,8 @@ def _launch_created(
 
     verb = "Resuming" if ticket.status == "in_progress" else "Launching"
     typer.echo(f"{verb} {ref.id_slug}")
-    idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
-    max_session = None if interactive else _recurring_max_session(cfg)
+    idle_timeout = None if interactive else resolve_idle_timeout(cfg, default=_RECURRING_IDLE_TIMEOUT_SECONDS)
+    max_session = None if interactive else resolve_max_session(cfg)
     launch_context = _recurring_launch_context(interactive)
     # Same post-firing template check the sweep runs, captured here — after
     # every "nothing ran" gate, immediately before dispatch. An on-demand
@@ -5155,27 +5130,6 @@ def _stop_if_unfinished_after_launch(
 # --- scan reporting -----------------------------------------------------------
 
 
-def _env_seconds(name: str) -> tuple[bool, float | None]:
-    """Read a seconds value from env var `name`.
-
-    Returns `(present, value)`: `present` is False when the var is unset (so
-    the caller falls back to config/default); when set, `value` is the parsed
-    seconds or None for a `<= 0`, non-finite, or unparseable value (an explicit
-    "disarm this backstop"). The env override always wins over config when set —
-    even to disarm — so a machine can turn a committed default off locally.
-    """
-    raw = os.environ.get(name)
-    if raw is None:
-        return False, None
-    try:
-        seconds = float(raw)
-    except ValueError:
-        return True, None
-    if not math.isfinite(seconds) or seconds <= 0:
-        return True, None
-    return True, seconds
-
-
 def _recurring_launch_context(interactive: bool) -> LaunchContext:
     """Map this recurring invocation onto its composed session-conduct layer.
 
@@ -5189,39 +5143,6 @@ def _recurring_launch_context(interactive: bool) -> LaunchContext:
     config option, or user-facing session-mode knob is involved.
     """
     return "attended" if interactive else "recurring"
-
-
-def _recurring_idle_timeout(cfg) -> float | None:
-    """Idle-timeout (seconds) for interactive REPLs the sweep spawns.
-
-    Precedence: `COGA_REPL_IDLE_TIMEOUT` env override > `[launch].idle_timeout`
-    in `coga.toml` (`cfg.launch_idle_timeout`) > the `_RECURRING_IDLE_TIMEOUT_
-    SECONDS` default. A `<= 0`, non-finite (`inf`/`nan`), or unparseable env
-    value disarms the backstop (returns None). Read-only — the value is passed
-    explicitly to `coga launch`, never written back to the environment, so it
-    cannot leak into the process or a spawned child.
-    """
-    present, value = _env_seconds("COGA_REPL_IDLE_TIMEOUT")
-    if present:
-        return value
-    if cfg.launch_idle_timeout_present:
-        return cfg.launch_idle_timeout
-    return _RECURRING_IDLE_TIMEOUT_SECONDS
-
-
-def _recurring_max_session(cfg) -> float | None:
-    """Max-session wall-clock cap (seconds) for the REPLs the sweep spawns.
-
-    Precedence: `COGA_REPL_MAX_SESSION` env override > `[launch].max_session`
-    (`cfg.launch_max_session`) > None (no cap). Unlike idle-timeout there is no
-    built-in default — a wall-clock cap is opt-in, since a legitimately long
-    interactive step shouldn't be killed unless the team asked for it. A `<= 0`,
-    non-finite, or unparseable env value disarms it.
-    """
-    present, value = _env_seconds("COGA_REPL_MAX_SESSION")
-    if present:
-        return value
-    return cfg.launch_max_session
 
 
 def _resume_paused_period(cfg: Config, ref: TaskRef, *, watchdog: bool) -> None:

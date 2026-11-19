@@ -13,8 +13,9 @@ blackboard.
 `coga retire <slug> [--agent <type>] [--no-launch]` is a default alias for
 `coga launch bootstrap/retire -- <slug> ...`. The `--` keeps `--agent` and
 `--no-launch` away from launch's own options so they reach the script.
-`coga retire --help` prints the script's usage; like any launch, it needs a
-configured workspace (`coga.local.toml` with a user).
+`coga retire --help` prints the script's usage without a configured
+workspace or user; generic script help and interrupt handling are owned by
+[coga/script-tickets](context:coga/script-tickets).
 
 ### Why done and canceled differ
 

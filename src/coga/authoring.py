@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -30,6 +31,19 @@ from coga.validate import assert_task_valid
 # `export COGA_AUTHORING_AGENT=codex` while a Claude quota is exhausted. Read
 # here rather than in `config.py`, like `COGA_REPL_*` over `[launch]`.
 AUTHORING_AGENT_ENV = "COGA_AUTHORING_AGENT"
+
+# Python-only seams for the queue's command adapter (`invoke_ticket_authoring`),
+# set by `cli.main` and never by a CLI flag. `existing_target_only` makes
+# `coga ticket <ref>` require the exact qualified slug of a picked draft.
+# `authored_state_retained` marks a refused guarded finalization, the one
+# retained state an interview leaves. Pre-write refusals that merely withhold
+# the sweep do not set it.
+existing_target_only: ContextVar[bool] = ContextVar(
+    "authoring_existing_target_only", default=False
+)
+authored_state_retained: ContextVar[bool] = ContextVar(
+    "authoring_authored_state_retained", default=False
+)
 
 
 def resolve_authoring_agent(
@@ -350,3 +364,31 @@ def finalize_authored(
             "[ticket] Published these knowledge edits with the authored tickets:\n"
             + "".join(f"  {path}\n" for path in support)
         )
+
+
+def invoke_ticket_authoring(cfg: Config, ref: TaskRef, *, agent_name: str) -> int:
+    """Invoke the public authoring CLI with a preselected interviewer.
+
+    Keep its guarded finalization and exit sweep. The Python entry adapter
+    requests retained-state exit mapping before CLI context cleanup and
+    refuses, rather than creates, a ref that no longer resolves; it adds no
+    user-facing flag or second authoring executor. Streams stay attached.
+    """
+    from coga.process_relay import run_foreground_child
+    from coga.task_env import TASK_ENV_KEYS, host_repo_root
+    from coga.repl_supervisor import (
+        SENTINEL_ENV, EXPECTED_TASK_ENV, EXPECTED_STEP_ENV, EXPECTED_AGENT_ENV,
+    )
+
+    env = os.environ.copy()
+    for key in (*TASK_ENV_KEYS, "COGA_SUPERVISED", SENTINEL_ENV,
+                EXPECTED_TASK_ENV, EXPECTED_STEP_ENV, EXPECTED_AGENT_ENV):
+        env.pop(key, None)
+    code, _ = run_foreground_child(
+        [sys.executable, "-c",
+         "from coga.cli import main; "
+         "main(retained_state_exit=True, existing_target_only=True)",
+         "ticket", ref.id_slug, "--agent", agent_name],
+        cwd=host_repo_root(cfg), env=env, defer_interrupt=True,
+    )
+    return code

@@ -246,7 +246,7 @@ build = "launch coga-build"
 # `pick` opens the interactive megalaunch picker — a memorable name for
 # `coga megalaunch --pick`. A trailing directory still scopes it
 # (`coga pick marketing`).
-pick = "megalaunch --pick"
+pick = "launch bootstrap/megalaunch -- --pick"
 # `dream` creates the `recurring/dream/` cleanup task and launches it now —
 # the same path `coga recurring launch dream` takes.
 dream = "recurring launch dream"

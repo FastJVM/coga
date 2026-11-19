@@ -141,7 +141,7 @@ class Config:
     # `[launch].idle_timeout = 0` must explicitly disarm it rather than collapse
     # to "omitted" and re-enable the default. The env overrides
     # (`COGA_REPL_IDLE_TIMEOUT` / `COGA_REPL_MAX_SESSION`) still win over these;
-    # see `coga.recurring_runner`. Attended `coga launch` does not read them
+    # see `coga.session_limits`. Attended `coga launch` does not read them
     # — only the unattended sweep arms a limit, so a human's session is never
     # killed by a committed default.
     launch_idle_timeout: float | None = None

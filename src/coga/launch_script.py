@@ -8,7 +8,9 @@ scan for plugins, import ticket code, or consult frontmatter to select a mode.
 from __future__ import annotations
 
 import subprocess
+import os
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, NamedTuple, Sequence
@@ -17,7 +19,7 @@ import typer
 
 from coga import git
 from coga.bump import OperatorResolutionError, resolve_operator
-from coga.config import Config, build_launch_env, load_config
+from coga.config import Config, ConfigError, build_launch_env, load_config, find_repo_root
 from coga.logfile import append_log
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.notification import post, preflight_post
@@ -30,7 +32,8 @@ from coga.repl_supervisor import (
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
 )
-from coga.task_env import SCRIPT_TASK_ENV, apply_task_env, host_repo_root
+from coga.task_env import TASK_ENV_KEYS, SCRIPT_TASK_ENV, apply_task_env, host_repo_root
+from coga.process_relay import run_foreground_child
 from coga.tasks import (
     BootstrapRef,
     TargetRef,
@@ -139,6 +142,8 @@ def run_script_phase(
     if entry is None:
         if read_only:
             raise FileNotFoundError(f"Read-only script entry disappeared: {ref.id_slug}/ticket.py")
+        if stateless:
+            raise FileNotFoundError(f"Classified bootstrap script disappeared: {ref.id_slug}/ticket.py")
         # Classification is a point-in-time observation. Activation, a prior
         # deterministic phase, or another checkout may have removed the fixed
         # entry before this phase began. Reclassify as agent-only instead of
@@ -234,6 +239,8 @@ def run_script_phase(
         ticket = read_ticket(ref)
         entry = script_entry_point(ref)
         if entry is None:
+            if stateless:
+                raise FileNotFoundError(f"Classified bootstrap script disappeared: {ref.id_slug}/ticket.py")
             return ScriptPhaseResult(
                 exit_code=0,
                 ticket=ticket,
@@ -261,6 +268,7 @@ def run_script_phase(
             )
 
         env = build_launch_env(cfg, ticket.secrets)
+    env.pop("COGA_SCRIPT_HELP", None)
     env = apply_task_env(env, cfg, ref, ticket)
     # A normal ticket script must not inherit ownership witnesses from an outer
     # agent session. A strict human assist re-mints only the narrow task and PR
@@ -282,15 +290,19 @@ def run_script_phase(
         env[ASSIST_BRANCH_ENV] = assist_branch or ""
         env[ASSIST_PR_ENV] = assist_pr_url or ""
 
-    completed = subprocess.run(
-        [sys.executable, str(entry), *args],
-        cwd=host_repo_root(cfg),
-        env=env,
-        check=False,
-    )
-    # Normalize before the read-only return so every consumer (the shell,
-    # the audit line, the failure notice, LaunchBail) sees one status.
-    exit_code = _normalize_exit_code(completed.returncode)
+    if stateless and not read_only:
+        exit_code, _ = run_foreground_child(
+            [sys.executable, str(entry), *args], cwd=host_repo_root(cfg),
+            env=env, defer_interrupt=True,
+        )
+    else:
+        completed = subprocess.run(
+            [sys.executable, str(entry), *args], cwd=host_repo_root(cfg),
+            env=env, check=False,
+        )
+        # Normalize before any return so every consumer (the shell, the
+        # audit line, the failure notice, LaunchBail) sees one status.
+        exit_code = _normalize_exit_code(completed.returncode)
 
     if read_only:
         # No teardown reload, lifecycle inspection, notification or agent fallback.
@@ -641,3 +653,50 @@ __all__ = [
     "run_script_phase",
     "script_entry_point",
 ]
+
+
+def run_bootstrap_script_help(task: str, args: Sequence[str]) -> int | None:
+    """Run only a bootstrap script parser, before ordinary launch setup.
+
+    Valid workspaces resolve local overrides. Invalid/absent configuration
+    uses package definitions and never starts an agent as a help fallback.
+    """
+    from coga.paths import packaged_template_path
+    from coga.tasks import BootstrapRef, resolve_bootstrap
+
+    name = task.removeprefix("bootstrap/")
+    cwd = Path.cwd()
+    try:
+        root = find_repo_root()
+    except ConfigError:
+        root = None
+    if root is not None:
+        cwd = root.parent if root.name == "coga" else root
+        try:
+            cfg = load_config(root, require_user=False)
+        except (ConfigError, tomllib.TOMLDecodeError):
+            ref = BootstrapRef(name, packaged_template_path("bootstrap", name))
+        else:
+            try:
+                ref = resolve_bootstrap(cfg, name)
+            except TaskNotFoundError:
+                # Unknown target or broken override (`BootstrapOverrideError`):
+                # ordinary launch reports it with its usual message.
+                return None
+    else:
+        ref = BootstrapRef(name, packaged_template_path("bootstrap", name))
+    entry = script_entry_point(ref)
+    if entry is None:
+        return None
+    env = os.environ.copy()
+    for key in (*TASK_ENV_KEYS, "COGA_SUPERVISED", SENTINEL_ENV,
+                EXPECTED_TASK_ENV, EXPECTED_STEP_ENV, EXPECTED_AGENT_ENV):
+        env.pop(key, None)
+    env["COGA_SCRIPT_HELP"] = "1"
+    if os.name == "nt":
+        env["PYTHONIOENCODING"] = "utf-8"
+    code, _ = run_foreground_child(
+        [sys.executable, str(entry), *args], cwd=cwd, env=env,
+        defer_interrupt=True,
+    )
+    return code

@@ -1617,7 +1617,7 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 def _allow_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.launch._interactive_stdio_has_tty",
+        "coga.launch.interactive_stdio_has_tty",
         lambda: True,
     )
 
@@ -1657,7 +1657,7 @@ def _allow_recorded_assist_pr(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _deny_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.launch._interactive_stdio_has_tty",
+        "coga.launch.interactive_stdio_has_tty",
         lambda: False,
     )
 
@@ -4725,7 +4725,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
         raise AssertionError("prompt report must not spawn an agent")
 
     monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("coga.launch._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.launch.interactive_stdio_has_tty", lambda: False)
     monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
 
     result = CliRunner().invoke(app, ["launch", str(ref["slug"]), "--prompt-report"])
@@ -4780,7 +4780,7 @@ def test_launch_prompt_report_names_repo_resource_overrides(
         raise AssertionError("prompt report must not spawn an agent")
 
     monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("coga.launch._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.launch.interactive_stdio_has_tty", lambda: False)
     monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
 
     result = CliRunner().invoke(app, ["launch", str(ref["slug"]), "--prompt-report"])

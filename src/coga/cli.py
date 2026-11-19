@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from coga.argv import command_help_requested
+
 import importlib
 import os
 import shlex
@@ -51,7 +53,6 @@ _LAZY_COMMANDS: dict[str, tuple[str, str, dict[str, object]]] = {
     "create": ("coga.commands.create", "create", {}),
     "ticket": ("coga.commands.ticket", "ticket", {}),
     "launch": ("coga.commands.launch", "launch", {}),
-    "megalaunch": ("coga.commands.megalaunch", "megalaunch", {}),
     "bump": ("coga.commands.bump", "bump", {}),
     "block": ("coga.commands.block", "block", {}),
     "unblock": ("coga.commands.unblock", "unblock", {}),
@@ -151,7 +152,6 @@ _SWEEPING_COMMANDS = frozenset(
         "create",
         "ticket",
         "launch",
-        "megalaunch",
         "bump",
         "block",
         "unblock",
@@ -378,7 +378,7 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     args = argv[1:]
     if not args:
         return False
-    if "--help" in args or "-h" in args:
+    if command_help_requested(args):
         return False
     command = args[0]
     if command.startswith("-") or command in _NON_SWEEPING_COMMANDS:
@@ -439,7 +439,7 @@ def _needs_no_config(args: list[str]) -> bool:
     return (
         bool(args)
         and args[0] in _BUILTIN_COMMANDS
-        and any(arg in ("--help", "-h") for arg in args[1:])
+        and command_help_requested(args)
     )
 
 
@@ -481,7 +481,16 @@ def _restore_default_sigpipe() -> None:
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
-def main() -> None:
+def _authored_state_retained() -> bool:
+    """Whether `coga ticket` retained a refused authoring finalization."""
+    from coga.authoring import authored_state_retained
+
+    return authored_state_retained.get()
+
+
+def main(
+    *, retained_state_exit: bool = False, existing_target_only: bool = False,
+) -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
     if os.name == "nt":
         # Windows console I/O already supports Unicode, but pipes otherwise
@@ -517,7 +526,7 @@ def main() -> None:
     except ConfigError as exc:
         msg = str(exc)
         if "No coga.toml found" in msg:
-            help_invoked = any(arg in ("--help", "-h") for arg in sys.argv[1:])
+            help_invoked = command_help_requested(sys.argv[1:])
             known_command = (
                 invoked_command in _BUILTIN_COMMANDS
                 or invoked_command in _DEFAULT_ALIASES
@@ -535,6 +544,8 @@ def main() -> None:
                     err=True,
                 )
                 sys.exit(2)
+            cfg = None
+        elif command_help_requested(sys.argv[1:]):
             cfg = None
         elif init_invoked or recurring_all_invoked:
             prefix = (
@@ -616,6 +627,18 @@ def main() -> None:
     with checkout_guard_scope(), deferred_done_marker():
         relay_token = git.control_relay_started.set(False)
         withheld_token = git.state_sweep_withheld.set(False)
+        adapter_tokens = []
+        if retained_state_exit or existing_target_only:
+            # Python-only seams of the queue's authoring adapter; ordinary
+            # dispatch never imports authoring here.
+            from coga import authoring
+
+            adapter_tokens = [
+                (authoring.authored_state_retained,
+                 authoring.authored_state_retained.set(False)),
+                (authoring.existing_target_only,
+                 authoring.existing_target_only.set(existing_target_only)),
+            ]
         log_mark = _log_mark(cfg)
         try:
             app()
@@ -627,6 +650,8 @@ def main() -> None:
             # intentionally left dirty.
             if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
                 _sweep_coga_state(cfg)
+            if retained_state_exit and _authored_state_retained():
+                raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
             raise
         except BaseException:
             _sweep_coga_state(cfg)
@@ -642,6 +667,8 @@ def main() -> None:
             try:
                 _warn_unpublished_log_lines(cfg, log_mark)
             finally:
+                for var, token in reversed(adapter_tokens):
+                    var.reset(token)
                 git.state_sweep_withheld.reset(withheld_token)
                 git.control_relay_started.reset(relay_token)
 

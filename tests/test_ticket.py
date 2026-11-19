@@ -109,7 +109,7 @@ def _allow_ticket_launch(
             on_run()
         return _Result()
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -243,7 +243,7 @@ def test_ticket_authoring_does_not_inject_coga_secrets(
         t.write(ticket_path)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -280,7 +280,7 @@ def test_ticket_authoring_scrubs_1password_auth(
         t.write(ticket_path)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -323,7 +323,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
         t.write(ticket_path)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -375,7 +375,7 @@ def test_ticket_agent_override_codex_gets_kickoff(
         t.write(ticket_path)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -575,7 +575,7 @@ def test_ticket_requires_tty_before_spawning(
         nonlocal called
         called = True
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: False)
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket"])
@@ -636,7 +636,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         nonlocal called
         called = True
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -792,7 +792,7 @@ def _capture_ticket_launch(
             on_run()
         return _Result()
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -839,6 +839,35 @@ def test_ticket_existing_draft_greets_as_edit_not_create(
     result = CliRunner().invoke(app, ["ticket", "batch-draft"])
     assert result.exit_code == 0, result.output
     assert captured["cmd"][-1] == "Begin (editing existing ticket)"
+
+
+@pytest.mark.parametrize(
+    ("title", "directory"), [("Retry followup", None), ("Retry", "marketing")]
+)
+def test_picked_ticket_requires_exact_slug(
+    repo: Path, capsys: pytest.CaptureFixture[str], title: str, directory: str | None,
+) -> None:
+    from coga.authoring import existing_target_only
+    from coga.commands.ticket import _resolve_or_create_target
+
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title=title, workflow_name="direct/body", contexts=[],
+        owner="marc", agent="claude", status="draft", directory=directory,
+    )
+
+    token = existing_target_only.set(True)
+    try:
+        with pytest.raises(SystemExit) as exc:
+            _resolve_or_create_target(cfg, "retry")
+        assert exc.value.code == 2
+        assert "No exact match for picked ticket 'retry'" in capsys.readouterr().err
+
+        ref, _, scaffolded = _resolve_or_create_target(cfg, created["slug"])
+        assert ref.id_slug == created["slug"]
+        assert not scaffolded
+    finally:
+        existing_target_only.reset(token)
 
 
 def test_ticket_nested_bare_leaf_edits_existing_not_duplicate(
@@ -899,7 +928,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
         nonlocal called
         called = True
 
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
@@ -1103,7 +1132,7 @@ def test_ticket_pick_agent_requires_tty_before_scaffolding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _authoring_setup(repo)
-    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: False)
 
     result = CliRunner().invoke(app, ["ticket", "Picked title", "--pick-agent"])
     assert result.exit_code == 2

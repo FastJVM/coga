@@ -70,7 +70,9 @@ continues to use the publication rules below.
   (`status`, `show`, `validate`, `usage`, `--help`, `launch --prompt-report`)
   never sweep, and neither do `init` and `uninstall`. Report aliases use
   explicit read-only launch; the fixed `recurring list` adapter forwards to
-  that same API. Validation, including local `--fix`, remains non-sweeping. The sweep is best-effort: a failed push is
+  that same API. Stateless command-script help follows the same exclusion,
+  including aliases and invalid config; a script-level operand separator ends
+  help recognition. Validation, including local `--fix`, remains non-sweeping. The sweep is best-effort: a failed push is
   reported on stderr, the files stay as written, and the next command retries.
   A command that deliberately leaves retryable state dirty, or a launch whose
   checkout preparation or return refused, withholds its sweep so that state

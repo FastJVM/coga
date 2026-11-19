@@ -85,3 +85,32 @@ the selection and attribute rule instead of copying definitions. Follow the
 [adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
 two-phase rollout. The command writes only this feature's selection and attribute.
+
+## Forking the megalaunch command
+
+The complete queue policy is the single `coga_edge.megalaunch` module. Copy
+`bootstrap/megalaunch/ticket.md` and the module itself into the repository as
+`coga/bootstrap/megalaunch/{ticket.md,ticket.py}`. Locate their installed source
+with the CLI interpreter, without running the queue:
+
+```python
+from pathlib import Path
+from shutil import copyfile
+import coga_edge.megalaunch as queue
+from coga.paths import packaged_template_path
+
+local = Path("coga/bootstrap/megalaunch")
+local.mkdir(parents=True, exist_ok=True)
+copyfile(packaged_template_path("bootstrap", "megalaunch", "ticket.md"), local / "ticket.md")
+copyfile(queue.__file__, local / "ticket.py")
+```
+
+Run from the host repo root (adjust the destination for a root-layout Coga OS).
+The copied implementation imports shared core, never the installed edge module.
+Edit selection, ordering, budgets or summary locally and invoke the same aliases.
+Wheel upgrades leave the fork unchanged; it stops receiving upstream queue fixes
+and must remain compatible with shared core. Removing the complete local
+override rejoins packaged definitions and wheel updates. Restoring the stock
+shim beside a local ticket also selects the installed implementation again.
+The discover/copy command is being delivered separately; this manual full-copy
+route exposes the same complete implementation in the meantime.

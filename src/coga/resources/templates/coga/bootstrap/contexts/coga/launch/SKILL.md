@@ -26,7 +26,9 @@ the attended path: a human typed it. Queue draining is `coga megalaunch`
 Trailing positional arguments reach an agent prompt as an ordered JSON
 `## Launch arguments` block, and a bootstrap `ticket.py` as its argv. A
 stateful `ticket.py` target refuses them
-([script tickets](../script-tickets/SKILL.md)).
+([script tickets](../script-tickets/SKILL.md)). That topic also owns stateless
+script help without repo/user setup, separator handling, no agent fallback
+after a script disappears, and foreground interrupt delivery.
 
 ## Read-only command dispatch
 

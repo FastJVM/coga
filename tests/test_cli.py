@@ -124,7 +124,7 @@ def test_pick_alias_expands_to_megalaunch(
     # printed before dispatch proves the alias resolves.
     with pytest.raises(SystemExit):
         main()
-    assert "→ coga megalaunch --pick" in capsys.readouterr().err
+    assert "→ coga launch bootstrap/megalaunch -- --pick" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("termination", ["return", "exit", "crash"])
@@ -579,3 +579,37 @@ def test_read_only_launch_finalization_restores_context(clone, monkeypatch):
         main()
     assert exc.value.code == 2
     assert git.state_sweep_withheld.get() == before
+
+
+@pytest.mark.parametrize(
+    "requested,authored_retained,expected",
+    [(False, True, 2), (True, False, 2), (True, True, 75)],
+)
+def test_command_adapter_maps_retained_state_before_cli_context_resets(
+    clone: Path, monkeypatch: pytest.MonkeyPatch, requested: bool,
+    authored_retained: bool, expected: int,
+) -> None:
+    """Only a retained authoring finalization maps to 75.
+
+    A pre-write refusal also withholds the sweep (for example an
+    unrepresentable agent command) but retains nothing, so it keeps exit 2
+    and the queue continues.
+    """
+    from coga import authoring, git
+    from coga.cli import main
+
+    def refused() -> None:
+        git.state_sweep_withheld.set(True)
+        if authored_retained:
+            authoring.authored_state_retained.set(True)
+        raise SystemExit(2)
+    monkeypatch.setattr("coga.cli.app", refused)
+    monkeypatch.setattr("sys.argv", ["coga", "ticket", "fix-retry-logic", "--agent", "claude"])
+    before = git.state_sweep_withheld.get()
+    retained_before = authoring.authored_state_retained.get()
+    with pytest.raises(SystemExit) as result:
+        main(retained_state_exit=requested)
+    assert result.value.code == expected
+    assert git.state_sweep_withheld.get() == before
+    if requested:
+        assert authoring.authored_state_retained.get() == retained_before

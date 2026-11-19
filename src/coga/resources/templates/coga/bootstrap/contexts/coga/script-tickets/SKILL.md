@@ -26,10 +26,13 @@ attachment is untouched by the classifier and runs only when agent
 instructions invoke it explicitly. A user repo may keep script tests beside
 the ticket, but Coga neither discovers nor runs them. A recurring template's
 `ticket.py` is copied into each period task (`coga/recurring/templates`). Classification is a point-in-time stat:
-launch repeats it after every moving sync, and a vanished file becomes an
-agent-only handoff instead of a failed run of a stale path. Explicit
+launch repeats it after every moving sync. A vanished file becomes an
+agent-only handoff for stateful tasks. A stateless bootstrap target positively
+classified as a script instead exits 2 if its entry disappears before spawn;
+bootstrap targets classified agent-only still accept launch arguments.
+Explicit
 [read-only command dispatch](../launch/SKILL.md#read-only-command-dispatch)
-instead refuses a vanished entry and never hands off to an agent.
+likewise refuses a vanished entry and never hands off to an agent.
 
 ## One deterministic phase
 
@@ -82,6 +85,29 @@ bootstrap scripts keep their existing config requirements and exit sweep.
 The report command tickets carry their complete implementations beside
 `ticket.md`; copying one does not require importing another report.
 
+## Stateless command help and interrupts
+
+A bootstrap script receives trailing argv after launch's `--`. Its own `--`
+ends option parsing: only exact `--help` before that separator requests help.
+Launch detects this before ordinary configuration and session setup. Help
+works without a user, agent or repository; a valid workspace resolves local
+overrides first, while missing or invalid configuration uses the package.
+The child runs from the host repo root, or the invocation cwd outside a repo.
+Help resolves no secrets and performs no refresh, audit, publication or sweep.
+Its inherited environment loses task and supervision identity and gains
+`COGA_SCRIPT_HELP=1`. Each command script must check this at its command body
+and exit 2 before effects: a value-taking option can consume `--help` as its
+value rather than displaying help. Normal execution clears the help marker.
+
+While a stateless child runs, the parent installs no-op Python SIGINT and
+(on Windows) SIGBREAK handlers, which reset to default in the child. It never
+uses inherited ignore dispositions. Console interrupts reach the foreground
+child directly; the parent waits without killing it. Parent SIGTERM forwards
+once, including when received during spawn. Handlers are restored after wait.
+Negative signal return codes map to `128 - code`; other statuses pass through,
+including exit 75's retained-state boundary. Native Windows/macOS verification
+is performed at release.
+
 ## Chaining
 
 The script phase runs at most once per step per launch:
@@ -120,7 +146,8 @@ agent ran. A later agent spawn clears the marker.
 The namespace is exactly `COGA_TASK_SLUG`,
 `COGA_TASK_DIR`, `COGA_TASK_TICKET`, `COGA_TASK_BLACKBOARD`,
 `COGA_TASK_STEP`, `COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`, `COGA_SCRIPT_TASK`,
-`COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, and `COGA_ASSIST_PR`. There is no
+`COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, `COGA_ASSIST_PR`, and the
+parser-only `COGA_SCRIPT_HELP`. There is no
 `COGA_TASK_LOG`. Each launch clears every key, then sets the slug, task directory, ticket path, Coga root, and host repo root,
 plus, for tasks under `tasks/` only, `COGA_TASK_BLACKBOARD` and, when a step
 exists, `COGA_TASK_STEP` (`<index> (<name>)`). The script marker and assist
