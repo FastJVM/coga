@@ -29,7 +29,7 @@ workflow:
     checkout: reuse-required
 step: 3 (open-pr)
 agent: claude
-launch_generation: pending:1a2aee91-551e-4dd6-b875-d223d7d77f04
+launch_generation: 1a2aee91-551e-4dd6-b875-d223d7d77f04
 ---
 
 ## Description
