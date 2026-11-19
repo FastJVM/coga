@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -30,7 +30,6 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
-launch_generation: 4095dfad-1aba-46c6-98ab-5d545d0dccb7
 ---
 
 ## Description
@@ -159,6 +158,19 @@ branch: coga/add-the-megalaunch-dependency-resolution-append-lo
 - Overlap: PRs #1247 and #1248 are still OPEN. Neither touches the count line or the launch-audit row, so the hunks are disjoint. #1247 adds a `coga/commands/mark.py::_finish_stateless_command` (1) row without bumping the count; whichever lands second must recount. Per the ticket route, open-pr should check their state; this PR does not need to wait for them to merge cleanly.
 - Not run: `coga validate --json`, because no validation behavior changed (docs-only).
 
+## Peer review
+
+Codex completed an independent direct review of `33eb0fd7431df7cc6b2e70db9553181a65f45bda` against
+`122f82ae9c31c732a893d0cf4f462f8ccc5fac11`. No must-fix findings. The 33 committed source calls match the
+table's row totals. The megalaunch row accurately describes the lock, strict
+ticket-plus-log publish, conditional rollback, and retention on uncertainty.
+The diff changes documentation only.
+
+PRs #1247 and #1248 remain open and the reviewed branch excludes their changes.
+Their documentation edits touch different rows. #1247 adds one call site and
+will require a fresh count. The ticket's publication ordering takes precedence
+over the implement handoff's suggestion to proceed based on disjoint hunks.
+
 ## PR
 
 ```yaml
@@ -166,44 +178,60 @@ title: Add megalaunch dependency-resolution writer to the log-writers inventory
 author: claude
 author_evidence: >-
   Implement step ran in a Claude Code session (Opus 5.5) under coga megalaunch.
-head: 3153f808224ee699e5e78266d084295aebc1dd76
-base: 3393c84b1656a375a5af275baf13dba9b69ab2b4
+head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
 depth: skim
 rationale: >-
-  One-row documentation fix to a local coga-dev inventory plus its count; no
-  code or shipped resources change.
+  The docs-only change has independent review and source-level verification.
+  The merge sequence matters because PR #1247 adds another writer.
 implementation: >-
-  Adds a row for coga/megalaunch.py::_publish_partial_dependency_resolution
-  (strict task-plus-log publication; refused write restored with its log line
-  retracted, uncertain or locally changed state retained) and updates the
-  direct call-site count from 32 to 33.
-deviations: None.
+  Document the megalaunch writer's strict ticket-plus-log publication,
+  conditional rollback on refusal, and retention on uncertain publication.
+  Update the direct call-site count from 32 to 33.
+deviations: "None."
 limitations: >-
-  Open PRs #1247 and #1248 edit other rows of the same table; #1247 adds a row
-  without updating the count, so whichever merges second needs a recount.
+  The ticket requires reconciliation with PRs #1247 and #1248 before opening
+  its PR. Recount the writers and refresh this review after incorporating them.
 files:
   docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: >-
-    Add the missing megalaunch append_log writer row and update the count to 33.
+    Add the missing megalaunch writer and update the inventory count.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+  base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
   detail: >-
-    Code review has not run yet; the peer-review step follows implement.
+    Direct review completed with no must-fix findings. Verified the new row
+    against the publisher and rollback helper.
 checks:
   - command: .venv/bin/python -m pytest -q -p no:cacheprovider
     status: passed
-    head: 3153f808224ee699e5e78266d084295aebc1dd76
-    base: 3393c84b1656a375a5af275baf13dba9b69ab2b4
-    detail: 5004 passed, 33 skipped in 803s.
-  - command: grep -rn "append_log(" src/ | grep -v "def append_log" | wc -l
+    head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+    base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+    detail: "5004 passed, 33 skipped in 830.16s."
+  - command: git grep -n -F 'append_log(' HEAD -- src/ | rg -vc 'def append_log'
     status: passed
-    head: 3153f808224ee699e5e78266d084295aebc1dd76
-    base: 3393c84b1656a375a5af275baf13dba9b69ab2b4
-    detail: 33 call sites, matching the new count and the table row sum.
+    head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+    base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+    detail: "33 source calls. Independently summed the table rows to 33."
+  - command: git diff --check main...HEAD
+    status: passed
+    head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+    base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+    detail: "No whitespace errors."
+  - command: coga validate --json
+    status: not-run
+    detail: "The diff changes the prose inventory and its count."
 ```
 
 ## Plan
 
 - Add a `coga/megalaunch.py::_publish_partial_dependency_resolution` (1) row to the log-writers table and change the count 32 -> 33.
 - Overlapping PRs #1247 and #1248 are still OPEN (checked 2026-11-18). Their diffs to the target only rewrite the slack row (#1247, also adds a `_finish_stateless_command` row without updating the count) and the recurring row (#1248); neither touches the count line. The new row is inserted after the launch-audit row so the hunks do not touch. Whichever lands later must recount.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-18 21:07] [agent:codex] id=20261118T210707 Reconcile this inventory after v1/microkernel/move-slack-fyis-to-a-command-ticket (PR #1247) and v1/microkernel/08-residual-command-surfaces (PR #1248) land, or provide a reconciled stacked base for both. Recount append_log calls after incorporating their changes before opening this PR.
