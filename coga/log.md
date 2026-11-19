@@ -4428,3 +4428,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 09:03 v1 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
 2026-11-19 09:03 v1 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
 2026-11-19 09:04 v1 [recurring/blocker-reminders] [system] task done
+2026-11-19 09:04 v1 [recurring/blocker-reminders] [system] script exited with code 0
