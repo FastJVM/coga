@@ -57,9 +57,14 @@ lookup, skill refresh, or push probe.
    hidden mutable input ([coga/extension-model](../extension-model/SKILL.md)).
    A script-only bootstrap target needs no configured agent. Its environment gets fresh `COGA_TASK_*`,
    `COGA_SCRIPT_TASK=<absolute target path>`, and loses `COGA_SUPERVISED`,
-   `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and
-   `COGA_EXPECTED_AGENT`, so a
-   child completion cannot finish an outer agent session.
+   `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and `COGA_EXPECTED_AGENT`, so
+   a child completion cannot finish an outer agent session.
+   `COGA_DONE_SENTINEL` is exported as the explicit empty string, which says
+   no supervisor polls here
+   ([inactivity](../recurring/scheduling/inactivity/SKILL.md)). Only a strict
+   human assist re-mints a narrow witness for in-script lifecycle operations:
+   `COGA_EXPECTED_TASK` (the target path), `COGA_EXPECTED_STEP`, and the
+   `COGA_ASSIST_*` values.
 5. Launch reports a child killed by signal `N` as exit status `128 + N`
    (SIGINT 130, SIGKILL 137), including in read-only dispatch. A stateful
    launch logs `script exited with code N` even if the script deleted or broke
