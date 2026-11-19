@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -30,7 +30,6 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
-launch_generation: 7095cc0d-8ff1-48b6-aa3c-876ef230bd84
 ---
 
 ## Description
@@ -236,6 +235,9 @@ checks:
 ## Blockers
 
 - [ ] [2026-11-18 21:07] [agent:codex] id=20261118T210707 Reconcile this inventory after v1/microkernel/move-slack-fyis-to-a-command-ticket (PR #1247) and v1/microkernel/08-residual-command-surfaces (PR #1248) land, or provide a reconciled stacked base for both. Recount append_log calls after incorporating their changes before opening this PR.
+
+- [ ] [2026-11-19 11:18] [agent:codex] id=20261119T111841 PRs #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) and #1248 (v1/microkernel/08-residual-command-surfaces) are both still open. Resume after both land, or provide the intended reconciled stacked base. Recount append_log call sites on that base before publishing.
+
 
 ---
 

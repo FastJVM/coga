@@ -4473,3 +4473,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 11:17 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-19 11:17 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-19 11:17 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] launched via coga megalaunch
+2026-11-19 11:18 v1 [add-the-megalaunch-dependency-resolution-append-lo] [agent:codex] blocked: PRs #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) and #1248 (v1/microkernel/08-residual-command-surfaces) are both still open. Resume after both land, or provide the intended reconciled stacked base. Recount append_log call sites on that base before publishing.
