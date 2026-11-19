@@ -239,7 +239,12 @@ under way, or in one final check after the child exits and before the
 sentinel is deleted (cleanup runs on every path). It never feeds exit
 classification, so a done signal followed by a real crash stays a `crash`
 with `done_signalled` true. The non-TTY path has no sentinel channel and
-reports false (no observation). Launch and megalaunch freeze `(status, step)`
+reports false (no observation). The POSIX PTY child records a failed
+`exec` in its private session directory. The supervisor reads and removes
+the record after the child exits. It passes `exec_failed` through
+`ReplOutcome` and `AgentSessionResult` for megalaunch's
+[startup compensation](../launch-claims/SKILL.md#failed-agent-start).
+Launch and megalaunch freeze `(status, step)`
 immediately before spawn. They compare it with post-session state through
 `repl_supervisor.unsignalled_advance_warning` to print the
 [advisory](#unsignalled-advance-advisory) below. After a Coga teardown the

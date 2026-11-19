@@ -300,6 +300,8 @@ class ReplOutcome:
     kind: str
     reason: str | None = None
     done_signalled: bool = False
+    # The POSIX PTY child reported that exec itself failed.
+    exec_failed: bool = False
 
 
 # Terminal-sanitizing reset, emitted to the real terminal only when *we* tore
@@ -544,6 +546,7 @@ def run_with_done_marker(
 
     sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
     sentinel_path = os.path.join(sentinel_dir, "sentinel")
+    exec_failure_path = os.path.join(sentinel_dir, "exec-failed")
     child_env = dict(env)
     child_env[SENTINEL_ENV] = sentinel_path
 
@@ -582,6 +585,11 @@ def run_with_done_marker(
             # deliberately omitted (including scrubbed credentials).
             os.execvpe(cmd[0], cmd, child_env)
         except OSError as exc:
+            try:
+                with open(exec_failure_path, "xb"):
+                    pass
+            except OSError:
+                pass
             # E2BIG (an argv element over MAX_ARG_STRLEN), ENOENT, and EACCES
             # all land here. A bare 127 reads as "command not found" and hides
             # which — name the errno so the failure is diagnosable.
@@ -798,6 +806,7 @@ def run_with_done_marker(
         # done. Observation only — it does not feed `_classify_exit`.
         if not done_signalled and _sentinel_signals_done(sentinel_path, session_id):
             done_signalled = True
+        exec_failed = os.path.exists(exec_failure_path)
     finally:
         remove_sentinel_dir(sentinel_dir)
 
@@ -805,7 +814,10 @@ def run_with_done_marker(
     for note in notes:
         _notify(note)
     reason = term_reason if kind == term_kind else None
-    return ReplOutcome(code, kind, reason, done_signalled)
+    return ReplOutcome(
+        code, kind, reason, done_signalled,
+        exec_failed=exec_failed and kind == "natural" and code == 127,
+    )
 
 
 def _classify_exit(

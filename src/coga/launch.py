@@ -3825,6 +3825,7 @@ class AgentSessionResult(NamedTuple):
     # `termination_kind` (a signal followed by a crash is still a `crash`).
     # False also means "no sentinel channel"; see `ReplOutcome`.
     done_signalled: bool = False
+    exec_failed: bool = False
 
 
 def missing_launch_file_message(exc: FileNotFoundError) -> str:
@@ -4213,6 +4214,7 @@ def spawn_agent_session(
             outcome.kind,
             outcome.reason,
             outcome.done_signalled,
+            outcome.exec_failed,
         )
     except KeyboardInterrupt:
         outcome_status = "interrupted"
