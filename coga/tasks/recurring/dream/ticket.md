@@ -1,6 +1,6 @@
 ---
 title: Dream
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -14,7 +14,6 @@ workflow:
     - direct/body
     assignee: agent
     checkout: manual
-step: 1 (execute)
 ---
 
 ## Description
@@ -763,3 +762,181 @@ Result: 13 issue(s): 0 direct fix, 0 PR proposal, 13 human-needed.
   Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
 - `validate-drift-unfrozen-workflow-canceled-tickets`: `stuck-in-progress` (warn) - in_progress but idle for 150.9h
   Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+
+## Findings
+
+Run `20261118T170921Z`, repo-identity: coga-source. Phase 2 knowledge-scan: 31/31 shards complete, 40 raw findings. Phase 3 contract-audit: 13/13 shards complete (ca-own ownership check inline: 0), 14 raw drift. Merged duplicates (same underlying issue, both shards kept below as one disposition unit):
+- M1 bootstrap/import `_dispatch_branch_sync` = ks-30 + ca-08
+- M2 bootstrap/import ignores `include` allowlist = ks-30 + ca-08
+- M3 log-writers 32→33 sites = ks-15 + ca-02
+- M4 Google skills (calendar-reminder/google-calendar/gmail) dead helper paths + rejected config tables + stopgap framing = ks-28 ×2, ks-29 ×2, ca-09 ×3
+De-duplicated total: 47 (13 extract, 18 stale, 14 drift, 2 gap). No `owner: coga` findings (source repo).
+
+- **Direct git subprocess callers must use git._git_env (optional-lock gotcha)** — shard: ks-15 · class: extract · target: v1/coga-bump-on-feature-branch-leaves-stale-index-loc · area: coga-dev/codebase/gotchas (or coga-dev/internals/state-publication) · source: done · owner: local
+  The done ticket (PR #1194; branch gone locally and on origin) holds a contributor rule that today lives only in `src/coga/git.py`'s module docstring and the ticket: every Git subprocess Coga starts must run with `GIT_OPTIONAL_LOCK…
+- **Record the declined Gemini agent integration and its verified CLI constraints** — shard: ks-22 · class: extract · target: marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive · area: coga-dev/current-direction · source: canceled
+  The owner canceled this ticket on 2026-11-06 with the reason "no need" (`coga/log.md`), after design and evaluation had finished. No topic under `docs/contexts/` or `src/coga/` mentions Gemini, so nothing records the decision or w…
+- **`coga validate` never checks a bootstrap target's pinned `agent:`** — shard: ks-19 · class: extract · target: v1/20-ask-which-agents-to-enable-during-coga-init · area: coga-dev/internals/agent-config · source: done · owner: local
+  The ticket's "Findings that cost real time" records, and current code confirms, that `coga validate`'s `unknown-agent` check (`validate._check_main_agent`, called from the per-task check over `list_tasks(cfg)` refs at `src/coga/va…
+- **Record why the dollar-cost proxy was declined and what would reopen it** — shard: ks-26 · class: extract · target: define-the-api-equivalent-cost-proxy-and-price-tab · area: coga-dev/internals/usage-pricing · source: canceled
+  The canceled ticket's verified record facts (mixed 5m/1h Claude cache-write TTLs, Codex null cache-creation meaning "no split" rather than "no charge", invisible context tiers, last-model attribution) already landed in `docs/conte…
+- **Testing gotcha: patch the importing module, not the source module (init's `AGENT_CLIS` / `packaged_template_root`)** — shard: ks-19 · class: extract · target: v1/20-ask-which-agents-to-enable-during-coga-init · area: coga-dev/testing · source: done · owner: local
+  The ticket records a gotcha that "will cost time otherwise", verified against current code: `src/coga/commands/init.py` does `from coga.dependencies import AGENT_CLIS` and `from coga.commands.update import packaged_template_root`,…
+- **Record why requires-python has no upper bound** — shard: ks-21 · class: extract · target: v1/47-cap-requires-python-and-stop-init-leading-with-a-c · area: coga-dev/testing · source: done · owner: local
+  Ticket 47 (status done, PR #1235; its `coga/v1-47-…` branch is absent locally and from `git ls-remote origin`, only a stale `remotes/origin/` tracking ref remains) recorded an owner-reviewed decision not to cap `requires-python` (…
+- **Blocker ids collide for asks appended within one second** — shard: ks-08 · class: extract · target: keep-unfinished-dependency-blockers-open-in-megala · area: coga/blackboard · owner: local · source: done
+  The ticket's blackboard records a verified gotcha: `blackboard._blocker_id` (src/coga/blackboard.py:469) formats only whole seconds (`%Y%m%dT%H%M%S`), so different blockers appended in the same second share an `id=`; targeted reso…
+- **Cross-repo tickets: packaged branch-gated workflows cannot drive work in another repository** — shard: ks-28 · class: extract · target: v1/pr-are-only-when-ready-for-review · area: coga/checkouts · source: canceled · owner: local
+  The canceled ticket's evaluator review discovered a reusable fact that no topic states: a ticket kept in one Coga workspace whose edits and PR land in a different repository misbehaves under the packaged code/docs workflows. `crea…
+- **Uncommenting an init-disabled `[agents.*]` table: strip only init's `# `, not the packaged prose or `# analyze`/`# peer` examples** — shard: ks-19 · class: extract · target: v1/20-ask-which-agents-to-enable-during-coga-init · area: coga/configuration · source: done · owner: local
+  The ticket's 2026-11-11 peer-review entry records an accepted limitation, verified against current code: `init._configure_agent_tables` prefixes `# ` only to the disabled table's live lines (header and keys) and leaves the package…
+- **Record the recurring-reminder harness boundary the canceled engine ticket settled** — shard: ks-05 · class: extract · target: ship-a-shared-recurring-reminder-engine-battery · area: coga/notifications (or a new user topic for downstream reminder sweeps) · owner: local · source: canceled
+  The ticket was canceled 2026-07-27 (log: "the engine's boundary reached too far into what individual scripts should own"; PR closed unmerged) and the smaller retry landed as `src/coga/reminders.py` (commit 894fea4b3, #853). The on…
+- **Walking an unmerged branch and controlling agent detection in an install walk** — shard: ks-19 · class: extract · target: v1/20-ask-which-agents-to-enable-during-coga-init · area: coga/testing/clean-install · source: done · owner: local
+  v1/20 ran its four-case init walk (none / only-claude / only-codex / both) on a macOS VM and a bare Windows 11 VM before merge, and recorded a reusable method that `coga/skills/coga/testing/clean-install/human-walk/SKILL.md` ("Fix…
+- **Windows 11 client's Restricted execution policy breaks the bare uv installer, and the Server 2025 harness cannot see it** — shard: ks-20 · class: extract · target: v1/45-fix-the-readme-s-native-windows-install-steps · area: coga/testing/clean-install (windows-aws harness; human-walk) · source: done
+  Ticket v1/45 is done. Its branch `coga/v1-45-fix-the-readme-s-native-windows-install-st-2006e1` is gone locally and from origin, and it records no worktree. It verified a platform gotcha that no testing knowledge states. Windows 1…
+- **Windows native full-suite duration estimate understated** — shard: ks-08 · class: extract · target: keep-unfinished-dependency-blockers-open-in-megala · area: coga/testing/clean-install/windows-aws · owner: local · source: done
+  The ticket (status done, `## Dev` branch `coga/keep-unfinished-dependency-blockers-open-in-mega-3a6dfd` not present locally or on origin) measured a native Windows full-suite run on the default t3.large host reaching only 58% afte…
+- **Windows attended-launch harness gotchas missing from windows-aws skill** — shard: ks-11 · class: extract · target: v1/14-interactive-coga-launch-on-native-windows · area: coga/testing/clean-install/windows-aws · source: done+checkout
+  The ticket is `status: done`, but its `## Dev` branch `coga/v1-14-interactive-coga-launch-on-native-windows-e8b518` still exists locally and on `origin`, so this is `done+checkout` retirement debt. Nearly all of its durable knowle…
+- **Owner positioning wording limits live only in canceled v1/42-idea-piece** — shard: ks-30 · class: extract · target: v1/42-idea-piece · area: marketing/write-post (coga/skills/marketing/write-post/SKILL.md) · source: canceled
+  `coga/tasks/v1/42-idea-piece.md` (status: canceled 2026-11-04, owner will write the piece after launch) holds the only copy of the `### Claim and wording limits` owner decisions (2026-10-13 and 2026-10-15) carried forward from the…
+- **bootstrap/import cites removed `_dispatch_branch_sync` symbol** — shard: ks-30 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md · area: bootstrap/import
+  "Installing and pruning" says "`_dispatch_branch_sync` pushes when HEAD is the control branch, and from a feature branch it lands the same paths on the control branch anyway." No `_dispatch_branch_sync` exists anywhere in `src/cog…
+- **bootstrap/import teaches hand-pruning and "locally-adapted is expected" though `include` allowlist exists** — shard: ks-30 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md · area: bootstrap/import
+  "Recording provenance" lists the `.coga-source.json` fields without `include`, and "Installing and pruning" says the selector cannot exclude siblings so you must "Delete the rest and hand-write what you dropped ... into `local_ada…
+- **bootstrap/ticket calls `coga draft` "deprecated" though the command no longer exists** — shard: ks-30 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md · area: bootstrap/ticket
+  Step 1's note says "`coga create "<title>"` (the replacement for the deprecated `coga draft`) only writes the draft bytes". There is no `draft` command or alias: `coga --help` lists `create`, `ticket`, and no `draft`; `src/coga/cl…
+- **code/implement promises retro/done-ticket will rescue adjacent-bug notes, but done tickets retire with no Retro** — shard: ks-28 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md · area: code/implement · owner: local
+  Step 4 tells the implementer to leave a found adjacent bug only as a blackboard note because "`retro/done-ticket` owns carrying that finding into a durable context before deleting this ticket, so the blackboard is a handoff, not t…
+- **git-refresh caller lists for `refresh` and `prepare_control_checkout` are incomplete** — shard: ks-16 · class: stale · target: docs/contexts/coga-dev/internals/git-refresh/SKILL.md · area: coga-dev/internals/git-refresh
+  Two caller claims no longer match `src/coga/`. (1) "`prepare_control_checkout` ... Its only caller is the launch checkout boundary": `checkouts._prove_control` (src/coga/checkouts.py ~L459) also calls `git.prepare_control_checkout…
+- **log-writers inventory misses megalaunch dependency-resolution append (32 vs 33 sites)** — shard: ks-15 · class: stale · target: docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md · area: coga-dev/internals/state-publication · owner: local
+  The topic claims "The startup-group implementation inventory has **32 direct call sites**" and tells writers to re-inventory all direct `append_log` calls under `src/`. `grep -rn "append_log(" src/` now finds 33: the table omits `…
+- **publish leaf misstates which steps run under state_lock** — shard: ks-18 · class: stale · target: docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md · area: coga-dev/internals/state-publication · owner: local
+  The `state_lock` section says "`publish` runs steps 2–5 under `git.state_lock`", implying step 1 (Candidates) is computed outside the lock. In `src/coga/git.py` `publish` takes `with state_lock(cfg):` before calling `_publish_lock…
+- **Microkernel README row for 06 still describes the work as unstarted** — shard: ks-03 · class: stale · target: coga/tasks/v1/microkernel/README.md · area: coga-dev/microkernel
+  The group README's table row for `06-read-report-commands-as-ticket-workflows.md` says "Rendering partly shared already. Move report policy only after a generic stateless path preserves read-only behavior". The ticket is `status: …
+- **Microkernel open-placements table names superseded cleanup owners** — shard: ks-25 · class: stale · target: docs/contexts/coga-dev/microkernel/SKILL.md · area: coga-dev/microkernel
+  The "Open command placements" table routes `slack` to `work-orchestration-commands-to-tickets`, `ticket` to `residual-command-surfaces`, and describes `skill *` as "excluded from the current migration push" owned by `residual-comm…
+- **coga-dev/microkernel exceeds the topic size review threshold with no Size exception** — shard: ks-25 · class: stale · target: docs/contexts/coga-dev/microkernel/SKILL.md · area: coga-dev/microkernel
+  `coga/knowledge` "Topic size review policy" says a topic over 200 lines, 10,000 bytes, or 2,500 tokens (ceil(chars/4)) is reviewed for a split, and any exception needs a closing `Size exception:` sentence in the topic itself. `doc…
+- **coga-dev/testing calls the control_relay_started leak "open, no ticket", but an open ticket fixes it** — shard: ks-20 · class: stale · target: docs/contexts/coga-dev/testing/SKILL.md · area: coga-dev/testing
+  The "Known suite failures" bullet says `control_relay_started` leaks between tests and labels it "(open, no ticket)". The leak is still real on current main: on 2026-11-18, running `tests/test_recurring.py::test_recurring_scan_rel…
+- **calendar-reminder hardcodes a gcal.py path that no longer exists after the package-definition cutover** — shard: ks-29 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md · area: coga/calendar-reminder (google-calendar skill attachments) · owner: local
+  Every call shape in the skill runs `python "$COGA_COGA_OS_ROOT/skills/coga/google-calendar/gcal.py" ...`. `task_env.py:68` sets `COGA_COGA_OS_ROOT` to `cfg.repo_root` (the workspace `coga/` dir), but bundled skills are no longer c…
+- **calendar-reminder still frames itself as a stopgap until recurring ships, and ships one client's legacy event table** — shard: ks-29 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md · area: coga/calendar-reminder (recurring) · owner: local
+  The description ("coga's native recurring-task scheduling hasn't shipped yet — the calendar event is the stopgap"), the intro, the event description template ("Temporary — delete this event once coga's recurring-task machinery lan…
+- **terminal-owners says terminal transitions "make no network call"** — shard: ks-18 · class: stale · target: src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md · area: coga/checkout-cleanup · owner: local
+  "When it runs" states that `coga mark done`, `coga mark canceled` and a final-step `coga bump` "delete nothing and make no network call". The deletion half holds (`src/coga/mark.py` and `bump.py` import no `branchcleanup`/`branchs…
+- **coga/first-task says the workflow freezes "when it activates", but its own example freezes at create** — shard: ks-30 · class: stale · target: src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md · area: coga/first-task
+  "What you touched" says "**Workflow**: ordered steps, frozen into the ticket when it activates." Step 1 of the same walk creates the ticket with `coga create "..." --workflow code/with-review`, and `create.create_task` freezes on …
+- **coga/gmail: helper invocation path `<coga>/skills/coga/gmail/gmail.py` does not exist after the package cutover** — shard: ks-28 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/SKILL.md · area: coga/gmail · owner: local
+  Every command example is `python <coga>/skills/coga/gmail/gmail.py ...`, and setup says to `pip install -r requirements.txt` "from this skill's dir". The skill now ships only from the package (`src/coga/resources/templates/coga/bo…
+- **coga/google-calendar: helper path under `$COGA_COGA_OS_ROOT/skills/` no longer exists, and it cites a removed `[secrets]` table** — shard: ks-28 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/SKILL.md · area: coga/google-calendar · owner: local
+  The skill tells consumers to run `python <coga>/skills/coga/google-calendar/gcal.py ...` and to "Locate the helper via `COGA_COGA_OS_ROOT`". `task_env` sets `COGA_COGA_OS_ROOT` to the Coga workspace root (`cfg.repo_root`), but aft…
+- **PR preparation leaf omits open-pr's compact-author refusal** — shard: ks-18 · class: stale · target: src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/preparation/SKILL.md · area: coga/pr-publication · owner: local
+  `coga/pr-publication/preparation` owns the `## PR` record fields and enumerates the value constraints `coga open-pr` enforces (free-text values must be folded/quoted YAML, `depth` is exactly `merge|skim|deep`, `review.kind` values…
+- **coga/secrets omits the scrubbed env for clone-scoped recurring scripts** — shard: ks-27 · class: stale · target: src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md · area: coga/secrets · owner: local
+  The "A declaration plus an env scrub, not a sandbox" section enumerates what the 1Password-auth scrub covers ("launch ... The same scrub covers the `coga ticket` interviewer and the recurring autofix analysis call") and then says …
+- **windows-aws skill shows the bare uv installer the walk no longer runs** — shard: ks-23 · class: stale · target: src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md · area: coga/testing/clean-install
+  The Walk section's step 2 says the walk runs "uv's official installer (`irm https://astral.sh/uv/install.ps1 | iex`)". `scripts/clean-install/windows-walk.ps1` `Install-Uv` (line 35) actually runs it in a child process as `powersh…
+- **human/run workflow says `bump` needs a launched in_progress ticket; a human can now bump an active owner step** — shard: ks-29 · class: stale · target: coga/workflows/human/run.md · area: workflows (human/run) / coga/lifecycle · owner: local
+  The `execute` section ends: "Use `mark done` for this human-only path: `mark active` leaves the ticket `active`, whereas `bump` requires an `in_progress` ticket from a launch." Since d8051cf8d ("Let a human bump an active owner-he…
+- **validate-drift Idempotency line misdescribes the `--fix` repair set** — shard: ca-08 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/validate-drift/SKILL.md · area: bootstrap/dream · owner: local
+  Line 33-34 says "`coga validate --fix` only creates missing standard files and leaves existing files unchanged". Code reality: `apply_safe_fixes` in `src/coga/validate.py:1884` creates no files; its only repair appends a missing b…
+- **cleanup-orphan-markers skill claims slug-exact scan but code only sees top-level task directories** — shard: ks-03 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/cleanup-orphan-markers/SKILL.md · area: bootstrap/dream/tasks/cleanup-orphan-markers
+  The skill's Detection Gate and Inputs describe candidates as "task directories under `coga/tasks/`" matched by exact slug (`coga/tasks/<slug>/ticket.md`), and the open-PR gate uses `coga/tasks/<slug>/`. In `src/coga/dream_cleanup_…
+- **bootstrap/import names nonexistent `_dispatch_branch_sync`** — shard: ca-08 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md · area: bootstrap/import · owner: local
+  Line 137 says "`_dispatch_branch_sync` pushes when HEAD is the control branch". No symbol by that name exists anywhere in `src/coga/` (grep finds only this SKILL.md). The post-command sweep is `_sweep_coga_state` in `src/coga/cli.…
+- **bootstrap/import pruning guidance ignores the `include` allowlist** — shard: ca-08 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md · area: bootstrap/import · owner: local
+  Lines 115-132 and 143-150 say pruning an `install-url` skill is a hand deletion recorded only in `local_adaptation_notes`, that `locally-adapted (url)` is the expected status afterwards, and that `update` then needs `--force`. The…
+- **bootstrap/import misdescribes `installed_ref`** — shard: ca-08 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md · area: bootstrap/import · owner: local
+  Line 74 describes `installed_ref` as "the ref/version installed". `install_url_skill` writes `installed_ref=skill_ref` (`src/coga/skill_manager.py:286`), which is the Coga skill ref taken from the upstream frontmatter name, such a…
+- **bootstrap/import cites nonexistent `coga/skills/code/*` as locally authored trees** — shard: ca-08 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md · area: bootstrap/import · owner: local
+  Line 166 lists "`coga/skills/marketing/write-post/`, `coga/skills/code/*`" as the locally authored namespaced trees in this repo. `coga/skills/code/` does not exist. The `code/*` skills ship from the package at `src/coga/resources…
+- **activity-capture names a removed `commands/usage.py`** — shard: ca-01 · class: drift · target: docs/contexts/coga-dev/internals/activity-capture/SKILL.md · area: coga-dev/internals
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md:10-11 says "All parsing, bounding, and rollup logic lives in `src/coga/usage.py`; `launch.py` and `commands/usage.py` stay thin." `src/coga/commands/usage.py` no longer ex…
+- **git-regressions cites coga-dev/current-direction for the no-compatibility-reader decision, which it does not record** — shard: ca-02 · class: drift · target: docs/contexts/coga-dev/internals/git-regressions/SKILL.md · area: coga-dev/internals · owner: local
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md:163-164 says the stored-ticket "no-compatibility-reader decision is recorded in `coga-dev/current-direction`". docs/contexts/coga-dev/current-direction/SKILL.md has no ment…
+- **log-writers inventory misses megalaunch's dependency-resolution append_log (33 sites, not 32)** — shard: ca-02 · class: drift · target: docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md · area: coga-dev/internals · owner: local
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md:14 claims "The startup-group implementation inventory has **32 direct call sites**" and the table (lines 18-31) is described as the complete `append_log` writ…
+- **Branch-sweep template and workflow describe two deletion authorizations; the code has a third (closed-unmerged PR)** — shard: ks-02 · class: drift · target: src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md · area: coga/checkout-cleanup/branch-sweep · owner: local
+  Step 4 of the packaged `branch-sweep` template says the sweep "authorizes deletion two independent ways" (local tip reachable from control, or a merged PR with no open PR), and step 6 says it skips "anything unmerged with no merge…
+- **script-tickets overstates which supervisor variables a ticket.py child "loses"** — shard: ca-05 · class: drift · target: src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md · area: coga/script-tickets
+  `script-tickets/SKILL.md:54-58` says the script child's environment "loses `COGA_SUPERVISED`, `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and `COGA_EXPECTED_AGENT`" unconditionally. Code reality (`src/coga/la…
+- **Shipped phone-home template requires reading a local-only coga-dev topic** — shard: ca-11 · class: drift · target: src/coga/resources/templates/coga/recurring/phone-home/ticket.md · area: recurring/phone-home · owner: local
+  `src/coga/resources/templates/coga/recurring/phone-home/ticket.md:117-119` defines movement counting "using the versioned/legacy decoding contract in [coga-dev/internals/spool-merge](…/docs/contexts/coga-dev/internals/spool-merge/…
+- **Google helper invocation paths point at a live `coga/skills/coga/...` copy that no longer exists** — shard: ca-09 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md · area: skills/coga/google-capabilities · owner: local
+  `coga/calendar-reminder/SKILL.md:29,141,174,196,213` invokes `python "$COGA_COGA_OS_ROOT/skills/coga/google-calendar/gcal.py"`; `coga/google-calendar/SKILL.md:71,90-91` says to locate the helper as `<coga>/skills/coga/google-calen…
+- **calendar-reminder still says native recurring scheduling has not shipped and uses the flat `recurring/<name>.md` layout** — shard: ca-09 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md · area: skills/coga/google-capabilities · owner: local
+  The skill's description (line 3: "coga's native recurring-task scheduling hasn't shipped yet") and body (lines 11-13, 68-69, 130, 145, 207, 293-302) frame the calendar event as a stopgap until recurring machinery "ships". Code rea…
+- **Google capability skills configure `[calendar]`/`[gmail]` tables that Coga's config loader rejects** — shard: ca-09 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/SKILL.md · area: skills/coga/google-capabilities · owner: local
+  `coga/google-calendar/SKILL.md:95-101,117` tells operators to put a `[calendar]` table (`service_account_file`) in `coga.local.toml`; `coga/calendar-reminder/SKILL.md:42` repeats it and `:52` says to resolve the calendar id from a…
+- **recurring/verify derives script-vs-agent templates from live `coga/recurring/*/ticket.py`, missing every package-backed job** — shard: ca-09 · class: drift · target: src/coga/resources/templates/coga/bootstrap/skills/coga/recurring/verify/SKILL.md · area: skills/coga/recurring · owner: local
+  `coga/recurring/verify/SKILL.md:248-254` says to "derive which templates can fire headless rather than trusting a list" with `for t in coga/recurring/[!_]*/; do [ -f "$t/ticket.py" ] && echo script || echo agent`, and the secret r…
+- **No knowledge home for running Coga agent-behavior A/B trials** — shard: ks-13 · class: gap · target: docs/contexts/coga-dev/testing/SKILL.md · area: coga-dev/testing
+  Two independent done tickets — `v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly` and `v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality` — each rebuilt the same paired-t…
+- **Third hardcoded agent list in `commands/uninstall.py` is outside v1/50's stated scope** — shard: ks-19 · class: gap · target: src/coga/commands/uninstall.py · area: coga/uninstall · owner: v1/50-make-adding-a-third-agent-one-registry-edit
+  v1/20 merged the agent display names and binaries into `dependencies.AGENT_CLIS` and filed v1/50 (draft) to make adding an agent "one registry record", naming two remaining lists: `init._AGENT_SKILL_DIRS` and the packaged `[agents…
+
+
+## Phase 4 — retro/done-ticket
+
+Result: `pr-opened` — `complete — 5 PRs, 23 direct deletes, 35 tickets` (linked worktree on origin/main 7a40b520f; verified and torn down).
+Eligible 35 done tickets; deferred as retirement debt: `make-retro-check-inbound-doc-links-before-deleting` (branch on origin), `v1/14-interactive-coga-launch-on-native-windows` (local branch), 41 canceled tickets.
+- #1255 paired agent-behavior trial method (new `coga-dev/testing/agent-trials`) + compose limits — 03-prompt-assembly/01–04, recurring/autoclose-merged (covers gap ks-13)
+- #1256 install Python pin / Restricted policy — v1/45, v1/47
+- #1257 coga-dev hazards (git._git_env, blocker id collision, branch-sweep gh defaults, native suite duration) — v1/coga-bump…, keep-unfinished…, branch-sweep-never-releases…
+- #1258 init agent-selection gotchas — v1/20
+- #1259 microkernel report-command startup cost — v1/microkernel/06
+Direct-deleted (23): correct-the-coga-workflows…, decide-the-dream-scans…, fix-the-checkouts…, remove-the-fixed-uninstall…, replace-activity-capture…, update-the-testing-topic…, hold-dirty-context-edits…, correct-state-publication…, v1/48, v1/microkernel/{01,02,03-launch-decomposition,avoid-duplicate…,normalize-signal…}, 03-prompt-assembly/record-{output-quality…,non-replacement…}, recurring/{address-pr-comments,blocker-reminders,phone-home,resolve-conflicts,skill-update,trim-log,usage-report}.
+Retro follow-ups (route in Phase 6): 03-prompt-assembly/README.md + v1/microkernel/README.md stale rows; orphan `03-implement-the-proven-prompt-assembly-evidence/` dir; v1/45 deferred README should-fix items have no live owner; v1/microkernel/02 open questions (validate warn on `requires: branch` + `checkout: control|manual`; legacy-snapshot fallback retirement owner).
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-11-18T17:40:48+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-11-18 ~18:15 UTC (period 2026-W47, run `20261118T170921Z`, unattended queue).
+
+| Phase | Result | Detail |
+|---|---|---|
+| Preflight | ok | git-common-dir, remote (origin/main), gh |
+| 1 validate-drift | human-needed | 13 issues (7 unfrozen-workflow, 4 stuck-in-progress, 2 large-blackboard); 0 direct-fix, 0 PR proposal, 0 machine-local — all 3 classes already ticketed |
+| 2 knowledge scan | reported | 31/31 shards, 40 raw findings (13 extract, 22 stale, 2 gap + 1 drift-labelled) |
+| 3 contract audit | reported | 13/13 shards (ca-own ownership check inline: 0), 14 drift (5 dup of Phase 2) → 47 de-duplicated |
+| 4 retro/done-ticket | pr-opened | 35 eligible → 5 knowledge PRs (12 tickets) + 23 direct deletes; verified, torn down |
+| 5 cleanup-orphan-markers | no-op | no candidates |
+| 6 disposition | proposed / pr-opened | 5 proposal PRs, 9 drafts, 0 upstream |
+| upstream-coga.md | upstream-captured: 0 | Coga source repo |
+
+Quality note: wave 1 of the knowledge scan (ks-01..ks-10) ran on Sonnet and yielded 6 findings; waves 2–3 on the default model yielded 34. Coverage is complete (every leaf wrote a completion line), but wave 1's areas (recurring/launch) may be under-read.
+
+**Knowledge PRs (Phase 4):** #1255 agent-trial method + compose limits (also covers gap ks-13) · #1256 install Python pin / Restricted policy · #1257 coga-dev hazards · #1258 init agent-selection gotchas · #1259 microkernel report-command startup cost. All 9 `source: done` extract findings are carried by #1256/#1257/#1258.
+
+**Proposal PRs (Phase 6, pr-required, none auto-merged):**
+- #1260 coga-dev internals: git-refresh callers, publish state_lock, activity-capture usage.py, git-regressions citation (ks-16, ks-18, ca-01, ca-02)
+- #1261 user topics: pr-publication/preparation author refusal, terminal-owners network, first-task freeze, bootstrap/ticket `coga draft`, human/run bump (ks-18 ×2, ks-29, ks-30 ×2)
+- #1262 bootstrap/import: `_dispatch_branch_sync`, `include` allowlist, `installed_ref`, `coga/skills/code/*` (ks-30 ×2, ca-08 ×4)
+- #1263 Google skills: dead helper paths, rejected config tables, stopgap framing (ks-28 ×2, ks-29 ×2, ca-09 ×3)
+- #1264 recurring/Dream contracts: cleanup-orphan-markers scope, branch-sweep closed-unmerged path, code/implement adjacent bugs, validate-drift idempotency, phone-home local-only link, recurring/verify detection (ks-02, ks-03, ks-28, ca-08, ca-09, ca-11)
+
+**Drafts created (code/with-review):**
+- Overlap with open PRs that don't carry the fix: `add-the-megalaunch-dependency-resolution-append-lo` (ks-15/ca-02; #1247/#1248) · `correct-script-tickets-on-which-supervisor-variabl` (ca-05; #1244/#1247) · `update-the-testing-topic-known-failure-note-on-the` (ks-20; #1246/#1255/#1256, fix in #1245) · `name-clone-scoped-recurring-scripts-among-the-scru` (ks-27; #1246) · `fix-the-windows-aws-walk-step-and-add-the-v1-14-at` (ks-23 + ks-11 done+checkout extract from v1/14; #1256/#1257)
+- Retro follow-ups: `fix-the-readme-windows-walk-findings-left-unowned` (v1/31 findings 6/7/10; owner v1/33 deleted) · `refresh-the-v1-microkernel-task-readmes-after-the` (ks-03 + 03-prompt-assembly README + orphan evidence dir) · `decide-the-two-open-questions-left-by-the-checkout` (v1/microkernel/02)
+- Open decision from #1263: `decide-where-the-google-helper-skills-read-their-c`
+
+**Already covered:** gap ks-19 (uninstall.py `_AGENT_SKILL_DIRS`) → already ticketed as `v1/50-make-adding-a-third-agent-one-registry-edit`. Microkernel size exception (ks-25) → carried by open PR #1246; microkernel open-placements owners (ks-25) → carried by open PRs #1244/#1247/#1248. Gap ks-13 (A/B trial method) → carried by #1255.
+Phase 1 classes, already ticketed: `validate-drift-unfrozen-workflow-canceled-tickets` (7 members, all canceled; same set) · `validate-drift-stuck-in-progress-in-progress-ticke` (4 members; new since filing: the two validate-drift owner tickets themselves) · `validate-drift-large-blackboard-live-ticket-blackb` (v1/20 now done → removed by #1258; v1/14 retirement debt).
+
+**Retirement debt (run `coga retire <slug>`):**
+- done+checkout: `v1/14-interactive-coga-launch-on-native-windows` (local branch; its remaining windows-aws gotchas routed to draft above) · `make-retro-check-inbound-doc-links-before-deleting` (branch still on origin).
+- canceled: 41 tickets. Retirement unlocks these extracts: `ship-a-shared-recurring-reminder-engine-battery` (coga/recurring — recurring-reminder harness boundary) · `v1/42-idea-piece` (marketing/write-post — owner wording limits) · `marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive` (coga-dev/current-direction — declined Gemini integration + verified CLI constraints) · `v1/pr-are-only-when-ready-for-review` (coga/checkouts — cross-repo tickets can't drive branch-gated workflows) · `define-the-api-equivalent-cost-proxy-and-price-tab` (coga-dev/internals/usage-pricing — why the dollar-cost proxy was declined, what reopens it).
+
+**Machine-local validator issues:** none. **Human-needed:** stale linked worktree `/home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops` on branch `dream/ops-20261026T172253Z` from an October Dream run is still registered — inspect and remove. **Review gates:** 10 PRs (#1255–#1264) need human review.

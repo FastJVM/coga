@@ -43,8 +43,9 @@ sweeps**. It requires a reserved `ticket.py` and rejects `delegate`,
 `state_keys` and `workflow`. The sweep runs the script directly, after the
 shared launches. No period task is created, the runner commits nothing, and no
 log line is written; a script's own state changes and publication belong to
-its template. The script gets the template's `secrets` and
-`COGA_RECURRING_SCOPE=clone`, `COGA_RECURRING_TEMPLATE` and
+its template. The script gets the template's `secrets`, in the scrubbed
+environment [coga/secrets](../../secrets/SKILL.md#a-declaration-plus-an-env-scrub-not-a-sandbox)
+describes, and `COGA_RECURRING_SCOPE=clone`, `COGA_RECURRING_TEMPLATE` and
 `COGA_RECURRING_PERIOD`, but no `COGA_TASK_*` variables, so there is nothing to
 bump. Exit 0 records the period in `<primary checkout's coga
 dir>/.coga/recurring-clone/<name>.json`, with the output beside it in
@@ -157,12 +158,12 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
   [bootstrap/recurring-list](../../../../recurring-list/ticket.md) report through
   read-only launch. The fixed adapter preserves the two-word spelling;
   selection and presentation live beside the ticket.
-  `coga recurring promote` is in [templates](../templates/SKILL.md#promotion).
+  `coga promote-recurring` is in [templates](../templates/SKILL.md#promotion).
 
 Every launching entry point runs from the control branch and honors the
 committed `owner = "<name>"` gate: a policy gate against two operators racing,
-not a lock, with no override flag. `coga recurring list` and `promote` are
-ungated.
+not a lock, with no override flag. `coga recurring list` and
+`coga promote-recurring` are ungated.
 
 A single-repo sweep or named launch started off control relays to an existing
 control worktree of the same repo. If none exists, it refuses and names the

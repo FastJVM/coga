@@ -59,6 +59,9 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
+    "coga/resources/templates/coga/bootstrap/recurring-promote/promotion.py",
+    "coga/resources/templates/coga/bootstrap/recurring-promote/ticket.md",
+    "coga/resources/templates/coga/bootstrap/recurring-promote/ticket.py",
     "coga/resources/templates/coga/bootstrap/retire/ticket.md",
     "coga/resources/templates/coga/bootstrap/retire/ticket.py",
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
@@ -154,6 +157,7 @@ SCAFFOLD_COUNTERPARTS = {
 STATE_CARRIER_COUNTERPARTS = {
     "coga/recurring/address-pr-comments/ticket.md": "saved parent blackboard, independent of its delegated definition",
     "coga/recurring/autoclose-merged/ticket.md": "saved cross-run notes; retires.md remains a separate worklist",
+    "coga/recurring/blackboard-size/ticket.md": "state carrier created on the selected job's first admitted run",
     "coga/recurring/blocker-reminders/ticket.md": "saved parent blackboard, including state without declared state_keys",
     "coga/recurring/branch-sweep/ticket.md": "saved parent notes; clone success ledgers remain machine-local",
     "coga/recurring/dream/ticket.md": "saved cross-run sweep state and notes",
@@ -163,7 +167,9 @@ STATE_CARRIER_COUNTERPARTS = {
     "coga/recurring/trim-log/ticket.md": "state carrier created on the adopted job's first admitted run",
 }
 # Newly adopted jobs need no eager parent file; first use creates their state.
-LAZY_STATE_CARRIER_COUNTERPARTS = frozenset({"coga/recurring/trim-log/ticket.md"})
+LAZY_STATE_CARRIER_COUNTERPARTS = frozenset(
+    {"coga/recurring/blackboard-size/ticket.md", "coga/recurring/trim-log/ticket.md"}
+)
 # A future reviewed local fork must explain every counterpart it retains.
 LOCAL_DEFINITION_OVERRIDES: dict[str, str] = {}
 
@@ -1248,8 +1254,8 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     )
 
 
-NINE_BUNDLED_PARENTS = (
-    "address-pr-comments", "autoclose-merged", "blocker-reminders", "branch-sweep",
+BUNDLED_PARENTS = (
+    "address-pr-comments", "autoclose-merged", "blackboard-size", "blocker-reminders", "branch-sweep",
     "dream", "phone-home", "resolve-conflicts", "skill-update", "trim-log",
 )
 
@@ -1277,7 +1283,7 @@ def test_installed_wheel_init_and_phone_home_are_isolated(tmp_path):
 
     Built from a pristine copy, installed into an isolated target with no
     inherited editable `PYTHONPATH`, made read-only, and run from a separate
-    project: fresh init copies no definitions, all nine bundled parents
+    project: fresh init copies no definitions, all ten bundled parents
     resolve from the package, and the first phone-home run creates the repo
     carrier from the unused seed. Package resource bytes must not change.
     """
@@ -1374,6 +1380,8 @@ def stub_bump(argv, **kwargs):
     if argv[1:4] == ["-m", "coga.cli", "bump"]:
         assert argv[4].startswith("recurring/")
         return subprocess.CompletedProcess(argv, 0)
+    if argv[1:3] == ["-m", "coga.validate"]:
+        return subprocess.CompletedProcess(argv, 0, stdout='{"issues": []}', stderr="")
     assert argv[0] == "git", argv
     return real_run(argv, **kwargs)
 calls = []
@@ -1432,11 +1440,43 @@ with patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",fo
     assert not t._admitted(cfg)
 result = CliRunner().invoke(app, ["validate", "--json"])
 assert '"recurring/' not in result.output or "bad-recurring-template" not in result.output, result.output
+# The alias reaches the installed command ticket and then a complete local fork.
+import shutil
+
+def promote(slug):
+    source = Path("coga/tasks", slug + ".md")
+    source.write_text(
+        "---\ntitle: Wheel promotion\nstatus: draft\n---\n\n"
+        "## Description\n\nPromote this task.\n\n<!-- coga:blackboard -->\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "promote-recurring", slug,
+         "--schedule", "0 9 * * 1"],
+        text=True, capture_output=True, timeout=15,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not source.exists()
+    return Path("coga/recurring", slug, "ticket.md").read_text(encoding="utf-8")
+
+assert "Wheel promotion" in promote("from-wheel")
+bundled = resolve_bootstrap(cfg, "bootstrap/recurring-promote").path
+fork = Path("coga/bootstrap/recurring-promote")
+shutil.copytree(bundled, fork, copy_function=shutil.copyfile)
+implementation = fork / "promotion.py"
+implementation.write_text(
+    implementation.read_text(encoding="utf-8").replace(
+        "The cross-run state for this recurring task goes here.",
+        "Local fork initialized the blackboard.",
+    ),
+    encoding="utf-8",
+)
+assert "Local fork initialized the blackboard." in promote("from-fork")
 print("installed init and suppressed first snapshot passed")
 '''
     try:
         result = subprocess.run(
-            [sys.executable, "-c", script, ",".join(NINE_BUNDLED_PARENTS)],
+            [sys.executable, "-c", script, ",".join(BUNDLED_PARENTS)],
             cwd=target, env=env, capture_output=True, text=True, encoding="utf-8",
             timeout=60,
         )

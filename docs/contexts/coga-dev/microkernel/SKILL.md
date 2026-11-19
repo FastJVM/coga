@@ -53,11 +53,9 @@ effects, or calling shared infrastructure does not settle their placement.
 | Command surface | Open decision | Cleanup ticket |
 | --- | --- | --- |
 | `megalaunch`, `slack` | Placement of queue orchestration and the user-facing notification head | `work-orchestration-commands-to-tickets` |
-| `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `residual-command-surfaces` |
-| `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
-| `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
+| `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `move-ticket-authoring-to-a-command-ticket` |
+| `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `move-skill-management-to-command-tickets` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
-| `recurring promote` | Placement of the task-to-template move | `residual-command-surfaces` (scope proposed by the refresh) |
 
 These tickets live under `coga/tasks/v1/microkernel/`; the owner's
 2026-11-12 decision in [current direction](../current-direction/SKILL.md)
@@ -108,6 +106,44 @@ under light load; under full-suite load `show` went 0.36→0.53 s and `status`
 0.28→0.49 s. Do not move these reports back in-process for speed without
 reopening that decision; to cut the overhead, trim the scripts' import cost
 first.
+
+## Retained support commands
+
+Owner-reviewed boundary (2026-11-16): retain `secret get` and `uninstall`
+as co-versioned built-ins. Neither uses a bootstrap override or a second
+recovery launcher.
+
+- **Secret inspection.** `commands.secret.get` calls
+  `config.select_launch_secrets` in the CLI parent, where `op read` inherits
+  the operator's authentication. `config.build_launch_env` scrubs that auth
+  from task children. Moving the query to `ticket.py` would break the
+  service-account verification in [coga/secrets](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md),
+  or silently use a broader personal login. Preserving it there would require
+  a new privileged child policy or argv-aware acquisition in the executor.
+  The retained contract couples parent-side resolution to launch's private
+  environment policy and keeps the value out of composition and publication.
+  This gives up repo-local customization of this head. Reopen only with a
+  reviewed execution policy that preserves operator authentication without
+  widening ordinary task access; read-only execution alone is insufficient.
+- **Removal recovery.** `cli.main` admits `uninstall` despite malformed
+  shared/local config and dispatches before alias validation. It returns
+  without publication, checkout refresh or audit after roots are deleted.
+  An alias cannot preserve this spelling and admission boundary: it runs
+  after config and alias validation. Early dispatch into `coga_edge` would
+  invert the dependency rule. A separate recovery loader adds config bypass
+  and teardown machinery for one procedure without an identified saving.
+  `commands.uninstall` owns its installer detection, package name and managed
+  gitignore removal; marker constants remain shared with init's writer in
+  `commands.update`, and the guide template remains shared with init.
+
+Launch-adjacent checks retain independent core justifications:
+`launch._preflight_push_auth` is used by launch and recurring admission;
+`github_preflight.check_git_auth` also serves the shared preflight and
+megalaunch. Keep authentication enforced before the relevant startup writes,
+not deferred to a later failing subprocess. `agent_skills.refresh_agent_skill_view`
+is shared by init and ordinary launch. No installed/source skew diagnostic
+exists in launch or validate; documentation must not promise one. No readiness
+check moves into agent instructions as part of this classification.
 
 ## The `ticket.py` script phase
 
@@ -190,3 +226,5 @@ module imports only stdlib and shared `coga.*`, never relative or sibling
 edge modules, and carries both normal and private `--worker` dispatch behind
 `__main__`; its worker executes that same file, including when copied to a
 local fork. Preserve these constraints when refactoring it.
+
+Size exception: placement rules, open decisions and retained proofs stay together so reviewers can assess each command against the same kernel boundary.

@@ -71,11 +71,15 @@ beside its `SKILL.md`. That file is the provenance record. Its fields:
 
 - `source_url` — where it came from (the upstream URL / repo).
 - `selector` — the path inside the source when it holds more than one skill.
-- `installed_ref` — the ref/version installed.
+- `installed_ref` — the Coga skill ref it installed as (from the upstream
+  frontmatter `name`), not an upstream version; upstream identity is
+  `source_url` plus the digests.
 - `installed_at` / `updated_at` — import and last-update dates.
 - `source_digest` / `source_tree_digest` / `installed_tree_digest` — content
   hashes that let `coga skill status` and `coga skill update` tell a clean
   import from a local adaptation and detect upstream changes.
+- `include` — **hand-edit this when you prune.** An optional allowlist of the
+  upstream paths this repo keeps; `coga/skill-management` owns its rules.
 - `local_adaptation_notes` — **hand-edit this.** When you adapt (decision 2),
   write one or two lines: *what* you changed and *why*. This is the field a
   future human reads to understand the fork; `coga skill update` preserves it
@@ -120,23 +124,25 @@ it actually behaves, none of them obvious from the field list above:
   under `coga/skills/<name>/`: site, evals, commands, README/DESIGN prose, large
   sample assets, and any packaging check that asserts those paths exist. Keep
   `SKILL.md`, the `references/` the body loads by path, any `scripts/` a mode
-  invokes, and `LICENSE` where the license requires attribution. Delete the rest
-  and hand-write what you dropped, and why, into `local_adaptation_notes` — that
-  is the record a future human and a future `coga skill update` read.
-- **`locally-adapted (url)` is the expected status after a prune**, not a
-  failure. `coga skill status` calls a URL skill locally adapted the moment the
-  installed tree stops hashing to `installed_tree_digest` (`_status_url_skill`),
-  and a prune is exactly that divergence. It is the protection working: `update`
-  will not silently overwrite the skill without `--force`, and the notes explain
-  why the tree is smaller than upstream. A clean import is not the better
-  outcome; an honest one is.
+  invokes, and `LICENSE` where the license requires attribution. **Record the
+  keep-list as an `include` allowlist in `.coga-source.json`**, delete the rest,
+  and note what you dropped, and why, in `local_adaptation_notes`.
+  `coga/skill-management` owns how `include` is applied: install and update
+  re-prune to it, so the pruned tree stays clean rather than locally adapted
+  and `update` reapplies the same pruning instead of conflicting.
+  `coga/skills/clarity/.coga-source.json` is the worked example.
+- **A prune without `include` reads as `locally-adapted (url)`.** `coga skill
+  status` calls a URL skill locally adapted the moment the installed tree stops
+  hashing to `installed_tree_digest` (`_status_url_skill`), and a hand prune
+  with only notes is exactly that divergence: `update` will not overwrite it
+  without `--force` and never re-prunes. Prefer the allowlist.
 - **The install auto-commits *and publishes* before you can prune.**
   `install-url` is in `_SWEEPING_SKILL_SUBCOMMANDS`, so coga's catch-all state
   sweep (`git.sync_coga_state`) commits the freshly landed tree as a `Sync coga
   state` commit on the way out — the unpruned bulk included. It does not stop
-  at a local commit: `_dispatch_branch_sync` pushes when HEAD is the control
-  branch, and from a feature branch it lands the same paths on the control
-  branch anyway. **Squashing a feature-branch pair therefore does not help** —
+  at a local commit: the sweep hands every Coga root to `git.publish`, which
+  lands the dirty paths on the control branch whether HEAD is the control
+  branch or a feature branch. **Squashing a feature-branch pair therefore does not help** —
   by the time you prune, the unpruned tree is already in control-branch
   history, and only a history rewrite would remove it.
 
@@ -162,8 +168,8 @@ in this repo looks like that: `coga/skills/clarity/` and the seven
 
 The slash-separated `coga/skills/<namespace>/<name>/` form is Coga's own
 extension to the Agent Skills name. It is available to skills *you* write — the
-namespaced trees here (`coga/skills/marketing/write-post/`,
-`coga/skills/code/*`) are all locally authored, per `bootstrap/ticket` step 4 —
+namespaced trees here, such as `coga/skills/marketing/write-post/`, are
+locally authored, per `bootstrap/ticket` step 4 —
 **and an import can land on it too**. `_validated_url_skill_ref` deliberately
 accepts a slash-separated Coga namespace as well as a plain Agent Skills name,
 and `_skill_target` then installs at the matching nested path, so an upstream

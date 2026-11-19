@@ -20,6 +20,7 @@ when a post fails, are defined in [`coga/notifications`](../SKILL.md).
 | Recurring `ticket.py` exits non-zero | important |
 | Completed period failed to advance declared state | important |
 | Dream validate-drift summary | flow |
+| `recurring/blackboard-size` weekly FYI listing blackboards over the size threshold, only when one is flagged ([job contract](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blackboard-size/ticket.md)); a delivery miss only warns | flow |
 | Megalaunch drain summary (non-empty) | flow |
 | Autoclose checkout summaries (disposed checkouts flow; refused disposals important) | flow / important |
 | Autoclose unanswered review-thread summary on the PRs it closes (`coga/autoclose/sweep` skill) | flow |

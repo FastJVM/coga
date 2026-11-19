@@ -74,6 +74,7 @@ DEFAULT_ALIASES: dict[str, str] = {
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",
     "address-pr-comments": "launch bootstrap/address-pr-comments",
     "retire": "launch bootstrap/retire --",
+    "promote-recurring": "launch bootstrap/recurring-promote --",
 }
 
 
