@@ -215,16 +215,6 @@ Rule these out before blaming the change under test.
   run ended with 1,413 passed, 10 skipped and 2,708 errors, with 36 inodes
   left. Check `df -i /tmp`, remove only that run's fixtures, and rerun with
   `TMPDIR` on the main disk.
-- **`control_relay_started` leaks between tests (open, no ticket).**
-  `recurring_runner` sets the `git.control_relay_started` ContextVar when it
-  relays to a control worktree, and nothing resets it between tests. Running
-  `tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree`
-  before
-  `tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep`
-  fails the second one: `_sweep_coga_state` makes no sync call
-  (`assert 0 == 1`). Reproduced on control on 2026-11-02. The default
-  full-suite order passes, so the failure only shows up in reordered or
-  focused selections. Confirm by running the failing test alone.
 - **A Windows checkout and temp directory on different drives** break
   `os.path.relpath`, which raises `ValueError` across drives. A path computed
   between package resources and a fixture repo must fall back to an absolute
