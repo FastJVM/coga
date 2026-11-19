@@ -52,6 +52,11 @@ is owned by [coga/script-tickets](../script-tickets/SKILL.md). Recurring
   skills; `op` or the environment resolves secrets), while enforcement at the
   moment of use is kernel (launch injects secrets). Secret values never flow
   through tickets, prompts, blackboards, or Git.
+  The human [secret query](../secrets/SKILL.md#coga-secret-get-ref) stays in
+  the parent process; making a script read-only does not grant operator auth.
+  [Uninstall recovery](../uninstall/SKILL.md#recovery-admission) also remains
+  built-in because ordinary extension admission depends on the config it
+  must be able to remove.
 
 ## `coga run <recipe> [args...]`
 

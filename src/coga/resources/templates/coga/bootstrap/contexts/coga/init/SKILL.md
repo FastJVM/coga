@@ -181,7 +181,8 @@ top-level key, and table entries also named `user` are left alone. An
 unparseable local file is a hard error. Without `--user` it fails naming the
 flag. Once `user` is set, re-running init is refused with the upgrade menu:
 upgrade via the owning installer, fix or remove a broken `coga/`, or
-`coga uninstall`.
+`coga uninstall` (its [recovery admission](../uninstall/SKILL.md#recovery-admission)
+works even with broken config).
 
 ## Instruction files and skill discovery
 
