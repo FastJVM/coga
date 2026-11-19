@@ -4438,3 +4438,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 09:07 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-11-19 09:07 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-11-19 09:07 v1 [v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co] [human:nicktoper] auto-bumped on merge of PR #1245 → done
+2026-11-19 09:08 v1 [recurring/autoclose-merged] [system] task done

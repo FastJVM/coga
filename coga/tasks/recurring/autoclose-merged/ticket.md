@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -14,7 +14,6 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
     checkout: manual
-step: 1 (sweep)
 ---
 
 ## Description
@@ -87,3 +86,12 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-11-19T17:08:04+00:00
+Task: `recurring/autoclose-merged`
+
+1 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co` "Recipe migration, part 1: shared reporting and publication for edge jobs": branch `coga/v1-microkernel-04-gigantic-refactor-move-recurri-779f80`
