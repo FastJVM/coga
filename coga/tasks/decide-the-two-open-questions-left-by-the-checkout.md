@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 519a1ad6-a5c5-4118-9f5f-a42b70ce501f
 ---
 
 ## Description
@@ -129,11 +128,64 @@ ordinary ticket.
 
 branch: coga/decide-checkout-open-questions
 
-## Plan
+## Decisions
 
-- Q1 (validate lint for `requires: branch` + `checkout: control|manual`): decided no lint; record in `coga/checkouts`.
-- Q2 (who retires the legacy-snapshot fallback, when): filed draft
+- **Q1 — no `coga validate` lint for `requires: branch` + `checkout: control|manual`.**
+  `checkout:` is entry policy and `requires:` a completion gate; `coga/checkouts`
+  already declares them independent ("a `manual` step that `requires: branch`
+  still needs its `branch:` before bump"), the seeded fixture's
+  `tests/fixtures/seeded-repo/coga/workflows/code/with-review.md` `implement` step
+  pairs `requires: branch` with `checkout: manual` on purpose, and the bump gate
+  (`src/coga/step_gate.py`, `_has_branch_linkage`) already refuses loudly, naming
+  `branch:` under `## Dev`. A warning would nag a declared, authoritative choice
+  and validate has no definition-lint surface; project-stage (no premature
+  generality) argues against adding one. Recorded in `coga/checkouts` next to
+  the independence sentence.
+- **Q2 — the retirement is owned by a filed draft ticket:**
   `coga/tasks/v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac.md`
-  as the owner; point at it from `coga-dev/codebase`.
+  (draft, `code/with-review`, owner nicktoper; published on main as 201999f62).
+  "When" stays the existing `coga/checkouts` "Legacy snapshots" rule (no live
+  code/docs snapshot without `checkout:` in supported repos, or a reviewed
+  migration). Evidence at filing: 50 live code/docs tickets in this repo still
+  carry such snapshots, so the condition does not hold today; the draft says to
+  re-count and choose wait vs. reviewed migration. `coga-dev/codebase`
+  (`checkout_policy.py` entry) now names that ticket as the owner. Not recorded
+  in the shipped topic because adopting repos cannot see this repo's tickets.
+
+## Handoff (implement)
+
+Commit 6bcaac1bb on `coga/decide-checkout-open-questions` (pushed), on top of
+origin/main 5c6cb9641. Docs-only: two topic edits. No code or fixture change.
+Next: peer-review, then open-pr.
+
+## PR
+
+```yaml
+title: Record checkout-policy lint and fallback-retirement decisions
+author: claude (Claude Code, model claude-opus-5-5), implement step
+head: 6bcaac1bb3ab144d43ff1d1a9650711d379a5df9
+base: 5c6cb96411d134fc5c95fe70df70177a97f4ea75
+review_depth: light
+review_depth_rationale: Two-sentence docs change recording decisions; no behavior change.
+implementation: >-
+  coga/checkouts states validate deliberately does not warn on requires: branch with
+  checkout: control|manual and why; coga-dev/codebase names the draft ticket that owns
+  retiring the legacy-snapshot table. The follow-up draft ticket itself was published
+  directly to main by coga create (not in this diff).
+deviations: none
+limitations: >-
+  Retirement timing is not dated; it remains evidence-gated by the coga/checkouts rule.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: >-
+    Record the Q1 decision (no cross-field lint) beside the roles/gates independence rule.
+  docs/contexts/coga-dev/codebase/SKILL.md: >-
+    Point the checkout_policy.py legacy-table mention at its retirement-owning draft ticket.
+review: not yet run; peer-review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest -q -x -p no:cacheprovider
+    result: 5004 passed, 33 skipped (802s); run on the working tree whose content equals commit 6bcaac1bb
+  - command: .venv/bin/python -m coga.cli validate --json
+    result: 105 ok, 17 warnings, 0 errors
+```
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
