@@ -67,8 +67,7 @@ rewrites that dispatch even when `coga.toml` omits them; a repo adds or
 overrides them in `[aliases]`.
 
 `coga run` accepts only these fixed recipe names: `autoclose`,
-`blocker-reminders`, `branch-sweep`, `validate-drift`,
-`cleanup-orphan-markers`, `recurring-scan`, `autofix-analyze`,
-`skill-update`, `open-pr`, `delete-task`, `publish-state`, and
+`blocker-reminders`, `branch-sweep`, `recurring-scan`,
+`autofix-analyze`, `skill-update`, `open-pr`, `delete-task`, `publish-state`, and
 `prepare-checkout`. How both mechanisms behave, and why a new command usually
 belongs at the edge, is in [coga/extension-model](../extension-model/SKILL.md).

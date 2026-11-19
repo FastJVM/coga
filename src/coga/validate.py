@@ -1987,7 +1987,7 @@ def execute_validation(
     check_slack: bool = False,
     check_github: bool = False,
 ) -> ValidationReport:
-    """Shared option-to-report contract for the CLI and validate-drift entry."""
+    """Shared option-to-report contract for the CLI and module entry."""
     if task is not None and (check_slack or check_github):
         option = "--check-slack" if check_slack else "--check-github"
         concern = "the Slack webhook" if check_slack else "git/GitHub auth"

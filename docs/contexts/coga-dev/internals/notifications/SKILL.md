@@ -114,7 +114,7 @@ down, so grep for the real call before editing a producer row:
   after the checkout-switch proof) instead of through `mark_in_progress`;
   `blocker_reminders.py` `remind_blocked_tasks`;
   `commands/slack.py`; `bump.py` `advance_step` (`notify_slack=True`);
-  `launch_script.py`; `dream_validate_drift.py`; `commands/megalaunch.py`;
+  `launch_script.py`; `coga_edge/validate_drift.py`; `commands/megalaunch.py`;
   `autoclose.py` `_report_retire_followups` and `_report_followup`;
   `coga_edge/phone_home.py` `_receipt` (`record_failure=False`);
   the repo-local `coga/recurring/usage-report/ticket.py` (`important=True,

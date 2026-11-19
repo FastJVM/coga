@@ -21,12 +21,12 @@ It then classifies every validator issue into one of three buckets:
 ## Known Skill Contract
 
 - Purpose: deterministic repo-health validation and conservative safe repair
-- Runs: `coga run validate-drift` from the active Dream task
+- Runs: `python -m coga_edge.validate_drift` from the active Dream task
 - Inputs: `coga.toml`, `coga.local.toml`, task directories, workflow refs,
   context refs, skill refs, and optional Slack webhook reachability
 - May change: a missing `<!-- coga:blackboard -->` fence + blackboard region
   in a task's `ticket.md`, only when `--fix` is
-  enabled by the recipe's default safe-repair pass; repaired files may be
+  enabled by the worker's default safe-repair pass; repaired files may be
   committed and pushed only from a non-main repair branch when
   `--commit-and-push` is passed manually
 - Action: `direct-fix`
@@ -41,26 +41,30 @@ It then classifies every validator issue into one of three buckets:
 
 ## How to Run
 
-From the host repo root:
+From the host repo root, with the Python interpreter that runs `coga`:
 
 ```
-coga run validate-drift
+python -m coga_edge.validate_drift
 ```
 
-Run it from the active Dream task after reading this contract. The agent launch
-already carries `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and
-`COGA_TASK_BLACKBOARD`; the recipe inherits that metadata and appends its
+The worker ships in the `coga_edge` package of the installed wheel. A full
+local Dream fork may run its own copy of this module instead
+(`coga/edge-code`). Run it from the active Dream task after reading this
+contract. The agent launch already carries `COGA_TASK_SLUG`, `COGA_TASK_DIR`,
+and `COGA_TASK_BLACKBOARD`; the worker inherits that metadata and appends its
 result directly to the Dream task blackboard. Run from a stateless bootstrap
-session there is no blackboard to append to — the recipe writes its report to
-stdout instead of into a packaged `bootstrap/<name>/ticket.md`.
+session there is no blackboard to append to — the worker writes its report to
+stdout instead of into a packaged `bootstrap/<name>/ticket.md`. On exit it
+publishes eligible Coga state of the root it validated; it never advances the
+Dream task.
 
 The default safe-repair pass applies the same conservative repair set as
 `coga validate --fix`: append a missing blackboard fence + region to a `ticket.md` only. To
-publish those repairs from a Dream repair branch, run the recipe manually with
+publish those repairs from a Dream repair branch, run the worker manually with
 `--commit-and-push`; it commits only repaired files and pushes the current
 branch, refusing `main`/`master` by default.
 
-The recipe exits `0` when validation completed, even if the validator found
+The worker exits `0` when validation completed, even if the validator found
 issues. It exits non-zero only when the validator itself failed or emitted
 invalid JSON.
 
@@ -79,7 +83,7 @@ one-line Slack summary against the active Dream task's `COGA_TASK_SLUG`.
 
 ## Flags
 
-The recipe accepts:
+The worker accepts:
 
 - `--cwd <path>` — run validation from this repo directory (default: cwd).
 - `--no-fix` — disable the default `coga validate --fix` repair pass.
@@ -114,5 +118,5 @@ the same tag with their rationale and scope in a context before the owner
 closes, so later runs can find and apply them after that ticket is retired;
 an accepted subset does not waive other issues of the same kind. The report's
 per-issue `kind` is what makes grouping possible; keep it on every remediation
-line. Membership is never copied between runs — this recipe's live output is
+line. Membership is never copied between runs — this worker's live output is
 the member list.

@@ -29,16 +29,20 @@ Everything else stays at the edge. A single-consumer helper lives beside the
 ticket or skill that uses it, or in the wheel-distributed `src/coga_edge/`
 package, and imports only appropriate shared core infra. Edge shipping does
 not confer kernel status. Production `src/coga/` never imports or path-loads
-`coga_edge` or ticket/skill implementations; repo shims choose their imports.
+`coga_edge` or ticket/skill implementations; repo shims choose their imports,
+and packaged instructions name the module they run (Dream's Phase 1/5
+`python -m coga_edge.<worker>`).
 Distribution, upgrades and overrides are owned by
 [coga/edge-code](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md). Skills are invocation contracts and
 never executable launch plugins.
 
 - **Count callers of one symbol, not copies of one body.** Three
-  byte-identical private `append_report` helpers (`skill_update.py`,
-  `dream_validate_drift.py`, `dream_cleanup_orphan_markers.py`) are three
-  single-consumer copies. A helper earns a shared home only when the change
-  that adds it migrates the existing duplicates onto it in the same PR.
+  byte-identical private `append_report` helpers (`skill_update.py` and
+  Dream's two workers, now `coga_edge.validate_drift` and
+  `coga_edge.cleanup_orphan_markers`) were three single-consumer copies; the
+  Dream workers now call `blackboard.append_blackboard_report` directly. A
+  helper earns a shared home only when the change that adds it migrates the
+  existing duplicates onto it in the same PR.
 - **The consumer test can keep a symbol in core.** When an implementation
   moves to the edge, any helper it shares with another core consumer stays.
 
@@ -85,9 +89,9 @@ these reports. `views.last_updated_map` (status and megalaunch) and
 and rollups remain shared with the weekly usage report; recurring catalog
 selection remains shared with status and scheduling.
 
-Validation stays in core: its public CLI and the fixed `validate-drift` recipe
-consume the fix-capable module entry and JSON serialization. Both parsers call
-one core execution/rendering contract. Safe local fixes retain the state lock,
+Validation stays in core: its public CLI and Dream's edge
+`coga_edge.validate_drift` worker consume the fix-capable module entry and
+JSON serialization. Both parsers call one core execution/rendering contract. Safe local fixes retain the state lock,
 concurrent-byte refusal and atomic write, without publication or user setup.
 
 The fixed `recurring list` adapter is a settled co-versioned exception: its

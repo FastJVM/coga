@@ -12,7 +12,7 @@ On Python 3.11 — the oldest interpreter Coga supports — `MultiplexedPath` is
 `def joinpath(self, child)`: exactly *one* segment. It only grew the
 `joinpath(*descendants)` signature in 3.12. Every multi-segment call site
 (`paths.packaged_template_path`, `commands.update.packaged_template_root`,
-`dream_cleanup_orphan_markers`) therefore raised
+`coga_edge.cleanup_orphan_markers`) therefore raised
 `TypeError: MultiplexedPath.joinpath() takes 2 positional arguments but N were
 given` on 3.11, crashing `coga init` before it could lay down a single template
 (it died in `packaged_template_root`, on the two-segment `templates/coga`).

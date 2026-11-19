@@ -1,4 +1,10 @@
-"""Importable cleanup-orphan-markers recipe for Dream."""
+"""Dream's cleanup-orphan-markers worker: report processed done tickets left behind.
+
+Dream's Phase 5 runs it as ``python -m coga_edge.cleanup_orphan_markers``; a
+full local Dream fork may instead run a copy of this file beside its ticket.
+It is report-only and imports only the standard library and shared
+``coga`` infrastructure.
+"""
 
 from __future__ import annotations
 
@@ -13,11 +19,11 @@ from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
-import yaml
-
 from coga.blackboard import append_blackboard_report
 from coga.config import Config
+from coga.runner import run_entry
 from coga.task_env import blackboard_from_env
+from coga.ticket import Ticket, TicketError
 
 
 # `## Retro` must be matched only as a line-start markdown heading. A ticket
@@ -77,21 +83,11 @@ def script_task_slug() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
-def load_status(ticket_path: Path) -> str | None:
-    text = ticket_path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return None
-    parts = text.split("---", 2)
-    if len(parts) < 3:
-        return None
+def is_done(ticket_path: Path) -> bool:
     try:
-        frontmatter = yaml.safe_load(parts[1]) or {}
-    except yaml.YAMLError:
-        return None
-    if not isinstance(frontmatter, dict):
-        return None
-    status = frontmatter.get("status")
-    return str(status) if status is not None else None
+        return Ticket.read(ticket_path).status == "done"
+    except TicketError:
+        return False
 
 
 def retro_block(text: str) -> str:
@@ -142,7 +138,7 @@ def find_candidates(coga_os: Path) -> list[Candidate]:
         ticket = task_dir / "ticket.md"
         if not ticket.is_file():
             continue
-        if load_status(ticket) != "done":
+        if not is_done(ticket):
             continue
         if not has_cleanup_eligible_retro_marker(ticket):
             continue
@@ -306,10 +302,6 @@ def render_report(
     return "\n".join(lines) + "\n"
 
 
-def append_report(cfg: Config, blackboard: Path, report: str) -> None:
-    append_blackboard_report(cfg, blackboard, report)
-
-
 def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
     if argv:
         sys.stderr.write(
@@ -335,10 +327,24 @@ def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
         # blackboard from another checkout falls back to stdout.
         blackboard = blackboard_from_env(coga_os)
         if blackboard:
-            append_report(cfg, blackboard, report)
+            append_blackboard_report(cfg, blackboard, report)
         else:
             sys.stdout.write(report)
     except RuntimeError as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
     return 0
+
+
+def main() -> int:
+    # Dream invokes this worker; it never advances the Dream task.
+    return run_entry(
+        "cleanup-orphan-markers",
+        run_cleanup_orphan_markers_recipe,
+        sys.argv[1:],
+        root=target_root,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -22,8 +22,6 @@ EXPECTED_RECIPES = (
     "autoclose",
     "blocker-reminders",
     "branch-sweep",
-    "validate-drift",
-    "cleanup-orphan-markers",
     "recurring-scan",
     "autofix-analyze",
     "skill-update",
@@ -71,7 +69,6 @@ def test_no_arg_recipes_reject_unexpected_tokens() -> None:
         "autoclose",
         "blocker-reminders",
         "branch-sweep",
-        "cleanup-orphan-markers",
     ):
         assert run_recipe(cfg, name, ["unexpected"]) == 2
 
@@ -109,6 +106,18 @@ def test_run_command_rejects_unknown_recipe_with_known_names(monkeypatch) -> Non
     assert "unknown recipe 'not-a-recipe'" in result.output
     for name in EXPECTED_RECIPES:
         assert name in result.output
+
+
+@pytest.mark.parametrize("name", ["validate-drift", "cleanup-orphan-markers"])
+def test_run_command_refuses_names_moved_to_the_edge(monkeypatch, name) -> None:
+    # Dream runs these workers as `python -m coga_edge.<worker>`; the old
+    # spelling takes the ordinary unknown-recipe path, with no forwarding stub.
+    monkeypatch.setattr(run_command, "load_config", lambda: cast(Config, object()))
+
+    result = CliRunner().invoke(app, ["run", name])
+
+    assert result.exit_code == 2
+    assert f"unknown recipe {name!r}" in result.output
 
 
 def test_run_command_preserves_output_and_exit_code(monkeypatch) -> None:
@@ -341,10 +350,24 @@ def test_unwritable_blackboard_never_outranks_the_recipe_failure(
     assert "could not record the autoclose failure" in capsys.readouterr().err
 
 
+def _run_cwd_worker(cfg: Config, recipe: str, argv: list[str]) -> int:
+    """A registered recipe through `run_recipe`; an edge worker through the
+    failure floor it shares, with its own root resolver."""
+    if recipe != "validate-drift":
+        return run_recipe(cfg, recipe, argv)
+    from coga.runner import run_reported
+    from coga_edge import validate_drift
+
+    return run_reported(
+        cfg, recipe, validate_drift.run_validate_drift_recipe, argv,
+        root=validate_drift.target_root,
+    )
+
+
 @pytest.mark.parametrize(
     ("recipe", "worker"),
     [
-        ("validate-drift", "coga.dream_validate_drift.run_validate_json"),
+        ("validate-drift", "coga_edge.validate_drift.run_validate_json"),
         ("skill-update", "coga.skill_update.run_update_json"),
     ],
 )
@@ -376,7 +399,7 @@ def test_failure_respects_cwd_blackboard_containment(
         if cwd_option.endswith("=")
         else [cwd_option, str(target)]
     )
-    assert run_recipe(load_config(repo), recipe, argv) == 2
+    assert _run_cwd_worker(load_config(repo), recipe, argv) == 2
     # The recipe itself refuses this inherited path. Its generic failure
     # report must not then write into the invoking repo's unrelated ticket.
     assert period_blackboard.read_bytes() == before
@@ -385,7 +408,7 @@ def test_failure_respects_cwd_blackboard_containment(
 @pytest.mark.parametrize(
     ("recipe", "worker"),
     [
-        ("validate-drift", "coga.dream_validate_drift.run_validate_json"),
+        ("validate-drift", "coga_edge.validate_drift.run_validate_json"),
         ("skill-update", "coga.skill_update.run_update_json"),
     ],
 )
@@ -416,7 +439,7 @@ def test_cwd_recipe_failure_uses_the_target_blackboard_and_barrier(
 
     monkeypatch.setattr(worker, fail)
     monkeypatch.setattr(runner, "append_blackboard_report", record)
-    assert run_recipe(load_config(repo), recipe, ["--cwd", str(target)]) == 2
+    assert _run_cwd_worker(load_config(repo), recipe, ["--cwd", str(target)]) == 2
     assert reporting_roots == [target]
     assert "## Recipe Failure" in read_blackboard(ticket)
     assert "target worker failed" in read_blackboard(ticket)
