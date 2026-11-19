@@ -126,8 +126,8 @@ as `container.sh`:
 2. uv's official installer in a child process, as the README gives it
    (`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'irm https://astral.sh/uv/install.ps1 | iex'`),
    `uv --version`, `uv python install 3.11 --default`, and `python --version`
-   resolved from the registry PATH a new terminal gets (it fails on a
-   `WindowsApps` Store alias or a non-3.11 Python). **Only then** come
+   resolved from the registry PATH a new terminal gets. The check requires
+   `python.exe` from `uv python dir --bin` reporting Python 3.11. **Only then** come
    `UV_PYTHON=3.11` and `UV_PYTHON_DOWNLOADS=never`, followed by
    `uv python find 3.11` and a 3.11 version check. `never` set earlier would
    block the install; the macOS walk uses the same order. Server 2025

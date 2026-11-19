@@ -197,17 +197,25 @@ switch ($Mode) {
         # --default and the python check follow the README's Windows steps.
         Step 'uv python install 3.11 --default' { uv python install 3.11 --default }
         Step 'python --version' {
+            $pythonBin = & uv python dir --bin
+            if ($LASTEXITCODE -ne 0) { return }
+            $expected = Join-Path $pythonBin 'python.exe' -ErrorAction Stop
             # Resolve python from the registry PATH a new terminal would get,
             # so a WindowsApps Store alias ahead of uv's bin directory fails.
             $saved = $env:Path
             try {
                 Refresh-MachinePath
-                $source = (Get-Command python -ErrorAction Stop).Source
+                $source = (Get-Command python -CommandType Application -ErrorAction Stop).Source
                 "python: $source"
-                $version = (& python --version 2>&1 | ForEach-Object { "$_" }) -join ' '
+                if ($source -ne $expected) {
+                    [Console]::Error.WriteLine("python resolves to $source. Expected $expected")
+                    $global:LASTEXITCODE = 2
+                    return
+                }
+                $version = (& $source --version 2>&1 | ForEach-Object { "$_" }) -join ' '
                 $version
-                if ($source -like '*\WindowsApps\*' -or $version -notlike 'Python 3.11.*') {
-                    [Console]::Error.WriteLine("python is $source ($version), not uv's Python 3.11")
+                if ($version -notlike 'Python 3.11.*') {
+                    [Console]::Error.WriteLine("Expected Python 3.11 at $source. Got $version")
                     $global:LASTEXITCODE = 2
                 }
             } finally {
