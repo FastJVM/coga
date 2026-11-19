@@ -138,3 +138,19 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: docs/secrets-clone-scrub
+
+## Plan
+
+- Name `scope: clone` recurring scripts among the scrubbed children in
+  `coga/secrets` ("A declaration plus an env scrub, not a sandbox"); code:
+  `recurring_clone.run_clone_template` builds its env with
+  `config.build_launch_env`, which applies `config.scrub_op_auth_env` and drops
+  `env:VAR` sources.
+- Make `coga/recurring/scheduling` link to that section instead of implying
+  the script inherits the scan's environment.
+- Overlap: PR #1246 (open) edits only the `coga secret get` section of the same
+  file; hunks are disjoint, so no conflict expected.
