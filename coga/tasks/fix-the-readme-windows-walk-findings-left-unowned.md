@@ -27,11 +27,10 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 contexts:
 - coga-dev/principles
-launch_generation: 932c1dea-f1a6-4b73-973e-a05ff842746e
 ---
 
 ## Description
