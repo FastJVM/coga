@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 5 (parked): move branch-sweep and autofix replay adapters'
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
