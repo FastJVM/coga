@@ -4478,3 +4478,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 11:18 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-19 11:18 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-19 11:18 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] launched via coga megalaunch
+2026-11-19 11:20 v1 [correct-script-tickets-on-which-supervisor-variabl] [agent:codex] blocked: Wait for both overlapping PRs #1244 (v1/microkernel/09-work-orchestration-commands-to-tickets) and #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) to land or be rebased, or explicitly waive that publication condition. Both PRs remain open with no new commits since the original blocker. Then unblock and refresh the peer-review handoff against current main.
