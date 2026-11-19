@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: 8c5e3318-28f8-4daf-9e06-33a535dad87b
 ---
 
 ## Description
