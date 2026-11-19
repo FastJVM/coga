@@ -1,6 +1,6 @@
 ---
 title: Maintain ticket blackboards
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-self-review
@@ -28,6 +28,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
