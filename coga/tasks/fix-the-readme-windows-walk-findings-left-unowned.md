@@ -1,6 +1,6 @@
 ---
 title: Fix the README Windows walk findings left unowned by v1-33
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:dfee6cfc-4464-4f2b-9ddb-dab2d072abf9
 ---
 
 ## Description
