@@ -1,6 +1,6 @@
 ---
 title: Blocker reminders
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -14,7 +14,6 @@ workflow:
     - coga/blockers/remind
     assignee: agent
     checkout: manual
-step: 1 (remind)
 ---
 
 ## Description
