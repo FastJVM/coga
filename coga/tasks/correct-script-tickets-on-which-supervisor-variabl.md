@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: aa4100da-8542-4779-b25d-7a20331a18e1
 ---
 
 ## Description
@@ -145,3 +144,57 @@ branch: coga/correct-script-tickets-on-which-supervisor-variabl
 Docs-only fix to step 4 of `coga/script-tickets` (package copy). Overlapping
 PRs #1244/#1247 (still open) only touch the classification paragraph and add a
 new help section; neither touches step 4, so no textual conflict expected.
+
+## Handoff (implement)
+
+- Commit `7dafd8f` on the branch (pushed). It rewords step 4 of
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md`.
+  The child loses `COGA_SUPERVISED` and `COGA_EXPECTED_{TASK,STEP,AGENT}`.
+  `COGA_DONE_SENTINEL` is exported as the explicit empty string, with a link
+  to the inactivity leaf. Only a strict human assist re-mints
+  `COGA_EXPECTED_TASK` (the target path), `COGA_EXPECTED_STEP` and
+  `COGA_ASSIST_*`. Verified against `launch_script.run_script_phase` (the env
+  block after `apply_task_env`).
+- No code or test change. No existing test pins the old wording (grep).
+- Peer review: check the new wording against `launch_script.py`. The
+  open-pr step should note that #1244/#1247 touch other paragraphs of the same
+  file, so rebasing after either one lands should be clean.
+- Env note: the system `python` lacks `tomlkit`; use `.venv/bin/python`.
+
+## PR
+
+```yaml
+title: Correct script-tickets on which supervisor variables a ticket.py child loses
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Opus 5.5 (claude-opus-5-5) under megalaunch.
+head: 7dafd8fe439daa022a5dbc0b9d7e9322a995fd78
+base: 59d917fa206a31ee55fab476996539e16e989d2f
+depth: skim
+rationale: >-
+  One-paragraph docs correction in a shipped topic; compare it with the env
+  block in launch_script.run_script_phase.
+implementation: >-
+  Step 4 now says COGA_DONE_SENTINEL is exported empty rather than removed,
+  and that only a strict human assist re-mints COGA_EXPECTED_TASK,
+  COGA_EXPECTED_STEP and COGA_ASSIST_* for the child.
+deviations: "None."
+limitations: >-
+  Docs only. The overlapping open PRs #1244/#1247 edit other paragraphs of
+  the same file, and those edits were not merged here.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: >-
+    Align the step-4 child-environment description with launch_script.py and
+    the inactivity leaf.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: "Code review has not run yet; the peer-review step follows."
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 7dafd8fe439daa022a5dbc0b9d7e9322a995fd78
+    base: 59d917fa206a31ee55fab476996539e16e989d2f
+    detail: "5004 passed, 33 skipped in 808s, on a clean committed tree."
+```

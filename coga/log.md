@@ -4314,3 +4314,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 21:07 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 21:07 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 21:07 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] launched via coga megalaunch
+2026-11-18 21:21 v1 [correct-script-tickets-on-which-supervisor-variabl] [agent:claude] advanced to step 2 (peer-review) → codex
