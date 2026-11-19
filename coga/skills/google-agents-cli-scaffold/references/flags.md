@@ -14,6 +14,7 @@
 | `--agent-guidance-filename` | | `GEMINI.md` | Coding agent guidance file (`GEMINI.md`, `CLAUDE.md`, or `AGENTS.md`) |
 | `--output-dir` | `-o` | `.` | Output directory for the project |
 | `--bq-analytics` | | off | Enable BigQuery Agent Analytics plugin (supported on `agent_runtime`, `cloud_run`, and `gke`) |
+| `--memory-bank` | | off | Give the agent memory of each user in Memory Bank. Claude Agent SDK template only; for ADK agents, look up memory in the topic index in the ADK code skill's `references/recipes.md` |
 | `--skip-checks` | `-s` | off | Skip verification checks for GCP and Gemini platform |
 | `--adk` | | off | Quickstart mode: adk_python + agent_runtime + prototype, skips prompts. It forces `--agent adk_python` (Python). For a Go quickstart use `--agent adk_go --prototype --yes` instead. |
 | `--auto-approve` / `--yes` | `-y` | off | Non-interactive: skip prompts, use defaults for missing params |
@@ -35,8 +36,7 @@ For all available flags, run `agents-cli scaffold create --help`.
 > - A flat template's root `.go` files become the agent directory's package (`app/` by default). In
 >   other layouts, root `.go` files aren't copied, so shared code belongs in a package folder.
 > - A Go package the template ships (any folder with `.go` files) replaces the generated one at that
->   path. A replaced `sessions/` or `appinfo/` must keep the API `main.go` calls
->   (`sessions.NewService(ctx)`, `appinfo.NewLauncher()`).
+>   path. A replaced `sessions/` must keep the API `main.go` calls (`sessions.NewService(ctx)`).
 > - The image copies only top-level folders that contain Go code, so files the agent reads at runtime
 >   belong inside one (or embedded with `go:embed`). It builds with `CGO_ENABLED=0`.
 > - Deploy sends the values in `.env`, so copy any variables from the template's `.env.example` into `.env`.
@@ -55,8 +55,10 @@ For all available flags, run `agents-cli scaffold create --help`.
 | `--dry-run` | | off | Preview changes without applying them (requires saved metadata) |
 | `--force` | | off | Force overwrite all files (skip smart-merge comparison) |
 | `--prefer-new` | | off | Resolve conflicts in favor of the new template version |
+| `--from-adk-project` | | off | Only write `agents-cli-manifest.yaml` for an existing ADK project (detects name, language, agent directory); renders no template. Accepts `--name`, `--agent-directory`, `--region`, `--dry-run`, `--force`, `--yes`/`--interactive`; rejects template flags such as `--deployment-target` |
 | `--agent-guidance-filename` | | `GEMINI.md` | Coding agent guidance file (e.g. `CLAUDE.md` for Claude Code) |
 | `--bq-analytics` | | off | Add BigQuery Agent Analytics plugin |
+| `--memory-bank` | | off | Turn on Memory Bank (Claude Agent SDK template only) |
 | `--skip-checks` | `-s` | off | Skip verification checks for GCP and Gemini platform |
 | `--prototype` | `-p` | off | Prototype mode (skips CI/CD runner prompt) |
 | `--auto-approve` / `--yes` | `-y` | off | Non-interactive: skip prompts, use defaults for missing params |
