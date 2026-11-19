@@ -75,7 +75,8 @@ The repo separates implementation from the OS it operates:
   state-only carriers (`parent_state_path`, `ensure_parent_state`), so
   definition lookup and repo-local state writes stay separate. Definition
   resolution for other refs (`resolve_skill_path`, `local_definition_entry`)
-  is in `paths.py`.
+  is in `paths.py`. Task-to-template promotion lives in the packaged
+  `bootstrap/recurring-promote` command ticket.
 - `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
   disposal order), `retire_worklist.py` (`retires.md`).
 - `dependencies.py` (supporting-tool install manifest, supported agent CLI

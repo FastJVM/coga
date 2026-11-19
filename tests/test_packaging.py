@@ -59,6 +59,9 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
+    "coga/resources/templates/coga/bootstrap/recurring-promote/promotion.py",
+    "coga/resources/templates/coga/bootstrap/recurring-promote/ticket.md",
+    "coga/resources/templates/coga/bootstrap/recurring-promote/ticket.py",
     "coga/resources/templates/coga/bootstrap/retire/ticket.md",
     "coga/resources/templates/coga/bootstrap/retire/ticket.py",
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
@@ -1437,6 +1440,38 @@ with patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",fo
     assert not t._admitted(cfg)
 result = CliRunner().invoke(app, ["validate", "--json"])
 assert '"recurring/' not in result.output or "bad-recurring-template" not in result.output, result.output
+# The alias reaches the installed command ticket and then a complete local fork.
+import shutil
+
+def promote(slug):
+    source = Path("coga/tasks", slug + ".md")
+    source.write_text(
+        "---\ntitle: Wheel promotion\nstatus: draft\n---\n\n"
+        "## Description\n\nPromote this task.\n\n<!-- coga:blackboard -->\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "promote-recurring", slug,
+         "--schedule", "0 9 * * 1"],
+        text=True, capture_output=True, timeout=15,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not source.exists()
+    return Path("coga/recurring", slug, "ticket.md").read_text(encoding="utf-8")
+
+assert "Wheel promotion" in promote("from-wheel")
+bundled = resolve_bootstrap(cfg, "bootstrap/recurring-promote").path
+fork = Path("coga/bootstrap/recurring-promote")
+shutil.copytree(bundled, fork, copy_function=shutil.copyfile)
+implementation = fork / "promotion.py"
+implementation.write_text(
+    implementation.read_text(encoding="utf-8").replace(
+        "The cross-run state for this recurring task goes here.",
+        "Local fork initialized the blackboard.",
+    ),
+    encoding="utf-8",
+)
+assert "Local fork initialized the blackboard." in promote("from-fork")
 print("installed init and suppressed first snapshot passed")
 '''
     try:

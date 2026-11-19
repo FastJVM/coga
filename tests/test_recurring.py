@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from report_helpers import report_cli
 
 import json
@@ -7,6 +8,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 from datetime import datetime
 import re
@@ -10184,7 +10186,18 @@ def test_named_recurring_launch_selects_recurring_conduct(
     assert seen[0]["control_remote_expected"] is False
 
 
-# --- coga recurring promote: task → template authoring ------------------------
+# --- coga promote-recurring: task → template authoring ------------------------
+
+
+def _run_promote(
+    repo: Path, args: list[str], *, git_enabled: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    if not git_enabled:
+        _write(repo / "coga.local.toml", 'user = "marc"\n[git]\nenabled = false\n')
+    return subprocess.run(
+        [sys.executable, "-m", "coga.cli", "promote-recurring", *args],
+        cwd=repo, capture_output=True, encoding="utf-8", timeout=30,
+    )
 
 
 def _write_task(company: Path, slug: str, text: str) -> None:
@@ -10227,18 +10240,9 @@ def test_promote_moves_task_into_a_valid_recurring_template(
         """,
     )
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "recurring",
-            "promote",
-            "deliverability-review",
-            "--schedule",
-            "0 9 * * 1",
-        ],
-    )
+    result = _run_promote(repo, ["deliverability-review", "--schedule", "0 9 * * 1"])
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     assert not (repo / "tasks" / "deliverability-review.md").exists()
     ticket_path = repo / "recurring" / "deliverability-review" / "ticket.md"
     template = Template.load(ticket_path.parent)
@@ -10297,14 +10301,12 @@ def test_promote_reports_the_move_and_what_it_dropped(
         """,
     )
 
-    result = CliRunner().invoke(
-        app, ["recurring", "promote", "weekly-audit", "--schedule", "0 9 * * 1"]
-    )
+    result = _run_promote(repo, ["weekly-audit", "--schedule", "0 9 * * 1"])
 
-    assert result.exit_code == 0, result.output
-    assert "Promoted weekly-audit → recurring/weekly-audit" in result.output
-    assert "infra/tests" in result.output
-    assert "blackboard" in result.output
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Promoted weekly-audit → recurring/weekly-audit" in (result.stdout + result.stderr)
+    assert "infra/tests" in (result.stdout + result.stderr)
+    assert "blackboard" in (result.stdout + result.stderr)
     template = Template.load(repo / "recurring" / "weekly-audit")
     # A frozen workflow snapshot collapses back to the name the creator freezes
     # per period.
@@ -10336,20 +10338,11 @@ def test_promote_names_template_and_preserves_attachments(
     (repo / "tasks" / "old-slug" / "notes.txt").write_text("supporting material\n", encoding="utf-8", newline="\n")
     (repo / "tasks" / "old-slug" / ".state-snapshot.json").write_text("{}\n", encoding="utf-8", newline="\n")
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "recurring",
-            "promote",
-            "old-slug",
-            "--schedule",
-            "0 3 * * *",
-            "--name",
-            "nightly-drain",
-        ],
+    result = _run_promote(
+        repo, ["old-slug", "--schedule", "0 3 * * *", "--name", "nightly-drain"]
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     assert not (repo / "tasks" / "old-slug").exists()
     dest = repo / "recurring" / "nightly-drain"
     assert (dest / "notes.txt").is_file()
@@ -10395,11 +10388,9 @@ def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
     dir_target = (source / "dir-link").readlink()
     nested_target = (attachments / "nested-link").readlink()
 
-    result = CliRunner().invoke(
-        app, ["recurring", "promote", "linked-task", "--schedule", "0 3 * * *"]
-    )
+    result = _run_promote(repo, ["linked-task", "--schedule", "0 3 * * *"])
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     dest = repo / "recurring" / "linked-task"
     assert (dest / "file-link").is_symlink()
     assert (dest / "file-link").readlink() == file_target
@@ -10439,19 +10430,10 @@ def test_promote_refuses_a_missing_collapsed_workflow_before_deleting_source(
         """,
     )
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "recurring",
-            "promote",
-            "stale-workflow",
-            "--schedule",
-            "0 3 * * *",
-        ],
-    )
+    result = _run_promote(repo, ["stale-workflow", "--schedule", "0 3 * * *"])
 
-    assert result.exit_code == 2
-    assert "workflow 'removed/weekly'" in result.output
+    assert result.returncode == 2
+    assert "workflow 'removed/weekly'" in (result.stdout + result.stderr)
     assert (repo / "tasks" / "stale-workflow.md").is_file()
     assert not (repo / "recurring" / "stale-workflow").exists()
 
@@ -10479,12 +10461,10 @@ def test_promote_refuses_an_existing_template_and_leaves_the_task(
     )
     before = (repo / "recurring" / "weekly-check" / "ticket.md").read_text(encoding="utf-8")
 
-    result = CliRunner().invoke(
-        app, ["recurring", "promote", "weekly-check", "--schedule", "0 9 * * 1"]
-    )
+    result = _run_promote(repo, ["weekly-check", "--schedule", "0 9 * * 1"])
 
-    assert result.exit_code == 2
-    assert "already exists" in result.output
+    assert result.returncode == 2
+    assert "already exists" in (result.stdout + result.stderr)
     assert (repo / "tasks" / "weekly-check.md").is_file()
     assert (repo / "recurring" / "weekly-check" / "ticket.md").read_text(encoding="utf-8") == before
 
@@ -10522,14 +10502,12 @@ def test_promote_validates_the_cron_before_moving_anything(
         """,
     )
 
-    result = CliRunner().invoke(
-        app, ["recurring", "promote", "bad-cron", "--schedule", schedule]
-    )
+    result = _run_promote(repo, ["bad-cron", "--schedule", schedule])
 
-    assert result.exit_code == 2
-    assert "not a valid cron expression" in result.output
+    assert result.returncode == 2
+    assert "not a valid cron expression" in (result.stdout + result.stderr)
     if schedule in {"* * * * * *", "@daily"}:
-        assert "exactly 5 fields" in result.output
+        assert "exactly 5 fields" in (result.stdout + result.stderr)
     assert (repo / "tasks" / "bad-cron.md").is_file()
     assert not (repo / "recurring" / "bad-cron").exists()
 
@@ -10558,12 +10536,10 @@ def test_promote_refuses_a_live_run(
         """,
     )
 
-    result = CliRunner().invoke(
-        app, ["recurring", "promote", "mid-flight", "--schedule", "0 9 * * 1"]
-    )
+    result = _run_promote(repo, ["mid-flight", "--schedule", "0 9 * * 1"])
 
-    assert result.exit_code == 2
-    assert "in_progress" in result.output
+    assert result.returncode == 2
+    assert "in_progress" in (result.stdout + result.stderr)
     assert (repo / "tasks" / "mid-flight.md").is_file()
     assert not (repo / "recurring" / "mid-flight").exists()
 
@@ -10591,10 +10567,8 @@ def test_promoted_template_creates_a_real_period_task(
         <!-- coga:blackboard -->
         """,
     )
-    result = CliRunner().invoke(
-        app, ["recurring", "promote", "monthly-report", "--schedule", "0 9 1 * *"]
-    )
-    assert result.exit_code == 0, result.output
+    result = _run_promote(repo, ["monthly-report", "--schedule", "0 9 1 * *"])
+    assert result.returncode == 0, result.stdout + result.stderr
 
     cfg = load_config(repo)
     outcome = create_named(cfg, "monthly-report", now=datetime(2026, 4, 1, 10, 0, 0))
@@ -10611,6 +10585,189 @@ def test_promoted_template_creates_a_real_period_task(
         read_serviced_period(repo / "recurring" / "monthly-report" / "ticket.md")
         == "2026-04"
     )
+
+
+
+@pytest.mark.parametrize(
+    ("failed_operation", "keeps_destination"),
+    [("validate", False), ("copy", False), ("cleanup", True), ("delete", True)],
+)
+def test_promote_keeps_source_and_reports_partial_failures(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+    failed_operation: str, keeps_destination: bool,
+) -> None:
+    promotion = import_module(
+        "coga.resources.templates.coga.bootstrap.recurring-promote.promotion"
+    )
+    source = repo / "tasks" / "sample-promotion"
+    _write(
+        source / "ticket.md",
+        "---\ntitle: Sample promotion\nstatus: draft\n---\n",
+    )
+    _write(source / "attachment", "supporting material")
+    cfg = load_config(repo)
+    ref = TaskRef("sample-promotion", source)
+
+    def fail(*args, **kwargs):
+        raise OSError("simulated promotion failure")
+
+    if failed_operation in ("validate", "cleanup"):
+        monkeypatch.setattr(promotion.Template, "load", fail)
+    if failed_operation == "copy":
+        monkeypatch.setattr(promotion.shutil, "copy2", fail)
+    if failed_operation == "cleanup":
+        monkeypatch.setattr(promotion.shutil, "rmtree", fail)
+    if failed_operation == "delete":
+        monkeypatch.setattr(promotion, "run_delete_task", fail)
+
+    error = promotion.RetainedPromotionError if keeps_destination else OSError
+    with pytest.raises(error, match="simulated promotion failure") as caught:
+        promotion.promote_task(cfg, ref, schedule="0 9 * * 1")
+
+    dest = repo / "recurring" / "sample-promotion"
+    assert (source / "ticket.md").is_file()
+    assert dest.exists() is keeps_destination
+    if keeps_destination:
+        assert str(dest) in str(caught.value)
+        assert str(source) in str(caught.value)
+    log = log_path(cfg)
+    assert not log.exists() or "promoted to recurring template" not in log.read_text(
+        encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize("extra", [None, "ignored"])
+def test_promote_publishes_the_whole_move(git_repo, extra: str | None) -> None:
+    """One publication carries the source deletion, template and audit. A
+    gitignored attachment is copied locally but never required to publish."""
+    source = git_repo.coga_os / "tasks" / "sample-promotion"
+    _write(
+        source / "ticket.md",
+        """
+        ---
+        title: Sample promotion
+        status: draft
+        ---
+
+        ## Description
+
+        Promote this task.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    _write(source / "attachment", "supporting material")
+    _write(git_repo.coga_os / "log.md", "")
+    if extra == "ignored":
+        gitignore = git_repo.root / ".gitignore"
+        with gitignore.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write("__pycache__/\n")
+        git_repo.git("add", ".gitignore")
+    git_repo.git("add", "coga/tasks", "coga/log.md")
+    git_repo.git("commit", "-m", "Seed task")
+    git_repo.git("push", "origin", "main")
+    if extra == "ignored":
+        _write(source / "__pycache__" / "helper.cpython-311.pyc", "bytecode")
+
+    result = _run_promote(
+        git_repo.coga_os, ["sample-promotion", "--schedule", "0 9 * * 1"],
+        git_enabled=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    published = "coga/recurring/sample-promotion"
+    original = "coga/tasks/sample-promotion/ticket.md"
+    dest = git_repo.root / published
+    log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert not source.exists()
+    assert (dest / "attachment").is_file()
+    assert not git_repo.origin_tracks(original)
+    assert git_repo.origin_tracks(f"{published}/ticket.md")
+    assert "[sample-promotion] [human] promoted to recurring template" in log
+    changes = git_repo.git(
+        "show", "--format=", "--name-status", "--no-renames", "main",
+        cwd=git_repo.origin,
+    )
+    assert f"D\t{original}" in changes
+    assert f"A\t{published}/attachment" in changes
+    assert f"A\t{published}/ticket.md" in changes
+    assert "M\tcoga/log.md" in changes
+    if extra == "ignored":
+        assert (dest / "__pycache__" / "helper.cpython-311.pyc").is_file()
+        assert "__pycache__" not in changes
+
+
+def test_promote_refuses_symlink_attachments_before_moving(git_repo) -> None:
+    """Guarded publication refuses symlinks, so a Git-enabled promotion
+    refuses them up front and leaves the task untouched."""
+    source = git_repo.coga_os / "tasks" / "sample-promotion"
+    _write(
+        source / "ticket.md",
+        """
+        ---
+        title: Sample promotion
+        status: draft
+        ---
+
+        ## Description
+
+        Promote this task.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    _write(source / "attachment", "supporting material")
+    _write(git_repo.coga_os / "log.md", "")
+    git_repo.git("add", "coga/tasks", "coga/log.md")
+    git_repo.git("commit", "-m", "Seed task")
+    git_repo.git("push", "origin", "main")
+    (source / "local-link").symlink_to("attachment")
+    head = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    result = _run_promote(
+        git_repo.coga_os, ["sample-promotion", "--schedule", "0 9 * * 1"],
+        git_enabled=True,
+    )
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "symlink attachments" in result.stderr
+    assert "Nothing moved" in result.stderr
+    assert (source / "ticket.md").is_file()
+    assert (source / "local-link").is_symlink()
+    assert not (git_repo.coga_os / "recurring" / "sample-promotion").exists()
+    assert "promoted to recurring template" not in (
+        git_repo.coga_os / "log.md"
+    ).read_text(encoding="utf-8")
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == head
+
+
+def test_promote_names_a_shadowed_bundled_definition(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A name taken only by a bundled job names that definition rather than
+    claiming a local directory exists."""
+    monkeypatch.chdir(repo)
+    _write(
+        repo / "tasks" / "dream-notes" / "ticket.md",
+        """
+        ---
+        title: Dream notes
+        status: draft
+        ---
+
+        ## Description
+
+        Notes.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+
+    result = _run_promote(repo, ["dream-notes", "--name", "dream", "--schedule", "0 9 * * 1"])
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "already used by the definition at" in result.stderr
+    assert "already exists" not in result.stderr
+    assert (repo / "tasks" / "dream-notes" / "ticket.md").is_file()
+    assert not (repo / "recurring" / "dream").exists()
 
 
 # --- the ledger is the log ----------------------------------------------------
