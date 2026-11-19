@@ -1,6 +1,6 @@
 ---
 title: Retire the legacy checkout-policy snapshot fallback
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:36855c1b-e0a1-4a75-a0df-c3b6bf347bfb
 ---
 
 ## Description
