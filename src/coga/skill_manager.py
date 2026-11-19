@@ -1521,7 +1521,7 @@ def classify_gh_update_output(
 ) -> SkillResult:
     """Turn one `gh skill update <skill>` run into a measured `SkillResult`.
 
-    Statuses share the URL updater's vocabulary so `skill_update.py` buckets
+    Statuses share the URL updater's vocabulary so the skill-update job buckets
     them without a translation table: `updated`, `unchanged`, `fetch-failed`
     (gh could not resolve, discover, or install the upstream), and
     `skipped-pinned`. Output this function does not recognise is reported as

@@ -1,4 +1,11 @@
-"""Importable skill-update recipe.
+"""The skill-update job: reports on `coga skill update --all --pr`.
+
+Wheel-owned edge code (`coga/edge-code`). The packaged recurring
+`skill-update/ticket.py` shim runs `main`, as does
+`python -m coga_edge.skill_update` by hand. It imports only the standard
+library and shared `coga` infrastructure, so a copy of this single file over a
+recurring `ticket.py` is a complete local fork. The updater itself
+(`coga skill update`, `coga.skill_manager`) stays in core for its own callers.
 
 Wraps `coga skill update --all --pr`: publishes the clean results emitted by
 the GitHub- and URL-backed updater paths in one reviewable PR, and groups their
@@ -7,7 +14,7 @@ on the task blackboard. Every installed GitHub-backed skill gets its own
 measured row — `coga skill update` asks ``gh skill update`` about each one in
 turn — and GitHub-backed local edits follow ``gh skill`` overwrite semantics.
 Local-backed and hand-vendored directories, and bundled skill twins without
-managed provenance, emit no update result; this recipe does not inventory them.
+managed provenance, emit no update result; this job does not inventory them.
 """
 
 from __future__ import annotations
@@ -25,6 +32,7 @@ from typing import Any
 
 from coga.blackboard import append_blackboard_report
 from coga.config import Config
+from coga.runner import run_entry
 from coga.task_env import blackboard_from_env, cwd_option_root, discover_coga_os_root
 
 # Update statuses `coga skill update` emits, grouped into the three buckets
@@ -70,12 +78,11 @@ class SkillUpdate:
 
 @dataclass
 class SkillUpdateReport:
-    """What one `run_skill_update_recipe` run collected, for reporting.
+    """What one `run_skill_update` run collected, for reporting.
 
     The wrapper already computes every field before it returns an exit code.
-    Handing them back lets a caller name the run — the recurring `ticket.py`
-    shim bumping with `--message` — from the values themselves rather than by
-    scraping `Result:` and `PR:` back out of the rendered `report`, which would
+    Handing them back lets a caller name the run from the values themselves
+    rather than by scraping `Result:` and `PR:` back out of the rendered `report`, which would
     rot silently the next time that layout changes.
 
     `command` is recorded before the update is invoked, so it names the command
@@ -308,14 +315,10 @@ def has_followups(results: list[SkillUpdate]) -> bool:
     return any(classify_status(result.status) == GROUP_FOLLOWUP for result in results)
 
 
-def append_report(cfg: Config, blackboard: Path, report: str) -> None:
-    append_blackboard_report(cfg, blackboard, report)
-
-
 def _emit_report(cfg: Config, blackboard: Path | None, report: str) -> None:
     """Send a rendered report to the blackboard, or to stdout when there is none."""
     if blackboard:
-        append_report(cfg, blackboard, report)
+        append_blackboard_report(cfg, blackboard, report)
     else:
         sys.stdout.write(report)
 
@@ -348,12 +351,12 @@ def recipe_parser() -> argparse.ArgumentParser:
 target_root = cwd_option_root(recipe_parser)
 
 
-def run_skill_update_recipe(
+def run_skill_update(
     cfg: Config, argv: list[str], *, result: SkillUpdateReport | None = None
 ) -> int:
     """Run the recurring skill-update job.
 
-    `result` is the optional out-parameter described on `run_recipe`: the
+    `result` is an optional keyword-only out-parameter: the
     results, PR link and rendered report this wrapper already holds as locals
     are recorded on it as they are computed, so a caller summarizing the run
     reads them directly. The attempted `command` and `pr_requested` are
@@ -363,13 +366,12 @@ def run_skill_update_recipe(
     failure detail there rather than to stderr alone, which the recurring sweep
     discards.
 
-    The generic half of that property now lives in the recipe layer:
-    `runner.run_recipe` appends a `## Recipe Failure` section carrying the
-    stderr tail of any recipe that exits non-zero, so a run through `coga run`
-    or a `ticket.py` shim records its reason without per-recipe code. This
-    recipe keeps its own exit-2 report on top because the report carries what
-    stderr cannot — the command it attempted and the PR-not-confirmed state.
-    Do not add a per-recipe failure write elsewhere for the stderr tail alone.
+    The generic half of that property lives in `runner.run_reported`, which
+    `main` reaches through `runner.run_entry`: it appends a `## Recipe Failure`
+    section carrying the stderr tail of a run that exits non-zero. This job
+    keeps its own exit-2 report on top because the report carries what stderr
+    cannot — the command it attempted and the PR-not-confirmed state. Do not
+    add a per-job failure write elsewhere for the stderr tail alone.
     """
     report_out = result if result is not None else SkillUpdateReport()
     args = recipe_parser().parse_args(argv)
@@ -385,7 +387,7 @@ def run_skill_update_recipe(
     report_out.command = build_update_command(pr=pr, pr_title=args.pr_title)
 
     # Scoped to the update itself. `_emit_report` is deliberately *outside* it:
-    # `append_report` also raises `RuntimeError` (a missing blackboard parent),
+    # `append_blackboard_report` also raises `RuntimeError` (a missing blackboard parent),
     # and catching that here would file a successful run under "the update
     # failed; no skills were classified" while `report_out.results` still held
     # the full classification.
@@ -405,7 +407,7 @@ def run_skill_update_recipe(
         try:
             _emit_report(cfg, blackboard, failure)
         except (RuntimeError, OSError) as write_exc:
-            # `OSError` as well as `RuntimeError`: `append_report` only converts
+            # `OSError` as well as `RuntimeError`: the append only converts
             # a missing parent directory into the latter, while the write itself
             # raises `PermissionError` on a read-only checkout or a full disk.
             # Either way, say so on stderr and still exit 2 rather than burying
@@ -436,3 +438,23 @@ def run_skill_update_recipe(
         return 1
 
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Report, publish and, for a launched period script, complete the step.
+
+    Failure reports and exit publication go to the `--cwd` target's Coga root.
+    `runner.run_entry` advances the task only when launch named this exact
+    task as its script (`COGA_SCRIPT_TASK`), so a hand run never bumps.
+    """
+    return run_entry(
+        "skill-update",
+        run_skill_update,
+        sys.argv[1:] if argv is None else argv,
+        root=target_root,
+        scheduled=True,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

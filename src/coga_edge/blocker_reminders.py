@@ -1,4 +1,11 @@
-"""Reminder scan for first-class blocked tasks."""
+"""Reminder scan for first-class blocked tasks: the blocker-reminders job.
+
+Wheel-owned edge code (`coga/edge-code`). The packaged recurring
+`blocker-reminders/ticket.py` shim runs `main`, as does
+`python -m coga_edge.blocker_reminders` by hand. This module imports only the
+standard library and shared `coga` infrastructure, so a copy of this single
+file over a recurring `ticket.py` is a complete local fork.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +27,7 @@ from coga.blackboard import (
 from coga.config import Config
 from coga.notification import post
 from coga.recurring import _pause_origins
+from coga.runner import run_entry
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import TicketError
@@ -196,7 +204,7 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
     return reminded
 
 
-def run_blocker_reminders_recipe(cfg: Config, argv: list[str]) -> int:
+def run_blocker_reminders(cfg: Config, argv: list[str]) -> int:
     """Run the recurring blocker-reminder job."""
     if argv:
         sys.stderr.write(
@@ -210,6 +218,20 @@ def run_blocker_reminders_recipe(cfg: Config, argv: list[str]) -> int:
     else:
         sys.stdout.write(f"[blockers] reminded {count} blocker(s).\n")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Report, publish and, for a launched period script, complete the step.
+
+    `runner.run_entry` advances the task only when launch named this exact
+    task as its script (`COGA_SCRIPT_TASK`), so a hand run never bumps.
+    """
+    return run_entry(
+        "blocker-reminders",
+        run_blocker_reminders,
+        sys.argv[1:] if argv is None else argv,
+        scheduled=True,
+    )
 
 
 _SECTION_RE = re.compile(r"^##[ \t]+(?P<heading>.+?)\s*$", re.MULTILINE)
@@ -237,8 +259,13 @@ __all__ = [
     "BlockerReminder",
     "REMINDERS_HEADING",
     "record_reminder",
-    "run_blocker_reminders_recipe",
+    "main",
+    "run_blocker_reminders",
     "remind_blocked_tasks",
     "reminder_fingerprints",
     "scan_blocker_reminders",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

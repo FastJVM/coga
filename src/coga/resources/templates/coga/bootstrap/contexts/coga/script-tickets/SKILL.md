@@ -10,7 +10,8 @@ A ticket owns deterministic work by carrying one file named exactly
 scan, no import of ticket code, and no frontmatter switch; workflow skills
 stay prompt contracts. Registered `coga run` recipes remain the
 repository-independent command surface (`coga/extension-model`); a script may
-call them through `runner.run_recipe`.
+call them through `runner.run_recipe`, or run edge code through
+`runner.run_entry`.
 
 A repo script can be a thin import of a wheel-owned edge implementation or a
 full local fork; distribution and adoption are in

@@ -202,7 +202,8 @@ is a per-run report surface: it reaches the sweep's run record and any autofix
 `run-log.md`, then is deleted. Successful runs owe no report. On a non-zero exit
 or escaping exception, `runner.run_recipe` appends a `## Recipe Failure`
 section (recipe, exit, task, stderr tail) because the sweep discards child
-stderr; shims call `run_recipe(load_config(), "<name>", [])` for that reason.
+stderr; registered-recipe shims call `run_recipe(load_config(), "<name>", [])`
+for that reason, and edge shims call their `coga_edge` module's `main`.
 Do not duplicate that write; add structured detail on top. Never write secrets.
 Edge code outside the registry gets the same floor from `runner.run_reported`,
 passing a `root=` resolver when its worker can operate on another Coga root

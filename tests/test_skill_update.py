@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 from typer.testing import CliRunner
 
-from coga import skill_update
+from coga_edge import skill_update
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
-from coga.tasks import list_tasks
+from coga.tasks import list_tasks, read_ticket
 
 SKILL_UPDATE = (
     Path(__file__).resolve().parents[1]
@@ -223,7 +224,7 @@ def test_recipe_hands_back_the_results_it_already_holds(
     monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
 
     report = SkillUpdateReport()
-    assert skill_update.run_skill_update_recipe(load_config(repo), [], result=report) == 0
+    assert skill_update.run_skill_update(load_config(repo), [], result=report) == 0
 
     assert [item.name for item in report.results] == ["a/updated"]
     assert report.pr_url == "https://github.com/o/r/pull/7"
@@ -266,7 +267,7 @@ def test_recipe_result_is_populated_on_the_followup_exit(
     monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
 
     report = SkillUpdateReport()
-    assert skill_update.run_skill_update_recipe(load_config(repo), [], result=report) == 1
+    assert skill_update.run_skill_update(load_config(repo), [], result=report) == 1
 
     assert [item.name for item in report.results] == ["b/adapted"]
     assert report.pr_url is None
@@ -287,7 +288,7 @@ def test_recipe_result_names_the_command_a_failed_run_attempted(
 
     report = SkillUpdateReport()
     assert (
-        skill_update.run_skill_update_recipe(load_config(repo), ["--no-pr"], result=report)
+        skill_update.run_skill_update(load_config(repo), ["--no-pr"], result=report)
         == 2
     )
 
@@ -324,7 +325,7 @@ def test_recipe_writes_a_failure_report_to_the_blackboard_on_the_hard_exit(
     monkeypatch.setattr(skill_update, "run_update_json", boom)
 
     report = SkillUpdateReport()
-    assert skill_update.run_skill_update_recipe(load_config(repo), [], result=report) == 2
+    assert skill_update.run_skill_update(load_config(repo), [], result=report) == 2
 
     written = blackboard.read_text(encoding="utf-8")
     assert "## Skill Update" in written
@@ -351,7 +352,7 @@ def test_recipe_survives_an_unwritable_blackboard_on_the_hard_exit(
 
     monkeypatch.setattr(skill_update, "run_update_json", boom)
 
-    assert skill_update.run_skill_update_recipe(load_config(repo), []) == 2
+    assert skill_update.run_skill_update(load_config(repo), []) == 2
 
 
 def test_render_failure_report_names_the_command_and_the_detail() -> None:
@@ -376,7 +377,7 @@ def test_render_failure_report_names_the_command_and_the_detail() -> None:
 def test_recipe_keeps_the_success_report_when_the_blackboard_write_fails(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # `append_report` raises RuntimeError on a missing blackboard parent — the
+    # `append_blackboard_report` raises RuntimeError on a missing blackboard parent — the
     # same exception type a failed update raises. If the success-path write sits
     # inside the update's `try`, a clean run gets filed as "the update failed;
     # no skills were classified" while `results` still holds the classification.
@@ -402,7 +403,7 @@ def test_recipe_keeps_the_success_report_when_the_blackboard_write_fails(
 
     report = SkillUpdateReport()
     with pytest.raises(RuntimeError, match="Blackboard parent does not exist"):
-        skill_update.run_skill_update_recipe(load_config(repo), [], result=report)
+        skill_update.run_skill_update(load_config(repo), [], result=report)
 
     # The run succeeded; the report it produced must describe that, not a failure.
     assert [result.name for result in report.results] == ["code/open-pr"]
@@ -414,7 +415,7 @@ def test_recipe_survives_a_permission_error_on_the_hard_exit(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # The realistic unwritable-blackboard failure is OSError, not RuntimeError:
-    # `append_report` only converts a missing parent into the latter, while the
+    # the blackboard append only converts a missing parent into the latter, while the
     # write itself raises PermissionError on a read-only checkout or full disk.
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
@@ -430,7 +431,7 @@ def test_recipe_survives_a_permission_error_on_the_hard_exit(
     monkeypatch.setattr(skill_update, "run_update_json", boom)
     monkeypatch.setattr(skill_update, "append_blackboard_report", unwritable)
 
-    assert skill_update.run_skill_update_recipe(load_config(repo), []) == 2
+    assert skill_update.run_skill_update(load_config(repo), []) == 2
 
 
 def test_skill_update_skill_declares_contract() -> None:
@@ -479,10 +480,10 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     assert "`coga skill install-local` is a third supported installation path" in ticket
     assert "weekly report neither lists nor verifies them" in ticket
 
-    # Through the registry, so the recipe layer's failure surface applies;
+    # The installed edge module's `main` (report, publish, bump);
     # `tests/test_recurring_shims.py` pins the shape structurally.
-    assert "from coga.runner import run_recipe" in script
-    assert 'run_recipe(load_config(), "skill-update", [])' in script
+    assert "from coga_edge.skill_update import main" in script
+    assert "raise SystemExit(main([]))" in script
 
     assert "name: skill-update/run" in workflow
     assert "- bootstrap/skill-update" in workflow
@@ -519,12 +520,12 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.mark.parametrize("installed_bundled_twin", [False, True])
-def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
+def test_skill_update_runs_from_the_edge_module_and_reports_no_op(
     repo: Path, monkeypatch: pytest.MonkeyPatch, installed_bundled_twin: bool
 ) -> None:
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
     # nothing clean to update, so after its read-only preflight it commits
-    # nothing and opens no PR, and the registered recipe reports a clean no-op
+    # nothing and opens no PR, and the edge job reports a clean no-op
     # on the task blackboard. The pre-update branch guard asks the remote
     # first; a bare origin without `coga/skill-update` lets it pass without
     # calling `gh`.
@@ -589,9 +590,19 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
         capture_output=True,
     )
 
-    result = CliRunner().invoke(app, ["run", "skill-update"])
+    # The recipe name left the registry: the unknown-recipe exit, no stub.
+    removed = CliRunner().invoke(app, ["run", "skill-update"])
+    assert removed.exit_code == 2
+    assert "unknown recipe 'skill-update'" in removed.output
 
-    assert result.exit_code == 0, result.output
+    result = subprocess.run(
+        [sys.executable, "-m", "coga_edge.skill_update"],
+        cwd=repo, capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    # A hand run is not a launched script task: it never advances the task.
+    assert read_ticket(ref).status == "active"
     # The inherited task context points at the single ticket file, so the
     # report lands in its blackboard region.
     from coga.taskfile import read_blackboard
@@ -633,7 +644,7 @@ def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
 
     monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
 
-    assert skill_update.run_skill_update_recipe(load_config(repo), []) == 1
+    assert skill_update.run_skill_update(load_config(repo), []) == 1
     text = blackboard.read_text(encoding="utf-8")
     assert "## Skill Update" in text
     assert "Task: `skill-update`" in text

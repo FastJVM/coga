@@ -8,3 +8,12 @@ not a shipped implementation or fallback.
 `dream-old.md` contains the actual Phase 1/5 command paragraphs from the
 pre-migration Dream template. Replacement text in the test is deliberately
 fixture-only; it defines no future worker spelling or implementation.
+
+`blocker-reminders-old-{705,827}.py` and `skill-update-old-{705,827}.py` are
+the two stock shim generations shipped while those jobs were registered
+recipes, byte-for-byte from
+`src/coga/resources/templates/coga/recurring/<name>/ticket.py`: PR 705
+(`df1d06022`, direct import of the core module; blobs `6f84c3843db5` and
+`039a1d5c9dee`) and PR 827 (`368ae080b`, `runner.run_recipe` plus the shim's
+own bump; blobs `035f27cb0bcf` and `4cdc77598139`). They are archived
+baselines for the shim adoption test, not shipped code.

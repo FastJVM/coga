@@ -16,7 +16,6 @@ import typer
 
 from coga.autoclose import run_autoclose_recipe
 from coga.blackboard import append_blackboard_report
-from coga.blocker_reminders import run_blocker_reminders_recipe
 from coga.branchsweep import run_branch_sweep_recipe
 from coga.checkouts import run_prepare_checkout_recipe
 from coga.config import Config, load_config
@@ -34,10 +33,6 @@ from coga.open_pr import run_open_pr_recipe
 from coga.publish_state import run_publish_state_recipe
 from coga.recurring_autofix import run_autofix_analyze_recipe
 from coga.recurring_runner import run_recurring_scan_recipe
-from coga.skill_update import (
-    run_skill_update_recipe,
-    target_root as skill_update_root,
-)
 from coga.state_sweep import sweep_root, sweep_suppressed
 from coga.task_env import (
     SCRIPT_TASK_ENV,
@@ -55,13 +50,11 @@ class RecipeFn(Protocol):
 
 RECIPES: dict[str, RecipeFn] = {
     "autoclose": run_autoclose_recipe,
-    "blocker-reminders": run_blocker_reminders_recipe,
     "branch-sweep": run_branch_sweep_recipe,
     "validate-drift": run_validate_drift_recipe,
     "cleanup-orphan-markers": run_cleanup_orphan_markers_recipe,
     "recurring-scan": run_recurring_scan_recipe,
     "autofix-analyze": run_autofix_analyze_recipe,
-    "skill-update": run_skill_update_recipe,
     "open-pr": run_open_pr_recipe,
     "delete-task": run_delete_task_recipe,
     "publish-state": run_publish_state_recipe,
@@ -74,7 +67,6 @@ RECIPES: dict[str, RecipeFn] = {
 RECIPE_ROOTS: dict[str, RootResolver] = {
     "validate-drift": validate_drift_root,
     "cleanup-orphan-markers": orphan_markers_root,
-    "skill-update": skill_update_root,
 }
 
 RECIPE_FAILURE_HEADING = "Recipe Failure"

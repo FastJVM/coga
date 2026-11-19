@@ -17,10 +17,13 @@ Agents stop through `coga block`, which appends an unresolved ask under
 handshake stays command-owned: run `coga unblock <slug> --answer "..."`, then
 launch or megalaunch can resume the task from the files.
 
-Once a day this recurring task's `ticket.py` runs
-`blocker_reminders.run_blocker_reminders_recipe`. It finds unresolved asks on
+Once a day this recurring task's `ticket.py` runs the installed
+`coga_edge.blocker_reminders` job (`main`; by hand,
+`python -m coga_edge.blocker_reminders`). It finds unresolved asks on
 blocked tasks and paused recurring periods, posts an owner reminder, and
-records a watermark on the affected task's blackboard before syncing it.
+records a watermark on the affected task's blackboard before syncing it. The
+job is wheel-owned edge code: a full local fork is that one module copied over
+`ticket.py` ([coga/edge-code](context:coga/edge-code)).
 
 The reminder does not launch or reactivate work. A paused period remains
 paused until its ask is answered; the next sweep then resumes a period the

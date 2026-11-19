@@ -1742,7 +1742,7 @@ def test_megalaunch_drain_keeps_ask_open_when_activation_refuses(
 ) -> None:
     """A drained ticket that cannot activate keeps its ask and stays reportable."""
     from coga.blackboard import append_blocker, open_blockers
-    from coga.blocker_reminders import scan_blocker_reminders
+    from coga_edge.blocker_reminders import scan_blocker_reminders
 
     cfg = load_config(repo)
     blocked = create_task(

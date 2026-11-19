@@ -6,9 +6,10 @@ description: Update remotely managed GitHub/URL skills into one reviewable PR, s
 # Skill Update
 
 This skill documents the skill-update run behind the
-`recurring/skill-update/` task, whose `ticket.py` runs the registered
-`skill-update` recipe (`coga.skill_update.run_skill_update_recipe`) through
-`coga.runner.run_recipe` — no agent, no composed prompt. The run performs
+`recurring/skill-update/` task, whose `ticket.py` runs the wheel-owned edge
+job `coga_edge.skill_update` (its `main`, through `coga.runner.run_entry`) —
+no agent, no composed prompt. The reporting job is edge code; the updater it
+calls (`coga skill update`) stays in core. The run performs
 `coga skill update --all --pr`: each installed
 GitHub-backed skill (one whose `SKILL.md` frontmatter carries `gh skill`'s
 `metadata.github-repo`) is handed to `gh skill update` one at a time and
@@ -39,7 +40,9 @@ maintenance contract above rather than masquerading as a reported no-op.
   Local-backed installs are pinned/unmanaged and currently absent from the
   update report.
 - Runs: the period task's `ticket.py` in its inherited task context; the
-  same behavior is available by hand as `coga run skill-update`.
+  same behavior is available by hand as `python -m coga_edge.skill_update`,
+  which never advances a task. The removed `coga run skill-update` spelling
+  exits 2.
 - Inputs: the installed skills under `coga/skills/`; `gh skill`'s own metadata
   for GitHub-backed installs; Coga `.coga-source.json` provenance for
   URL-backed installs; `gh skill` `local-path` metadata for supported
@@ -83,17 +86,19 @@ maintenance contract above rather than masquerading as a reported no-op.
 
 ## How to Run
 
-From the host repo root:
+From the host repo root, with the Python interpreter that runs `coga`:
 
 ```
-coga run skill-update
+python -m coga_edge.skill_update
 ```
 
 Coga injects `COGA_TASK_SLUG` and `COGA_TASK_BLACKBOARD`; the run appends
 its result to that blackboard. `coga launch` supplies those variables from the
 instantiated period task before it runs `ticket.py`. A stateless bootstrap target has no
-blackboard, so run from one the recipe writes its report to stdout rather than
-into a packaged `bootstrap/<name>/ticket.md`.
+blackboard, so run from one the job writes its report to stdout rather than
+into a packaged `bootstrap/<name>/ticket.md`. Every run publishes eligible Coga
+state under its `--cwd` target on exit. Only the launched period script
+completes its step (`coga bump`); a hand run never does.
 
 The skill runs `coga skill update --all --pr --json`, then groups the results
 by their raw update status so each status (e.g. `updated`, GitHub-backed
@@ -127,7 +132,7 @@ skills are outside that result set and are not implied to be current.
 
 ## Flags
 
-The recipe accepts:
+The job accepts:
 
 - `--cwd <path>` — run the update from this repo directory (default: cwd).
 - `--pr-title <title>` — title for the skill-update PR.
