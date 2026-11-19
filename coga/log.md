@@ -4418,3 +4418,10 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 01:41 v1 [_v2/stop-dream-double-reporting-large-blackboards] [human:nicktoper] created (status=draft)
 2026-11-19 01:42 v1 [maintain-ticket-blackboards] [agent:claude] advanced to step 4 (review) → nicktoper — PR #1271 open; self-review only, no independent review yet. Follow-up parked: _v2/stop-dream-double-reporting-large-blackboards
 2026-11-19 01:42 v1 [maintain-ticket-blackboards] [system] {"agent":"claude","agent_turns":4,"cache_creation_input_tokens":49437,"cache_read_input_tokens":913401,"cli":"claude","content_status":"ok","elapsed_seconds":77.674342,"ended_at":"2026-11-19T09:42:14.910199Z","exit_code":0,"exit_kind":"done","human_turns":0,"input_tokens":26,"model":"claude-opus-5-5","outcome":"Reviewer must be a short identity, so I'll set it to `claude` and move the tool description into `detail`.","outcome_status":"completed","output_tokens":4220,"provider":"anthropic","request":null,"schema":2,"session_id":"9183f63b-a38b-41ce-92aa-784b813dcd9d","slug":"maintain-ticket-blackboards","started_at":"2026-11-19T09:40:57.235857Z","step":"pr","title":"Maintain ticket blackboards","ts":"2026-11-19T09:42:14.910199Z","usage_reason":null,"usage_status":"ok"}
+2026-11-19 09:03 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-11-19 09:03 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-11-19
+2026-11-19 09:03 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-11-19 09:03 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-11-19
+2026-11-19 09:03 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-11-19
+2026-11-19 09:03 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-11-19 09:03 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-18
