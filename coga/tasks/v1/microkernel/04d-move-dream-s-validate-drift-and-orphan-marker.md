@@ -316,6 +316,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1265
 branch: coga/v1-microkernel-04d-dream-workers-to-edge
 
 ---
