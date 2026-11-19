@@ -1205,6 +1205,7 @@ def main(argv: list[str] | None = None, *, scheduled: bool = False) -> int:
         "autoclose",
         run_autoclose,
         sys.argv[1:] if argv is None else argv,
+        root=lambda cfg, _argv: cfg.repo_root,
         scheduled=scheduled,
     )
 

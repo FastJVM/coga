@@ -164,8 +164,8 @@ installed:
 - the registry shim (PR 827, `368ae080b`) calls
   `run_recipe(load_config(), "<name>", [])` and then runs `coga bump` itself.
   It now fails with `unknown recipe '<name>'`;
-- the autoclose-merged registry shim of PR 898 (`9a7e0dd9a`, current until the
-  autoclose move) additionally runs the repository-wide `branch-sweep` recipe
+- the autoclose-merged registry shim of PR 898 (`9a7e0dd9a`) additionally
+  runs the repository-wide `branch-sweep` recipe
   between autoclose and the bump. It fails the same way;
 - the earlier direct shim (PR 705, `df1d06022`) imports
   `coga.blocker_reminders`, `coga.skill_update` or `coga.autoclose`, which no
@@ -180,7 +180,13 @@ copy the new packaged shim. Inventory the callers, including customized ones:
 
 <!-- migration:recipe-shim-callers -->
 ```sh
-rg -n --hidden --no-ignore -g '*.py' -e 'coga run (blocker-reminders|skill-update|autoclose)' -e 'run_recipe\(.*"(blocker-reminders|skill-update|autoclose)"' -e 'coga\.(blocker_reminders|skill_update|autoclose)' coga/recurring coga/tasks
+rg -l -U --hidden --no-ignore -g '*.py' \
+  -e 'coga run (blocker-reminders|skill-update|autoclose)' \
+  -e "run_recipe\(\s*(load_config\([^)]*\)|[^,()]+)\s*,\s*[\"'](blocker-reminders|skill-update|autoclose)[\"']" \
+  -e "[\"']run[\"']\s*,\s*[\"'](blocker-reminders|skill-update|autoclose)[\"']" \
+  -e 'coga\.(blocker_reminders|skill_update|autoclose)' \
+  -e 'from coga import (blocker_reminders|skill_update|autoclose)\b' \
+  coga/recurring coga/tasks
 ```
 
 Each stock generation is one exact file per job. Extract every generation

@@ -786,7 +786,7 @@ assert create_named(load_config(Path("coga")), "blocker-reminders").created
     with period.with_suffix(".md").open("a", encoding="utf-8", newline="\n") as stream:
         stream.write("\nExisting findings remain.\n")
     callers = _operator_command("recipe-shim-callers", root, env).splitlines()
-    assert sorted({line.split(":", 1)[0] for line in callers}) == sorted(
+    assert sorted(callers) == sorted(
         str(p.relative_to(root)) for p in (*stock, edited))
     for path in (*stock, edited):
         env["CANDIDATE"] = str(path)
@@ -808,7 +808,7 @@ assert create_named(load_config(Path("coga")), "blocker-reminders").created
     _operator_command("replace", root, env, success=False)
     assert edited.read_bytes() == edited_before
     # The customized copy stays a reviewed caller until it is ported by hand.
-    assert [line.split(":", 1)[0] for line in _operator_command("recipe-shim-callers", root, env).splitlines()] == [
+    assert _operator_command("recipe-shim-callers", root, env).splitlines() == [
         str(edited.relative_to(root))]
     # Apply the documented hand-port and verify it still honors the local argv.
     passage = RUNBOOK.read_text(encoding="utf-8").split(
@@ -880,12 +880,13 @@ assert create_named(load_config(Path("coga")), "autoclose-merged").created
         "status: active", "status: paused"), encoding="utf-8", newline="\n")
     edited.parent.mkdir(parents=True)
     edited.write_bytes(baselines[827].read_bytes().replace(
-        b"code = run_recipe(", b"print('custom pre-sweep')\ncode = run_recipe("))
+        b'code = run_recipe(load_config(), "autoclose", [])',
+        b"print('custom pre-sweep')\ncode = run_recipe(\n    load_config(),\n    'autoclose',\n    [],\n)"))
     edited_before = edited.read_bytes()
     with period.with_suffix(".md").open("a", encoding="utf-8", newline="\n") as stream:
         stream.write("\nExisting findings remain.\n")
     callers = _operator_command("recipe-shim-callers", root, env).splitlines()
-    assert sorted({line.split(":", 1)[0] for line in callers}) == sorted(
+    assert sorted(callers) == sorted(
         str(p.relative_to(root)) for p in (*stock, edited))
     for path in (*stock, edited):
         env["CANDIDATE"] = str(path)
@@ -908,7 +909,7 @@ assert create_named(load_config(Path("coga")), "autoclose-merged").created
     _operator_command("replace", root, env, success=False)
     assert edited.read_bytes() == edited_before
     # The customized copy stays a reviewed caller until it is ported by hand.
-    assert [line.split(":", 1)[0] for line in _operator_command("recipe-shim-callers", root, env).splitlines()] == [
+    assert _operator_command("recipe-shim-callers", root, env).splitlines() == [
         str(edited.relative_to(root))]
     # Apply the documented hand-port, keeping the local customization.
     passage = RUNBOOK.read_text(encoding="utf-8").split(
@@ -933,7 +934,7 @@ assert create_named(load_config(Path("coga")), "autoclose-merged").created
         assert "custom pre-sweep" in custom and "no tickets bumped (wheel B)." in custom
         # A hand run of the parked copy sweeps but completes nothing.
         assert "no tickets bumped (wheel B)." in _run(coga_os, env, str(parked))
-        result = subprocess.run([sys.executable, "-m", "coga.cli", "launch", "recurring/autoclose-merged"],
+        result = subprocess.run([sys.executable, "-m", "coga.cli", "autoclose"],
                                 cwd=coga_os, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120)
         assert result.returncode == 0, result.stdout + result.stderr
         assert f"no tickets bumped {origin}." in result.stdout
