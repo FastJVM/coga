@@ -33,8 +33,8 @@ operation is covered here and in [coga/secrets](../secrets/SKILL.md)
 ## Commands
 
 `coga recurring` sweeps due templates; `coga recurring launch <name>` (and
-default aliases such as `coga dream`) fires one now; `list` and `promote`
-inspect and create templates. What each spelling does is in
+default aliases such as `coga dream`) fires one now; `coga recurring list`
+inspects templates and `coga promote-recurring` creates one from a task. What each spelling does is in
 [scheduling](scheduling/SKILL.md#variants); flags are `coga recurring --help`'s.
 
 ## Where each part is specified

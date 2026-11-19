@@ -34,6 +34,7 @@ from coga.config import (
     LOCAL_CONFIG_ENV,
     Config,
     ConfigError,
+    ConfigParseError,
     load_config,
     local_config_path,
     parse_owner,
@@ -775,6 +776,9 @@ def _has_serviceable_config(coga_os: Path) -> bool:
     try:
         cfg = load_config(coga_os)
         validate_aliases({**DEFAULT_ALIASES, **cfg.aliases})
+    except ConfigParseError:
+        # Malformed TOML is a failure for the child to report, not a guard.
+        return True
     except ConfigError:
         return False
     except Exception:

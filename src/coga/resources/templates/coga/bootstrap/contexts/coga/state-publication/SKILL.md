@@ -78,6 +78,11 @@ continues to use the publication rules below.
   checkout preparation or return refused, withholds its sweep so that state
   is not published. At exit, a changed log is checked for lines control does
   not hold, even after a sweep (which may have excluded an ignored log).
+  An edge worker run outside the CLI through `runner.run_entry` (a recurring
+  `ticket.py`, a Dream worker run as `python -m coga_edge.<worker>`) gets the
+  same sweep at its own exit, over the root that worker operated on, with the
+  same `--help`, exit-75 and withheld exclusions; an unknown root publishes
+  nothing.
   The warning names up to 10 retained lines, counts any others, and gives the
   recovery command; it reports those lines rather than publishing them beside
   withheld state. After a checkout rewrite, the check can also name older

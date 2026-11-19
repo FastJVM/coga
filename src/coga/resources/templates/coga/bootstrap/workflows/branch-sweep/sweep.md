@@ -21,7 +21,9 @@ configured control branch, the checked-out branch, the shared skill-update
 branch, and any branch a
 non-terminal ticket names, then delete branches that landed on the control
 branch or that a merged PR with no open PR vouches for — the ref may carry
-only Coga state commits beyond the merged head. A landed branch held by a
+only Coga state commits beyond the merged head — or that a done or canceled
+ticket owns and a PR closed without merging vouches for under
+[coga/checkout-cleanup/terminal-owners](context:coga/checkout-cleanup/terminal-owners). A landed branch held by a
 live worktree preserves both refs and reports `skipped-worktree-pinned`;
 incomplete worktree state fails the sweep. Every deletion first passes the
 retirement-tag publication gate in

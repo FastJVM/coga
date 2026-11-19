@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,26 @@ def test_phone_home_is_a_forkable_edge_module():
     assert callable(phone_home._worker_main)
 
 
+@pytest.mark.parametrize("name", ["blocker_reminders", "skill_update", "validate_drift", "cleanup_orphan_markers"])
+def test_edge_jobs_are_forkable_edge_modules(name):
+    import importlib
+
+    module = importlib.import_module(f"coga_edge.{name}")
+    # A copied module is a complete local fork with only stdlib and core imports.
+    allowed = sys.stdlib_module_names | {"coga"}
+    tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            assert node.level == 0
+            assert (node.module or "").split(".")[0] in allowed
+        elif isinstance(node, ast.Import):
+            assert all(alias.name.split(".")[0] in allowed for alias in node.names)
+    assert callable(module.main)
+    if name in ("validate_drift", "cleanup_orphan_markers"):
+        assert callable(module.target_root)
+    assert not hasattr(module, "append_report")
+
+
 def test_kernel_does_not_load_edge_implementations():
     # Resource shims belong to the edge; production core must never select them.
     for source in (ROOT / 'src/coga').rglob('*.py'):
@@ -53,6 +74,17 @@ def edge_wheels(tmp_path_factory):
         ))
         module = source / "src/coga_edge/phone_home.py"
         module.write_text(module.read_text(encoding="utf-8").replace("## Phone home\\n", f"## Phone home {label}\\n"), encoding="utf-8", newline="\n")
+        module = source / "src/coga_edge/blocker_reminders.py"
+        text = module.read_text(encoding="utf-8")
+        tagged = text.replace("no unresolved blockers to remind.", f"no unresolved blockers to remind (wheel {label}).")
+        assert tagged != text
+        module.write_text(tagged, encoding="utf-8", newline="\n")
+        for worker in ("validate_drift", "cleanup_orphan_markers"):
+            module = source / f"src/coga_edge/{worker}.py"
+            text = module.read_text(encoding="utf-8")
+            tagged = text.replace('f"Generated: {generated_at}",', f'f"Generated: {{generated_at}} (wheel {label})",')
+            assert tagged != text, worker
+            module.write_text(tagged, encoding="utf-8", newline="\n")
         result = subprocess.run([
             sys.executable, "-m", "pip", "wheel", "--no-build-isolation", "--no-deps",
             str(source), "-w", str(source / "dist"),
@@ -267,6 +299,25 @@ FIXTURES = ROOT / "tests/fixtures/edge-migration"
 RUNBOOK = ROOT / "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md"
 
 
+def _passage(name):
+    """An exact Dream instruction passage the runbook ships."""
+    import re
+    document = RUNBOOK.read_text(encoding="utf-8")
+    match = re.search(rf"<!-- migration:{name} -->\n```text\n(.*?)\n```", document, re.S)
+    assert match, name
+    return match[1]
+
+
+def _reconcile(root, env, tmp_path, candidate, old, new, *, success=True):
+    """Apply the runbook's bounded passage edit with OLD/NEW passage files."""
+    old_file = tmp_path / "old-passage.txt"
+    new_file = tmp_path / "new-passage.txt"
+    old_file.write_text(old, encoding="utf-8", newline="\n")
+    new_file.write_text(new, encoding="utf-8", newline="\n")
+    env.update(CANDIDATE=str(candidate), OLD_PASSAGE=str(old_file), NEW_PASSAGE=str(new_file))
+    _operator_command("reconcile", root, env, success=success)
+
+
 def _operator_command(name, root, env, *, success=True, runbook=RUNBOOK):
     import re
     document = runbook.read_text(encoding="utf-8")
@@ -414,18 +465,23 @@ def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_p
     for path in dream_paths:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(dream_old)
+    # A customized Dream copy keeps its edited Phase 1 command for review.
+    custom_dream = root / "coga/recurring/_custom-dream/ticket.md"
+    custom_dream.parent.mkdir(parents=True)
+    custom_dream.write_bytes(dream_old.replace(b"`coga run validate-drift`.", b"`coga run validate-drift --no-fix`."))
+    custom_dream_before = custom_dream.read_bytes()
     # Other init batteries are inventoried too: no slug-based ownership guess.
     expected = sorted(str(p.relative_to(root)) for base in (root / "coga/recurring", root / "coga/tasks")
                       for p in base.rglob("*.py"))
     assert _operator_command("inventory", root, env).splitlines() == expected
     assert {str(p.relative_to(root)) for p in (template, period, parked, edited)} <= set(expected)
     callers = _operator_command("callers", root, env).splitlines()
-    assert len(callers) == 9
-    for path in dream_paths:
+    assert len(callers) == 8
+    for path in (*dream_paths, custom_dream):
         entries = [line for line in callers if line.startswith(str(path.relative_to(root)) + ":")]
-        assert len(entries) == 3
+        assert len(entries) == 2
         assert all(any(name in line for line in entries) for name in (
-            "coga run validate-drift", "coga run cleanup-orphan-markers", "coga run delete-task"))
+            "coga run validate-drift", "coga run cleanup-orphan-markers"))
     # Git cleanliness is deliberately irrelevant: even a committed fork is
     # compared against the old artifact's bytes.
     subprocess.run(["git", "add", "coga"], cwd=root, check=True, capture_output=True)
@@ -452,31 +508,138 @@ def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_p
     _operator_command("replace", root, env, success=False)
     assert edited.read_bytes() == edited_before
     assert all(p.read_bytes() == raw for p, raw in preserved.items())
-    # Representative, explicitly selected replacement passages; no Dream
-    # implementation or production command is introduced by this fixture.
+    # The shipped Phase 1/5 passages reconcile stock and parked copies.
     for path in dream_paths:
         before = path.read_bytes()
         after = before
-        for number, name in enumerate(("validate-drift", "cleanup-orphan-markers", "delete-task")):
-            old = f"coga run {name}".encode()
-            new = f"python /fixture-only/{name}.py".encode()
-            old_file = tmp_path / f"old-{number}.txt"
-            new_file = tmp_path / f"new-{number}.txt"
-            old_file.write_bytes(old)
-            new_file.write_bytes(new)
-            env.update(CANDIDATE=str(path), OLD_PASSAGE=str(old_file), NEW_PASSAGE=str(new_file))
-            _operator_command("reconcile", root, env)
-            after = after.replace(old, new, 1)
-        assert path.read_bytes() == after
+        for phase in (1, 5):
+            old, new = _passage(f"dream-phase-{phase}-old"), _passage(f"dream-phase-{phase}-new")
+            _reconcile(root, env, tmp_path, path, old, new)
+            after = after.replace(old.encode(), new.encode(), 1)
+        assert path.read_bytes() == after != before
         assert path.read_bytes().split(b"<!-- coga:blackboard -->")[1] == before.split(b"<!-- coga:blackboard -->")[1]
         assert path.read_bytes().split(b"---", 2)[1] == before.split(b"---", 2)[1]
-    _operator_command("callers", root, env, success=False)
-    # A stale passage never silently overwrites custom text.
-    _operator_command("reconcile", root, env, success=False)
+        assert b"Unrelated instructions must survive." in path.read_bytes()
+        # A stale passage never silently overwrites already-reconciled text.
+        _reconcile(root, env, tmp_path, path, old, new, success=False)
+        assert path.read_bytes() == after
+    # The customized copy is refused untouched and stays in the inventory.
+    _reconcile(root, env, tmp_path, custom_dream, _passage("dream-phase-1-old"), _passage("dream-phase-1-new"), success=False)
+    assert custom_dream.read_bytes() == custom_dream_before
+    remaining = _operator_command("callers", root, env).splitlines()
+    assert remaining and all(line.startswith(str(custom_dream.relative_to(root)) + ":") for line in remaining)
+    # A historical quotation is never a migration target.
+    old = _passage("dream-phase-1-old")
+    with_history = custom_dream_before + b"\n\nPrior instructions:\n\n" + old.encode() + b"\n"
+    custom_dream.write_bytes(with_history)
+    _reconcile(root, env, tmp_path, custom_dream, old, _passage("dream-phase-1-new"), success=False)
+    assert custom_dream.read_bytes() == with_history
     for path in (template, period, parked):
         assert "## Phone home B" in _run(root, env, str(path))
     assert edited.read_bytes() == edited_before
     assert unrelated.read_bytes() == b"unrelated attachment\r\n"
+    assert not (guard / "called").exists()
+
+
+def _dream_command(passage):
+    """The one shell command a Dream phase passage tells the agent to run."""
+    import re
+    [command] = re.findall(r"`(python [^`]+)`", " ".join(passage.split()))
+    return command
+
+
+@pytest.mark.parametrize("layout", ["package", "fork"])
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
+def test_reconciled_dream_phases_run_the_installed_wheel_or_a_local_fork(tmp_path, edge_wheels, layout):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["B"])
+    coga_os = root / "coga"
+    shipped = _packaged(installed, "recurring", "dream", "ticket.md").read_text(encoding="utf-8")
+    replacement = "new" if layout == "package" else "fork"
+    # A Dream body frozen before the move: the shipped body with old passages.
+    old_dispatch = _passage("dream-dispatch-old")
+    new_dispatch = _passage("dream-dispatch-new")
+    assert shipped.count(new_dispatch) == 1
+    legacy = shipped.replace(new_dispatch, old_dispatch, 1)
+    for phase in (1, 5):
+        legacy = legacy.replace(_passage(f"dream-phase-{phase}-new"), _passage(f"dream-phase-{phase}-old"), 1)
+    assert "coga run validate-drift" in legacy and "coga run cleanup-orphan-markers" in legacy
+    if layout == "fork":
+        # A full local Dream override owns its definition and its workers.
+        _legacy_local_install(root, installed, "dream")
+        dream_dir = coga_os / "recurring/dream"
+        definition = dream_dir / "ticket.md"
+        fence = "<!-- coga:blackboard -->"
+        definition.write_text(legacy.split(fence, 1)[0] + fence + definition.read_text(encoding="utf-8").split(fence, 1)[1],
+                              encoding="utf-8", newline="\n")
+    period = coga_os / "tasks/recurring/dream/ticket.md"
+    period.parent.mkdir(parents=True)
+    period.write_text(legacy.split("<!-- coga:blackboard -->", 1)[0] + "<!-- coga:blackboard -->\n\nExisting findings remain.\n",
+                      encoding="utf-8", newline="\n")
+    scripts = tmp_path / "python-bin"
+    scripts.mkdir()
+    python = scripts / "python"
+    # A symlink outside a venv bypasses its pyvenv.cfg and loses dependencies.
+    python.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n',
+                      encoding="utf-8", newline="\n")
+    python.chmod(0o755)
+    env["PATH"] = str(scripts) + os.pathsep + env["PATH"]
+    env["COGA_PY"] = sys.executable
+    candidates = [period] + ([definition] if layout == "fork" else [])
+    for candidate in candidates:
+        _reconcile(root, env, tmp_path, candidate, old_dispatch, new_dispatch)
+        for phase in (1, 5):
+            _reconcile(root, env, tmp_path, candidate, _passage(f"dream-phase-{phase}-old"), _passage(f"dream-phase-{phase}-{replacement}"))
+        assert "coga run validate-drift" not in candidate.read_text(encoding="utf-8")
+    expected = shipped
+    for phase in (1, 5):
+        expected = expected.replace(_passage(f"dream-phase-{phase}-new"), _passage(f"dream-phase-{phase}-{replacement}"), 1)
+    assert period.read_text(encoding="utf-8").split("<!-- coga:blackboard -->")[0] == expected.split("<!-- coga:blackboard -->")[0]
+    if layout == "fork":
+        env["DREAM_DIR"] = str(dream_dir)
+        copies = _operator_command("dream-fork-copy", root, env).splitlines()
+        assert copies == [str(dream_dir / "validate_drift.py"), str(dream_dir / "cleanup_orphan_markers.py")]
+        for copy in map(Path, copies):
+            assert copy.read_bytes() == (installed / "coga_edge" / copy.name).read_bytes()
+            copy.write_text(copy.read_text(encoding="utf-8").replace("(wheel B)", "(local fork)"), encoding="utf-8", newline="\n")
+        # The copy refuses to overwrite a reviewed fork.
+        _operator_command("dream-fork-copy", root, env, success=False)
+    # Run each reconciled phase command the way the Dream agent would, from
+    # the repo root inside the Dream period's task environment, with the
+    # installed wheel read-only.
+    env.update(
+        COGA_TASK_SLUG="recurring/dream",
+        COGA_TASK_DIR=str(period.parent),
+        COGA_TASK_BLACKBOARD=str(period),
+        COGA_COGA_OS_ROOT=str(coga_os),
+        COGA_REPO_ROOT=str(root),
+    )
+    frontmatter = period.read_bytes().split(b"---", 2)[1]
+    others = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file() and p != period}
+    for path in [installed, *installed.rglob("*")]:
+        path.chmod(path.stat().st_mode & ~0o222)
+    try:
+        for phase in (1, 5):
+            passage = _passage(f"dream-phase-{phase}-{replacement}")
+            assert passage in period.read_text(encoding="utf-8")
+            result = subprocess.run(["bash", "-c", _dream_command(passage)], cwd=root, env=env,
+                                    capture_output=True, text=True, encoding="utf-8", timeout=120)
+            assert result.returncode == 0, result.stdout + result.stderr
+        # A stale old passage fails loudly instead of running other code.
+        stale = subprocess.run(["bash", "-c", "coga run validate-drift"], cwd=coga_os,
+                               env={**env, "PATH": str(installed / "bin") + os.pathsep + env["PATH"]},
+                               capture_output=True, text=True, encoding="utf-8", timeout=60)
+        assert stale.returncode == 2 and "unknown recipe 'validate-drift'" in stale.stderr
+    finally:
+        for path in [installed, *installed.rglob("*")]:
+            path.chmod(path.stat().st_mode | 0o200)
+    blackboard = period.read_text(encoding="utf-8").split("<!-- coga:blackboard -->", 1)[1]
+    origin = "(wheel B)" if layout == "package" else "(local fork)"
+    for name in ("validate-drift", "cleanup-orphan-markers"):
+        section = blackboard.split(f"## Dream Skill: {name}\n", 1)[1]
+        assert section.split("\n", 2)[1].endswith(origin), section[:200]
+    assert blackboard.startswith("\n\nExisting findings remain.\n")
+    assert period.read_bytes().split(b"---", 2)[1] == frontmatter
+    assert {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file() and p != period} == others
     assert not (guard / "called").exists()
 
 
@@ -579,4 +742,104 @@ def test_documented_trim_adoption_uses_resolved_interpreter(tmp_path, edge_wheel
                             capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "already installed" in result.stdout
+    assert not (guard / "called").exists()
+
+
+@pytest.mark.parametrize("layout", ["package", "fork"])
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
+def test_documented_recipe_shim_adoption_runs_the_installed_wheel_or_a_fork(tmp_path, edge_wheels, layout):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
+    coga_os = root / "coga"
+    env["PATH"] = str(installed / "bin") + os.pathsep + env["PATH"]
+    env["COGA_PY"] = _operator_command("interpreter", root, env).strip()
+    # A full local skill-update override, and blocker-reminders package-backed
+    # (a state-only carrier) with a frozen period and a parked copy.
+    _legacy_local_install(root, installed, "skill-update")
+    _run(root, env, "-c", """
+from pathlib import Path
+from coga.config import load_config
+from coga.recurring import create_named
+assert create_named(load_config(Path("coga")), "blocker-reminders").created
+""")
+    baselines = {(job, pr): FIXTURES / f"{job}-old-{pr}.py"
+                 for job in ("blocker-reminders", "skill-update") for pr in (705, 827)}
+    template = coga_os / "recurring/skill-update/ticket.py"
+    period = coga_os / "tasks/recurring/blocker-reminders/ticket.py"
+    parked = coga_os / "tasks/_parked/blocker-reminders/ticket.py"
+    edited = coga_os / "tasks/recurring/skill-update/ticket.py"
+    stock = {template: ("skill-update", 827), period: ("blocker-reminders", 827),
+             parked: ("blocker-reminders", 705)}
+    for path, key in stock.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(baselines[key].read_bytes())
+    parked.with_suffix(".md").write_text(period.with_suffix(".md").read_text(encoding="utf-8").replace(
+        "status: active", "status: paused"), encoding="utf-8", newline="\n")
+    edited.parent.mkdir(parents=True)
+    edited.write_bytes(baselines["skill-update", 827].read_bytes().replace(b'"skill-update", []', b'"skill-update", ["--no-pr"]'))
+    edited_before = edited.read_bytes()
+    with period.with_suffix(".md").open("a", encoding="utf-8", newline="\n") as stream:
+        stream.write("\nExisting findings remain.\n")
+    callers = _operator_command("recipe-shim-callers", root, env).splitlines()
+    assert sorted({line.split(":", 1)[0] for line in callers}) == sorted(
+        str(p.relative_to(root)) for p in (*stock, edited))
+    for path in (*stock, edited):
+        env["CANDIDATE"] = str(path)
+        labels = set()
+        for pr in (705, 827):
+            env["OLD_SOURCE"] = str(baselines[stock.get(path, ("skill-update", 0))[0], pr])
+            labels.add(_operator_command("compare", root, env).split(":")[0])
+        assert labels == ({"review"} if path == edited else {"stock", "review"})
+    preserved = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file() and p.suffix != ".py"}
+    _install(edge_wheels["B"], installed)
+    for path, (job, pr) in stock.items():
+        env.update(JOB=job, CANDIDATE=str(path), OLD_SOURCE=str(baselines[job, pr]))
+        implementation, shim = _operator_command("locate-job", root, env).splitlines()
+        assert Path(implementation) == installed / "coga_edge" / f"{job.replace('-', '_')}.py"
+        env["NEW_SHIM"] = shim
+        _operator_command("replace", root, env)
+        assert path.read_bytes() == Path(shim).read_bytes()
+    env.update(JOB="skill-update", CANDIDATE=str(edited), OLD_SOURCE=str(baselines["skill-update", 827]))
+    _operator_command("replace", root, env, success=False)
+    assert edited.read_bytes() == edited_before
+    # The customized copy stays a reviewed caller until it is ported by hand.
+    assert [line.split(":", 1)[0] for line in _operator_command("recipe-shim-callers", root, env).splitlines()] == [
+        str(edited.relative_to(root))]
+    # Apply the documented hand-port and verify it still honors the local argv.
+    passage = RUNBOOK.read_text(encoding="utf-8").split(
+        "becomes this, keeping its own argv and other customizations:", 1
+    )[1].split("```python\n", 1)[1].split("```", 1)[0]
+    edited.write_text(passage, encoding="utf-8", newline="\n")
+    if layout == "fork":
+        env.update(JOB="blocker-reminders", CANDIDATE=str(period))
+        env["NEW_SHIM"] = _operator_command("locate-job", root, env).splitlines()[1]
+        assert _operator_command("job-fork-copy", root, env).strip() == str(period)
+        assert period.read_bytes() == (installed / "coga_edge/blocker_reminders.py").read_bytes()
+        period.write_text(period.read_text(encoding="utf-8").replace("(wheel B)", "(local fork)"), encoding="utf-8", newline="\n")
+        # It refuses to overwrite a reviewed fork.
+        _operator_command("job-fork-copy", root, env, success=False)
+    assert all(p.read_bytes() == raw for p, raw in preserved.items())
+    origin = "(wheel B)" if layout == "package" else "(local fork)"
+    for path in [installed, *installed.rglob("*")]:
+        path.chmod(path.stat().st_mode & ~0o222)
+    try:
+        assert "coga.cli skill update --all --json`" in _run(coga_os, env, str(edited))
+        # A hand run of the parked copy reports but completes nothing.
+        assert "no unresolved blockers to remind (wheel B)." in _run(coga_os, env, str(parked))
+        result = subprocess.run([sys.executable, "-m", "coga.cli", "launch", "recurring/blocker-reminders"],
+                                cwd=coga_os, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert f"no unresolved blockers to remind {origin}." in result.stdout
+        stale = subprocess.run([sys.executable, "-m", "coga.cli", "run", "blocker-reminders"], cwd=coga_os, env=env,
+                               capture_output=True, text=True, encoding="utf-8", timeout=60)
+        assert stale.returncode == 2 and "unknown recipe 'blocker-reminders'" in stale.stderr + stale.stdout
+    finally:
+        for path in [installed, *installed.rglob("*")]:
+            path.chmod(path.stat().st_mode | 0o200)
+    from coga.ticket import Ticket
+    assert Ticket.read(period.with_suffix(".md")).status == "done"
+    assert period.with_suffix(".md").read_text(encoding="utf-8").endswith("\nExisting findings remain.\n")
+    assert Ticket.read(parked.with_suffix(".md")).status == "paused"
+    for path, raw in preserved.items():
+        if path not in (period.with_suffix(".md"), coga_os / "log.md"):
+            assert path.read_bytes() == raw, path
     assert not (guard / "called").exists()

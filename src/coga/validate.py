@@ -1295,7 +1295,7 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         DEFAULT_PERIOD_WORKFLOW,
         RecurringError,
         Template,
-        _validate_schedule,
+        validate_schedule,
         delegated_workflow_violation,
     )
 
@@ -1381,7 +1381,7 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             ))
         else:
             try:
-                _validate_schedule(ticket.frontmatter["schedule"], now)
+                validate_schedule(ticket.frontmatter["schedule"], now)
                 schedule_bad = False
             except RecurringError as exc:
                 out.append(Issue(
@@ -1987,7 +1987,7 @@ def execute_validation(
     check_slack: bool = False,
     check_github: bool = False,
 ) -> ValidationReport:
-    """Shared option-to-report contract for the CLI and validate-drift entry."""
+    """Shared option-to-report contract for the CLI and module entry."""
     if task is not None and (check_slack or check_github):
         option = "--check-slack" if check_slack else "--check-github"
         concern = "the Slack webhook" if check_slack else "git/GitHub auth"

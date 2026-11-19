@@ -18,6 +18,10 @@ class ConfigError(Exception):
     """Raised for any invalid/missing config."""
 
 
+class ConfigParseError(ConfigError):
+    """A config file exists but is not UTF-8 TOML (not an intentional guard)."""
+
+
 class SecretError(Exception):
     """A ticket's declared secret cannot be satisfied at launch time.
 
@@ -517,8 +521,11 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
 def _read_toml(path: Path) -> dict:
     if not path.is_file():
         raise ConfigError(f"Missing config file: {path}")
-    with path.open("rb") as f:
-        return tomllib.load(f)
+    try:
+        with path.open("rb") as f:
+            return tomllib.load(f)
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+        raise ConfigParseError(f"Invalid TOML in {path}: {exc}") from exc
 
 
 def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> None:

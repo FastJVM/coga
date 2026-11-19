@@ -62,6 +62,9 @@ policy before execution, through separate explicit invocations or a thin
 argv-parsing adapter calling the same launch API. A read-only entry rejects
 write operands; a child cannot upgrade its dispatch policy. Ordinary launch
 remains the default and retains its publication and completion boundaries.
+The withheld publication is scoped to the read-only call itself: an in-process
+API caller gets its own sweep policy back when the call returns or refuses, so
+a writer command that reads this way still publishes at its exit.
 
 The shipped report aliases and the `recurring list` adapter use this same
 boundary; their owning command tickets define selection and presentation.

@@ -64,6 +64,10 @@ class ClaimedSessionResult:
     # The refused activation itself, so the caller classifies it exactly as
     # its own prepare half does (an unlaunchable workflow is not a failure).
     activation_error: Exception | None = None
+    # The exact claim the child ran under (the admitted rendering, or the
+    # start write itself without Git), so a caller can compare-and-set a
+    # restore after a failed agent start.
+    claimed_bytes: bytes | None = None
 
 
 class _LaunchClaimRefused(Exception):
@@ -287,7 +291,7 @@ def _admit_launch_claim_after_release(
     ref: TaskRef,
     *,
     expected_started_bytes: bytes,
-) -> None:
+) -> bytes:
     """Publish pending-to-admitted only after the held child is released.
 
     The supervisor calls this while retaining the same-checkout publication
@@ -297,7 +301,7 @@ def _admit_launch_claim_after_release(
     child can already execute, so ordinary lifecycle changes may proceed.
     """
     if not cfg.git_enabled:
-        return
+        return expected_started_bytes
     try:
         current_bytes = ref.ticket_path.read_bytes()
     except OSError as exc:
@@ -342,7 +346,7 @@ def _admit_launch_claim_after_release(
 
     try:
         ticket.frontmatter["launch_generation"] = admitted_generation
-        ticket.write(ref.ticket_path)
+        admitted_bytes = git.write_ticket(cfg, ticket, ref.ticket_path)
         # The supervisor already holds `state_lock` through this callback;
         # `publish` re-enters it. `expect` pins the pending control copy the
         # seal accepts this exact prefix-stripped transition against.
@@ -375,20 +379,17 @@ def _admit_launch_claim_after_release(
         raise _LaunchClaimRefused(
             f"launch admission could not be recorded: {exc}{detail}"
         ) from exc
+    return admitted_bytes
 
 
 def _preflight_agent_launch(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    launch_agent: str | None,
+    launch_agent: str,
     *,
     source_ticket_bytes: bytes | None = None,
 ) -> _PreparedAgentLaunch | str:
-    try:
-        agent = cfg.agent_type(launch_agent or "")
-    except ConfigError as exc:
-        return str(exc)
     # A not-yet-activated pick arrives as its prospective `active` view. Keep
     # the launch boundary strict so malformed or concurrently changed states
     # cannot reach the agent spawn path.
@@ -424,20 +425,25 @@ def _preflight_agent_launch(
         if cfg.git_enabled
         else generation
     )
+    def supervised_env(env: dict[str, str]) -> dict[str, str]:
+        launch_env = apply_task_env(dict(env), cfg, ref, launch_ticket)
+        launch_env.pop(SENTINEL_ENV, None)
+        return build_supervised_step_env(
+            launch_env,
+            task_path=ref.path,
+            step=launch_ticket.step,
+            agent=launch_agent,
+        )
+
+    # The supervised identity is applied inside preparation so the Windows
+    # command check vouches for the exact env handed to spawn.
     try:
         prepared = prepare_agent_launch(
-            cfg, ref, launch_ticket, launch_agent or "", launch_context="megalaunch",
+            cfg, ref, launch_ticket, launch_agent, launch_context="megalaunch",
+            env_transform=supervised_env,
         )
     except AgentPreparationError as exc:
         return str(exc)
-    launch_env = apply_task_env(dict(prepared.env), cfg, ref, launch_ticket)
-    launch_env.pop(SENTINEL_ENV, None)
-    env = build_supervised_step_env(
-        launch_env,
-        task_path=ref.path,
-        step=launch_ticket.step,
-        agent=launch_agent,
-    )
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:
@@ -447,7 +453,7 @@ def _preflight_agent_launch(
         ticket=launch_ticket,
         source_ticket_bytes=expected_source_bytes,
         agent=prepared.agent,
-        env=env,
+        env=prepared.env,
         prompt=prepared.prompt,
     )
 
@@ -587,11 +593,12 @@ def run_claimed_agent_session(
         )
 
     released = False
+    claimed_bytes: bytes | None = None if cfg.git_enabled else expected_started_bytes
 
     def admit_released_launch_claim() -> None:
-        nonlocal released
+        nonlocal released, claimed_bytes
         released = True
-        _admit_launch_claim_after_release(
+        claimed_bytes = _admit_launch_claim_after_release(
             cfg,
             ref,
             expected_started_bytes=expected_started_bytes,
@@ -642,4 +649,6 @@ def run_claimed_agent_session(
     except FileNotFoundError:
         return ClaimedSessionResult(refusal=agent_cli_missing_message(agent.name, agent.cli), retained=True)
 
-    return ClaimedSessionResult(before=before, session=session, released=True)
+    return ClaimedSessionResult(
+        before=before, session=session, released=True, claimed_bytes=claimed_bytes,
+    )

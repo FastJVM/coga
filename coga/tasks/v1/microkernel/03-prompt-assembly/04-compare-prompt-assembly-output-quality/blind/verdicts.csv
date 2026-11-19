@@ -1,9 +1,0 @@
-pair,case,better,reason,correction_X,correction_Y
-1846ec,code,Y,The rationale section is important.,,
-283a63,author,Y,Text can be very terse; prefer the terser output.,,
-367ff1,design,X,More direct writing style.,,
-6601ad,design,tie,,,
-732331,author,Y,More precise.,,
-7d6512,docs,X,More precise.,,
-b030d4,code,X,Clearer.,,
-e2f466,docs,Y,Clearer and more precise.,,

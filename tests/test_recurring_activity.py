@@ -149,7 +149,7 @@ def test_classifier_tracks_machine_subject_writers() -> None:
         ("recurring_runner.py", "Log: ", "recurring/dream"),
         ("recurring_runner.py", " — recurring create", "recurring/digest"),
         ("recurring_autofix.py", " — created", "autofix/test"),
-        ("blocker_reminders.py", " — blocker reminder", "human"),
+        ("../coga_edge/blocker_reminders.py", " — blocker reminder", "human"),
     ]
     for filename, fragment, slug in cases:
         tree = ast.parse((root / filename).read_text(encoding="utf-8"))

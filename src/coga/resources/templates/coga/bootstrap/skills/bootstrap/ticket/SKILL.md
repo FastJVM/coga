@@ -116,8 +116,7 @@ body — the kickoff token is what separates them, not the body, so trust it. In
 the rare case the token is missing and you genuinely can't tell, just ask which
 one they meant.
 
-Note: `coga create "<title>"` (the replacement for the deprecated `coga
-draft`) only writes the draft bytes to disk and does **not** run this skill. If
+Note: `coga create "<title>"` only writes the draft bytes to disk and does **not** run this skill. If
 the human expected the interview, point them at `coga ticket <slug>`.
 
 ## Step 2 — Survey what's available

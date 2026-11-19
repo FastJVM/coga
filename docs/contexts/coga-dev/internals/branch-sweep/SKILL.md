@@ -90,6 +90,19 @@ porcelain deletion guard. The operator supplies the deletion authority.
 The [release procedure](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md)
 owns the command, proof requirements, and exact-tip recovery.
 
+Only the manual release binds PR evidence to the configured remote's
+repository. The ordinary sweep (`_pr_heads(..., repository=None)`), branch
+retirement and checkout disposal (`branchcleanup`) call
+`autoclose.prs_for_head` without `--repo`, so `gh` resolves the repository
+from the cwd, `gh repo set-default` or `GH_REPO`, which can differ from
+`[git].remote` where `_fetch_pr_head` and `_publish_retirement_tag` operate,
+and it uses `gh`'s default result limit. A mismatched default could make an
+automatic landing verdict accept another repository's merged head when that
+object is present locally. The design review left this open on purpose; no
+ticket tracks it. A fix would pass the repository from the effective remote
+URLs, as `_release_local_draft` does, and refuse when the URLs cannot name one
+repository.
+
 ## Retirement tags
 
 `_publish_retirement_tag` archives the actual authorized tip, fetching
