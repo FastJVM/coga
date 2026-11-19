@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: b9f6b387-823f-4069-a855-6dd8c146332b
 ---
 
 ## Description
@@ -171,49 +170,64 @@ branch: docs/secrets-clone-scrub
   in isolation. It looks timing-sensitive under load, and this docs-only diff
   can't affect it. Not fixed here.
 
+## Peer review
+
+Codex completed a direct, independent review of Claude's diff at head
+`c0f2e1fbe92de66264785d475fa8deae888f1a33` against base `75c2dcf245eb2d44d529d48c31c94a8243c4556f`.
+No must-fix findings. The clone runner passes the template's declarations to
+`build_launch_env`, which resolves declared values in the parent, scrubs
+inherited 1Password auth and named environment sources, and applies the
+declared destinations. The scheduling link resolves to the scrub section.
+
+The branch was rebased and pushed with an explicit lease. The full pytest
+suite reported 5004 passed and 33 skipped. The earlier supervisor failure
+did not recur. PR #1246 remains open and merges cleanly at the checked head
+`ceae31f12894883ccf7a4b5379729284704a0dd9`.
+
 ## PR
 
 ```yaml
 title: Name clone-scoped recurring scripts among the scrubbed children in coga/secrets
 author: claude
-author_evidence: >-
-  Implement session ran as Claude Code (claude-opus-5-5); manual (no launch-prepared) checkout.
-head: 2cf8838dc013e9b3a4eea2815d84044123576cd4
-base: 45ecb5e2992f6a9fd7e0ad326d3a2a83ec1ad43a
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5); manual (no launch-prepared)
+  checkout.
+head: c0f2e1fbe92de66264785d475fa8deae888f1a33
+base: 75c2dcf245eb2d44d529d48c31c94a8243c4556f
 depth: skim
-rationale: >-
-  Docs-only correction of one sentence plus a cross-link; it brings coga/secrets in line with
-  recurring_clone.run_clone_template, which builds the clone script env via build_launch_env.
-implementation: >-
-  coga/secrets now names a scope clone template's ticket.py among the scrubbed children and
-  states that the clone scripts the unscrubbed recurring scan runs are not part of that scan.
-  coga/recurring/scheduling links its "gets the template's secrets" sentence to that section
-  instead of restating the rule.
+rationale: 'Two documentation edits match existing behavior. Skim the shared secrets topic because
+  open PR #1246 also edits it. Git verified a clean merge at the reviewed tips.'
+implementation: The secrets topic names clone-scoped recurring scripts among scrubbed children. The
+  scheduling topic links to the environment scrub section.
 deviations: None.
-limitations: >-
-  No rendered-markdown check of the new anchor link; the relative path and slug were checked by hand.
+limitations: 'The scheduling link was verified by resolving the local path and heading slug. PR #1246
+  remains open.'
 files:
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: >-
-    Add clone-scoped recurring scripts to the env-scrub coverage sentence.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: >-
-    Link the clone-script secrets sentence to the coga/secrets scrub section.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: Add clone-scoped recurring
+    scripts to the env-scrub coverage sentence.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Link the
+    clone-script secrets sentence to the coga/secrets scrub section.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: >-
-    Not reviewed yet; the workflow's peer-review step follows implement.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: c0f2e1fbe92de66264785d475fa8deae888f1a33
+  base: 75c2dcf245eb2d44d529d48c31c94a8243c4556f
+  detail: Direct review completed with no must-fix findings. Verified the clone runner, environment
+    builder, and scheduling link target.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py tests/test_layout_contexts.py tests/test_validate.py tests/test_recurring_clone.py
-    status: passed
-    head: 2cf8838dc013e9b3a4eea2815d84044123576cd4
-    base: 45ecb5e2992f6a9fd7e0ad326d3a2a83ec1ad43a
-    detail: 257 passed, 2 skipped.
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    status: failed
-    head: 2cf8838dc013e9b3a4eea2815d84044123576cd4
-    base: 45ecb5e2992f6a9fd7e0ad326d3a2a83ec1ad43a
-    detail: >-
-      1 failed, 5003 passed, 33 skipped. The one failure was
-      test_repl_supervisor.py::test_terminal_ticket_backstop_waits_for_a_live_pending_command,
-      which then passed 3/3 when rerun alone; it is a timing flake unrelated to this docs-only diff.
+- command: .venv/bin/python -m pytest
+  status: passed
+  head: c0f2e1fbe92de66264785d475fa8deae888f1a33
+  base: 75c2dcf245eb2d44d529d48c31c94a8243c4556f
+  detail: 5004 passed, 33 skipped. The earlier supervisor failure did not recur.
+- command: git diff --check main...HEAD
+  status: passed
+  head: c0f2e1fbe92de66264785d475fa8deae888f1a33
+  base: 75c2dcf245eb2d44d529d48c31c94a8243c4556f
+  detail: No whitespace errors.
+- command: git merge-tree --write-tree HEAD FETCH_HEAD
+  status: passed
+  head: c0f2e1fbe92de66264785d475fa8deae888f1a33
+  base: 75c2dcf245eb2d44d529d48c31c94a8243c4556f
+  detail: 'Clean merge against PR #1246 head ceae31f12894883ccf7a4b5379729284704a0dd9.'
+```
