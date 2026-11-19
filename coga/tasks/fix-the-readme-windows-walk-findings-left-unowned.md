@@ -27,9 +27,10 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 65257ed3-dafb-4b57-bd8f-605ed5284d3b
+contexts:
+- coga-dev/principles
 ---
 
 ## Description
@@ -143,45 +144,71 @@ Limitations / for review:
 - Not changed (out of scope): the windows-aws walk skill (`skills/coga/testing/clean-install/windows-aws`, walk step 2) and `windows-walk.ps1` walk phase still run plain `uv python install 3.11` for the walk user, so a walk does not exercise the README's new `--default`. Consider aligning it in a follow-up if the walk should mirror the README exactly.
 - v1/31 Findings 6/7/10 still say "owner v1/33; open". After merge, whoever closes this should mark them resolved there.
 
+## Peer review
+
+Codex completed a direct review of `8558ef195a59a4e4ad34e115c3d8bd40be2a325d...0bfa2d341b872a106ee452a307a7945df044bbce` after rebasing.
+Claude authored the original change. Codex independently reviewed it and
+then verified its own follow-up against the final diff. The review found
+that installing the unversioned executable does not establish PATH
+precedence and that the home-folder rationale generalized one PowerShell
+start location. The follow-up adds a version check and a PATH remedy for the
+Store alias and qualifies the PowerShell start location.
+
+Compared findings 6, 7 and 10 in v1/31 with the README, init's Git identity
+guard and its ordering, and Astral's Python executable and storage docs.
+Ran the repository creation commands in a fresh temporary home with POSIX
+sh and confirmed the new Git root. The full Linux suite passed and
+`git diff --check origin/main...HEAD` passed. No unresolved review findings.
+The attended Windows 11 walk still needs to exercise the README directly.
+
 ## PR
 
 ```yaml
 title: Fix README init and Windows Python steps from the Windows walk
 author: claude
 author_evidence: >-
-  Implement session ran as Claude Code (Opus 5.5) in a megalaunch queue step.
-head: 1ceeb41f5ae37d3e89f8d8112f28ee73736a5c8b
-base: 586aa99608ab6910c199f576a45be46b86c8867f
+  Claude Code (Opus 5.5) implemented the original README change. Codex
+  authored the follow-up wording and verification steps during peer review.
+head: 0bfa2d341b872a106ee452a307a7945df044bbce
+base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
 depth: skim
 rationale: >-
-  README-only wording change in the install and init sections; check the
-  shell portability of the new-repo commands and the identity wording against init.
+  Bounded README changes checked against Git and uv behavior, with the
+  Windows 11 acceptance walk still pending.
 implementation: >-
-  Drops the README's manual git identity pre-check in favor of init's own
-  guard, spells out creating a new repo from the home folder, and installs
-  uv's Python with --default so python is not the Microsoft Store stub.
+  Uses init's own Git identity diagnostic, shows how to create a new
+  repository from the home folder, and installs and checks uv's unversioned
+  Python command with a remedy if the Store alias takes precedence.
 deviations: "None."
 limitations: >-
-  No Windows run; the human Windows 11 walk is the acceptance check. The
-  windows-aws walk harness still runs plain uv python install 3.11 for the
-  walk user.
+  The attended Windows 11 walk remains the acceptance check. Native suite
+  verification is deferred to release. The AWS walk harness's walk-user
+  phase still uses plain uv python install 3.11 and misses the README's
+  --default step.
 files:
   README.md: >-
-    Fix v1/31 Windows walk findings 6, 7 and 10 in the install and
-    Initialize a repository sections.
+    Addresses v1/31 findings 6, 7 and 10 in installation and repository setup.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 0bfa2d341b872a106ee452a307a7945df044bbce
+  base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
   detail: >-
-    Peer review is the next workflow step; no review has run yet.
+    Direct review completed on the final diff. Independent of Claude's
+    implementation, with self-review of Codex's follow-up. The PATH wording
+    and PowerShell start-location findings were fixed. No unresolved findings.
 checks:
-  - command: .venv/bin/python -m pytest -q
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q
     status: passed
-    head: 1ceeb41f5ae37d3e89f8d8112f28ee73736a5c8b
-    base: 586aa99608ab6910c199f576a45be46b86c8867f
+    head: 0bfa2d341b872a106ee452a307a7945df044bbce
+    base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
     detail: >-
-      5004 passed, 33 skipped in 777.90s. The shell python lacked tomlkit, so
-      the first plain python -m pytest run failed at collection; reran with
-      the repo venv.
+      Pop!_OS 24.04 LTS, Python 3.12.12. 5004 passed, 33 skipped, 0 failed in
+      839.98 seconds. This receipt covers Python 3.12.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 0bfa2d341b872a106ee452a307a7945df044bbce
+    base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
+    detail: "No whitespace errors."
 ```
