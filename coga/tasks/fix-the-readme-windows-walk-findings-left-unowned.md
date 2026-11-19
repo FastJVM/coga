@@ -31,7 +31,7 @@ step: 3 (open-pr)
 agent: claude
 contexts:
 - coga-dev/principles
-launch_generation: pending:932c1dea-f1a6-4b73-973e-a05ff842746e
+launch_generation: 932c1dea-f1a6-4b73-973e-a05ff842746e
 ---
 
 ## Description
