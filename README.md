@@ -140,12 +140,15 @@ terminal, then run:
 
 ```powershell
 uv python install 3.11 --default
+python --version
 uv tool install --python 3.11 "git+https://github.com/FastJVM/coga.git@main"
 coga --version
 ```
 
-`--default` also gives you a `python` command; otherwise `python` opens
-the Microsoft Store stub, and agents that run Python code fail.
+`--default` installs an unversioned `python` executable. If `python --version`
+still points you to the Microsoft Store, run `uv python dir --bin` and move
+the reported directory ahead of `%LOCALAPPDATA%\Microsoft\WindowsApps` in
+your user PATH. Open a new terminal and check `python --version` again.
 
 Native Windows has been tested on Windows Server 2025 with Claude Code's
 native installer; Codex has not yet been tested there. Bash and WSL aren't
@@ -159,9 +162,8 @@ and open a new terminal.
 ### Initialize a repository
 
 Change into your project's Git repository; outside one, `coga init` stops.
-To start a new project, create one first. PowerShell opens in
-`C:\WINDOWS\system32`, so start from your home folder; these commands work in
-PowerShell and POSIX shells:
+To start a new project, create one in your home folder. PowerShell can open
+in `C:\WINDOWS\system32`, so change to your home folder first.
 
 ```sh
 cd ~
