@@ -32,6 +32,7 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
+launch_generation: pending:de807fd4-f403-487d-ae0f-0ebb2d955932
 ---
 
 ## Description
