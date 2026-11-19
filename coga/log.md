@@ -4323,3 +4323,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 21:38 v1 [decide-the-two-open-questions-left-by-the-checkout] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 21:38 v1 [decide-the-two-open-questions-left-by-the-checkout] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 21:38 v1 [decide-the-two-open-questions-left-by-the-checkout] [megalaunch] launched via coga megalaunch
+2026-11-18 21:39 v1 [v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac] [human:nicktoper] created (status=draft)
