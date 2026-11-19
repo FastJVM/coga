@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 7c88c383-f4c5-4e99-bd83-95049c5fa2d4
 ---
 
 ## Description
@@ -140,4 +139,78 @@ no core change (microkernel: helpers stay at the edge); allowing `[extensions]` 
 consumer pair; the config-directory option is a parked `_v2` draft. Non-secret calendar
 ids stay in shared `coga.toml` `[extensions.<ns>]`.
 
-In progress.
+## Implement handoff
+
+Done on `google-helpers-read-env-credentials` (pushed, head `087ea084e`, contains origin/main).
+
+- `gcal.py`: `resolve_service_account_info()` reads `GCAL_SERVICE_ACCOUNT_JSON` (key
+  contents; wins) else `GCAL_SERVICE_ACCOUNT_FILE` (path); builds creds with
+  `from_service_account_info`. `tomllib`/`_coga_os_root` removed.
+- `gmail.py`: `resolve_gmail_config()` reads `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
+  `GMAIL_REFRESH_TOKEN`, `GMAIL_USER`, naming every missing var. `authorize` now prints
+  `GMAIL_*=<value>` lines plus storage guidance instead of a `[gmail]` TOML block.
+- Setup docs (`coga/google-calendar`, `coga/gmail`, `coga/calendar-reminder`) show the
+  `secrets:` declarations; calendar-reminder now resolves the (non-secret) calendar id
+  from shared `coga.toml` `[extensions.<ns>]` instead of a rejected `[calendar]` table.
+- New `tests/test_google_helpers.py` (6 tests) covers env resolution, precedence, and that
+  a `coga.local.toml` with the retired tables is ignored.
+- No core change, no seeded-fixture change (helpers are edge skill attachments).
+
+Adjacent, not fixed here (separate Dream findings ks-28/ks-29 in
+`coga/tasks/recurring/dream/ticket.md`): the skills still tell callers to run
+`$COGA_COGA_OS_ROOT/skills/coga/<skill>/<script>.py`, a path that no longer exists after
+the package-definition cutover, and to `pip install` "from this skill's dir". No open
+ticket owns that yet; retro should carry it.
+
+Peer review: not yet run (next workflow step).
+
+## PR
+
+```yaml
+title: Read Google helper credentials from ticket secrets
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under megalaunch.
+head: 087ea084e90a049e39346f71953b0c4d9d6e3608
+base: 3085c92660a462d6c1ffee5752268438a40751d2
+depth: skim
+rationale: >-
+  Bounded change to two edge skill helpers and their setup docs; no core code. Read the
+  description for the credential-source decision (env vars via ticket secrets) and the
+  breaking change for anyone with a working [calendar]/[gmail] coga.local.toml (which Coga
+  itself already rejected).
+implementation: >-
+  gcal.py reads GCAL_SERVICE_ACCOUNT_JSON (key contents) or GCAL_SERVICE_ACCOUNT_FILE
+  (path); gmail.py reads GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN and
+  GMAIL_USER. Both stop parsing coga.local.toml. gmail.py authorize prints GMAIL_* lines.
+  The google-calendar, gmail and calendar-reminder skills document the secrets:
+  declarations; calendar ids come from shared coga.toml [extensions.<ns>].
+deviations: >-
+  Chose per-ticket secrets over allowing [extensions] in coga.local.toml or a machine-local
+  config directory; see the blackboard Decision for reasons.
+limitations: >-
+  No live Google API call was made; tests cover credential resolution only. Stale helper
+  invocation paths (Dream ks-28/ks-29) are out of scope and unchanged.
+files:
+  src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/gcal.py: "Read the service-account key from GCAL_SERVICE_ACCOUNT_JSON or GCAL_SERVICE_ACCOUNT_FILE."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/gmail.py: "Read OAuth credentials from GMAIL_* env vars; authorize prints them."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/SKILL.md: "Document the env vars and secrets declaration."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/SKILL.md: "Document the env vars and secrets declaration."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md: "Point setup at secrets and calendar id at [extensions]."
+  tests/test_google_helpers.py: "Regression tests for env credential resolution."
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: "Peer review is the next workflow step (code/peer-review)."
+checks:
+  - command: .venv/bin/python -m pytest -q tests/test_google_helpers.py
+    status: passed
+    head: 087ea084e90a049e39346f71953b0c4d9d6e3608
+    base: 3085c92660a462d6c1ffee5752268438a40751d2
+    detail: "6 passed; run on the working tree later committed unchanged as head."
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 087ea084e90a049e39346f71953b0c4d9d6e3608
+    base: 3085c92660a462d6c1ffee5752268438a40751d2
+    detail: "5010 passed, 33 skipped; run on the working tree later committed unchanged as head."
+```

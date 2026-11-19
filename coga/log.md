@@ -4394,3 +4394,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 00:28 v1 [decide-where-the-google-helper-skills-read-their-c] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-19 00:28 v1 [decide-where-the-google-helper-skills-read-their-c] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-19 00:28 v1 [decide-where-the-google-helper-skills-read-their-c] [megalaunch] launched via coga megalaunch
+2026-11-19 00:44 v1 [decide-where-the-google-helper-skills-read-their-c] [agent:claude] advanced to step 2 (peer-review) → codex
