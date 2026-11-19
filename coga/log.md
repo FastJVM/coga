@@ -4431,3 +4431,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 09:04 v1 [recurring/blocker-reminders] [system] script exited with code 0
 2026-11-19 09:04 v1 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-19 09:04 v1 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
+2026-11-19 09:04 v1 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
