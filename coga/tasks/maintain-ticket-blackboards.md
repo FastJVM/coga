@@ -142,3 +142,12 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/maintain-ticket-blackboards
+
+## Plan
+
+- Detection: script-backed recurring job `blackboard-size` (package template + `blackboard-size/run` workflow); its `ticket.py` runs `coga validate --json`, keeps only `large-blackboard` findings, and reports ref, measured size and threshold (period blackboard + one informational notification). Independent of Dream; no ticket, no block.
+- Cleanup: light stale-note pass on load/resume in the ticket-loop prompt layer, policy owned by `coga/blackboard`.
