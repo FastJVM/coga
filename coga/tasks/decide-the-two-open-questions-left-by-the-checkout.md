@@ -127,6 +127,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1266
 branch: coga/decide-checkout-open-questions
 
 ## Decisions
