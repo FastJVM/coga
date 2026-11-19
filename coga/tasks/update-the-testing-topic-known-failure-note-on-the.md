@@ -1,6 +1,6 @@
 ---
 title: Update the testing topic known-failure note on the control_relay_started leak
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:e0b813a2-cd2e-4aeb-8b49-f98e053a32df
 ---
 
 ## Description
