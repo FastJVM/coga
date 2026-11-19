@@ -88,6 +88,18 @@ Doc-only fixes need no reinstall. Name a re-walk on an untouched copy before
 any fix lands a **reproduction**, and one after a fix a **verification**; only
 the second can mark a finding fixed.
 
+To walk an unmerged branch, install its commit with
+`uv tool install --force --python 3.11 git+https://github.com/FastJVM/coga@<sha>`
+and confirm uv's `(from git+…@<sha>)` clause in its output, because the branch
+and `main` report the same package version. Init detects agent CLIs only with
+`shutil.which` (`init._installed_agent_clis`) and never runs them, so the
+none / only-claude / only-codex / both cases can be driven with inert stub
+executables (`.cmd` on Windows), one case directory each, put on `PATH`. On
+macOS use a minimal `PATH` (case dir plus `/usr/bin:/bin:/usr/sbin:/sbin`) and
+invoke `coga` by absolute path when a real agent shares its bin directory.
+Unit tests compare Python strings and cannot show whether the scan's
+`├── └── ● ○` glyphs render; only an eyeball on the real console can.
+
 No macOS human walk from a pinned `main` commit is on record (checked
 2026-11-11): the recorded macOS walk installed from PyPI, which lagged
 `main`, and the follow-up scoped to repeat it from a full SHA closed without
