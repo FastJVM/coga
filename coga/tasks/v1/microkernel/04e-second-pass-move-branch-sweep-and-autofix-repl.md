@@ -43,9 +43,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: bb6da563-ea9b-4216-9a98-20a5669d3f31
 ---
 
 ## Description
@@ -445,6 +444,81 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+Reviewed at `26d019fa9e3`. Production and test files match `6ec117021`.
+The frozen workflow assigns independent evaluation on control and then owner
+review. The required sections compose under Description and Context. Both
+extractions fit one PR. Resolve the points below before implementation.
+
+### Must resolve before implementation
+
+1. **Define compatibility at the public CLI boundary.** The old
+   `commands/run.py::run` calls replay in the invoking directory.
+   `recurring_autofix._resolve_run_log` resolves relative paths there.
+   `launch_script.run_script_phase` sets the child cwd to
+   `host_repo_root(cfg)`, so replay from a subdirectory can read a different
+   log or report none. Decide which path base to support and test that case
+   through the alias. Ordinary launch adds stderr framing via
+   `_echo_script_iteration` and `run_script_phase`, so scope byte parity to
+   worker messages. `task_env.build_task_env` gives bootstrap a new slug
+   and clears the inherited blackboard. An unchanged sweep worker would
+   add `Task: bootstrap/branch-sweep` to its report, and calls inside a task
+   would now send reports to stdout. Specify report identity and destination
+   and whether dropping the old replay's `runner.run_reported` failure floor
+   for calls inside a task is intentional. Exercise help, invalid operands,
+   successful output and analysis failure via the public aliases.
+
+2. **Specify publication for both sweep entrypoints.** Q4 covers the
+   scheduled child, but `runner.run_entry` publishes even with
+   `scheduled=False`. The proposed manual alias adds a child sweep before
+   the CLI end-of-command sweep, changing timing, retries and potentially
+   stderr. Name the publication owner for the manual route and put the
+   scheduled child's earlier publication into acceptance if approved.
+   Test both boundaries alongside clone execution, exact script attribution
+   and bump failure. `recurring_clone.run_clone_template` clears script
+   attribution, while `runner._bump_script_task` returns 1 on a mismatch.
+
+3. **Put the operative dependencies and defaults in Description.** The
+   activation paragraph treats `v1/why-is-the-code-so-big` as a possible
+   re-audit after 04b–04d, while the blackboard's Coordination note and
+   resolved blocker can be read as a hard dependency. Proposed shape also
+   refers to owner answers that live only on the blackboard. State the
+   dependency and the operative choices for release and follow-up ownership
+   in the spec. At the reviewed tip 04b and 04c are blocked at implement,
+   04d is at owner review with PR #1265, and the simplification ticket is
+   blocked at design. These prerequisites apply to implementation.
+
+4. **Complete the symbol audit and account for 04c's result.**
+   `branchsweep._FULL_OID` is missing from the promotion list even though
+   both `_release_local_draft` and retained `_pr_heads` use it. Specify a
+   shared validator or equivalent validation at each call site. Distinguish
+   core entry points with real consumers from private helpers reachable from
+   retained implementations, and explicitly include the new shared
+   `announce_autofix_ticket` in the audit. If simplification drops the
+   follow-up caller, re-audit `autoclose.dispose_worklist_backlog` against
+   04c. Its current two callers are the autoclose job and the sweep follow-up,
+   so keeping it in core either way needs a new justification.
+
+5. **Require migration execution in the installed-wheel test.**
+   `tests/test_recurring_shims.py` uses a registry stub and a slug-only
+   completion fixture. `tests/test_packaging.py::test_installed_wheel_init_and_phone_home_are_isolated`
+   also patches the registry and requires a branch-sweep registry call.
+   Both suites need deliberate fixture changes, so scope “pass unchanged”
+   to unaffected behaviors. Stub the moved worker in the installed-wheel
+   smoke and exercise both installed aliases. Extend the upgrade runbook
+   beyond the callers regex with concrete old/new manual invocations and
+   shim examples. Follow 04c's stock, customized and parked matrix, including
+   execution of a complete local fork and verification that migration
+   preserves state bytes.
+
+### Optional recommendations
+
+- Report counts against both the named baseline and the pre-change main
+  after prerequisites merge. The second comparison isolates this PR.
+- Pin “latest log” to the current lexicographic filename selection. A
+  fixture with timestamped names and reversed mtimes would disambiguate it.
 
 ## Design step status (2026-11-18)
 
