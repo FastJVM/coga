@@ -1718,6 +1718,27 @@ def test_recurring_sweep_flags_are_rejected_for_subcommands(repo: Path) -> None:
     assert "apply to recurring sweeps" in result.output
 
 
+@pytest.mark.parametrize(("option", "exit_code"), [("--force", 2), ("--interactive", 0)])
+def test_recurring_option_before_list_sweeps_without_withheld_warning(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str],
+    option: str, exit_code: int,
+) -> None:
+    # A leading option makes the exit sweep run; `--interactive` reaches the
+    # read-only list adapter, whose launch call must not leak its policy.
+    from coga.cli import main
+
+    monkeypatch.chdir(repo)
+    sweeps: list[object] = []
+    monkeypatch.setattr(coga_git, "sync_coga_state", sweeps.append)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    monkeypatch.setattr("sys.argv", ["coga", "recurring", option, "list"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == exit_code
+    assert len(sweeps) == 1
+    assert "withheld" not in capfd.readouterr().err
+
+
 def test_repo_recurring_dispatch_uses_current_python_and_ordinary_argv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -313,21 +313,27 @@ def launch(
     No command-line parser objects or process exits cross this boundary.
     """
     if read_only:
-        git.state_sweep_withheld.set(True)
-        if (agent_override is not None or prompt_report or idle_timeout is not None
-                or max_session is not None or return_timeout or script_failure_important):
-            _bail("--read-only cannot be combined with agent, report or REPL options.")
+        # Withhold publication only for this read-only call: the caller's
+        # policy comes back on return and on LaunchBail, so a writer command
+        # that makes an in-process read-only call still sweeps at exit.
+        policy_token = git.state_sweep_withheld.set(True)
         try:
-            cfg = load_config(require_user=False)
-            ref = resolve_target(cfg, task)
-            if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
-                _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
-            ticket = read_ticket(ref)
-            result = run_script_phase(
-                cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
-            )
-        except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
-            _bail(str(exc))
+            if (agent_override is not None or prompt_report or idle_timeout is not None
+                    or max_session is not None or return_timeout or script_failure_important):
+                _bail("--read-only cannot be combined with agent, report or REPL options.")
+            try:
+                cfg = load_config(require_user=False)
+                ref = resolve_target(cfg, task)
+                if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
+                    _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
+                ticket = read_ticket(ref)
+                result = run_script_phase(
+                    cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
+                )
+            except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
+                _bail(str(exc))
+        finally:
+            git.state_sweep_withheld.reset(policy_token)
         return LaunchResult(kind="script", exit_code=result.exit_code)
     with ExitStack() as local_scope:
         if task == "bootstrap/orient" and not prompt_report:
