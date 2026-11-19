@@ -218,6 +218,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1272
 branch: coga/v1-microkernel-04b-blocker-reminders-skill-update-to-edge
 
 ---
@@ -343,6 +344,9 @@ than replaced, run the runbook `compare`/`replace` with `JOB=blocker-reminders`
 before the next sweep, otherwise it fails with `unknown recipe`. No skill-update
 period, parked copy or customized copy exists (`recipe-shim-callers` inventory
 on main: only that file).
+
+Filed as draft `v1/microkernel/roll-out-the-04b-edge-shims-on-this-repo-s-blocker`
+(open-pr step, 2026-11-19); the merge does not discharge it.
 
 ---
 
