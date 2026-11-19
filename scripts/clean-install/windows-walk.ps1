@@ -194,7 +194,26 @@ switch ($Mode) {
         Step 'irm https://astral.sh/uv/install.ps1 | iex' { Install-Uv }
         Step 'uv --version' { uv --version }
         # Install first; UV_PYTHON_DOWNLOADS=never would block this download.
-        Step 'uv python install 3.11' { uv python install 3.11 }
+        # --default and the python check follow the README's Windows steps.
+        Step 'uv python install 3.11 --default' { uv python install 3.11 --default }
+        Step 'python --version' {
+            # Resolve python from the registry PATH a new terminal would get,
+            # so a WindowsApps Store alias ahead of uv's bin directory fails.
+            $saved = $env:Path
+            try {
+                Refresh-MachinePath
+                $source = (Get-Command python -ErrorAction Stop).Source
+                "python: $source"
+                $version = (& python --version 2>&1 | ForEach-Object { "$_" }) -join ' '
+                $version
+                if ($source -like '*\WindowsApps\*' -or $version -notlike 'Python 3.11.*') {
+                    [Console]::Error.WriteLine("python is $source ($version), not uv's Python 3.11")
+                    $global:LASTEXITCODE = 2
+                }
+            } finally {
+                $env:Path = $saved
+            }
+        }
         $env:UV_PYTHON = '3.11'
         $env:UV_PYTHON_DOWNLOADS = 'never'
         Step 'uv python find 3.11' { uv python find 3.11 }

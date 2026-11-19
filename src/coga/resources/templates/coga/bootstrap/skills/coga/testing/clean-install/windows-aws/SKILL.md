@@ -123,11 +123,18 @@ leaks into a walk. As that user, `windows-walk.ps1 walk` runs the same steps
 as `container.sh`:
 
 1. `whoami`, then `git --version`;
-2. uv's official installer (`irm https://astral.sh/uv/install.ps1 | iex`),
-   `uv --version`, `uv python install 3.11`, and **only then**
+2. uv's official installer in a child process, as the README gives it
+   (`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'irm https://astral.sh/uv/install.ps1 | iex'`),
+   `uv --version`, `uv python install 3.11 --default`, and `python --version`
+   resolved from the registry PATH a new terminal gets (it fails on a
+   `WindowsApps` Store alias or a non-3.11 Python). **Only then** come
    `UV_PYTHON=3.11` and `UV_PYTHON_DOWNLOADS=never`, followed by
    `uv python find 3.11` and a 3.11 version check. `never` set earlier would
-   block the install; the macOS walk uses the same order;
+   block the install; the macOS walk uses the same order. Server 2025
+   defaults to `RemoteSigned` and has no Store alias, so a green walk is not
+   evidence for the bare installer failing under a Windows 11 client's
+   `Restricted` policy, nor for the Store alias winning PATH precedence;
+   only a human Windows 11 walk checks those;
 3. `uv tool install --python 3.11 coga` (from PyPI or the wheel);
 4. `coga --version`, then `uv tool list`;
 5. `git init -b main`, a local test identity, then
@@ -213,6 +220,26 @@ repo's agent to a small model (`launch_args = "--model haiku"` in the box's
 test (`coga bump`, `coga mark done`, `coga block`). After each run, check
 that `tasklist` shows no `claude.exe`, `node` or `bash` the session left, and
 that the console modes match their values before the launch.
+
+Harness gotchas from the first attended run (v1/14):
+
+- **Subscription login works instead of an API key.** The owner can run
+  `claude` over the harness `ssh` and log in to their Claude subscription on
+  the box; v1/14's final acceptance used no API key.
+- **Pre-accept folder trust.** Claude Code's first-run folder-trust dialog
+  defaults to "No, exit", so a driver that sends Enter ends the session with
+  a natural exit 1. Accept trust for the throwaway repo in the box's
+  `~/.claude.json` before driving it.
+- **Run the box-side launcher from a Python runner, not a `.cmd`.** The runner
+  should ignore `SIGINT` and `SIGBREAK` and print the console modes before and
+  after. A `.cmd` runner catches Ctrl+C itself ("Terminate batch job"), which
+  is a harness artifact, not a Coga failure.
+- **Defender may need process exclusions** (`python.exe`, `git.exe`,
+  `uv.exe`) as well as path exclusions. The owner adds them, since an agent's
+  attempt is blocked. Remove both lists and verify them empty before teardown.
+- **"claude transcript not found" before login is expected.** An
+  unauthenticated onboarding session writes no transcript, so the
+  `coga usage: claude transcript not found` notice is not a usage bug there.
 
 ## RDP
 
