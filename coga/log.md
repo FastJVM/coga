@@ -4444,3 +4444,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 09:33 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-19 09:33 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [megalaunch] launched via coga megalaunch
 2026-11-19 09:33 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [human:nicktoper] unblocked (asks resolved, still in_progress): Precondition met: PR #1245 (v1/microkernel/04) merged 2026-11-19T01:31Z as 133bb5fe; origin/main now has runner.run_entry, RECIPE_ROOTS and state_sweep. Proceed from current main.
+2026-11-19 10:22 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [agent:claude] advanced to step 2 (peer-review) → codex
