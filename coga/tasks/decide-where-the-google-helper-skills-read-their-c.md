@@ -127,6 +127,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1270
 branch: google-helpers-read-env-credentials
 
 ## Decision (implement step)
@@ -162,6 +163,11 @@ Adjacent, not fixed here (separate Dream findings ks-28/ks-29 in
 `$COGA_COGA_OS_ROOT/skills/coga/<skill>/<script>.py`, a path that no longer exists after
 the package-definition cutover, and to `pip install` "from this skill's dir". No open
 ticket owns that yet; retro should carry it.
+
+### Open-pr handoff
+
+Filed `fix-the-google-skills-dead-helper-invocation-paths` (draft) for the helper
+invocation-path drift above; the merge of this PR does not discharge it.
 
 ## Peer review
 
