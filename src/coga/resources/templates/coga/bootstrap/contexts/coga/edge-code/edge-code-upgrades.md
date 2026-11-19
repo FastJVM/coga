@@ -152,17 +152,24 @@ stock shim to rejoin upstream implementation updates.
 
 ### Recipe-backed recurring shims
 
-The release that moved the blocker-reminders and skill-update jobs to
-`coga_edge.blocker_reminders` and `coga_edge.skill_update` removed both names
-from `coga run`. Shims written before it reach the old code in one of two
-stock shapes, and both stop working once the new wheel is installed:
+The releases that moved the blocker-reminders, skill-update and autoclose
+jobs to `coga_edge.blocker_reminders`, `coga_edge.skill_update` and
+`coga_edge.autoclose` removed the `blocker-reminders`, `skill-update` and
+`autoclose` names from `coga run`. The autoclose move also deleted the core
+module `coga.autoclose`; its shared `## Dev` parsers and `gh` lookups now live
+in `coga.dev_links`. Shims written before these releases reach the old code
+in one of these stock shapes, and all stop working once the new wheel is
+installed:
 
 - the registry shim (PR 827, `368ae080b`) calls
   `run_recipe(load_config(), "<name>", [])` and then runs `coga bump` itself.
   It now fails with `unknown recipe '<name>'`;
+- the autoclose-merged registry shim of PR 898 (`9a7e0dd9a`, current until the
+  autoclose move) additionally runs the repository-wide `branch-sweep` recipe
+  between autoclose and the bump. It fails the same way;
 - the earlier direct shim (PR 705, `df1d06022`) imports
-  `coga.blocker_reminders` or `coga.skill_update`, which no longer exist. It
-  now fails with `ModuleNotFoundError`.
+  `coga.blocker_reminders`, `coga.skill_update` or `coga.autoclose`, which no
+  longer exist. It now fails with `ModuleNotFoundError`.
 
 Either failure leaves the period `in_progress` and reported by the sweep. It
 never runs other code. Copies live wherever recurring creation or a full local
@@ -173,13 +180,14 @@ copy the new packaged shim. Inventory the callers, including customized ones:
 
 <!-- migration:recipe-shim-callers -->
 ```sh
-rg -n --hidden --no-ignore -g '*.py' -e 'coga run (blocker-reminders|skill-update)' -e 'run_recipe\(.*(blocker-reminders|skill-update)' -e 'coga\.(blocker_reminders|skill_update)' coga/recurring coga/tasks
+rg -n --hidden --no-ignore -g '*.py' -e 'coga run (blocker-reminders|skill-update|autoclose)' -e 'run_recipe\(.*"(blocker-reminders|skill-update|autoclose)"' -e 'coga\.(blocker_reminders|skill_update|autoclose)' coga/recurring coga/tasks
 ```
 
-Each stock generation is one exact file per job. Extract both from the
-retained old wheel (`coga/resources/templates/coga/recurring/<name>/ticket.py`)
-or a source clone, and compare every candidate against both with the
-`compare` command above. A candidate matching either is stock:
+Each stock generation is one exact file per job. Extract every generation
+from the retained old wheel
+(`coga/resources/templates/coga/recurring/<name>/ticket.py`) or a source
+clone, and compare every candidate against each with the `compare` command
+above. A candidate matching any is stock:
 
 ```sh
 git show 368ae080b:src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py > /tmp/blocker-reminders-827.py
@@ -189,8 +197,20 @@ git show df1d06022:src/coga/resources/templates/coga/recurring/blocker-reminders
 The skill-update paths are the same with `skill-update` in place of
 `blocker-reminders`. The Git blobs are `035f27cb` (827) and `6f84c384` (705)
 for blocker-reminders, and `4cdc7759` (827) and `039a1d5c` (705) for
-skill-update. After installing the new wheel, set `JOB` to the job name and
-locate its implementation and new shim by importing, which runs nothing:
+skill-update. Autoclose's template is `autoclose-merged`, with a third
+generation:
+
+```sh
+git show 9a7e0dd9a:src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py > /tmp/autoclose-merged-898.py
+git show 368ae080b:src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py > /tmp/autoclose-merged-827.py
+git show df1d06022:src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py > /tmp/autoclose-merged-705.py
+```
+
+Its blobs are `185e3048` (898), `e3e207bd` (827) and `0e81e887` (705). After
+installing the new wheel, set `JOB` to the template name and `MODULE` to its
+module (`blocker_reminders`, `skill_update`, or `autoclose` for
+`autoclose-merged`), then locate the implementation and new shim by
+importing, which runs nothing:
 
 <!-- migration:locate-job -->
 ```sh
@@ -199,16 +219,19 @@ import importlib
 import os
 from pathlib import Path
 from coga.paths import packaged_template_path
-job = os.environ["JOB"]
-module = importlib.import_module("coga_edge." + job.replace("-", "_"))
+module = importlib.import_module("coga_edge." + os.environ["MODULE"])
 print(Path(module.__file__).resolve())
-print(packaged_template_path("recurring", job, "ticket.py"))
+print(packaged_template_path("recurring", os.environ["JOB"], "ticket.py"))
 PY
 ```
 
 Set `NEW_SHIM` to the second printed path, and use the `replace` command above
 for each proven stock candidate, once per baseline. It refuses a customized
-file. Port a customized shim by hand. Its old invocation:
+file. Replacing a stock PR 898 autoclose shim deliberately drops its
+repository-wide branch sweep: the clone-scoped `branch-sweep` template owns
+that cleanup, and autoclose's own disposal still runs the restricted
+owned-branch pass for each ticket it closes. Port a customized shim by hand.
+Its old invocation:
 
 ```python
 code = run_recipe(load_config(), "skill-update", ["--no-pr"])
@@ -229,6 +252,25 @@ raise SystemExit(main(["--no-pr"], scheduled=True))
 second bump would advance the next step. It also writes the shared
 `## Recipe Failure` report and publishes the job's state on exit.
 
+An autoclose shim ports the same way. Its old invocation:
+
+```python
+code = run_recipe(load_config(), "autoclose", [])
+if code:
+    sys.exit(code)
+sys.exit(subprocess.run([sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"]], check=False).returncode)
+```
+
+becomes this, keeping its other customizations:
+
+```python
+from coga_edge.autoclose import main
+
+raise SystemExit(main([], scheduled=True))
+```
+
+Drop a PR 898 `branch-sweep` call rather than porting it.
+
 To keep a reviewed copy instead of following wheel updates, copy the installed
 module over a stock new shim. Do this for a full local override's
 `ticket.py` (never beside a state-only carrier) or a single period's. The copy
@@ -241,8 +283,7 @@ import importlib
 import os
 import shutil
 from pathlib import Path
-job = os.environ["JOB"]
-module = importlib.import_module("coga_edge." + job.replace("-", "_"))
+module = importlib.import_module("coga_edge." + os.environ["MODULE"])
 target = Path(os.environ["CANDIDATE"])
 stock = Path(os.environ["NEW_SHIM"]).read_bytes()
 assert not target.exists() or target.read_bytes() == stock, f"review existing {target}"
@@ -254,8 +295,8 @@ PY
 The copy imports only shared `coga` modules and completes its own step.
 Restoring the stock shim rejoins wheel updates. Inventory the callers again:
 finding none (exit 1) is the expected result. Replacement and the fork copy
-change no state: frontmatter, blackboards, `period_state`, generation and
-frozen workflows stay byte-for-byte.
+change no state: frontmatter, blackboards, `period_state`, generation,
+`retires.md` and frozen workflows stay byte-for-byte.
 
 ### Dream Phase 1/5 reconciliation (recipe removal)
 
@@ -430,7 +471,7 @@ unattended wheel-only upgrade.
    transport, never production phone-home merely to inspect code. The automated
    receipts are `tests/test_edge_distribution.py`: commands above are executed
    against stock/edited/parked legacy copies, the shipped Dream passages and
-   the blocker-reminders and skill-update shims; the reconciled commands and
+   the blocker-reminders, skill-update and autoclose shims; the reconciled commands and
    the replaced or forked periods then run against the installed wheel (and,
    for Dream, a full local fork), with state and unrelated text checked
    byte-for-byte.

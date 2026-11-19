@@ -1225,7 +1225,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     assert len(names) == len(set(names))
     names = set(names)
 
-    assert {"coga_edge/__init__.py", "coga_edge/phone_home.py", "coga_edge/blocker_reminders.py", "coga_edge/skill_update.py"} <= names
+    assert {"coga_edge/__init__.py", "coga_edge/phone_home.py", "coga_edge/blocker_reminders.py", "coga_edge/skill_update.py", "coga_edge/autoclose.py"} <= names
     for name in EXPECTED_BOOTSTRAP_RESOURCES:
         assert name in names
     for packaged in _read_required_resources():
@@ -1375,7 +1375,7 @@ from coga.compose import compose_prompt
 from coga.recurring import frozen_task_delegate, scan_clone_due
 from coga.tasks import read_ticket
 from coga.runner import RECIPES
-from coga_edge import blocker_reminders, skill_update, trim_log
+from coga_edge import autoclose, blocker_reminders, skill_update, trim_log
 real_run = subprocess.run
 def stub_bump(argv, **kwargs):
     if argv[1:4] == ["-m", "coga.cli", "bump"]:
@@ -1415,6 +1415,7 @@ for name in sorted(names - {"phone-home"}):
         with patch.dict(os.environ, task_env), patch.dict(RECIPES, {key: recipe(key) for key in RECIPES}), \
              patch.object(blocker_reminders, "run_blocker_reminders", recipe("blocker-reminders")), \
              patch.object(skill_update, "run_skill_update", recipe("skill-update")), \
+             patch.object(autoclose, "run_autoclose", recipe("autoclose")), \
              patch("coga.config.load_config", return_value=cfg), \
              patch.object(trim_log, "load_config", return_value=cfg), \
              patch.object(trim_log, "trim", return_value="Installed smoke: no retention side effects"), \

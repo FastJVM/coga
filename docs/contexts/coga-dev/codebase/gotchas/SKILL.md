@@ -77,8 +77,11 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   no operands). Date math, frontmatter reads, and acks (blackboard
   `key: value` lines read with `period_state.parse_keys`) stay in each script;
   `tests/fixtures/reminders/` holds worked examples.
-- **`checkout_disposal.py` is imported lazily by `autoclose.py`**, because
-  `branchcleanup` imports `autoclose`'s `## Dev` parsers at load time.
+- **`checkout_disposal` imports `branchsweep` lazily**, because
+  `branchsweep` imports the claim scan and backlog walk from
+  `checkout_disposal` at load time. The `## Dev` parsers in `dev_links.py`
+  import only `taskfile`, so anything (even `step_gate`, which `validate`
+  imports at load) may import them at module level.
 
 ## Code-level hazards
 

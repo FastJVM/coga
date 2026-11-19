@@ -44,7 +44,7 @@ from typer import Exit as NotificationExit
 from coga import usage as usage_tracking
 from coga.aliases import ONBOARDING_TASK
 from coga.agent_skills import refresh_agent_skill_view
-from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.dev_links import parse_branch_name, parse_pr_url, parse_worktree_path
 from coga.bump import (
     Operator,
     OperatorResolutionError,

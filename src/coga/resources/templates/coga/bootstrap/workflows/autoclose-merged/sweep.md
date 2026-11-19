@@ -11,11 +11,11 @@ steps:
 ## sweep
 
 Script-backed recurring task. The period task's reserved `ticket.py` runs the
-registered autoclose recipe to close merged final-step tickets and dispose of
+edge autoclose job (`coga_edge.autoclose`) to close merged final-step tickets and dispose of
 recorded feature checkouts under the shared retire proofs. Refused checkouts
 remain visible with their reasons and manual remedies, and the recurring
 worklist preserves follow-ups across period-task deletion. After autoclose
-succeeds, the script bumps. Unclaimed landed branches are swept per clone by
+succeeds, the job's shared entry bumps. Unclaimed landed branches are swept per clone by
 the `scope: clone` branch-sweep template; see
 [recurring scheduling](context:coga/recurring/scheduling).
 

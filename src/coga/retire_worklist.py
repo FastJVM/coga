@@ -13,7 +13,7 @@ This module owns the file that survives that boundary: `retires.md` beside the
 recurring template's `ticket.md` under `coga/recurring/<name>/`. Two callers
 share it, which is what earns it a home in core:
 
-- the autoclose recipe walks every open entry on every run — hand-run or
+- the autoclose job walks every open entry on every run — hand-run or
   recurring — re-runs the proofs on each (its ticket may be gone by then),
   records the run's preserved closures, and drops the ones discharged;
 - `coga retire` drops its own slug once the retire has actually disposed of
@@ -575,7 +575,7 @@ def _with_ticket_branches(cfg: Config, entry: RetireFollowUp) -> RetireFollowUp:
     An unreadable ticket cannot prove the single-branch record complete, so
     reconciliation refuses rather than discharging potentially hidden debt.
     """
-    from coga.autoclose import parse_branch_names
+    from coga.dev_links import parse_branch_names
     from coga.taskfile import TaskFileError, read_blackboard
     from coga.tasks import list_tasks
 

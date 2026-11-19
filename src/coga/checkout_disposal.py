@@ -18,6 +18,10 @@ Three callers share it, which is what earns it a home in core:
 - the weekly branch sweep, which reuses the claim scan before GC'ing a
   worktree no ticket recorded.
 
+The `retires.md` backlog walk (`dispose_worklist_backlog`) lives here too:
+autoclose drains every open entry with it, and the branch sweep drains the
+entries its own clone owns. `CheckoutOutcome` is what that walk returns.
+
 A finished ticket may own more than one branch (every `## Dev` `branch:`
 line), and its PR may have been closed rather than merged. After the
 merged-PR proofs here, every owned branch still present locally or on the
@@ -32,11 +36,19 @@ the run record; `CheckoutDisposal.reason` picks the one line a human acts on.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import shlex
+import sys
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
-from coga.autoclose import parse_branch_names, parse_worktree_path
+from coga import git
+from coga.dev_links import (
+    parse_branch_names,
+    parse_pr_url,
+    parse_worktree_path,
+    read_dev_blackboard,
+)
 from coga.branchcleanup import (
     BranchCleanupResult,
     WorktreeCleanupResult,
@@ -48,7 +60,16 @@ from coga.branchcleanup import (
 )
 from coga.config import Config, ConfigError, load_config
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.retire_worklist import _recorded_relation
+from coga.retire_worklist import (
+    RetireFollowUp,
+    RetireWorklistError,
+    _recorded_relation,
+    branch_owner,
+    is_primary_checkout,
+    owner_branch_remains,
+    parse_worklist,
+    worktree_owner,
+)
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
 from coga.ticket import TicketError
@@ -422,8 +443,313 @@ def _normalized_worktree(root: Path, recorded: str | None) -> Path | None:
         return path.absolute()
 
 
+def describe_checkout(branch: str | None, worktree: str | None) -> str:
+    """What is still on disk for one recorded checkout, for a report line."""
+    parts = []
+    if worktree:
+        parts.append(f"worktree `{worktree}`")
+    if branch:
+        parts.append(f"branch `{branch}`")
+    return ", ".join(parts)
+
+
+@dataclass
+class CheckoutOutcome:
+    """One recorded checkout the disposal phase judged, and what became of it.
+
+    Candidates are the tickets this sweep closed (`title` set) and the open
+    `retires.md` entries carried over from earlier runs (`title` None). A
+    backlog entry's ticket may already be gone — retire preserved the checkout
+    and then deleted the ticket — so `ticket_exists` says whether the manual
+    `coga retire <slug>` still resolves.
+    """
+
+    slug: str
+    title: str | None
+    branch: str | None
+    worktree: str | None
+    ticket_exists: bool
+    disposal: CheckoutDisposal
+    home: git.CheckoutRelation | None = None
+    """`git.classify_checkout`'s verdict, set only when the worktree proof
+    refused the path as not a linked worktree of this repository."""
+    worktree_path: Path | None = None
+    """The recorded `worktree:` resolved against the sweep's git root."""
+    branch_owner: Path | None = None
+    """The other repository a backlog entry's branch lives in, set only when
+    its worktree is gone and the proofs here therefore never ran."""
+    owner_unreadable: bool = False
+    """`branch_owner` is only the recorded path: it is gone or git cannot
+    read it, so nobody knows where the branch lives now."""
+
+    @property
+    def disposed(self) -> bool:
+        return self.disposal.disposed
+
+    @property
+    def checkout_state(self) -> str:
+        return describe_checkout(self.branch, self.worktree)
+
+    @property
+    def not_linked(self) -> bool:
+        result = self.disposal.worktree_result
+        return result is not None and result.not_linked
+
+    @property
+    def manual_command(self) -> str:
+        """What a human does about a preserved checkout, as one actionable remedy.
+
+        `coga retire <slug>` only helps when its own proofs could pass from
+        this repository and the task still exists here. A worktree refused as
+        not a linked worktree of this repository is judged again
+        (`git.classify_checkout`) so the remedy names where it can be removed:
+        another repository's linked worktree from its owning checkout, and an
+        independent clone or a path git cannot read by hand. A worktree
+        already gone leaves only the branch to name.
+        """
+        retire = f"`coga retire {self.slug}`"
+        branch_left = self.branch is not None and self.disposal.local_branch_remains
+        if (
+            self.owner_unreadable
+            and self.branch_owner is not None
+            and self.branch is not None
+        ):
+            return (
+                f"the recorded owning clone `{self.branch_owner}` is gone or "
+                "not a repository git can read, so where branch "
+                f"`{self.branch}` lives is unknown: locate the clone that holds "
+                "it and correct the entry's `owner` in `retires.md` to that "
+                "clone's main working tree, or, once you have verified the "
+                "branch landed and deleted it there by hand, remove the entry"
+            )
+        if self.branch_owner is not None and self.branch is not None:
+            owner = shlex.quote(str(self.branch_owner))
+            return (
+                f"the branch lives in the owning clone `{self.branch_owner}`, "
+                "not this repository: verify there that it landed, then delete "
+                f"it by hand (`git -C {owner} branch -d {shlex.quote(self.branch)}`)"
+            )
+        if self.not_linked and self.worktree_path is not None:
+            path = shlex.quote(str(self.worktree_path))
+            home = self.home
+            if home is not None and home.kind == "foreign-linked":
+                owner = shlex.quote(str(home.owner))
+                return (
+                    f"the worktree belongs to `{home.owner}`, not this "
+                    f"repository: {retire} fails the same proof from here and "
+                    "the task does not exist there — inspect it first with "
+                    f"`git -C {owner} worktree list --porcelain` and "
+                    f"`git -C {path} status --short --untracked-files=all --ignored`; "
+                    f"verify it still holds recorded branch `{self.branch}` and "
+                    "preserve tracked, untracked, and ignored local data. "
+                    "Before removing anything, verify no live ticket or open PR "
+                    "claims it, and prove the branch landed or still equals its "
+                    "recorded merged PR head in the owning repository. "
+                    "Plan worktree and branch cleanup together: a squash- or "
+                    "rebase-merged tip may require guarded forced branch deletion "
+                    "after exact merged-head verification; ordinary branch -d "
+                    "can refuse it. Keep the worktree until that plan is verified."
+                )
+            if home is not None and home.kind in {"primary", "foreign-primary"}:
+                return (
+                    f"`{self.worktree_path}` is a primary checkout — preserve it; "
+                    "inspect the recorded branch in that repository "
+                    "(see `coga/checkout-cleanup`, \"Primary checkouts and other clones\")"
+                )
+            what = "not a git worktree git can read"
+            return (
+                f"`{self.worktree_path}` is {what}, which no proof removes — "
+                f"inspect and remove it by hand{self._branch_only(branch_left)}"
+            )
+        worktree_result = self.disposal.worktree_result
+        if (
+            branch_left
+            and self.disposal.claim is None
+            and worktree_result is not None
+            and worktree_result.already_gone
+        ):
+            return "the worktree is already gone" + self._branch_only(True)
+        if self.ticket_exists:
+            return retire
+        return "dispose of the recorded worktree and branch by hand"
+
+    def _branch_only(self, branch_left: bool) -> str:
+        if not branch_left:
+            return ""
+        if self.ticket_exists:
+            return f"; then `coga retire {self.slug}` for branch `{self.branch}`"
+        return (
+            f"; then delete branch `{self.branch}` by hand "
+            f"(`git branch -d {shlex.quote(self.branch or '')}`)"
+        )
+
+
+def dispose_worklist_backlog(
+    cfg: Config,
+    root: Path,
+    worklists: list[Path],
+    *,
+    seen: set[str],
+    echo: Callable[[str], Callable[[str], None]],
+    include: Callable[[RetireFollowUp], bool] | None = None,
+    label: str = "autoclose",
+) -> list[CheckoutOutcome]:
+    """Judge every open `retires.md` entry under the shared retire proofs.
+
+    The backlog half of autoclose's disposal phase, shared with the
+    clone-scoped branch sweep, which passes `include=retire_worklist.owned_here`
+    to judge only the entries its own clone owns. The caller has already
+    checked that `root` is on the control branch. Slugs in `seen` are skipped
+    and every walked slug is added to it. Each entry goes through
+    `checkout_disposal.dispose_checkout`, unless its branch lives in another
+    clone (`owner_held_branch`); nothing here rewrites a worklist.
+    """
+    outcomes: list[CheckoutOutcome] = []
+    for path in worklists:
+        try:
+            _, entries = parse_worklist(path.read_text(encoding="utf-8"))
+        except (RetireWorklistError, OSError, UnicodeError) as exc:
+            # The caller's reconcile fails the run loudly over the same file;
+            # here it only means its backlog is not walked this time.
+            sys.stderr.write(f"[{label}] backlog in {path} not walked: {exc}\n")
+            continue
+        for entry in entries:
+            if entry.slug in seen or (include is not None and not include(entry)):
+                continue
+            seen.add(entry.slug)
+            branch = entry.branch or None
+            # An entry recorded before the primary-checkout rule may still
+            # name it; only the branch half is debt (and the reconcile drops
+            # the entry once that is gone too).
+            worktree = (
+                None
+                if is_primary_checkout(root, entry.worktree)
+                else entry.worktree or None
+            )
+            if branch is None and worktree is None and not entry.branches:
+                continue
+            ticket_exists, pr_url, owned = _entry_ticket(cfg, entry.slug)
+            held = owner_held_branch(
+                root,
+                entry,
+                branch=branch,
+                worktree=worktree,
+                ticket_exists=ticket_exists,
+                echo=echo(entry.slug),
+            )
+            if held is not None:
+                outcomes.append(held)
+                continue
+            outcomes.append(
+                CheckoutOutcome(
+                    slug=entry.slug,
+                    title=None,
+                    branch=branch,
+                    worktree=worktree,
+                    ticket_exists=ticket_exists,
+                    disposal=dispose_checkout(
+                        cfg,
+                        root,
+                        branch=branch,
+                        worktree=worktree,
+                        pr_url=pr_url,
+                        echo=echo(entry.slug),
+                        owned_branches=tuple(dict.fromkeys((*entry.branches, *owned))),
+                    ),
+                )
+            )
+    return outcomes
+
+
+def owner_held_branch(
+    root: Path,
+    entry: RetireFollowUp,
+    *,
+    branch: str | None,
+    worktree: str | None,
+    ticket_exists: bool,
+    echo: Callable[[str], None],
+) -> CheckoutOutcome | None:
+    """Judge a backlog entry whose branch lives in another clone, without proofs.
+
+    Applies once the recorded worktree is gone or is a primary checkout,
+    and the entry's recorded or inferred `owner` is
+    not this repository (`retire_worklist.branch_owner`): the proofs here would
+    find no local branch and call it disposed while the owning clone still
+    holds it. The outcome is preserved while the owner still lists the branch
+    or cannot be read (`retire_worklist.owner_branch_remains`, the verdict
+    `is_discharged` gives the entry too) and names the by-hand delete in the
+    owning clone — except when the recorded owner path itself is gone or
+    unreadable (`retire_worklist.branch_owner` has no answer), where that
+    command could not run: the outcome is marked `owner_unreadable` and asks
+    for the owner to be located instead. `None` leaves the entry to the
+    ordinary proofs.
+    """
+    if branch is None:
+        return None
+    if worktree is not None and resolve_worktree_path(root, worktree).is_dir():
+        return None
+    if not entry.owner:
+        entry = replace(entry, owner=worktree_owner(root, entry.worktree))
+    remains = owner_branch_remains(root, entry)
+    if remains is None:
+        return None
+    owner = Path(entry.owner)
+    unreadable = remains and branch_owner(root, entry.owner) is None
+    disposal = CheckoutDisposal(branch=branch, worktree=None)
+    disposal.local_branch_remains = remains
+    if unreadable:
+        message = (
+            f"Branch cleanup: {branch!r} was recorded in the owning clone "
+            f"{owner}, which is gone or cannot be read — left in place."
+        )
+    elif remains:
+        message = (
+            f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
+            "not this repository (or its branches cannot be read) — left in place."
+        )
+    else:
+        message = (
+            f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
+        )
+    disposal.notes.append(message)
+    echo(message)
+    return CheckoutOutcome(
+        slug=entry.slug,
+        title=None,
+        branch=branch,
+        worktree=None,
+        ticket_exists=ticket_exists,
+        disposal=disposal,
+        branch_owner=owner,
+        owner_unreadable=unreadable,
+    )
+
+
+def _entry_ticket(
+    cfg: Config, slug: str
+) -> tuple[bool, str | None, tuple[str, ...]]:
+    """Whether a worklist entry's ticket still exists, its `pr:` link, and
+    every `branch:` it records.
+
+    Exact `id_slug` match only: the CLI's unique-prefix resolution would let a
+    deleted `foo` resolve to a newer `foo-followup` and borrow its `pr:`.
+    """
+    ref = next((t for t in list_tasks(cfg) if t.id_slug == slug), None)
+    if ref is None:
+        return False, None, ()
+    blackboard = read_dev_blackboard(ref.ticket_path)
+    if blackboard is None:
+        return True, None, ()
+    return True, parse_pr_url(blackboard), tuple(parse_branch_names(blackboard))
+
+
 __all__ = [
     "CheckoutDisposal",
+    "CheckoutOutcome",
+    "describe_checkout",
     "dispose_checkout",
+    "dispose_worklist_backlog",
     "live_checkout_claim",
+    "owner_held_branch",
 ]

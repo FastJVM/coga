@@ -437,7 +437,7 @@ def _warn_stranded_task_state(cfg: Config, ref: TaskRef) -> None:
     Writes to stderr only; several commands parse bump's stdout.
     """
     try:
-        from coga.autoclose import parse_branch_name, parse_worktree_path
+        from coga.dev_links import parse_branch_name, parse_worktree_path
         from coga.github_preflight import (
             stranded_task_state_paths,
             stranded_task_state_remediation,

@@ -1371,7 +1371,7 @@ def test_create_unreadable_resource_names_override(
 def test_created_ticket_carries_guide_through_rewrite_and_composition(
     repo: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from coga.autoclose import parse_branch_names, parse_pr_url, parse_worktree_path
+    from coga.dev_links import parse_branch_names, parse_pr_url, parse_worktree_path
     from coga.compose import _extract_section, compose_prompt
     from coga.taskfile import body_sections, split_body
     from coga.tasks import resolve_task

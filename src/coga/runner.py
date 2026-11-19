@@ -14,7 +14,6 @@ from typing import Protocol, TextIO, cast
 
 import typer
 
-from coga.autoclose import run_autoclose_recipe
 from coga.blackboard import append_blackboard_report
 from coga.branchsweep import run_branch_sweep_recipe
 from coga.checkouts import run_prepare_checkout_recipe
@@ -41,7 +40,6 @@ class RecipeFn(Protocol):
 
 
 RECIPES: dict[str, RecipeFn] = {
-    "autoclose": run_autoclose_recipe,
     "branch-sweep": run_branch_sweep_recipe,
     "recurring-scan": run_recurring_scan_recipe,
     "autofix-analyze": run_autofix_analyze_recipe,

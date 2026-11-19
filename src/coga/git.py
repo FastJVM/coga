@@ -45,7 +45,7 @@ branch absent). It raises `StateRegressionError` when the write was refused,
 be re-read to tell; in every case the working file stays as written and the
 next sweep retries it.
 
-Subprocess usage mirrors `autoclose.py` (`gh` shell-out): no third-party git
+Subprocess usage mirrors `dev_links.py` (`gh` shell-out): no third-party git
 binding, just `subprocess.run` with `check=False` and explicit error handling.
 """
 

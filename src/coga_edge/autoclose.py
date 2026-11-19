@@ -9,13 +9,21 @@ The ticket blackboard template documents PR linkage: a `pr:` line
 under `## Dev` on the blackboard. We parse it directly; coga-the-CLI
 treats the blackboard as plain text on purpose.
 
-The `autoclose-merged` recurring ticket's `ticket.py` is the scheduled caller:
-it runs `sweep_merged` to finish tickets whose PR merged out of band. The same
-implementation remains available explicitly as the registered `coga run
-autoclose` command; there is intentionally no dedicated top-level command and
-no launch-time or status-time side effect. Accepted tradeoff: absent an
-explicit run, a ticket merged today won't auto-close until the next sweep
-(≤24h lag).
+Wheel-owned edge code (`coga/edge-code`). The `autoclose-merged` recurring
+ticket's `ticket.py` is the scheduled caller: it runs `main`, which sweeps
+under the shared report → publish → bump entry (`runner.run_entry`), to finish
+tickets whose PR merged out of band. `python -m coga_edge.autoclose` runs the
+same sweep by hand and never advances a task; the `coga autoclose` alias
+launches the period instead. There is intentionally no registered recipe, no
+dedicated top-level command and no launch-time or status-time side effect.
+Accepted tradeoff: absent an explicit run, a ticket merged today won't
+auto-close until the next sweep (≤24h lag). This module imports only the
+standard library and shared `coga` infrastructure, so a copy of this single
+file over the recurring `ticket.py` is a complete local fork.
+
+The `## Dev` parsers and `gh` lookups it reads are shared core
+(`coga.dev_links`), as is the `retires.md` backlog walk the branch sweep also
+runs (`coga.checkout_disposal.dispose_worklist_backlog`).
 
 `coga status` deliberately does NOT call this — it is a read-only view
 (principle 6, fail loud, forbids `status`/`show`/`validate` from mutating
@@ -58,50 +66,53 @@ from __future__ import annotations
 import json
 import os
 import re
-import shlex
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from coga import git
 from coga.blackboard import append_blackboard_report
-from coga.mark import mark_done
+from coga.branchcleanup import resolve_worktree_path
+from coga.checkout_disposal import (
+    CheckoutOutcome,
+    describe_checkout,
+    dispose_checkout,
+    dispose_worklist_backlog,
+    owner_held_branch,
+)
 from coga.config import Config
+from coga.dev_links import (
+    GhError,
+    parse_branch_name,
+    parse_branch_names,
+    parse_pr_number,
+    parse_pr_url,
+    parse_worktree_path,
+    pr_state,
+    read_dev_blackboard,
+)
+from coga.mark import mark_done
 from coga.notification import post, preflight_post
 from coga.retire_worklist import (
     RetireFollowUp,
     RetireWorklistError,
     WorklistChange,
     all_worklists,
-    branch_owner,
     is_primary_checkout,
-    owner_branch_remains,
-    parse_worklist,
     reconcile_worklist,
     worklist_for_period_task,
     worktree_owner,
 )
+from coga.runner import run_entry
 from coga.task_env import blackboard_from_env
-from coga.taskfile import (
-    TaskFileError,
-    read_blackboard,
-    split_body,
-)
+from coga.taskfile import TaskFileError, split_body
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
-
-if TYPE_CHECKING:
-    from coga.checkout_disposal import CheckoutDisposal
-
-
-class GhError(Exception):
-    """Raised when `gh` is missing, unauthed, or returns a non-zero exit."""
 
 
 RETIRE_REPORT_HEADING = "## Autoclose Sweep: retire follow-ups"
@@ -172,147 +183,7 @@ class ClosedTicket:
     @property
     def checkout_state(self) -> str:
         """What is still on disk, rendered for the report line."""
-        return _checkout_state(self.branch, self.worktree)
-
-
-def _checkout_state(branch: str | None, worktree: str | None) -> str:
-    parts = []
-    if worktree:
-        parts.append(f"worktree `{worktree}`")
-    if branch:
-        parts.append(f"branch `{branch}`")
-    return ", ".join(parts)
-
-
-@dataclass
-class CheckoutOutcome:
-    """One recorded checkout the disposal phase judged, and what became of it.
-
-    Candidates are the tickets this sweep closed (`title` set) and the open
-    `retires.md` entries carried over from earlier runs (`title` None). A
-    backlog entry's ticket may already be gone — retire preserved the checkout
-    and then deleted the ticket — so `ticket_exists` says whether the manual
-    `coga retire <slug>` still resolves.
-    """
-
-    slug: str
-    title: str | None
-    branch: str | None
-    worktree: str | None
-    ticket_exists: bool
-    disposal: CheckoutDisposal
-    home: git.CheckoutRelation | None = None
-    """`git.classify_checkout`'s verdict, set only when the worktree proof
-    refused the path as not a linked worktree of this repository."""
-    worktree_path: Path | None = None
-    """The recorded `worktree:` resolved against the sweep's git root."""
-    branch_owner: Path | None = None
-    """The other repository a backlog entry's branch lives in, set only when
-    its worktree is gone and the proofs here therefore never ran."""
-    owner_unreadable: bool = False
-    """`branch_owner` is only the recorded path: it is gone or git cannot
-    read it, so nobody knows where the branch lives now."""
-
-    @property
-    def disposed(self) -> bool:
-        return self.disposal.disposed
-
-    @property
-    def checkout_state(self) -> str:
-        return _checkout_state(self.branch, self.worktree)
-
-    @property
-    def not_linked(self) -> bool:
-        result = self.disposal.worktree_result
-        return result is not None and result.not_linked
-
-    @property
-    def manual_command(self) -> str:
-        """What a human does about a preserved checkout, as one actionable remedy.
-
-        `coga retire <slug>` only helps when its own proofs could pass from
-        this repository and the task still exists here. A worktree refused as
-        not a linked worktree of this repository is judged again
-        (`git.classify_checkout`) so the remedy names where it can be removed:
-        another repository's linked worktree from its owning checkout, and an
-        independent clone or a path git cannot read by hand. A worktree
-        already gone leaves only the branch to name.
-        """
-        retire = f"`coga retire {self.slug}`"
-        branch_left = self.branch is not None and self.disposal.local_branch_remains
-        if (
-            self.owner_unreadable
-            and self.branch_owner is not None
-            and self.branch is not None
-        ):
-            return (
-                f"the recorded owning clone `{self.branch_owner}` is gone or "
-                "not a repository git can read, so where branch "
-                f"`{self.branch}` lives is unknown: locate the clone that holds "
-                "it and correct the entry's `owner` in `retires.md` to that "
-                "clone's main working tree, or, once you have verified the "
-                "branch landed and deleted it there by hand, remove the entry"
-            )
-        if self.branch_owner is not None and self.branch is not None:
-            owner = shlex.quote(str(self.branch_owner))
-            return (
-                f"the branch lives in the owning clone `{self.branch_owner}`, "
-                "not this repository: verify there that it landed, then delete "
-                f"it by hand (`git -C {owner} branch -d {shlex.quote(self.branch)}`)"
-            )
-        if self.not_linked and self.worktree_path is not None:
-            path = shlex.quote(str(self.worktree_path))
-            home = self.home
-            if home is not None and home.kind == "foreign-linked":
-                owner = shlex.quote(str(home.owner))
-                return (
-                    f"the worktree belongs to `{home.owner}`, not this "
-                    f"repository: {retire} fails the same proof from here and "
-                    "the task does not exist there — inspect it first with "
-                    f"`git -C {owner} worktree list --porcelain` and "
-                    f"`git -C {path} status --short --untracked-files=all --ignored`; "
-                    f"verify it still holds recorded branch `{self.branch}` and "
-                    "preserve tracked, untracked, and ignored local data. "
-                    "Before removing anything, verify no live ticket or open PR "
-                    "claims it, and prove the branch landed or still equals its "
-                    "recorded merged PR head in the owning repository. "
-                    "Plan worktree and branch cleanup together: a squash- or "
-                    "rebase-merged tip may require guarded forced branch deletion "
-                    "after exact merged-head verification; ordinary branch -d "
-                    "can refuse it. Keep the worktree until that plan is verified."
-                )
-            if home is not None and home.kind in {"primary", "foreign-primary"}:
-                return (
-                    f"`{self.worktree_path}` is a primary checkout — preserve it; "
-                    "inspect the recorded branch in that repository "
-                    "(see `coga/checkout-cleanup`, \"Primary checkouts and other clones\")"
-                )
-            what = "not a git worktree git can read"
-            return (
-                f"`{self.worktree_path}` is {what}, which no proof removes — "
-                f"inspect and remove it by hand{self._branch_only(branch_left)}"
-            )
-        worktree_result = self.disposal.worktree_result
-        if (
-            branch_left
-            and self.disposal.claim is None
-            and worktree_result is not None
-            and worktree_result.already_gone
-        ):
-            return "the worktree is already gone" + self._branch_only(True)
-        if self.ticket_exists:
-            return retire
-        return "dispose of the recorded worktree and branch by hand"
-
-    def _branch_only(self, branch_left: bool) -> str:
-        if not branch_left:
-            return ""
-        if self.ticket_exists:
-            return f"; then `coga retire {self.slug}` for branch `{self.branch}`"
-        return (
-            f"; then delete branch `{self.branch}` by hand "
-            f"(`git branch -d {shlex.quote(self.branch or '')}`)"
-        )
+        return describe_checkout(self.branch, self.worktree)
 
 
 OPEN_STATUSES = frozenset({"active", "in_progress"})
@@ -365,293 +236,9 @@ class AutocloseResult:
         return [item for item in self.closed if item.unanswered_threads]
 
 
-_DEV_SECTION_RE = re.compile(
-    r"^##\s+Dev\s*\n(.*?)(?=\n##\s|\Z)",
-    re.MULTILINE | re.DOTALL,
-)
-# Tolerate an optional `- ` list prefix, exactly like `_BRANCH_LINE_RE` below:
-# `## Dev` lines are written both bare (`pr: <url>`) and bulleted
-# (`- pr: <url>`), and the bulleted shape is perfectly natural. Without the
-# prefix group a bulleted `pr:` line is invisible to the sweep, so a merged
-# final-step ticket is silently skipped and left stranded `in_progress`. The
-# same sentence applied to a trailing annotation (`pr: <url> (no CI here)`),
-# which an anchored `(\S+)$` capture rejected while the `branch:` / `worktree:`
-# siblings tolerated it. Capture the rest of the line like they do and
-# normalize in `parse_pr_url`. Spell the surrounding runs `[ \t]` rather than
-# `\s`: `\s` matches newlines, so a non-greedy `(.+?)` on an empty `pr:` line
-# would reach past it and capture the next non-blank line, which is not a
-# `pr:` line at all.
-_PR_LINE_RE = re.compile(r"^ {0,3}(?:-[ \t]*)?pr:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
-_PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # The GraphQL query needs the base repository's coordinates, which the recorded
 # PR URL carries even when the PR comes from a fork.
 _PR_COORDINATES_RE = re.compile(r"/([^/]+)/([^/]+)/pull/(\d+)")
-# The `branch:` line is written inconsistently across existing tickets:
-# `branch: my-branch`, `- branch: \`my-branch\``, ``branch: `my-branch` ``.
-# Tolerate an optional `- ` list prefix and capture the rest of the line; the
-# surrounding backticks/whitespace are normalized in `parse_branch_name`. A
-# leading backtick delimits the value through its matching closing backtick;
-# bare values still consume the whole remainder of the line.
-_BRANCH_LINE_RE = re.compile(r"^ {0,3}(?:-[ \t]*)?branch:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
-_CODE_FENCE_RE = re.compile(
-    r"^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+|>[ \t]*)*(`{3,}|~{3,})(.*)$"
-)
-# The `worktree:` line follows the same accreted shapes as `branch:` (bare,
-# list-item, backtick-wrapped), so parse it the same way. The open-pr command
-# needs it to locate the feature checkout it pushes from.
-_WORKTREE_LINE_RE = re.compile(r"^ {0,3}(?:-[ \t]*)?worktree:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
-
-
-def _delimited_value(raw: str) -> str:
-    """Normalize one captured `## Dev` line value.
-
-    A leading backtick delimits the value through its matching closing
-    backtick, which is what lets a caller append a trailing annotation
-    (``branch: `name` (Magicator repo)``). An unmatched backtick falls back to
-    whole-line stripping, so a half-written line still yields something usable.
-    Shared by the `pr:` / `branch:` / `worktree:` parsers so the three fields
-    cannot drift apart on the next edit.
-    """
-    value = raw.strip()
-    closing_tick = value.find("`", 1) if value.startswith("`") else -1
-    if closing_tick >= 0:
-        return value[1:closing_tick].strip()
-    return value.strip("`").strip()
-
-
-def _dev_section_text(blackboard_text: str) -> str:
-    """Read the live Dev section without interpreting fenced examples."""
-    section = _DEV_SECTION_RE.search(_unfenced_text(blackboard_text))
-    if not section:
-        return ""
-    return section.group(1)
-
-
-def dev_heading_line(blackboard_text: str) -> int | None:
-    """Index of the live `## Dev` heading in `splitlines(keepends=True)`.
-
-    Fenced examples are ignored, as by the `## Dev` parsers.
-    """
-    text = _unfenced_text(blackboard_text)
-    section = _DEV_SECTION_RE.search(text)
-    if not section:
-        return None
-    return len(text[:section.start()].splitlines(keepends=True))
-
-
-def _unfenced_text(blackboard_text: str) -> str:
-    """The text with each fenced line blanked, keeping one line per line."""
-    # Examples cannot create ownership or terminate the real Dev section.
-    # A shorter or differently marked fence does not close the current one.
-    lines: list[str] = []
-    marker = ""
-    for line in blackboard_text.splitlines(keepends=True):
-        fence = _CODE_FENCE_RE.match(line.rstrip("\r\n"))
-        if marker:
-            if (
-                fence
-                and fence.group(1)[0] == marker[0]
-                and len(fence.group(1)) >= len(marker)
-                and not fence.group(2).strip()
-            ):
-                marker = ""
-            lines.append("\n")
-        elif fence and (fence.group(1)[0] == "~" or "`" not in fence.group(2)):
-            marker = fence.group(1)
-            lines.append("\n")
-        else:
-            lines.append(line)
-    return "".join(lines)
-
-
-def parse_pr_url(blackboard_text: str) -> str | None:
-    """Return the `pr:` URL under `## Dev`, or None if absent.
-
-    Normalizes like `parse_branch_name` via `_delimited_value`, then keeps only
-    the first whitespace-delimited token, since a URL never contains
-    whitespace — so a trailing annotation (`pr: <url> (no CI configured)`)
-    still yields the bare URL. Returns None for a missing, empty, or
-    placeholder value.
-
-    Scans *every* `pr:` line rather than only the first. The old anchored regex
-    simply failed to match a placeholder line and kept searching; rejecting it
-    in the guard instead would strand a ticket that records `pr: (not opened
-    yet)` and later appends the real link below it — the same silent skip this
-    parser exists to prevent.
-    """
-    section = _dev_section_text(blackboard_text)
-    for match in _PR_LINE_RE.finditer(section):
-        tokens = _delimited_value(match.group(1)).split()
-        if tokens and _looks_like_pr_url(tokens[0]):
-            return tokens[0]
-    return None
-
-
-def _looks_like_pr_url(value: str) -> bool:
-    """Whether a `pr:` capture is a link rather than a placeholder.
-
-    `parse_worktree_path` rejects placeholders the same way, but here the stakes
-    are higher: the old `$`-anchored regex rejected `pr: (not opened yet)` and
-    `pr: none - blocked on CI` by accident, and without a guard those captures
-    reach `gh pr view`, whose `GhError` aborts the *whole* autoclose sweep with
-    exit 2 instead of skipping one ticket. Require the documented full PR URL
-    shape: downstream consumers also need its `/pull/<n>` component.
-    """
-    if not value or value.startswith("("):
-        return False
-    return parse_pr_number(value) is not None
-
-
-def parse_branch_name(blackboard_text: str) -> str | None:
-    """Return the normalized `branch:` name under `## Dev`, or None if absent.
-
-    Normalizes the inconsistent shapes the convention has accreted: tolerates a
-    leading "- " list prefix. A leading backtick delimits the value through the
-    next backtick, allowing trailing annotations; an unmatched backtick falls
-    back to whole-line normalization. Bare values still consume the entire line.
-    Returns None for a missing or empty branch line.
-    """
-    return next(iter(parse_branch_names(blackboard_text)), None)
-
-
-def parse_branch_names(blackboard_text: str) -> list[str]:
-    """Every `branch:` name under `## Dev`, in order and without duplicates.
-
-    A ticket explicitly owns each branch it records this way; terminal branch
-    cleanup (`branchsweep`) treats the list as the ticket's ownership claim.
-    `parse_branch_name` keeps returning the first, which is the checkout the
-    workflow gates and `coga open-pr` act on. A prose mention elsewhere in the
-    ticket is never ownership.
-    """
-    section = _dev_section_text(blackboard_text)
-    names = (
-        _delimited_value(match.group(1))
-        for match in _BRANCH_LINE_RE.finditer(section)
-    )
-    return list(dict.fromkeys(name for name in names if name))
-
-
-def parse_worktree_path(blackboard_text: str) -> str | None:
-    """Return the normalized `worktree:` path under `## Dev`, or None if absent.
-
-    Mirrors `parse_branch_name`'s normalization: a leading backtick delimits the
-    value through the next backtick, while bare values and unmatched backticks
-    retain whole-line handling so paths with spaces remain valid. Returns None
-    for a missing or empty worktree line, or a placeholder like
-    `(not yet created)`.
-    """
-    section = _dev_section_text(blackboard_text)
-    match = _WORKTREE_LINE_RE.search(section)
-    if not match:
-        return None
-    path = _delimited_value(match.group(1))
-    if not path or path.startswith("("):
-        return None
-    return path
-
-
-def parse_pr_number(url: str) -> int | None:
-    m = _PR_NUMBER_RE.search(url)
-    return int(m.group(1)) if m else None
-
-
-def pr_state(url: str) -> str:
-    """Query `gh` for the PR's state. Raises GhError on any failure.
-
-    Returns the raw state string ("MERGED", "CLOSED", "OPEN").
-    """
-    data = pr_view(url, "state")
-    return str(data.get("state", ""))
-
-
-def pr_head(url: str) -> tuple[str, str]:
-    """Return the PR's ``(head branch, head commit)`` from GitHub.
-
-    Cleanup callers use the exact head commit to prove a branch has not been
-    reused or advanced since the recorded PR merged. Missing fields are an
-    error: treating an incomplete response as authorization would make a stale
-    ``pr:`` line destructive.
-    """
-    data = pr_view(url, "headRefName,headRefOid")
-    branch = str(data.get("headRefName", "")).strip()
-    oid = str(data.get("headRefOid", "")).strip()
-    if not branch or not oid:
-        raise GhError(
-            f"`gh pr view {url}` returned no complete headRefName/headRefOid"
-        )
-    return branch, oid
-
-
-def prs_for_head(
-    branch: str, state: str, *, repository: str | None = None
-) -> list[dict[str, object]]:
-    """Return GitHub PRs for one head branch and state.
-
-    Branch retirement and the repository-wide branch sweep share this lookup:
-    neither may dispose of a branch while another PR still has that head.
-    """
-    scope = ["--repo", repository, "--limit", "1000"] if repository else []
-    try:
-        result = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "list",
-                "--head",
-                branch,
-                "--state",
-                state,
-                "--json",
-                "number,headRefOid",
-                *scope,
-            ],
-            capture_output=True,
-            text=True, encoding="utf-8",
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise GhError("`gh` not found on PATH") from exc
-    if result.returncode != 0:
-        raise GhError(
-            f"`gh pr list --head {branch} --state {state}` failed "
-            f"(exit {result.returncode}): {result.stderr.strip()}"
-        )
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise GhError(f"`gh pr list --head {branch}` returned non-JSON: {exc}") from exc
-    if not isinstance(data, list):
-        raise GhError(f"`gh pr list --head {branch}` returned unexpected JSON")
-    if repository and (len(data) >= 1000 or any(not isinstance(item, dict) for item in data)):
-        raise GhError(f"`gh pr list --head {branch}` returned incomplete PR evidence")
-    return [item for item in data if isinstance(item, dict)]
-
-
-def pr_view(url: str, fields: str) -> dict[str, object]:
-    """Query selected JSON fields for one PR, normalizing CLI failures."""
-    try:
-        result = subprocess.run(
-            ["gh", "pr", "view", url, "--json", fields],
-            capture_output=True,
-            text=True, encoding="utf-8",
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise GhError("`gh` not found on PATH") from exc
-    if result.returncode != 0:
-        raise GhError(
-            f"`gh pr view {url}` failed (exit {result.returncode}): "
-            f"{result.stderr.strip()}"
-        )
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise GhError(f"`gh pr view {url}` returned non-JSON: {exc}") from exc
-    if not isinstance(data, dict):
-        raise GhError(f"`gh pr view {url}` returned unexpected JSON")
-    return data
-
-
 # Mirrors the `code/address-pr-comments` skill's query, trimmed to what the
 # report needs. `comments(first: 1)` plus `totalCount` is the whole
 # "unanswered" test — a thread with more than its opening comment is a
@@ -678,7 +265,6 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
   }
 }
 """
-
 _EXCERPT_LIMIT = 80
 # Bot reviewers open with markup — `**<sub>![P1 Badge](…)</sub> Title**` is
 # the Codex shape — that reads as noise in a one-line report. Keep an image's
@@ -857,7 +443,7 @@ def _try_bump_one(
 
     # One read serves all three `## Dev` lines: `pr:` decides whether to close,
     # `branch:`/`worktree:` become the retire follow-up reported afterwards.
-    blackboard = _read_dev_blackboard(ref.ticket_path)
+    blackboard = read_dev_blackboard(ref.ticket_path)
     url = parse_pr_url(blackboard) if blackboard is not None else None
     if not url:
         return None
@@ -952,7 +538,7 @@ def _try_bump_one(
     except BaseException:
         # `mark_done` writes the terminal state before validation, notification,
         # and git publication. If one of those later operations fails, retain
-        # the successful local closure so the recipe can still name its retire
+        # the successful local closure so the worker can still name its retire
         # follow-up before surfacing the original failure. Checking both the
         # mutated in-memory ticket and disk avoids attributing a concurrent
         # completion to this sweep when a pre-write gate failed.
@@ -978,7 +564,7 @@ def _sweep_merged_into(
 ) -> None:
     """Populate ``result`` while walking candidates.
 
-    The recipe owns ``result`` outside this call so closures already committed
+    The worker owns ``result`` outside this call so closures already committed
     to disk remain reportable if a later ticket fails. Public callers use
     ``sweep_merged`` below, which preserves the ordinary return-value API.
     """
@@ -1014,11 +600,11 @@ def sweep_merged(
     """Walk active/in-progress tickets; finish those whose linked PR has merged.
 
     Returns what the run closed, including each ticket's recorded checkout
-    state — the recipe turns that into the `coga retire` follow-up report.
+    state — the worker turns that into the `coga retire` follow-up report.
 
     `quiet=True` suppresses stdout echoes and swallows `GhError` (gh missing or
     unauthed). The recurring sweep skill sets `quiet=False` so a missing `gh`
-    surfaces as a real failure. Its recipe also supplies the accumulator and
+    surfaces as a real failure. Its worker also supplies the accumulator and
     pre-close hook: retaining the accumulator outside this call lets it report
     closures committed before a later exception.
     """
@@ -1031,20 +617,6 @@ def sweep_merged(
         before_close=before_close,
     )
     return result
-
-
-def _append_blackboard_report(
-    cfg: Config,
-    blackboard: Path,
-    report: str,
-) -> None:
-    """Atomically append one report within a task's blackboard region.
-
-    Read/replace uses the ticket primitive's byte compare-and-swap so a
-    concurrent frontmatter or blackboard writer wins loudly instead of being
-    overwritten. The ticket's existing newline convention is retained.
-    """
-    append_blackboard_report(cfg, blackboard, report)
 
 
 def _preflight_recipe_notifications(cfg: Config, closed: ClosedTicket) -> None:
@@ -1075,12 +647,6 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
     recorded, and `branchcleanup._is_linked_worktree_of` preserves anything
     that is not a linked worktree of the checkout the sweep runs from.
     """
-    # Imported lazily: `branchcleanup` imports the `## Dev` parsers and `gh`
-    # lookups from this module at load time, so a top-level import of the
-    # disposal module here would form an
-    # `autoclose -> checkout_disposal -> branchcleanup -> autoclose` cycle.
-    from coga.checkout_disposal import dispose_checkout
-
     stranded = [item for item in result.closed if item.branch or item.worktree]
     worklists = all_worklists(cfg)
     if not stranded and not worklists:
@@ -1111,7 +677,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
     seen: set[str] = set()
     for closed in stranded:
         seen.add(closed.slug)
-        held = _owner_held_branch(
+        held = owner_held_branch(
             root,
             RetireFollowUp(
                 closed.slug, closed.branch or "", closed.worktree or "", "",
@@ -1154,187 +720,17 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
         _locate_refused_worktree(root, item)
 
 
-def dispose_worklist_backlog(
-    cfg: Config,
-    root: Path,
-    worklists: list[Path],
-    *,
-    seen: set[str],
-    echo: Callable[[str], Callable[[str], None]],
-    include: Callable[[RetireFollowUp], bool] | None = None,
-    label: str = "autoclose",
-) -> list[CheckoutOutcome]:
-    """Judge every open `retires.md` entry under the shared retire proofs.
-
-    The backlog half of autoclose's disposal phase, shared with the
-    clone-scoped branch sweep, which passes `include=retire_worklist.owned_here`
-    to judge only the entries its own clone owns. The caller has already
-    checked that `root` is on the control branch. Slugs in `seen` are skipped
-    and every walked slug is added to it. Each entry goes through
-    `checkout_disposal.dispose_checkout`, unless its branch lives in another
-    clone (`_owner_held_branch`); nothing here rewrites a worklist.
-    """
-    # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
-    from coga.checkout_disposal import dispose_checkout
-
-    outcomes: list[CheckoutOutcome] = []
-    for path in worklists:
-        try:
-            _, entries = parse_worklist(path.read_text(encoding="utf-8"))
-        except (RetireWorklistError, OSError, UnicodeError) as exc:
-            # The caller's reconcile fails the run loudly over the same file;
-            # here it only means its backlog is not walked this time.
-            sys.stderr.write(f"[{label}] backlog in {path} not walked: {exc}\n")
-            continue
-        for entry in entries:
-            if entry.slug in seen or (include is not None and not include(entry)):
-                continue
-            seen.add(entry.slug)
-            branch = entry.branch or None
-            # An entry recorded before the primary-checkout rule may still
-            # name it; only the branch half is debt (and the reconcile drops
-            # the entry once that is gone too).
-            worktree = (
-                None
-                if is_primary_checkout(root, entry.worktree)
-                else entry.worktree or None
-            )
-            if branch is None and worktree is None and not entry.branches:
-                continue
-            ticket_exists, pr_url, owned = _entry_ticket(cfg, entry.slug)
-            held = _owner_held_branch(
-                root,
-                entry,
-                branch=branch,
-                worktree=worktree,
-                ticket_exists=ticket_exists,
-                echo=echo(entry.slug),
-            )
-            if held is not None:
-                outcomes.append(held)
-                continue
-            outcomes.append(
-                CheckoutOutcome(
-                    slug=entry.slug,
-                    title=None,
-                    branch=branch,
-                    worktree=worktree,
-                    ticket_exists=ticket_exists,
-                    disposal=dispose_checkout(
-                        cfg,
-                        root,
-                        branch=branch,
-                        worktree=worktree,
-                        pr_url=pr_url,
-                        echo=echo(entry.slug),
-                        owned_branches=tuple(dict.fromkeys((*entry.branches, *owned))),
-                    ),
-                )
-            )
-    return outcomes
-
-
-def _owner_held_branch(
-    root: Path,
-    entry: RetireFollowUp,
-    *,
-    branch: str | None,
-    worktree: str | None,
-    ticket_exists: bool,
-    echo: Callable[[str], None],
-) -> CheckoutOutcome | None:
-    """Judge a backlog entry whose branch lives in another clone, without proofs.
-
-    Applies once the recorded worktree is gone or is a primary checkout,
-    and the entry's recorded or inferred `owner` is
-    not this repository (`retire_worklist.branch_owner`): the proofs here would
-    find no local branch and call it disposed while the owning clone still
-    holds it. The outcome is preserved while the owner still lists the branch
-    or cannot be read (`retire_worklist.owner_branch_remains`, the verdict
-    `is_discharged` gives the entry too) and names the by-hand delete in the
-    owning clone — except when the recorded owner path itself is gone or
-    unreadable (`retire_worklist.branch_owner` has no answer), where that
-    command could not run: the outcome is marked `owner_unreadable` and asks
-    for the owner to be located instead. `None` leaves the entry to the
-    ordinary proofs.
-    """
-    # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
-    from coga.branchcleanup import resolve_worktree_path
-    from coga.checkout_disposal import CheckoutDisposal
-
-    if branch is None:
-        return None
-    if worktree is not None and resolve_worktree_path(root, worktree).is_dir():
-        return None
-    if not entry.owner:
-        entry = replace(entry, owner=worktree_owner(root, entry.worktree))
-    remains = owner_branch_remains(root, entry)
-    if remains is None:
-        return None
-    owner = Path(entry.owner)
-    unreadable = remains and branch_owner(root, entry.owner) is None
-    disposal = CheckoutDisposal(branch=branch, worktree=None)
-    disposal.local_branch_remains = remains
-    if unreadable:
-        message = (
-            f"Branch cleanup: {branch!r} was recorded in the owning clone "
-            f"{owner}, which is gone or cannot be read — left in place."
-        )
-    elif remains:
-        message = (
-            f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
-            "not this repository (or its branches cannot be read) — left in place."
-        )
-    else:
-        message = (
-            f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
-        )
-    disposal.notes.append(message)
-    echo(message)
-    return CheckoutOutcome(
-        slug=entry.slug,
-        title=None,
-        branch=branch,
-        worktree=None,
-        ticket_exists=ticket_exists,
-        disposal=disposal,
-        branch_owner=owner,
-        owner_unreadable=unreadable,
-    )
-
-
 def _locate_refused_worktree(root: Path, item: CheckoutOutcome) -> None:
     """Judge a worktree the proof refused as not linked here, for the remedy.
 
     Read-only `git rev-parse` / `git worktree list` probes, only for the
     outcomes that need them.
     """
-    # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
-    from coga.branchcleanup import resolve_worktree_path
-
     if item.worktree is None:
         return
     item.worktree_path = resolve_worktree_path(root, item.worktree)
     if item.not_linked:
         item.home = git.classify_checkout(root, item.worktree_path)
-
-
-def _entry_ticket(
-    cfg: Config, slug: str
-) -> tuple[bool, str | None, tuple[str, ...]]:
-    """Whether a worklist entry's ticket still exists, its `pr:` link, and
-    every `branch:` it records.
-
-    Exact `id_slug` match only: the CLI's unique-prefix resolution would let a
-    deleted `foo` resolve to a newer `foo-followup` and borrow its `pr:`.
-    """
-    ref = next((t for t in list_tasks(cfg) if t.id_slug == slug), None)
-    if ref is None:
-        return False, None, ()
-    blackboard = _read_dev_blackboard(ref.ticket_path)
-    if blackboard is None:
-        return True, None, ()
-    return True, parse_pr_url(blackboard), tuple(parse_branch_names(blackboard))
 
 
 def render_retire_report(
@@ -1570,7 +966,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     )
     if blackboard:
         try:
-            _append_blackboard_report(cfg, blackboard, report)
+            append_blackboard_report(cfg, blackboard, report)
         except (OSError, UnicodeError) as exc:
             # Disk exhaustion can affect both durable files. Keep the commands
             # visible on stdout and still attempt the live summary.
@@ -1689,7 +1085,7 @@ def _report_followup(cfg: Config, report: str, summary: str) -> bool:
     success = True
     if blackboard:
         try:
-            _append_blackboard_report(cfg, blackboard, report)
+            append_blackboard_report(cfg, blackboard, report)
         except (OSError, UnicodeError) as exc:
             success = False
             sys.stderr.write(
@@ -1744,12 +1140,12 @@ def _report_followups(cfg: Config, result: AutocloseResult) -> bool:
     return retire_ok and threads_ok
 
 
-def run_autoclose_recipe(
+def run_autoclose(
     cfg: Config, argv: list[str], *, result: AutocloseResult | None = None
 ) -> int:
-    """Run the recurring autoclose job through the fixed recipe surface.
+    """The autoclose worker: sweep, dispose of checkouts, report follow-ups.
 
-    `result` is the optional out-parameter described on `run_recipe`: the
+    `result` is an optional out-parameter: the
     accumulator this wrapper already keeps outside `sweep_merged` becomes the
     caller's when one is supplied, so a caller that wants to name what the
     sweep closed reads `.closed` / `.retire_pending` / `.checkouts` instead of
@@ -1798,45 +1194,41 @@ def run_autoclose_recipe(
     return 0 if _report_followups(cfg, result) else 2
 
 
-def _read_dev_blackboard(ticket: Path) -> str | None:
-    """The blackboard region holding `## Dev`, or None when unreadable."""
-    if not ticket.is_file():
-        return None
-    try:
-        # The `## Dev` section lives in the blackboard region below the fence.
-        return read_blackboard(ticket, blackboard_required=False)
-    except (OSError, TaskFileError) as exc:
-        # A read error on a single ticket shouldn't sink the scanner.
-        sys.stderr.write(f"[autoclose] could not read {ticket}: {exc}\n")
-        return None
+
+def main(argv: list[str] | None = None, *, scheduled: bool = False) -> int:
+    """Report, publish and, for a launched period script, complete the step.
+
+    The packaged shim passes ``scheduled=True``; even then only the task
+    launch named as this script's is advanced. A hand run never advances one.
+    """
+    return run_entry(
+        "autoclose",
+        run_autoclose,
+        sys.argv[1:] if argv is None else argv,
+        scheduled=scheduled,
+    )
 
 
 __all__ = [
     "AutocloseResult",
-    "CheckoutOutcome",
     "ClosedTicket",
-    "GhError",
     "RETIRE_REPORT_HEADING",
     "REVIEW_THREADS_REPORT_HEADING",
     "ReviewThread",
+    "main",
+    "pr_review_threads",
+    "render_disposed_summary",
+    "render_preserved_summary",
     "render_retire_report",
     "render_retire_summary",
     "render_review_threads_report",
     "render_review_threads_summary",
     "render_unanswered_threads_note",
-    "render_disposed_summary",
-    "render_preserved_summary",
-    "run_autoclose_recipe",
+    "run_autoclose",
     "sweep_merged",
-    "parse_pr_number",
-    "parse_pr_url",
-    "parse_branch_name",
-    "parse_branch_names",
-    "parse_worktree_path",
-    "pr_head",
-    "pr_review_threads",
-    "pr_view",
-    "pr_state",
-    "prs_for_head",
     "unanswered_review_threads",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(scheduled=Path(__file__).name == "ticket.py"))

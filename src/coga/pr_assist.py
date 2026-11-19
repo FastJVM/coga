@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from coga import git
-from coga.autoclose import GhError, parse_pr_url, pr_view
+from coga.dev_links import GhError, parse_pr_url, pr_view
 from coga.config import Config
 from coga.github_source import github_repository_identity, redacted_git_source
 from coga.repl_supervisor import (

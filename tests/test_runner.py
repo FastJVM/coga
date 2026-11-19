@@ -20,7 +20,6 @@ from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 
 
 EXPECTED_RECIPES = (
-    "autoclose",
     "branch-sweep",
     "recurring-scan",
     "autofix-analyze",
@@ -65,7 +64,6 @@ def test_no_arg_recipes_reject_unexpected_tokens() -> None:
     cfg = cast(Config, object())
 
     for name in (
-        "autoclose",
         "branch-sweep",
     ):
         assert run_recipe(cfg, name, ["unexpected"]) == 2
@@ -107,7 +105,7 @@ def test_run_command_rejects_unknown_recipe_with_known_names(monkeypatch) -> Non
 
 
 @pytest.mark.parametrize(
-    "name", ["blocker-reminders", "skill-update", "validate-drift", "cleanup-orphan-markers"]
+    "name", ["autoclose", "blocker-reminders", "skill-update", "validate-drift", "cleanup-orphan-markers"]
 )
 def test_edge_jobs_left_the_registry_without_a_stub(monkeypatch, name: str) -> None:
     # Their jobs run from `coga_edge`; the old spelling takes the ordinary
@@ -133,7 +131,7 @@ def test_run_command_preserves_output_and_exit_code(monkeypatch) -> None:
 
     monkeypatch.setattr(run_command, "run_recipe", fake_run_recipe)
 
-    result = CliRunner().invoke(app, ["run", "autoclose"])
+    result = CliRunner().invoke(app, ["run", "branch-sweep"])
 
     assert result.exit_code == 7
     assert result.stdout == "recipe stdout\n"
@@ -148,7 +146,7 @@ def test_run_command_leaves_unexpected_exceptions_loud(monkeypatch) -> None:
 
     monkeypatch.setattr(run_command, "run_recipe", fail)
 
-    result = CliRunner().invoke(app, ["run", "autoclose"])
+    result = CliRunner().invoke(app, ["run", "branch-sweep"])
 
     assert result.exit_code == 1
     assert isinstance(result.exception, RuntimeError)
@@ -224,16 +222,16 @@ def test_failing_recipe_records_its_stderr_on_the_period_blackboard(
         sys.stderr.write("[autoclose] gh pr view failed: \x1b[31mrate limited\x1b[0m\n")
         return 2
 
-    monkeypatch.setitem(RECIPES, "autoclose", fail)
+    monkeypatch.setitem(RECIPES, "branch-sweep", fail)
 
-    assert run_recipe(load_config(repo), "autoclose", []) == 2
+    assert run_recipe(load_config(repo), "branch-sweep", []) == 2
 
     # The console still sees every byte — the tail is a copy, not a capture.
     assert "gh pr view failed" in capsys.readouterr().err
     written = read_blackboard(period_blackboard)
     assert "Fresh period blackboard." in written
     assert "## Recipe Failure" in written
-    assert "Recipe: `autoclose`" in written
+    assert "Recipe: `branch-sweep`" in written
     assert "Exit: 2" in written
     assert "Task: `recurring/autoclose-merged`" in written
     assert "[autoclose] gh pr view failed: rate limited" in written
@@ -249,10 +247,10 @@ def test_escaping_exception_is_recorded_and_still_raised(
     def explode(cfg: Config, argv: list[str]) -> int:
         raise RuntimeError("recipe exploded")
 
-    monkeypatch.setitem(RECIPES, "autoclose", explode)
+    monkeypatch.setitem(RECIPES, "branch-sweep", explode)
 
     with pytest.raises(RuntimeError, match="recipe exploded"):
-        run_recipe(load_config(repo), "autoclose", [])
+        run_recipe(load_config(repo), "branch-sweep", [])
 
     written = read_blackboard(period_blackboard)
     assert "## Recipe Failure" in written
@@ -267,22 +265,22 @@ def test_argparse_refusal_is_recorded_with_its_exit_code(
     # `SystemExit(2)`; a nested Typer command refuses with `typer.Exit`. Both
     # carry the exit the process will end with.
     def refuse(cfg: Config, argv: list[str]) -> int:
-        sys.stderr.write("usage: coga run autoclose\n")
+        sys.stderr.write("usage: coga run branch-sweep\n")
         raise SystemExit(2)
 
-    monkeypatch.setitem(RECIPES, "autoclose", refuse)
+    monkeypatch.setitem(RECIPES, "branch-sweep", refuse)
     with pytest.raises(SystemExit):
-        run_recipe(load_config(repo), "autoclose", ["--bogus"])
+        run_recipe(load_config(repo), "branch-sweep", ["--bogus"])
     written = read_blackboard(period_blackboard)
     assert "Exit: 2" in written
-    assert "usage: coga run autoclose" in written
+    assert "usage: coga run branch-sweep" in written
 
     def typer_refuse(cfg: Config, argv: list[str]) -> int:
         raise typer.Exit(3)
 
-    monkeypatch.setitem(RECIPES, "autoclose", typer_refuse)
+    monkeypatch.setitem(RECIPES, "branch-sweep", typer_refuse)
     with pytest.raises(typer.Exit):
-        run_recipe(load_config(repo), "autoclose", [])
+        run_recipe(load_config(repo), "branch-sweep", [])
     assert "Exit: 3" in read_blackboard(period_blackboard)
 
 
@@ -294,22 +292,22 @@ def test_clean_exits_leave_the_blackboard_alone(
     # `typer.Exit` is a return, not a failure.
     before = read_blackboard(period_blackboard)
 
-    monkeypatch.setitem(RECIPES, "autoclose", lambda cfg, argv: 0)
-    assert run_recipe(load_config(repo), "autoclose", []) == 0
+    monkeypatch.setitem(RECIPES, "branch-sweep", lambda cfg, argv: 0)
+    assert run_recipe(load_config(repo), "branch-sweep", []) == 0
 
     def zero_exit(cfg: Config, argv: list[str]) -> int:
         raise SystemExit(0)
 
-    monkeypatch.setitem(RECIPES, "autoclose", zero_exit)
+    monkeypatch.setitem(RECIPES, "branch-sweep", zero_exit)
     with pytest.raises(SystemExit):
-        run_recipe(load_config(repo), "autoclose", [])
+        run_recipe(load_config(repo), "branch-sweep", [])
 
     def zero_typer_exit(cfg: Config, argv: list[str]) -> int:
         raise typer.Exit(0)
 
-    monkeypatch.setitem(RECIPES, "autoclose", zero_typer_exit)
+    monkeypatch.setitem(RECIPES, "branch-sweep", zero_typer_exit)
     with pytest.raises(typer.Exit):
-        run_recipe(load_config(repo), "autoclose", [])
+        run_recipe(load_config(repo), "branch-sweep", [])
 
     assert read_blackboard(period_blackboard) == before
 
@@ -323,9 +321,9 @@ def test_failure_without_a_blackboard_changes_nothing(
         sys.stderr.write("boom\n")
         return 2
 
-    monkeypatch.setitem(RECIPES, "autoclose", fail)
+    monkeypatch.setitem(RECIPES, "branch-sweep", fail)
 
-    assert run_recipe(load_config(repo), "autoclose", []) == 2
+    assert run_recipe(load_config(repo), "branch-sweep", []) == 2
 
     captured = capsys.readouterr()
     assert captured.err == "boom\n"
@@ -345,10 +343,10 @@ def test_unwritable_blackboard_never_outranks_the_recipe_failure(
         sys.stderr.write("boom\n")
         return 2
 
-    monkeypatch.setitem(RECIPES, "autoclose", fail)
+    monkeypatch.setitem(RECIPES, "branch-sweep", fail)
 
-    assert run_recipe(load_config(repo), "autoclose", []) == 2
-    assert "could not record the autoclose failure" in capsys.readouterr().err
+    assert run_recipe(load_config(repo), "branch-sweep", []) == 2
+    assert "could not record the branch-sweep failure" in capsys.readouterr().err
 
 
 def _run_cwd_worker(cfg: Config, name: str, argv: list[str]) -> int:
@@ -467,14 +465,14 @@ def test_unresolvable_blackboard_preserves_the_recipe_failure(
             raise original
         return 2
 
-    monkeypatch.setitem(RECIPES, "autoclose", fail)
+    monkeypatch.setitem(RECIPES, "branch-sweep", fail)
     if raises:
         with pytest.raises(RuntimeError) as caught:
-            run_recipe(load_config(repo), "autoclose", [])
+            run_recipe(load_config(repo), "branch-sweep", [])
         assert caught.value is original
     else:
-        assert run_recipe(load_config(repo), "autoclose", []) == 2
-    assert "could not record the autoclose failure" in capsys.readouterr().err
+        assert run_recipe(load_config(repo), "branch-sweep", []) == 2
+    assert "could not record the branch-sweep failure" in capsys.readouterr().err
 
 
 def test_diagnostic_markers_cannot_corrupt_the_ticket(
@@ -489,8 +487,8 @@ def test_diagnostic_markers_cannot_corrupt_the_ticket(
         )
         return 2
 
-    monkeypatch.setitem(RECIPES, "autoclose", fail)
-    assert run_recipe(load_config(repo), "autoclose", []) == 2
+    monkeypatch.setitem(RECIPES, "branch-sweep", fail)
+    assert run_recipe(load_config(repo), "branch-sweep", []) == 2
     text = period_blackboard.read_text(encoding="utf-8")
     assert fence_count(text) == 1
     assert text.split(BLACKBOARD_FENCE)[0] == before_body

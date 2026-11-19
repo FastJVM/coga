@@ -73,8 +73,8 @@ producer. Callers:
   setup path;
 - `launch_script.py` `run_script_phase` — strict assist, before `ticket.py`
   publishes a started lifecycle, wrapped in `ScriptPublicationError`;
-- `autoclose.py` `_preflight_recipe_notifications` — the `before_close` hook
-  of `run_autoclose_recipe`.
+- `coga_edge/autoclose.py` `_preflight_recipe_notifications` — the
+  `before_close` hook of `run_autoclose`.
 
 Ordinary `block` and launch paths, and the important script-failure,
 scan-error, period-contradiction (`recurring_runner._flag_period_contradiction`)
@@ -115,7 +115,7 @@ down, so grep for the real call before editing a producer row:
   `coga_edge/blocker_reminders.py` `remind_blocked_tasks`;
   `coga_edge/slack.py`; `bump.py` `advance_step` (`notify_slack=True`);
   `launch_script.py`; `coga_edge/validate_drift.py`; `coga_edge/megalaunch.py`;
-  `autoclose.py` `_report_retire_followups` and `_report_followup`;
+  `coga_edge/autoclose.py` `_report_retire_followups` and `_report_followup`;
   `coga_edge/phone_home.py` `_receipt` (`record_failure=False`);
   the repo-local `coga/recurring/usage-report/ticket.py` (`important=True,
   fatal=False`);
@@ -139,7 +139,7 @@ enough to notice a change. The user topic does not advertise that carve-out.
 
 ## Message format
 
-Strings are built at the call sites (`commands/*.py`, `autoclose.py`, …);
+Strings are built at the call sites (`commands/*.py`, `coga_edge/autoclose.py`, …);
 `post`/`notify` never reformat. Every post gets the `[<project>] [<owner>]`
 prefix from `SlackChannel.render_text`. For per-ticket posts:
 

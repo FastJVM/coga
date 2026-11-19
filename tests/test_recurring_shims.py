@@ -22,7 +22,7 @@ from coga.cli import app
 from coga.config import load_config
 from coga.launch_script import SCRIPT_ENTRY_POINT
 from coga.recurring import create_named
-from coga.runner import RECIPES, run_recipe
+from coga.runner import RECIPES
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import read_ticket
 
@@ -31,59 +31,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SEEDED_REPO = REPO_ROOT / "tests" / "fixtures" / "seeded-repo"
 PACKAGED = REPO_ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 
-# Every template that used to declare `recipe: <name>`, and the registry entry
-# its shim must now reach directly.
-SHIMMED_TEMPLATES = (("autoclose-merged", "autoclose"),)
 # Templates whose job moved to `coga_edge`: (template, module, worker). The
 # shim imports the module's `main`; the recipe name left the registry.
 EDGE_SHIMMED_TEMPLATES = (
     ("blocker-reminders", "blocker_reminders", "run_blocker_reminders"),
     ("skill-update", "skill_update", "run_skill_update"),
+    ("autoclose-merged", "autoclose", "run_autoclose"),
 )
 # `scope: clone` shims: no period task, so the exit code is the whole outcome.
 CLONE_SHIMMED_TEMPLATES = (("branch-sweep", "branch-sweep"),)
-
-
-@pytest.mark.parametrize(("template", "recipe_name"), SHIMMED_TEMPLATES)
-def test_shim_calls_the_registered_recipe_and_bumps_through_the_cli(
-    template: str, recipe_name: str
-) -> None:
-    """Each shim runs its recipe through the registry and completes its own step.
-
-    Three things this pins. The shim must reach the recipe through
-    `coga.runner.run_recipe`, not by importing the recipe function: that
-    function is the recipe layer's failure surface, the one place a non-zero
-    exit is recorded on the period blackboard, and a direct import would skip
-    it. The name it passes must be a registry key — a typo would only surface
-    on the next scheduled firing. And the step must be completed by
-    subprocessing the CLI: calling the Typer command function in-process passes
-    `OptionInfo` sentinels instead of real option defaults.
-    """
-    script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT
-    source = script.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(script))
-
-    imported: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module != "__future__":
-            assert node.module is not None
-            for alias in node.names:
-                imported[alias.asname or alias.name] = node.module
-
-    # The step is completed by subprocess only. Importing the bump command and
-    # calling it is the `OptionInfo`-sentinel bug this shape exists to avoid.
-    assert not [name for name in imported.values() if name.endswith("bump")]
-
-    assert imported == {"load_config": "coga.config", "run_recipe": "coga.runner"}
-    assert getattr(importlib.import_module("coga.runner"), "run_recipe") is run_recipe
-
-    assert recipe_name in RECIPES
-    assert f'run_recipe(load_config(), "{recipe_name}", [])' in source
-
-    argv = _subprocess_argv(tree)
-    assert argv[:1] == [_SYS_EXECUTABLE]
-    assert argv[1:4] == ["-m", "coga.cli", "bump"]
-    assert argv[4] == _TASK_SLUG_ENV
 
 
 @pytest.mark.parametrize(("template", "module", "worker"), EDGE_SHIMMED_TEMPLATES)
@@ -109,51 +65,7 @@ def test_edge_shim_runs_its_installed_module_main(template: str, module: str, wo
     job = importlib.import_module(f"coga_edge.{module}")
     assert callable(job.main) and callable(getattr(job, worker))
     assert template not in RECIPES
-
-
-_SYS_EXECUTABLE = "<sys.executable>"
-_TASK_SLUG_ENV = "<os.environ[COGA_TASK_SLUG]>"
-
-
-def _subprocess_argv(tree: ast.Module) -> list[str]:
-    """The argv literal the shim hands `subprocess.run`, one entry per element.
-
-    Read structurally rather than by matching source text, so reformatting the
-    shim cannot silently retire this check.
-    """
-    calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "run"
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "subprocess"
-    ]
-    (call,) = calls
-    (argv,) = call.args
-    assert isinstance(argv, ast.List)
-    return [_describe(element) for element in argv.elts]
-
-
-def _describe(node: ast.expr) -> str:
-    if isinstance(node, ast.Constant):
-        return node.value
-    if (
-        isinstance(node, ast.Attribute)
-        and node.attr == "executable"
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "sys"
-    ):
-        return _SYS_EXECUTABLE
-    if (
-        isinstance(node, ast.Subscript)
-        and isinstance(node.value, ast.Attribute)
-        and node.value.attr == "environ"
-        and isinstance(node.slice, ast.Constant)
-    ):
-        return f"<os.environ[{node.slice.value}]>"
-    return ast.dump(node)
+    assert module.replace("_", "-") not in RECIPES
 
 
 @pytest.mark.parametrize(("template", "recipe_name"), CLONE_SHIMMED_TEMPLATES)
@@ -209,7 +121,7 @@ def test_clone_shim_bumps_only_when_run_as_a_period_task(
 
 def test_every_shimmed_template_dropped_the_recipe_field() -> None:
     """`recipe:` left the format; the file beside `ticket.md` is the signal."""
-    templates = [t for t, *_ in (*SHIMMED_TEMPLATES, *CLONE_SHIMMED_TEMPLATES, *EDGE_SHIMMED_TEMPLATES)]
+    templates = [t for t, *_ in (*CLONE_SHIMMED_TEMPLATES, *EDGE_SHIMMED_TEMPLATES)]
     for template in templates:
         ticket = (PACKAGED / "recurring" / template / "ticket.md").read_text(encoding="utf-8")
         assert "\nrecipe:" not in ticket, template
@@ -225,10 +137,18 @@ def test_every_shimmed_template_dropped_the_recipe_field() -> None:
 def test_autoclose_shim_leaves_branches_to_the_clone_sweep(
     seeded, monkeypatch, autoclose_code, expected, exit_code,
 ) -> None:
-    """Closure is repo-scoped; the landed-branch pass is each clone's own."""
+    """Closure is repo-scoped; the landed-branch pass is each clone's own.
+
+    The stock shim runs autoclose then bump, nothing else: the PR 898
+    repository-wide `branch-sweep` between them is gone, and a failed sweep
+    leaves its reason on the period blackboard and never bumps.
+    """
+    from coga_edge import autoclose
+
     cfg = load_config(seeded)
     calls = []
-    blackboard = seeded / "tasks/recurring/autoclose-merged/ticket.md"
+    task_dir = seeded / "tasks/recurring/autoclose-merged"
+    blackboard = task_dir / "ticket.md"
     blackboard.parent.mkdir(parents=True)
     blackboard.write_text("---\ntitle: Autoclose\n---\n\n<!-- coga:blackboard -->\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
@@ -249,14 +169,17 @@ def test_autoclose_shim_leaves_branches_to_the_clone_sweep(
         assert argv[1:] == ["-m", "coga.cli", "bump", "recurring/autoclose-merged"]
         return subprocess.CompletedProcess(argv, 0)
 
-    monkeypatch.setitem(RECIPES, "autoclose", recipe("autoclose", autoclose_code))
+    monkeypatch.setattr(autoclose, "run_autoclose", recipe("autoclose", autoclose_code))
     monkeypatch.setitem(RECIPES, "branch-sweep", recipe("branch-sweep", 0))
     monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
+    monkeypatch.setenv("COGA_SCRIPT_TASK", str(task_dir))
     monkeypatch.setattr(subprocess, "run", bump)
     # Config loading also probes git; resolve it before replacing subprocess.
-    monkeypatch.setattr("coga.config.load_config", lambda: cfg)
+    monkeypatch.setattr("coga.runner.load_config", lambda: cfg)
     with pytest.raises(SystemExit) as exc:
-        runpy.run_path(str(PACKAGED / "recurring/autoclose-merged/ticket.py"))
+        runpy.run_path(
+            str(PACKAGED / "recurring/autoclose-merged/ticket.py"), run_name="__main__"
+        )
     assert exc.value.code == exit_code
     assert calls == expected
     report = read_blackboard(blackboard)
@@ -284,12 +207,6 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 # How each shipped shim's production work is replaced with a no-op in a copied
 # period script: (template, shim text, replacement text).
 _NOOP_SHIM_PATCHES = [
-    (template, "from coga.runner import run_recipe",
-     "from coga.runner import RECIPES, run_recipe\n"
-     "RECIPES.clear()\n"
-     f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0")
-    for template, recipe_name in SHIMMED_TEMPLATES
-] + [
     (template, f"from coga_edge.{module} import main",
      f"import coga_edge.{module} as job\n"
      f"job.{worker} = lambda cfg, args: 0\n"

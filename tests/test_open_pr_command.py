@@ -27,7 +27,7 @@ from typer.testing import CliRunner
 
 import coga
 from conftest import init_git_repo, write_executable
-from coga.autoclose import parse_pr_url
+from coga.dev_links import parse_pr_url
 from coga.cli import app, main
 from coga.open_pr import run_open_pr_recipe
 from coga.paths import packaged_template_path

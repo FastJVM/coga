@@ -88,10 +88,11 @@ This section owns both lists. Default aliases (the `→` rows above) are argv
 rewrites that dispatch even when `coga.toml` omits them; a repo adds or
 overrides them in `[aliases]`.
 
-`coga run` accepts only these fixed recipe names: `autoclose`,
+`coga run` accepts only these fixed recipe names:
 `branch-sweep`, `recurring-scan`, `autofix-analyze`, `open-pr`, `delete-task`,
-`publish-state`, and `prepare-checkout`. The blocker-reminders, skill-update,
-validate-drift and cleanup-orphan-markers jobs left this list for wheel-owned
-edge modules ([coga/edge-code](../edge-code/SKILL.md)); their old names take
-the unknown-recipe exit 2. How both mechanisms behave, and why a new command usually
+`publish-state`, and `prepare-checkout`. The autoclose, blocker-reminders,
+skill-update, validate-drift and cleanup-orphan-markers jobs left this list
+for wheel-owned edge modules ([coga/edge-code](../edge-code/SKILL.md)); their
+old names take the unknown-recipe exit 2, and the `autoclose` alias still
+launches its recurring period. How both mechanisms behave, and why a new command usually
 belongs at the edge, is in [coga/extension-model](../extension-model/SKILL.md).

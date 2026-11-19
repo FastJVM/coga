@@ -30,7 +30,7 @@ def test_phone_home_is_a_forkable_edge_module():
     assert callable(phone_home._worker_main)
 
 
-@pytest.mark.parametrize("name", ["blocker_reminders", "skill_update", "validate_drift", "cleanup_orphan_markers"])
+@pytest.mark.parametrize("name", ["blocker_reminders", "skill_update", "autoclose", "validate_drift", "cleanup_orphan_markers"])
 def test_edge_jobs_are_forkable_edge_modules(name):
     import importlib
 
@@ -48,6 +48,7 @@ def test_edge_jobs_are_forkable_edge_modules(name):
     if name in ("validate_drift", "cleanup_orphan_markers"):
         assert callable(module.target_root)
     assert not hasattr(module, "append_report")
+    assert not hasattr(module, "_append_blackboard_report")
 
 
 def test_kernel_does_not_load_edge_implementations():
@@ -85,6 +86,11 @@ def edge_wheels(tmp_path_factory):
             tagged = text.replace('f"Generated: {generated_at}",', f'f"Generated: {{generated_at}} (wheel {label})",')
             assert tagged != text, worker
             module.write_text(tagged, encoding="utf-8", newline="\n")
+        module = source / "src/coga_edge/autoclose.py"
+        text = module.read_text(encoding="utf-8")
+        tagged = text.replace("no tickets bumped.", f"no tickets bumped (wheel {label}).")
+        assert tagged != text
+        module.write_text(tagged, encoding="utf-8", newline="\n")
         result = subprocess.run([
             sys.executable, "-m", "pip", "wheel", "--no-build-isolation", "--no-deps",
             str(source), "-w", str(source / "dist"),
@@ -792,7 +798,7 @@ assert create_named(load_config(Path("coga")), "blocker-reminders").created
     preserved = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file() and p.suffix != ".py"}
     _install(edge_wheels["B"], installed)
     for path, (job, pr) in stock.items():
-        env.update(JOB=job, CANDIDATE=str(path), OLD_SOURCE=str(baselines[job, pr]))
+        env.update(JOB=job, MODULE=job.replace("-", "_"), CANDIDATE=str(path), OLD_SOURCE=str(baselines[job, pr]))
         implementation, shim = _operator_command("locate-job", root, env).splitlines()
         assert Path(implementation) == installed / "coga_edge" / f"{job.replace('-', '_')}.py"
         env["NEW_SHIM"] = shim
@@ -810,7 +816,7 @@ assert create_named(load_config(Path("coga")), "blocker-reminders").created
     )[1].split("```python\n", 1)[1].split("```", 1)[0]
     edited.write_text(passage, encoding="utf-8", newline="\n")
     if layout == "fork":
-        env.update(JOB="blocker-reminders", CANDIDATE=str(period))
+        env.update(JOB="blocker-reminders", MODULE="blocker_reminders", CANDIDATE=str(period))
         env["NEW_SHIM"] = _operator_command("locate-job", root, env).splitlines()[1]
         assert _operator_command("job-fork-copy", root, env).strip() == str(period)
         assert period.read_bytes() == (installed / "coga_edge/blocker_reminders.py").read_bytes()
@@ -832,6 +838,108 @@ assert create_named(load_config(Path("coga")), "blocker-reminders").created
         stale = subprocess.run([sys.executable, "-m", "coga.cli", "run", "blocker-reminders"], cwd=coga_os, env=env,
                                capture_output=True, text=True, encoding="utf-8", timeout=60)
         assert stale.returncode == 2 and "unknown recipe 'blocker-reminders'" in stale.stderr + stale.stdout
+    finally:
+        for path in [installed, *installed.rglob("*")]:
+            path.chmod(path.stat().st_mode | 0o200)
+    from coga.ticket import Ticket
+    assert Ticket.read(period.with_suffix(".md")).status == "done"
+    assert period.with_suffix(".md").read_text(encoding="utf-8").endswith("\nExisting findings remain.\n")
+    assert Ticket.read(parked.with_suffix(".md")).status == "paused"
+    for path, raw in preserved.items():
+        if path not in (period.with_suffix(".md"), coga_os / "log.md"):
+            assert path.read_bytes() == raw, path
+    assert not (guard / "called").exists()
+
+
+@pytest.mark.parametrize("layout", ["package", "fork"])
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
+def test_documented_autoclose_shim_adoption_runs_the_installed_wheel_or_a_fork(tmp_path, edge_wheels, layout):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
+    coga_os = root / "coga"
+    env["PATH"] = str(installed / "bin") + os.pathsep + env["PATH"]
+    env["COGA_PY"] = _operator_command("interpreter", root, env).strip()
+    # A full local override (stock PR 898 shim), its frozen period (PR 827),
+    # a parked copy (PR 705) and a customized copy.
+    _legacy_local_install(root, installed, "autoclose-merged")
+    _run(root, env, "-c", """
+from pathlib import Path
+from coga.config import load_config
+from coga.recurring import create_named
+assert create_named(load_config(Path("coga")), "autoclose-merged").created
+""")
+    baselines = {pr: FIXTURES / f"autoclose-old-{pr}.py" for pr in (705, 827, 898)}
+    template = coga_os / "recurring/autoclose-merged/ticket.py"
+    period = coga_os / "tasks/recurring/autoclose-merged/ticket.py"
+    parked = coga_os / "tasks/_parked/autoclose-merged/ticket.py"
+    edited = coga_os / "tasks/_parked/autoclose-merged-custom/ticket.py"
+    stock = {template: 898, period: 827, parked: 705}
+    for path, pr in stock.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(baselines[pr].read_bytes())
+    parked.with_suffix(".md").write_text(period.with_suffix(".md").read_text(encoding="utf-8").replace(
+        "status: active", "status: paused"), encoding="utf-8", newline="\n")
+    edited.parent.mkdir(parents=True)
+    edited.write_bytes(baselines[827].read_bytes().replace(
+        b"code = run_recipe(", b"print('custom pre-sweep')\ncode = run_recipe("))
+    edited_before = edited.read_bytes()
+    with period.with_suffix(".md").open("a", encoding="utf-8", newline="\n") as stream:
+        stream.write("\nExisting findings remain.\n")
+    callers = _operator_command("recipe-shim-callers", root, env).splitlines()
+    assert sorted({line.split(":", 1)[0] for line in callers}) == sorted(
+        str(p.relative_to(root)) for p in (*stock, edited))
+    for path in (*stock, edited):
+        env["CANDIDATE"] = str(path)
+        labels = {}
+        for pr, baseline in baselines.items():
+            env["OLD_SOURCE"] = str(baseline)
+            labels[pr] = _operator_command("compare", root, env).split(":")[0]
+        assert labels == {pr: "stock" if stock.get(path) == pr else "review" for pr in baselines}
+    preserved = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file() and p.suffix != ".py"}
+    _install(edge_wheels["B"], installed)
+    env.update(JOB="autoclose-merged", MODULE="autoclose")
+    for path, pr in stock.items():
+        env.update(CANDIDATE=str(path), OLD_SOURCE=str(baselines[pr]))
+        implementation, shim = _operator_command("locate-job", root, env).splitlines()
+        assert Path(implementation) == installed / "coga_edge" / "autoclose.py"
+        env["NEW_SHIM"] = shim
+        _operator_command("replace", root, env)
+        assert path.read_bytes() == Path(shim).read_bytes()
+    env.update(CANDIDATE=str(edited), OLD_SOURCE=str(baselines[827]))
+    _operator_command("replace", root, env, success=False)
+    assert edited.read_bytes() == edited_before
+    # The customized copy stays a reviewed caller until it is ported by hand.
+    assert [line.split(":", 1)[0] for line in _operator_command("recipe-shim-callers", root, env).splitlines()] == [
+        str(edited.relative_to(root))]
+    # Apply the documented hand-port, keeping the local customization.
+    passage = RUNBOOK.read_text(encoding="utf-8").split(
+        "becomes this, keeping its other customizations:", 1
+    )[1].split("```python\n", 1)[1].split("```", 1)[0]
+    edited.write_text("print('custom pre-sweep')\n" + passage, encoding="utf-8", newline="\n")
+    _operator_command("recipe-shim-callers", root, env, success=False)
+    if layout == "fork":
+        env["CANDIDATE"] = str(period)
+        env["NEW_SHIM"] = _operator_command("locate-job", root, env).splitlines()[1]
+        assert _operator_command("job-fork-copy", root, env).strip() == str(period)
+        assert period.read_bytes() == (installed / "coga_edge/autoclose.py").read_bytes()
+        period.write_text(period.read_text(encoding="utf-8").replace("(wheel B)", "(local fork)"), encoding="utf-8", newline="\n")
+        # It refuses to overwrite a reviewed fork.
+        _operator_command("job-fork-copy", root, env, success=False)
+    assert all(p.read_bytes() == raw for p, raw in preserved.items())
+    origin = "(wheel B)" if layout == "package" else "(local fork)"
+    for path in [installed, *installed.rglob("*")]:
+        path.chmod(path.stat().st_mode & ~0o222)
+    try:
+        custom = _run(coga_os, env, str(edited))
+        assert "custom pre-sweep" in custom and "no tickets bumped (wheel B)." in custom
+        # A hand run of the parked copy sweeps but completes nothing.
+        assert "no tickets bumped (wheel B)." in _run(coga_os, env, str(parked))
+        result = subprocess.run([sys.executable, "-m", "coga.cli", "launch", "recurring/autoclose-merged"],
+                                cwd=coga_os, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert f"no tickets bumped {origin}." in result.stdout
+        stale = subprocess.run([sys.executable, "-m", "coga.cli", "run", "autoclose"], cwd=coga_os, env=env,
+                               capture_output=True, text=True, encoding="utf-8", timeout=60)
+        assert stale.returncode == 2 and "unknown recipe 'autoclose'" in stale.stderr + stale.stdout
     finally:
         for path in [installed, *installed.rglob("*")]:
             path.chmod(path.stat().st_mode | 0o200)

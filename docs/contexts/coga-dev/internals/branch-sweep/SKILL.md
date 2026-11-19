@@ -67,7 +67,7 @@ ref; comparison failures keep it too. Merge commits always face the
 fetched from `refs/pull/<number>/head` without writing a ref before
 comparison. Closed PRs flow through the same verdict for terminal-owned
 branches; ownership is `branchsweep._terminal_owners` over
-`autoclose.parse_branch_names`.
+`dev_links.parse_branch_names`.
 
 `branchsweep.sweep_branches` preserves `skill_manager.SKILL_UPDATE_BRANCH`
 before any PR lookup or deletion.

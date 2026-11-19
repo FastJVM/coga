@@ -140,7 +140,7 @@ follow-up work, not a workflow bump or task closure.
 
 **A blackboard note does not hold that gate — park the status.** The ticket is
 on its final step and its `## Dev` `pr:` still names the merged PR, which is
-exactly `autoclose`'s close predicate (`autoclose.py::_candidate`: final step
+exactly `autoclose`'s close predicate (`coga_edge/autoclose.py::_candidate`: final step
 plus `status` in `active`/`in_progress`). The next `autoclose-merged` sweep
 would therefore close the gate you meant to keep open, within 24h, and no
 amount of recorded authorization changes that. `paused` and `blocked` are the

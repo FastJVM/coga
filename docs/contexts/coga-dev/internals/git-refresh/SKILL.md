@@ -280,7 +280,7 @@ the recipe is `src/coga/open_pr.py`.
   merged PR proves no open PR exists. The PR is re-read after the push to
   catch intervening edits before updating; a simultaneous edit after that
   last read can still race. `gh` edit errors refuse without advancing.
-- `## Dev` record parsing (the readers in `autoclose`): bare branch and
+- `## Dev` record parsing (the readers in `dev_links`): bare branch and
   checkout values run to end of line; bare PR values stop at whitespace and
   must contain `/pull/<number>`. Backtick-delimited values may have trailing
   annotations. All three readers ignore fenced and indented examples,

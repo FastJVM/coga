@@ -20,3 +20,12 @@ recipes, byte-for-byte from
 `039a1d5c9dee`) and PR 827 (`368ae080b`, `runner.run_recipe` plus the shim's
 own bump; blobs `035f27cb0bcf` and `4cdc77598139`). They are archived
 baselines for the shim adoption test, not shipped code.
+
+`autoclose-old-{705,827,898}.py` are the three stock shim generations shipped
+while autoclose was a registered recipe, byte-for-byte from
+`src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py`:
+PR 705 (`df1d06022`, direct import of `coga.autoclose`; blob `0e81e8875f82`),
+PR 827 (`368ae080b`, `runner.run_recipe` plus the shim's own bump; blob
+`e3e207bdc2de`) and PR 898 (`9a7e0dd9a`, which also ran the repository-wide
+`branch-sweep` recipe before the bump; blob `185e30482e53`). They are archived
+baselines for the shim adoption test, not shipped code.

@@ -79,7 +79,7 @@ no `pr:` URL the merge signal is the merged PRs for that **head branch name**
 (`prs_for_head`), the lookup branch sweep already trusts; the exact-head
 comparison is the same either way.
 
-Subprocess usage mirrors `autoclose.py` and `git.py`: plain `subprocess.run`
+Subprocess usage mirrors `dev_links.py` and `git.py`: plain `subprocess.run`
 with `check=False`, no third-party git binding.
 """
 
@@ -92,7 +92,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable
 
 from coga import git
-from coga.autoclose import (
+from coga.dev_links import (
     GhError,
     parse_branch_name,
     parse_pr_url,

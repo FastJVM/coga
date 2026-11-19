@@ -2734,7 +2734,7 @@ def test_disposal_proves_secondary_merged_branch_unclaimed_across_workspaces(
 def test_secondary_branch_debt_survives_ticket_deletion_and_retries(
     repo: Path, monkeypatch,
 ) -> None:
-    from coga import autoclose as am
+    from coga_edge import autoclose as am
     from coga import retire_worklist as rw
 
     for branch in ("first", "second"):
@@ -2770,7 +2770,7 @@ def test_secondary_branch_debt_survives_ticket_deletion_and_retries(
 def test_autoclose_records_secondary_debt_even_when_disposal_is_skipped(
     repo: Path, monkeypatch, skip_disposal: bool,
 ) -> None:
-    from coga import autoclose as am
+    from coga_edge import autoclose as am
     from coga import retire_worklist as rw
 
     for branch in ("first", "second"):

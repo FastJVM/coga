@@ -268,7 +268,7 @@ A done ticket is eligible when:
 
 - its resolved task directory under `coga/tasks/` still exists; and
 - its blackboard `## Dev` section records no **live checkout**. Check every
-  real `branch:` line (`autoclose.parse_branch_names`), not just the first.
+  real `branch:` line (`coga.dev_links.parse_branch_names`), not just the first.
   Use `retire_worklist.is_discharged`'s existence and ownership rule: resolve
   `worktree:` relative to this repository's root, identify its owning
   repository with `worktree_owner`, and check the branches in that repository

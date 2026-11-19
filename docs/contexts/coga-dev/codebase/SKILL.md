@@ -31,6 +31,10 @@ The repo separates implementation from the OS it operates:
   [blocker-reminders](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md)
   and [skill-update](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/skill-update/ticket.md)
   tickets own their contracts.
+- `src/coga_edge/autoclose.py`: the recurring merged-ticket sweep. Its packaged
+  `ticket.py` shim calls `main`, which runs `runner.run_entry`; the
+  [autoclose-merged ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md)
+  and the `coga/autoclose/sweep` skill own its contract.
 
 - `src/coga_edge/slack.py`: the `coga slack` FYI behind the
   `bootstrap/slack` shim; stateless completion is `commands/mark.py`
@@ -59,7 +63,7 @@ The repo separates implementation from the OS it operates:
   shared by lifecycle commands through `commands/common.reconcile_lifecycle_ticket`
   (`coga-dev/internals/git-regressions`).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
-  (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
+  (`open_pr.py`, `delete_task.py`, `branchsweep.py`, ...).
   It also owns the shared `## Recipe Failure` floor (`run_reported`, with an
   optional root resolver) and the edge entry sequence `run_entry`
   (report → publish → bump). `state_sweep.py` is the end-of-invocation sweep
@@ -93,8 +97,10 @@ The repo separates implementation from the OS it operates:
   resolution for other refs (`resolve_skill_path`, `local_definition_entry`)
   is in `paths.py`. Task-to-template promotion lives in the packaged
   `bootstrap/recurring-promote` command ticket.
-- `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
-  disposal order), `retire_worklist.py` (`retires.md`).
+- `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim,
+  disposal order and the `retires.md` backlog walk), `retire_worklist.py`
+  (`retires.md`), `dev_links.py` (the `## Dev` `pr:`/`branch:`/`worktree:`
+  parsers and the `gh` PR lookups every caller shares).
 - `dependencies.py` (supporting-tool install manifest, supported agent CLI
   scan order, and the shared missing-agent requirement).
 - `skill_manager.py` (`coga skill`; `gh_skill_repo` decides GitHub-backed

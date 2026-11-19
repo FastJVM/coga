@@ -26,7 +26,7 @@ from textwrap import dedent
 import pytest
 
 from conftest import init_git_repo, write_executable
-from coga.autoclose import parse_pr_url, parse_worktree_path
+from coga.dev_links import parse_pr_url, parse_worktree_path
 from coga.config import load_config
 from coga.github_preflight import CheckResult, stranded_task_state_paths
 from coga.taskfile import read_blackboard

@@ -40,7 +40,7 @@ from typing import Literal
 
 from coga import git
 from coga.atomicio import atomic_write_text
-from coga.autoclose import (
+from coga.dev_links import (
     dev_heading_line,
     parse_branch_names,
     parse_worktree_path,

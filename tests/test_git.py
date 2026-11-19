@@ -2974,7 +2974,7 @@ def test_ordinary_run_still_sweeps_off_control(git_repo, monkeypatch):
     git_repo.checkout_branch("feature/wip")
     calls: list[Config] = []
     monkeypatch.setattr(cli.git, "sync_coga_state", calls.append)
-    monkeypatch.setattr(cli.sys, "argv", ["coga", "run", "autoclose"])
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "run", "branch-sweep"])
 
     cli._sweep_coga_state(cfg)
 

@@ -21,7 +21,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from coga import autoclose as am
+from coga_edge import autoclose as am
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task

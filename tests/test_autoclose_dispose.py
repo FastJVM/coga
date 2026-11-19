@@ -16,7 +16,8 @@ from textwrap import dedent
 
 import pytest
 
-from coga import autoclose as am
+from coga import checkout_disposal
+from coga_edge import autoclose as am
 from coga import retire_worklist as rw
 from coga.config import load_config
 from coga.create import create_task
@@ -193,7 +194,7 @@ def test_recipe_disposes_of_a_closed_tickets_landed_checkout(
     posts = _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert Ticket.read(ticket).status == "done"
     # Worktree first (it pinned the branch), then local, then remote.
@@ -234,7 +235,7 @@ def test_recipe_finishes_when_every_slack_post_raises_a_non_request_oserror(
 
     monkeypatch.setattr("requests.post", broken_tls)
 
-    assert am.run_autoclose_recipe(
+    assert am.run_autoclose(
         load_config(git_repo.coga_os), [], result=am.AutocloseResult()
     ) == 0
 
@@ -257,7 +258,7 @@ def test_recipe_preserves_a_dirty_checkout_alerts_important_and_records_it(
     posts = _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert Ticket.read(ticket).status == "done"
     assert worktree.is_dir()
@@ -308,7 +309,7 @@ def test_recipe_drains_a_worklist_entry_whose_ticket_is_gone(
     result = am.AutocloseResult()
 
     # A hand run, not a period task: the backlog still drains.
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert not worktree.exists()
     assert not _local_branch_exists(git_repo.root, "orphan")
@@ -338,8 +339,8 @@ def test_entry_ticket_requires_an_exact_slug_match(
     stale = slug[: len(slug) // 2]
     assert stale != slug
 
-    assert am._entry_ticket(cfg, stale) == (False, None, ())
-    assert am._entry_ticket(cfg, slug) == (True, PR_URL, ("foo-followup",))
+    assert checkout_disposal._entry_ticket(cfg, stale) == (False, None, ())
+    assert checkout_disposal._entry_ticket(cfg, slug) == (True, PR_URL, ("foo-followup",))
 
 
 def test_recipe_keeps_a_claimed_worklist_entry_with_its_reason(
@@ -368,7 +369,7 @@ def test_recipe_keeps_a_claimed_worklist_entry_with_its_reason(
     _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert am.run_autoclose(cfg, [], result=result) == 0
 
     assert worktree.is_dir()
     assert _local_branch_exists(git_repo.root, "feature-x")
@@ -396,7 +397,7 @@ def test_hand_run_off_the_control_branch_preserves_everything(
     posts = _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert Ticket.read(ticket).status == "done"
     assert result.disposal_skipped == (
@@ -441,7 +442,7 @@ def test_branch_only_refusal_is_reported_and_recorded(
 
     monkeypatch.setattr("coga.checkout_disposal.live_checkout_claim", refuse)
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert not result.disposed
     assert [item.slug for item in result.preserved] == [slug]
@@ -516,7 +517,7 @@ def test_cross_repo_worktree_names_its_owning_checkout(
     posts = _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert worktree.is_dir()
     [preserved] = result.preserved
@@ -559,7 +560,7 @@ def test_cross_repo_worktree_leaves_a_same_named_local_branch_untouched(
     _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert worktree.is_dir()
     [preserved] = result.preserved
@@ -624,14 +625,14 @@ def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branc
     _stub_gh(monkeypatch, git_repo)
     posts = _capture_posts(monkeypatch)
     cfg = load_config(git_repo.coga_os)
-    assert am.run_autoclose_recipe(cfg, [], result=am.AutocloseResult()) == 0
+    assert am.run_autoclose(cfg, [], result=am.AutocloseResult()) == 0
     _, [entry] = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entry.owner == str(owner.resolve())
 
     _git(owner, "worktree", "remove", str(worktree))
     posts.clear()
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert am.run_autoclose(cfg, [], result=result) == 0
 
     [kept] = result.preserved
     assert kept.slug == slug and kept.branch_owner == owner.resolve()
@@ -648,7 +649,7 @@ def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branc
     _git(owner, "branch", "-D", "upstream-fix")
     capsys.readouterr()
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert am.run_autoclose(cfg, [], result=result) == 0
 
     assert [item.slug for item in result.disposed] == [slug]
     assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == []
@@ -668,7 +669,7 @@ def test_cross_clone_entry_with_an_unreadable_owner_asks_for_the_owner(
     _stub_gh(monkeypatch, git_repo)
     posts = _capture_posts(monkeypatch)
     cfg = load_config(git_repo.coga_os)
-    assert am.run_autoclose_recipe(cfg, [], result=am.AutocloseResult()) == 0
+    assert am.run_autoclose(cfg, [], result=am.AutocloseResult()) == 0
     _, [entry] = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entry.owner == str(owner.resolve())
 
@@ -676,7 +677,7 @@ def test_cross_clone_entry_with_an_unreadable_owner_asks_for_the_owner(
     remove_test_checkout(owner)
     posts.clear()
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert am.run_autoclose(cfg, [], result=result) == 0
 
     [kept] = result.preserved
     assert kept.slug == slug and kept.owner_unreadable
@@ -715,7 +716,7 @@ def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
     cfg = load_config(git_repo.coga_os)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert am.run_autoclose(cfg, [], result=result) == 0
 
     [kept] = result.preserved
     assert kept.branch_owner == clone.resolve()
@@ -730,7 +731,7 @@ def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
     posts.clear()
     for _ in range(2):
         result = am.AutocloseResult()
-        assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+        assert am.run_autoclose(cfg, [], result=result) == 0
         assert not result.preserved
         assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == []
     assert not any(url == IMPORTANT_WEBHOOK for url, _ in posts)
@@ -748,7 +749,7 @@ def test_independent_clone_without_its_recorded_branch_is_not_debt(
     _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert clone.is_dir()
     assert not result.preserved
@@ -769,7 +770,7 @@ def test_a_wiped_sandbox_clone_clears_its_entry_without_reposting(
     cfg = load_config(git_repo.coga_os)
 
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert am.run_autoclose(cfg, [], result=result) == 0
     [kept] = result.preserved
     assert kept.branch_owner == clone.resolve()
 
@@ -778,7 +779,7 @@ def test_a_wiped_sandbox_clone_clears_its_entry_without_reposting(
     remove_test_checkout(clone)
     posts.clear()
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert am.run_autoclose(cfg, [], result=result) == 0
     assert not result.preserved
     assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == []
     assert not any(url == IMPORTANT_WEBHOOK for url, _ in posts)
@@ -807,7 +808,7 @@ def test_primary_checkout_recorded_as_worktree_is_not_retire_debt(
     posts = _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert Ticket.read(ticket).status == "done"
     [closed] = result.closed
@@ -843,7 +844,7 @@ def test_worklist_entry_naming_the_primary_checkout_clears_with_its_branch(
     posts = _capture_posts(monkeypatch)
     result = am.AutocloseResult()
 
-    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+    assert am.run_autoclose(load_config(git_repo.coga_os), [], result=result) == 0
 
     # With no branch recorded there is nothing left to judge at all.
     assert [(o.branch, o.worktree, o.disposed) for o in result.checkouts] == (

@@ -30,7 +30,7 @@ import tempfile
 import yaml
 from pathlib import Path
 
-from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.dev_links import parse_branch_name, parse_pr_url, parse_worktree_path
 from coga.blackboard import update_blackboard_under_barrier
 from coga.config import Config
 from coga.github_preflight import (

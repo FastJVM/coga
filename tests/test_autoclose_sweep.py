@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from textwrap import dedent
 
-from coga import autoclose
+from coga_edge import autoclose
 from coga.config import load_config
 from coga.recurring import Template, create_named
 from coga.tasks import list_tasks
@@ -45,7 +45,7 @@ def test_autoclose_recipe_calls_shared_sweep_loudly(
 
     monkeypatch.setattr(autoclose, "sweep_merged", fake_sweep)
 
-    assert autoclose.run_autoclose_recipe(cfg, []) == 0
+    assert autoclose.run_autoclose(cfg, []) == 0
     assert calls == [(cfg, False)]
     assert "[autoclose] no tickets bumped." in capsys.readouterr().out
 
@@ -56,7 +56,7 @@ def test_autoclose_recipe_surfaces_gh_error(monkeypatch, capsys, tmp_path: Path)
 
     monkeypatch.setattr(autoclose, "sweep_merged", boom)
 
-    assert autoclose.run_autoclose_recipe(SimpleNamespace(repo_root=tmp_path), []) == 2
+    assert autoclose.run_autoclose(SimpleNamespace(repo_root=tmp_path), []) == 2
     assert "gh: not authenticated" in capsys.readouterr().err
 
 

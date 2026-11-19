@@ -18,6 +18,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+# step_gate is imported by validate at module level, so it stays import-light:
+# `dev_links` depends only on `taskfile`.
+from coga.dev_links import parse_branch_name, parse_pr_url
+
 
 @dataclass(frozen=True)
 class StepGate:
@@ -33,21 +37,12 @@ class StepGate:
 
 
 def _has_pr(blackboard_text: str) -> object:
-    # Imported lazily: `coga.autoclose` pulls in `coga.mark` (and thus
-    # `coga.validate`) at module load, so a top-level import here would form a
-    # `validate -> step_gate -> autoclose -> mark -> validate` cycle. step_gate
-    # is imported by validate at module level, so it must stay import-light.
-    from coga.autoclose import parse_pr_url
-
     return parse_pr_url(blackboard_text)
 
 
 def _has_branch_linkage(blackboard_text: str) -> object:
-    # Lazy for the same import-cycle reason as `_has_pr`. `worktree:` is
-    # recorded only for the sandbox clone fallback (`coga/checkouts`), so the
-    # branch is the whole linkage.
-    from coga.autoclose import parse_branch_name
-
+    # `worktree:` is recorded only for the sandbox clone fallback
+    # (`coga/checkouts`), so the branch is the whole linkage.
     branch = parse_branch_name(blackboard_text)
     return bool(branch) and not branch.startswith("(")
 

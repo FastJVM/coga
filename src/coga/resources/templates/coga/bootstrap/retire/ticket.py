@@ -14,7 +14,7 @@ import typer
 
 from coga import git
 from coga.blackboard import append_blocker
-from coga.autoclose import (
+from coga.dev_links import (
     parse_branch_name,
     parse_branch_names,
     parse_pr_url,

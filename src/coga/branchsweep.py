@@ -8,7 +8,7 @@ is the net behind that — it walks every local and `origin` branch directly
 (no ticket lookup) and deletes the ones GitHub confirms have already landed.
 
 The merge signal differs from retire's: retire trusts a single ticket's
-recorded `pr:` link (`autoclose.pr_state`, URL-keyed). A swept branch has no
+recorded `pr:` link (`dev_links.pr_state`, URL-keyed). A swept branch has no
 ticket to point at a PR, so the check here is by **head branch name**
 (`gh pr list --head <branch> --json number,headRefOid`), and it requires a
 merged PR for that head **and no open PR** for it. A merged PR vouches for a
@@ -88,9 +88,8 @@ from stat import S_ISREG
 from typing import TYPE_CHECKING, Callable
 
 from coga.atomicio import atomic_write_text
-from coga.autoclose import (
+from coga.dev_links import (
     GhError,
-    dispose_worklist_backlog,
     parse_branch_names,
     parse_worktree_path,
     prs_for_head,
@@ -107,7 +106,7 @@ from coga.branchcleanup import (
     remove_inspected_worktree,
     resolve_worktree_path,
 )
-from coga.checkout_disposal import live_checkout_claim
+from coga.checkout_disposal import dispose_worklist_backlog, live_checkout_claim
 from coga.config import Config, local_config_path
 from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
@@ -1031,7 +1030,7 @@ def discharge_owned_followups(
     """Dispose of and discharge the `retires.md` entries this clone owns.
 
     The autoclose sweep runs in one clone and can only report an entry whose
-    checkout belongs to another (`autoclose._owner_held_branch`). This pass is
+    checkout belongs to another (`checkout_disposal.owner_held_branch`). This pass is
     that other clone's half: entries whose `owner` resolves to `root`'s
     repository (`retire_worklist.owned_here`) go through the same backlog walk
     and retire proofs autoclose uses, then each worklist is reconciled with

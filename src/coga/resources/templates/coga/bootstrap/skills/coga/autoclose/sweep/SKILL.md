@@ -7,13 +7,16 @@ description: Close final-step Coga tickets whose linked GitHub PR has merged.
 
 This skill documents the merged-ticket auto-close sweep behind the
 `recurring/autoclose-merged/` ticket. That ticket's `ticket.py` runs the
-registered `autoclose` recipe (`coga.autoclose.run_autoclose_recipe`)
-through `coga.runner.run_recipe` — no agent, no composed prompt — and the
-same sweep is available as `coga run autoclose`. It is the
+wheel-owned edge job `coga_edge.autoclose` ([coga/edge-code](context:coga/edge-code))
+— no agent, no composed prompt — through the shared report → publish → bump
+entry, so the step completes only after a successful sweep. The `coga
+autoclose` alias relaunches the period on demand, and `python -m
+coga_edge.autoclose` runs the same sweep by hand without advancing any task.
+There is no `coga run autoclose` recipe. It is the
 sole trigger for closing tickets whose PR has merged. Unclaimed landed
 branches are swept by the clone-scoped branch-sweep template in every clone;
 [coga/recurring/scheduling](context:coga/recurring/scheduling) owns that
-split. The autoclose recipe itself performs these steps:
+split. The autoclose job itself performs these steps:
 
 1. scan active and in-progress tickets,
 2. read each ticket blackboard's `## Dev` `pr:` link,
@@ -29,8 +32,10 @@ split. The autoclose recipe itself performs these steps:
 7. report unresolved, non-outdated review threads with only their opening
    comment on each closed PR.
 
-The scope is defined by `coga.autoclose.sweep_merged` (the close) and
-`coga.autoclose._dispose_checkouts` (the disposal).
+The scope is defined by `coga_edge.autoclose.sweep_merged` (the close) and
+`coga_edge.autoclose._dispose_checkouts` (the disposal), over the shared
+`## Dev` parsers in `coga.dev_links` and the shared backlog walk
+`coga.checkout_disposal.dispose_worklist_backlog`.
 Mid-workflow merges stay untouched because they are suspicious and need a human
 to finish the ticket explicitly.
 
@@ -87,8 +92,8 @@ the recorded **head branch name** (`gh pr list --head <branch> --state
 merged`) — the lookup the branch sweep already trusts — and compare the same
 exact heads.
 
-**Only from the control branch, only this clone's worktrees.** A hand-run
-`coga run autoclose` on a checkout that is not on `[git].control_branch`
+**Only from the control branch, only this clone's worktrees.** A hand run
+(`python -m coga_edge.autoclose`) on a checkout that is not on `[git].control_branch`
 closes tickets as usual but preserves every recorded checkout and says so
 (`[autoclose] checkout disposal skipped (...)`): the claim scan reads that
 checkout's tickets and the branch proofs its refs. `coga recurring` services
@@ -158,8 +163,8 @@ no checkout; the fourth is the durable worklist:
   resurrects or duplicates is healed by the next reconcile. A run that
   recorded, refreshed, or dropped nothing, and has no open entries, prints
   nothing about the file; otherwise stdout carries one
-  `[autoclose] retire worklist <path>: N open, ...` line per file. A hand-run
-  `coga run autoclose` never *records* a new entry — there is no period task
+  `[autoclose] retire worklist <path>: N open, ...` line per file. A hand run
+  (`python -m coga_edge.autoclose`) never *records* a new entry — there is no period task
   to own one — but it drains and prunes every existing worklist. Each line
   reads
   ``- `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>` ``
@@ -258,7 +263,7 @@ an unresolved thread does not block, and nothing else looks at the PR's
 threads again (the `coga/workflows` context, "Code review gate",
 has the measurement and the decision). The sweep is the one place that already
 touches every merged PR, so when it closes a ticket it fetches that PR's
-`reviewThreads` once — `coga.autoclose.unanswered_review_threads`, one
+`reviewThreads` once — `coga_edge.autoclose.unanswered_review_threads`, one
 paginated `gh api graphql` query against the recorded PR URL's host and base
 repository — and keeps the threads that are unresolved,
 not outdated, and hold only their opening comment. Resolved means a human
@@ -281,7 +286,9 @@ the next sweep rather than closing it without its report. After the GitHub
 lookups, the sweep re-reads the ticket and checks eligibility again, preserving
 a pause, cancellation, or completion that happened while GitHub was responding.
 
-Run it directly with `coga run autoclose`. Live notification configuration is
+Run it by hand with `python -m coga_edge.autoclose` (the interpreter of the
+Coga installation), or relaunch the period with the `coga autoclose` alias.
+Live notification configuration is
 preflighted before each affected ticket closes. Later `gh` or task-validation
 failures remain hard failures, but any earlier closures are still reported.
 After the report exists, a transiently undeliverable Slack summary is

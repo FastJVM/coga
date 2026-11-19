@@ -17,7 +17,7 @@ heads awaiting that decision are recorded under “Open command placements” be
 
 1. **Shared infra with at least two real consumers**: compose, config,
    task/ticket IO, the launch machinery, shared parsers and gates (for example
-   the `## Dev` parsers and `gh` helpers in `autoclose.py`).
+   the `## Dev` parsers and `gh` helpers in `dev_links.py`).
 2. **A reviewed, co-versioned command contract**: a function in the fixed
    `runner.RECIPES` registry, or a command whose contract names the
    package-private invariant or atomic transaction that an edge implementation
@@ -275,5 +275,16 @@ the invoking root. Their packaged shims call `main([], scheduled=True)`, and a c
 module over `ticket.py` is a complete fork. Their recipe names left
 `runner.RECIPES`. `skill_manager` and `coga skill update` stay in core for
 their own consumers; only the reporting job moved.
+
+The recurring autoclose job (`coga_edge.autoclose`) follows the same import
+rule. It exposes `main`, which runs `runner.run_entry` with the invoking root;
+the packaged shim calls `main([], scheduled=True)`, and a copy of the module
+over `ticket.py` is a complete fork. Its recipe name left `runner.RECIPES`.
+The per-symbol audit kept what other production code consumes in core: the
+`## Dev` parsers and `gh` lookups moved to `dev_links.py`, and the
+`retires.md` backlog walk the branch sweep shares
+(`dispose_worklist_backlog`, `CheckoutOutcome`, `owner_held_branch`) moved
+to `checkout_disposal.py`. Its private `_append_blackboard_report` wrapper was
+deleted in favor of `blackboard.append_blackboard_report`.
 
 Size exception: placement rules, open decisions and retained proofs stay together so reviewers can assess each command against the same kernel boundary.

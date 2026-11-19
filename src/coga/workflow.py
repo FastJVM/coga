@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 
+from coga.step_gate import known_gate_tokens
 from coga.taskfile import body_sections
 
 
@@ -176,9 +177,6 @@ def _parse_step(raw: Any, source: Path) -> WorkflowStep:
         )
     requires = raw.get("requires")
     if requires is not None:
-        # Imported lazily to avoid a module-load cycle (step_gate -> autoclose).
-        from coga.step_gate import known_gate_tokens
-
         if not isinstance(requires, str) or requires not in known_gate_tokens():
             raise WorkflowError(
                 f"{source}: step {name!r} requires {requires!r} must be one of "

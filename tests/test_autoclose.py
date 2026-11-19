@@ -13,7 +13,8 @@ import requests
 import typer
 from typer.testing import CliRunner
 
-from coga import autoclose as am
+from coga import dev_links
+from coga_edge import autoclose as am
 from coga import blackboard as blackboard_module
 from coga import retire_worklist as rw
 from coga.cli import app
@@ -163,21 +164,21 @@ def test_parse_pr_url_finds_under_dev() -> None:
         pr: https://github.com/owner/repo/pull/42
         """
     )
-    assert am.parse_pr_url(text) == "https://github.com/owner/repo/pull/42"
+    assert dev_links.parse_pr_url(text) == "https://github.com/owner/repo/pull/42"
 
 
 def test_parse_pr_url_returns_none_without_dev_section() -> None:
-    assert am.parse_pr_url("## Plan\n\nNo dev here.\n") is None
+    assert dev_links.parse_pr_url("## Plan\n\nNo dev here.\n") is None
 
 
 def test_parse_pr_url_returns_none_when_dev_lacks_pr_line() -> None:
     text = "## Dev\n\nbranch: only-a-branch\n"
-    assert am.parse_pr_url(text) is None
+    assert dev_links.parse_pr_url(text) is None
 
 
 def test_parse_pr_url_ignores_pr_outside_dev_section() -> None:
     text = "## Notes\n\npr: https://example.com/x\n"
-    assert am.parse_pr_url(text) is None
+    assert dev_links.parse_pr_url(text) is None
 
 
 def test_parse_pr_url_list_item_form() -> None:
@@ -185,7 +186,7 @@ def test_parse_pr_url_list_item_form() -> None:
     # `_PR_LINE_RE` did not, so a merged final-step ticket written this way was
     # silently skipped by the sweep and left stranded `in_progress`.
     text = "## Dev\n\n- branch: `trim-prompt`\n- pr: https://github.com/o/r/pull/416\n"
-    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/416"
+    assert dev_links.parse_pr_url(text) == "https://github.com/o/r/pull/416"
 
 
 def test_parse_pr_url_trailing_annotation_form() -> None:
@@ -196,17 +197,17 @@ def test_parse_pr_url_trailing_annotation_form() -> None:
         "## Dev\n\n- pr: https://github.com/o/r/pull/55 "
         "(no CI configured on the repo)\n"
     )
-    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/55"
+    assert dev_links.parse_pr_url(text) == "https://github.com/o/r/pull/55"
 
 
 def test_parse_pr_url_backtick_wrapped_with_annotation() -> None:
     text = "## Dev\n\npr: `https://github.com/o/r/pull/56` (Magicator repo)\n"
-    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/56"
+    assert dev_links.parse_pr_url(text) == "https://github.com/o/r/pull/56"
 
 
 def test_parse_pr_url_unclosed_backtick_falls_back_to_bare_form() -> None:
     text = "## Dev\n\npr: `https://github.com/o/r/pull/57\n"
-    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/57"
+    assert dev_links.parse_pr_url(text) == "https://github.com/o/r/pull/57"
 
 
 @pytest.mark.parametrize(
@@ -225,7 +226,7 @@ def test_parse_pr_url_placeholder_or_non_pr_value_is_none(value: str) -> None:
     # GhError aborts the whole sweep (exit 2) — trading one silently skipped
     # ticket for a failure on every remaining one.
     text = f"## Dev\n\npr: {value}\n"
-    assert am.parse_pr_url(text) is None
+    assert dev_links.parse_pr_url(text) is None
 
 
 def test_parse_pr_url_skips_a_placeholder_line_above_the_real_one() -> None:
@@ -235,52 +236,52 @@ def test_parse_pr_url_skips_a_placeholder_line_above_the_real_one() -> None:
     text = (
         "## Dev\n\npr: (not opened yet)\npr: https://github.com/o/r/pull/8\n"
     )
-    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/8"
+    assert dev_links.parse_pr_url(text) == "https://github.com/o/r/pull/8"
 
 
 def test_parse_pr_url_does_not_bleed_past_an_empty_pr_line() -> None:
     # `\s` matches newlines, so a `\s*$` tail on the non-greedy capture would
     # let an empty `pr:` line swallow the next non-blank line.
     text = "## Dev\n\npr:\n\nhttps://github.com/o/r/pull/99\n"
-    assert am.parse_pr_url(text) is None
+    assert dev_links.parse_pr_url(text) is None
 
 
 def test_parse_branch_name_bare_form() -> None:
     text = "## Dev\n\nbranch: feature-x\npr: https://github.com/o/r/pull/1\n"
-    assert am.parse_branch_name(text) == "feature-x"
+    assert dev_links.parse_branch_name(text) == "feature-x"
 
 
 def test_parse_branch_name_list_item_form() -> None:
     # `- branch: \`name\`` — list prefix + backticks, the trap form.
     text = "## Dev\n\n- branch: `first-run-no-slack`\n- pr: `https://x/pull/2`\n"
-    assert am.parse_branch_name(text) == "first-run-no-slack"
+    assert dev_links.parse_branch_name(text) == "first-run-no-slack"
 
 
 def test_parse_branch_name_backtick_wrapped_form() -> None:
     text = "## Dev\n\nbranch: `drop-debug-all`\n"
-    assert am.parse_branch_name(text) == "drop-debug-all"
+    assert dev_links.parse_branch_name(text) == "drop-debug-all"
 
 
 def test_parse_branch_name_backtick_wrapped_with_annotation() -> None:
     text = "## Dev\n\nbranch: `feature/name` (other repo)\n"
-    assert am.parse_branch_name(text) == "feature/name"
+    assert dev_links.parse_branch_name(text) == "feature/name"
 
 
 def test_parse_branch_name_unclosed_backtick_falls_back_to_bare_form() -> None:
     text = "## Dev\n\nbranch: `feature/name (other repo)\n"
-    assert am.parse_branch_name(text) == "feature/name (other repo)"
+    assert dev_links.parse_branch_name(text) == "feature/name (other repo)"
 
 
 def test_parse_branch_name_none_without_dev_section() -> None:
-    assert am.parse_branch_name("## Plan\n\nbranch: nope\n") is None
+    assert dev_links.parse_branch_name("## Plan\n\nbranch: nope\n") is None
 
 
 def test_parse_branch_name_none_when_dev_lacks_branch_line() -> None:
-    assert am.parse_branch_name("## Dev\n\npr: https://x/pull/3\n") is None
+    assert dev_links.parse_branch_name("## Dev\n\npr: https://x/pull/3\n") is None
 
 
 def test_parse_branch_name_empty_value_is_none() -> None:
-    assert am.parse_branch_name("## Dev\n\nbranch: ``\n") is None
+    assert dev_links.parse_branch_name("## Dev\n\nbranch: ``\n") is None
 
 
 def test_parse_branch_names_lists_every_dev_branch_once() -> None:
@@ -289,18 +290,18 @@ def test_parse_branch_names_lists_every_dev_branch_once() -> None:
         "## Dev\n\nbranch: first\n- branch: `second` (retry)\nbranch: first\n"
         "pr: https://x/pull/4\n"
     )
-    assert am.parse_branch_names(text) == ["first", "second"]
-    assert am.parse_branch_name(text) == "first"
+    assert dev_links.parse_branch_names(text) == ["first", "second"]
+    assert dev_links.parse_branch_name(text) == "first"
 
 
 def test_parse_branch_names_empty_without_dev_section() -> None:
-    assert am.parse_branch_names("## Plan\n\nbranch: nope\n") == []
+    assert dev_links.parse_branch_names("## Plan\n\nbranch: nope\n") == []
 
 
 @pytest.mark.parametrize("field,value,parser", [
-    ("branch", "real", am.parse_branch_name),
-    ("pr", "https://github.com/o/r/pull/42", am.parse_pr_url),
-    ("worktree", "/tmp/real checkout", am.parse_worktree_path),
+    ("branch", "real", dev_links.parse_branch_name),
+    ("pr", "https://github.com/o/r/pull/42", dev_links.parse_pr_url),
+    ("worktree", "/tmp/real checkout", dev_links.parse_worktree_path),
 ])
 @pytest.mark.parametrize("fence", ["```", "~~~~", "````"])
 def test_dev_linkage_ignores_fenced_examples(
@@ -317,9 +318,9 @@ def test_dev_linkage_ignores_fenced_examples(
 
 
 @pytest.mark.parametrize("field,value,parser", [
-    ("branch", "real", am.parse_branch_name),
-    ("pr", "https://github.com/o/r/pull/42", am.parse_pr_url),
-    ("worktree", "/tmp/real checkout", am.parse_worktree_path),
+    ("branch", "real", dev_links.parse_branch_name),
+    ("pr", "https://github.com/o/r/pull/42", dev_links.parse_pr_url),
+    ("worktree", "/tmp/real checkout", dev_links.parse_worktree_path),
 ])
 @pytest.mark.parametrize("indent", ["    ", "\t"])
 def test_dev_linkage_ignores_indented_examples(
@@ -331,7 +332,7 @@ def test_dev_linkage_ignores_indented_examples(
 
 
 def test_parse_worktree_path_does_not_borrow_next_line() -> None:
-    assert am.parse_worktree_path("## Dev\nworktree:\n\n/tmp/prose\n") is None
+    assert dev_links.parse_worktree_path("## Dev\nworktree:\n\n/tmp/prose\n") is None
 
 
 @pytest.mark.parametrize("fence", ["```", "~~~~", "````"])
@@ -345,43 +346,43 @@ def test_branch_ownership_ignores_fenced_examples(fence: str) -> None:
     # A matching triple fence already closed the first parametrized block.
     if fence == "```":
         text = text.replace("```\nbranch: still-example\n", "")
-    assert am.parse_branch_names(text) == ["real"]
-    assert am.parse_branch_name(text) == "real"
+    assert dev_links.parse_branch_names(text) == ["real"]
+    assert dev_links.parse_branch_name(text) == "real"
 
 
 def test_branch_ownership_does_not_read_past_empty_line_or_unclosed_fence() -> None:
-    assert am.parse_branch_names("## Dev\nbranch:\n\nprose\n") == []
-    assert am.parse_branch_names("## Dev\n```\nbranch: example\n") == []
+    assert dev_links.parse_branch_names("## Dev\nbranch:\n\nprose\n") == []
+    assert dev_links.parse_branch_names("## Dev\n```\nbranch: example\n") == []
 
 
 def test_parse_worktree_path_bare_form_preserves_spaces() -> None:
     text = "## Dev\n\nworktree: /tmp/path with spaces\n"
-    assert am.parse_worktree_path(text) == "/tmp/path with spaces"
+    assert dev_links.parse_worktree_path(text) == "/tmp/path with spaces"
 
 
 def test_parse_worktree_path_list_item_backtick_wrapped_form() -> None:
     text = "## Dev\n\n- worktree: `/tmp/path with spaces`\n"
-    assert am.parse_worktree_path(text) == "/tmp/path with spaces"
+    assert dev_links.parse_worktree_path(text) == "/tmp/path with spaces"
 
 
 def test_parse_worktree_path_backtick_wrapped_with_annotation() -> None:
     text = "## Dev\n\nworktree: `/tmp/path with spaces` (other repo)\n"
-    assert am.parse_worktree_path(text) == "/tmp/path with spaces"
+    assert dev_links.parse_worktree_path(text) == "/tmp/path with spaces"
 
 
 def test_parse_worktree_path_unclosed_backtick_falls_back_to_bare_form() -> None:
     text = "## Dev\n\nworktree: `/tmp/path with spaces (other repo)\n"
-    assert am.parse_worktree_path(text) == "/tmp/path with spaces (other repo)"
+    assert dev_links.parse_worktree_path(text) == "/tmp/path with spaces (other repo)"
 
 
 def test_parse_worktree_path_annotated_placeholder_is_none() -> None:
     text = "## Dev\n\nworktree: `(not yet created)` (other repo)\n"
-    assert am.parse_worktree_path(text) is None
+    assert dev_links.parse_worktree_path(text) is None
 
 
 def test_parse_pr_number() -> None:
-    assert am.parse_pr_number("https://github.com/o/r/pull/74") == 74
-    assert am.parse_pr_number("not-a-url") is None
+    assert dev_links.parse_pr_number("https://github.com/o/r/pull/74") == 74
+    assert dev_links.parse_pr_number("not-a-url") is None
 
 
 def test_pr_head_reads_exact_branch_and_oid(monkeypatch) -> None:
@@ -403,7 +404,7 @@ def test_pr_head_reads_exact_branch_and_oid(monkeypatch) -> None:
 
     monkeypatch.setattr(am.subprocess, "run", fake_run)
 
-    assert am.pr_head("https://github.com/o/r/pull/7") == ("feat", "abc123")
+    assert dev_links.pr_head("https://github.com/o/r/pull/7") == ("feat", "abc123")
 
 
 def test_prs_for_head_lists_requested_state(monkeypatch) -> None:
@@ -428,7 +429,7 @@ def test_prs_for_head_lists_requested_state(monkeypatch) -> None:
 
     monkeypatch.setattr(am.subprocess, "run", fake_run)
 
-    assert am.prs_for_head("feat", "open") == [
+    assert dev_links.prs_for_head("feat", "open") == [
         {"number": 12, "headRefOid": "abc123"}
     ]
 
@@ -1313,7 +1314,7 @@ def test_recipe_reports_unanswered_threads_on_stdout_and_slack_without_touching_
 
     monkeypatch.setattr(am.subprocess, "run", record_gh)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     out = capsys.readouterr().out
     assert am.REVIEW_THREADS_REPORT_HEADING in out
@@ -1342,7 +1343,7 @@ def test_recipe_reports_both_followups_when_a_closure_has_both(
     _stub_review_threads(monkeypatch, {url: [_thread()]})
     posts = _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     out = capsys.readouterr().out
     assert out.index(am.RETIRE_REPORT_HEADING) < out.index(
@@ -1367,7 +1368,7 @@ def test_recipe_appends_the_review_threads_report_to_the_task_blackboard(
     _stub_review_threads(monkeypatch, {url: [_thread()]})
     _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     report = host.read_text(encoding="utf-8")
     assert am.REVIEW_THREADS_REPORT_HEADING in report
@@ -1389,7 +1390,7 @@ def test_recipe_reports_the_retire_followup_on_stdout_and_slack(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/22": "MERGED"})
     posts = _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     out = capsys.readouterr().out
     assert am.RETIRE_REPORT_HEADING in out
@@ -1420,10 +1421,49 @@ def test_recipe_says_nothing_when_no_closed_ticket_left_a_checkout(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/23": "MERGED"})
     posts = _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     assert am.RETIRE_REPORT_HEADING not in capsys.readouterr().out
     assert [p for p in posts if "🧹" in p] == []
+
+
+@pytest.mark.parametrize("scheduled", [False, True])
+def test_main_runs_from_the_edge_and_bumps_only_a_launched_script_task(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    scheduled: bool,
+) -> None:
+    """`main` is the shared report → publish → bump entry, not a recipe.
+
+    Even with inherited, valid script attribution a manual call never
+    advances the outer task; only the packaged shim's `scheduled=True` does,
+    and only after a successful sweep. Unexpected argv still exits 2.
+    """
+    from coga import runner
+    from coga.tasks import resolve_task
+
+    url = "https://github.com/o/r/pull/40"
+    slug, path = _make_task(repo, on_final=True, pr_url=url, branch=None)
+    host, _ = _make_task(repo, title="Period host", status="draft", branch=None)
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+    _capture_posts(monkeypatch)
+    cfg = load_config(repo)
+    monkeypatch.setattr(runner, "load_config", lambda: cfg)
+    bumps: list[str] = []
+    monkeypatch.setattr(runner, "_bump", lambda task: bumps.append(task) or 0)
+    monkeypatch.setenv("COGA_TASK_SLUG", host)
+    monkeypatch.setenv("COGA_SCRIPT_TASK", str(resolve_task(cfg, host).path))
+
+    assert am.main(["--bogus"], scheduled=scheduled) == 2
+    assert "autoclose: unexpected arguments: '--bogus'" in capsys.readouterr().err
+    assert bumps == []
+    assert Ticket.read(path).status == "active"
+
+    assert am.main([], scheduled=scheduled) == 0
+    assert Ticket.read(path).status == "done"
+    assert bumps == ([host] if scheduled else [])
+    assert "autoclose" not in runner.RECIPES
 
 
 def test_recipe_hands_back_the_result_it_already_builds(
@@ -1454,7 +1494,7 @@ def test_recipe_hands_back_the_result_it_already_builds(
     _capture_posts(monkeypatch)
 
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
+    assert am.run_autoclose(load_config(repo), [], result=result) == 0
 
     # The accumulator the wrapper used to keep private: exactly what it closed,
     # and the subset that still holds a checkout.
@@ -1487,7 +1527,7 @@ def test_recipe_result_counts_the_open_tickets_it_scanned(
     _capture_posts(monkeypatch)
 
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
+    assert am.run_autoclose(load_config(repo), [], result=result) == 0
 
     # Three open tickets walked; the already-`done` one is not one of them.
     assert result.scanned == 3
@@ -1528,7 +1568,7 @@ def test_recipe_result_excludes_a_closure_this_sweep_did_not_make(
     _stub_review_threads(monkeypatch)
 
     result = am.AutocloseResult()
-    assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
+    assert am.run_autoclose(load_config(repo), [], result=result) == 0
 
     assert [item.slug for item in result.closed] == [swept]
     assert Ticket.read(elsewhere_path).status == "done"
@@ -1552,7 +1592,7 @@ def test_recipe_appends_the_report_to_the_task_blackboard(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
     _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     report = host.read_text(encoding="utf-8")
     assert am.RETIRE_REPORT_HEADING in report
@@ -1589,7 +1629,7 @@ def test_recipe_reports_earlier_closure_when_a_later_pr_lookup_fails(
     _stub_review_threads(monkeypatch)
     _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+    assert am.run_autoclose(load_config(repo), []) == 2
 
     captured = capsys.readouterr()
     assert f"`coga retire {first_slug}`" in captured.out
@@ -1618,7 +1658,7 @@ def test_recipe_reports_a_close_when_mark_done_fails_after_its_write(
     monkeypatch.setattr(am, "mark_done", committed_then_fails)
 
     with pytest.raises(RuntimeError, match="failed after terminal write"):
-        am.run_autoclose_recipe(load_config(repo), [])
+        am.run_autoclose(load_config(repo), [])
 
     assert f"`coga retire {slug}`" in capsys.readouterr().out
     assert Ticket.read(path).status == "done"
@@ -1642,7 +1682,7 @@ def test_recipe_preflights_live_summary_before_closing(
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
 
     with pytest.raises(typer.Exit):
-        am.run_autoclose_recipe(load_config(repo), [])
+        am.run_autoclose(load_config(repo), [])
 
     captured = capsys.readouterr()
     assert "no webhook is configured" in captured.err
@@ -1658,7 +1698,7 @@ def test_append_report_preserves_crlf_and_uses_atomic_blackboard_replace(
     original = host.read_bytes().replace(b"\n", b"\r\n")
     host.write_bytes(original)
 
-    am._append_blackboard_report(
+    am.append_blackboard_report(
         load_config(repo),
         host,
         "## Report\n\nbody\n",
@@ -1684,7 +1724,7 @@ def test_append_report_refuses_to_overwrite_a_concurrent_ticket_change(
     monkeypatch.setattr(blackboard_module, "replace_blackboard", race_then_replace)
 
     with pytest.raises(TaskFileError, match="ticket changed"):
-        am._append_blackboard_report(load_config(repo), host, "## Report\n")
+        am.append_blackboard_report(load_config(repo), host, "## Report\n")
 
     assert host.read_text(encoding="utf-8").endswith("\nconcurrent update\n")
     assert "## Report" not in host.read_text(encoding="utf-8")
@@ -1709,7 +1749,7 @@ def test_failed_summary_delivery_is_logged_against_the_host_task(
 
     monkeypatch.setattr("requests.post", offline)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     from coga.logfile import task_log_lines
 
@@ -1762,7 +1802,7 @@ def test_recipe_records_the_followup_in_the_durable_worklist(
 ) -> None:
     slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert [(e.slug, e.branch, e.worktree) for e in entries] == [
@@ -1783,7 +1823,7 @@ def test_the_worklist_survives_deleting_and_recreating_the_period_task(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
     capsys.readouterr()
 
     # What `coga recurring` does at the next period boundary: delete the
@@ -1798,7 +1838,7 @@ def test_the_worklist_survives_deleting_and_recreating_the_period_task(
     # The next period closes nothing, so it only reconciles: the entry is
     # still live (its branch cannot be checked here, so it is kept) and the
     # fresh period task gets no report.
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     assert slug in worklist.read_text(encoding="utf-8")
     assert am.RETIRE_REPORT_HEADING not in period.read_text(encoding="utf-8")
@@ -1809,7 +1849,7 @@ def test_a_rerun_that_strands_the_same_slug_keeps_one_entry_and_its_date(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     slug, _, worklist = _make_recurring_sweep(repo, monkeypatch)
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
     first = worklist.read_bytes()
     capsys.readouterr()
 
@@ -1850,7 +1890,7 @@ def test_a_recurring_run_drops_discharged_debt_and_keeps_live_debt(
         encoding="utf-8", newline="\n",
     )
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert sorted(e.slug for e in entries) == sorted([slug, "stranded"])
@@ -1875,7 +1915,7 @@ def test_a_non_recurring_task_keeps_the_ordinary_blackboard_surface(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
     _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     assert f"`coga retire {slug}`" in host.read_text(encoding="utf-8")
     assert not (repo / "recurring" / "autoclose-merged" / "retires.md").exists()
@@ -1893,7 +1933,7 @@ def test_a_run_with_no_task_keeps_stdout_and_touches_no_worklist(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
     _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     out = capsys.readouterr().out
     assert f"`coga retire {slug}`" in out
@@ -1921,7 +1961,7 @@ def test_a_period_task_inherited_from_another_checkout_selects_no_worklist(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
     _capture_posts(monkeypatch)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    assert am.run_autoclose(load_config(repo), []) == 0
 
     assert f"`coga retire {slug}`" in capsys.readouterr().out
     assert not (repo / "recurring" / "autoclose-merged" / "retires.md").exists()
@@ -1934,7 +1974,7 @@ def test_a_corrupt_worklist_fails_the_run_loudly_after_closing(
     posts = _capture_posts(monkeypatch)
     worklist.write_text("# Someone else's file\n", encoding="utf-8", newline="\n")
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+    assert am.run_autoclose(load_config(repo), []) == 2
 
     captured = capsys.readouterr()
     assert "retire worklist has no" in captured.err
@@ -1967,7 +2007,7 @@ def test_a_corrupt_worklist_is_reported_when_the_sweep_itself_fails(
 
     monkeypatch.setattr(am, "mark_done", close_then_break)
 
-    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+    assert am.run_autoclose(load_config(repo), []) == 2
 
     captured = capsys.readouterr()
     assert "retire worklist has no" in captured.err
@@ -2003,7 +2043,7 @@ def test_worklist_io_failure_preserves_followups_and_original_sweep_error(
 
         monkeypatch.setattr(rw, "atomic_write_text", failed_write)
         if failure == "disk-full":
-            monkeypatch.setattr(am, "_append_blackboard_report", failed_write)
+            monkeypatch.setattr(am, "append_blackboard_report", failed_write)
         diagnostic = "worklist disk full"
     else:
         worklist.write_bytes(b"\xff")
@@ -2021,9 +2061,9 @@ def test_worklist_io_failure_preserves_followups_and_original_sweep_error(
     cfg = load_config(repo)
     if sweep_error is RuntimeError:
         with pytest.raises(RuntimeError, match="original sweep failure"):
-            am.run_autoclose_recipe(cfg, [])
+            am.run_autoclose(cfg, [])
     else:
-        assert am.run_autoclose_recipe(cfg, []) == 2
+        assert am.run_autoclose(cfg, []) == 2
 
     from coga.tasks import resolve_task
 
@@ -2096,8 +2136,8 @@ def test_review_report_write_failure_keeps_stdout_and_slack_and_fails_recipe(
     def fail_append(*args, **kwargs):
         raise failure
 
-    monkeypatch.setattr(am, "_append_blackboard_report", fail_append)
-    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+    monkeypatch.setattr(am, "append_blackboard_report", fail_append)
+    assert am.run_autoclose(load_config(repo), []) == 2
     output = capsys.readouterr()
     assert am.REVIEW_THREADS_REPORT_HEADING in output.out
     assert "could not write review thread report" in output.err
@@ -2114,6 +2154,6 @@ def test_retire_reporting_failure_does_not_suppress_review_threads(
     _stub_review_threads(monkeypatch, {url: [_thread()]})
     posts = _capture_posts(monkeypatch)
     monkeypatch.setattr(am, "_report_retire_followups", lambda *args: False)
-    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+    assert am.run_autoclose(load_config(repo), []) == 2
     assert am.REVIEW_THREADS_REPORT_HEADING in capsys.readouterr().out
     assert any("🧵" in post for post in posts)

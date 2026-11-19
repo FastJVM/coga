@@ -61,7 +61,8 @@ sweep runs; it does not change which tickets are safe to close.
 
 Done events produced by the sweep go through the shared `mark_done` finalizer,
 so each closure posts live to Slack exactly as a manual `coga mark done` would.
-After the autoclose recipe succeeds, `ticket.py` bumps. Landed branches with
+`ticket.py` runs the edge job `coga_edge.autoclose`, which bumps after a
+successful sweep — autoclose, then bump, nothing else. Landed branches with
 no live ticket are the clone-scoped `branch-sweep` template's, which every
 clone runs daily for its own refs; closure stays here, serviced once per
 period for the whole repository. The daily cadence and reporting contract live in
@@ -83,7 +84,7 @@ is the tickets it marks done and the live Done posts they produce.
 
 A run that disposed of or preserved a feature checkout appends a
 `## Autoclose Sweep: retire follow-ups` section to the *period task's*
-blackboard for that firing (`autoclose._report_retire_followups` writes
+blackboard for that firing (`coga_edge.autoclose._report_retire_followups` writes
 `COGA_TASK_BLACKBOARD`), not here. That section is a per-run report the
 scheduler deletes with the period task. The durable worklist is the sibling
 file `retires.md` next to this `ticket.md`: the same run records each
