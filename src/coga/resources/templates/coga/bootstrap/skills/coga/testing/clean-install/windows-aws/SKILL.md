@@ -177,8 +177,13 @@ pass the line to `cmd /c` as one word (that explicitly requests shell parsing).
 
 ### Long native runs
 
-The full native `python -m pytest` takes about two hours, longer than an SSH
-session or agent tool server reliably lives (transport exit 255). Run it as a
+The full native `python -m pytest` can take far longer than two hours; plan
+for most of a working day. On 2026-11-11 a run on the default `t3.large`
+(build 26100, Python 3.11, Defender exclusions in place, short
+`--basetemp C:\ct`) reached only 58% after about 3 h 55 min, so budget the
+instance time, the SSO session lifetime and the owner's attention. That is
+longer than an SSH session or agent tool server reliably lives (transport
+exit 255). Run it as a
 temporary Administrator S4U scheduled task that writes stdout, stderr, JUnit
 XML and the exit code under `C:\coga-clean-install\`, and poll with brief
 reconnects. Stopping the task's PowerShell action leaves its `uv` child
