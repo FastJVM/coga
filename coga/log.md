@@ -4458,3 +4458,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 10:43 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-19 10:43 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-19 10:43 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [megalaunch] launched via coga megalaunch
+2026-11-19 10:44 v1 [v1/microkernel/04c-move-autoclose-to-the-edge] [human:nicktoper] unblocked (asks resolved, still in_progress): Prerequisite merged: PR #1245 (v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co) merged 2026-11-19 as 133bb5fe; origin/main now carries runner.run_entry and runner.run_reported. Start implementation from current main.
