@@ -4381,3 +4381,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 23:57 v1 [update-the-testing-topic-known-failure-note-on-the] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 23:58 v1 [update-the-testing-topic-known-failure-note-on-the] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 23:58 v1 [update-the-testing-topic-known-failure-note-on-the] [megalaunch] launched via coga megalaunch
+2026-11-19 00:12 v1 [update-the-testing-topic-known-failure-note-on-the] [agent:claude] advanced to step 2 (peer-review) → codex

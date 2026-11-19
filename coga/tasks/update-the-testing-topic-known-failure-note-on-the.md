@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: e0b813a2-cd2e-4aeb-8b49-f98e053a32df
 ---
 
 ## Description
@@ -142,8 +141,66 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: docs/remove-control-relay-started-known-failure
 
-## Plan
+## Handoff (implement)
 
-PR #1245 merged 2026-11-19T01:31Z; its `tests/conftest.py` fixture now scopes
-`git.control_relay_started` per test. The ticket says to remove the bullet once
-#1245 merges, so remove the "Known suite failures" bullet instead of relabeling it.
+PR #1245 merged on 2026-11-19 at 01:31 UTC. Its `tests/conftest.py` fixture now
+scopes `git.control_relay_started` per test, so the ticket's own end condition
+("Remove the bullet when PR #1245 merges") applies. The commit removes the
+"Known suite failures" bullet from `docs/contexts/coga-dev/testing/SKILL.md`
+instead of relabeling it. Nothing else under docs/ or package resources
+mentions the leak.
+
+Verification: on main 9b863665d, the reordered pair
+`tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree`
+then `tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep`
+gave 3 passed, so the leak no longer reproduces. Run with `.venv/bin/python`,
+because the user-level `python` lacks `tomlkit`.
+
+The overlapping open PRs #1246, #1255 and #1256 touch other sections. This
+diff only deletes a self-contained bullet, so a textual conflict is unlikely.
+
+## PR
+
+```yaml
+title: Drop the fixed control_relay_started known-failure note
+author: claude
+author_evidence: "Implement session ran as Claude (claude-opus-5-5) under megalaunch."
+head: 93f1972306fe3aded7d0e9521515ff5113b39128
+base: 56b0c997a69c0496009809d23732a245d2a0ce37
+depth: skim
+rationale: >-
+  Docs-only deletion of one stale bullet whose underlying test leak was fixed
+  by merged PR #1245.
+implementation: >-
+  Removes the "control_relay_started leaks between tests (open, no ticket)"
+  bullet from coga-dev/testing Known suite failures.
+deviations: >-
+  The ticket asked to relabel the bullet while #1245 was open and to remove it
+  after #1245 merged. #1245 has merged, so the bullet is removed.
+limitations: None.
+files:
+  docs/contexts/coga-dev/testing/SKILL.md: >-
+    Remove the known-failure bullet for the control_relay_started leak that PR
+    #1245 fixed.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Review has not run yet; the peer-review step comes next.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 93f1972306fe3aded7d0e9521515ff5113b39128
+    base: 56b0c997a69c0496009809d23732a245d2a0ce37
+    detail: 5004 passed, 33 skipped in 789s.
+  - command: >-
+      .venv/bin/python -m pytest -q -p no:randomly
+      tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree
+      tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep
+    status: passed
+    head: 9b863665d6142f3f7e1e6ab97c1bae5f09fa1a71
+    base: 9b863665d6142f3f7e1e6ab97c1bae5f09fa1a71
+    detail: >-
+      3 passed on main before the change, confirming the leak no longer
+      reproduces.
+```
