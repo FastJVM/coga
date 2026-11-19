@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: ca0366d0-c852-4973-b5b5-b3bb6ff71284
 ---
 
 ## Description
@@ -159,34 +158,65 @@ Commit 6bcaac1bb on `coga/decide-checkout-open-questions` (pushed), on top of
 origin/main 5c6cb9641. Docs-only: two topic edits. No code or fixture change.
 Next: peer-review, then open-pr.
 
+## Peer review
+
+Codex completed an independent direct review of Claude's changes at head
+a71ca5caa3f6ffa73fc903ccb09b73460393d08d against base
+17fbd41ef93e942db5e6aa7c9d001165c9f430a0. No must-fix findings.
+The seeded manual workflow uses the combination in question, and bump
+provides remediation for missing branch linkage. The draft retirement ticket
+on main preserves the current eligibility rule. The documentation diff
+changes no interactive surface. The rebased branch was pushed and the
+checkout returned to main.
+
 ## PR
 
 ```yaml
-title: Record checkout-policy lint and fallback-retirement decisions
-author: claude (Claude Code, model claude-opus-5-5), implement step
-head: 6bcaac1bb3ab144d43ff1d1a9650711d379a5df9
-base: 5c6cb96411d134fc5c95fe70df70177a97f4ea75
-review_depth: light
-review_depth_rationale: Two-sentence docs change recording decisions; no behavior change.
-implementation: >-
-  coga/checkouts states validate deliberately does not warn on requires: branch with
-  checkout: control|manual and why; coga-dev/codebase names the draft ticket that owns
-  retiring the legacy-snapshot table. The follow-up draft ticket itself was published
-  directly to main by coga create (not in this diff).
-deviations: none
-limitations: >-
-  Retirement timing is not dated; it remains evidence-gated by the coga/checkouts rule.
-files:
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: >-
-    Record the Q1 decision (no cross-field lint) beside the roles/gates independence rule.
-  docs/contexts/coga-dev/codebase/SKILL.md: >-
-    Point the checkout_policy.py legacy-table mention at its retirement-owning draft ticket.
-review: not yet run; peer-review is the next workflow step.
-checks:
-  - command: .venv/bin/python -m pytest -q -x -p no:cacheprovider
-    result: 5004 passed, 33 skipped (802s); run on the working tree whose content equals commit 6bcaac1bb
-  - command: .venv/bin/python -m coga.cli validate --json
-    result: 105 ok, 17 warnings, 0 errors
+"title": "Record checkout-policy lint and fallback-retirement decisions"
+"author": "claude"
+"author_evidence": "Claude Code (Opus 5.5), as recorded in the implement handoff and\
+  \ commit trailer."
+"head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+"base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+"depth": "merge"
+"rationale": "Two documentation edits record existing behavior and follow-up ownership.\
+  \ Independent review and the full Linux suite passed at this revision."
+"implementation": "The checkout topic records the decision to accept either entry\
+  \ policy alongside the branch completion gate. The codebase topic names the draft\
+  \ retirement ticket."
+"deviations": "None. The follow-up draft was filed separately on main."
+"limitations": "Retirement remains gated by snapshot inventory or a reviewed migration.\
+  \ Native Windows and macOS verification is deferred to release. The Linux suite\
+  \ ran on Python 3.12.12."
+"files":
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md": "Record\
+    \ the decision on cross-field lint beside the checkout policy and completion gate\
+    \ contract."
+  "docs/contexts/coga-dev/codebase/SKILL.md": "Identify the follow-up ticket that\
+    \ owns retirement of the legacy table."
+"review":
+  "reviewer": "codex"
+  "kind": "independent"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "Direct review completed with no must-fix findings. Verified the checkout\
+    \ contract, validator, branch gate, seeded workflow and draft retirement ticket."
+"checks":
+- "command": "TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.12.12. 5004 passed, 33 skipped, 0 failed\
+    \ in 819.12 seconds."
+- "command": ".venv/bin/python -m coga.cli validate --json"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.12.12. 105 OK, 17 warnings, 0 errors."
+- "command": "git diff --check origin/main...HEAD"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "No whitespace errors."
 ```
-
-The blackboard is a notepad to be written to often as the human and agent works through a task.
