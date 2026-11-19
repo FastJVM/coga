@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
