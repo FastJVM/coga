@@ -18,8 +18,8 @@ until its done criteria are met. When they are, the owner runs
 if explicitly requested, does not take over execution or close the ticket
 without the owner's explicit instruction.
 
-Use `mark done` for this human-only path: `mark active` leaves the ticket
-`active`, whereas `bump` requires an `in_progress` ticket from a launch.
+No launch is needed to close it: `coga mark done <slug>` or a human
+`coga bump <slug>` on the `active` owner step closes this final step.
 
 ## No other-agent code review
 

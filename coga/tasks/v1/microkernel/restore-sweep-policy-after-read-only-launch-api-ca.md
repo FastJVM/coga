@@ -1,8 +1,34 @@
 ---
 title: Restore sweep policy after read-only launch API calls
-status: draft
+status: in_progress
 owner: nicktoper
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+    checkout: create-or-reuse
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+    checkout: reuse-required
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+    checkout: control
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+    checkout: reuse-required
+step: 4 (review)
+agent: claude
 ---
 
 ## Description
@@ -170,3 +196,118 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1252
+branch: restore-sweep-policy-after-read-only-launch
+
+## Handoff (implement)
+
+Changed:
+- `launch.launch` (`if read_only:` branch): the `state_sweep_withheld.set(True)`
+  now keeps its token and the whole branch is wrapped in try/finally that
+  resets it, covering the `LaunchResult` return and every `_bail`
+  (option combination, target, config/secret errors).
+- `commands/recurring.py` `list_recurring`: removed the set(False)/reset
+  workaround; it is redundant now that the API restores the caller's value.
+- `coga/launch` topic (read-only dispatch): added one sentence saying the
+  withheld publication is scoped to the call and an in-process API caller keeps
+  its own exit sweep. `coga-dev/microkernel` does not describe the flag, so it
+  is unchanged.
+
+Decisions:
+- **Scope with a token rather than delete the set.** This keeps the flag true
+  for any in-process code that runs during the read-only call (defense in
+  depth for a refusal inside it), and the reset also discards any writer-side
+  `set(True)` reached inside the call. Nothing reads the flag during the call
+  today, so deleting it would also have worked. The token is the narrower
+  change.
+- **`recurring --force list` is refused by the recurring callback (exit 2)
+  before the list adapter runs**, so it never reaches the read-only call. The
+  ticket's premise there was slightly off. `coga recurring --interactive list`
+  is the spelling that both sweeps at exit and reaches the adapter. The new
+  test covers both. Only the `--interactive` case fails with the fix reverted
+  and the workaround removed.
+- **CLI/API twin:** `tests/test_cli.py::test_read_only_launch_finalization_restores_context`
+  covers the argv path. The new
+  `test_read_only_python_api_restores_caller_sweep_policy` is its API-level
+  twin, so no further CLI test is needed.
+
+Tests added:
+- `tests/test_launch_script.py::test_read_only_python_api_restores_caller_sweep_policy`:
+  caller False/True × {returns, option bail, target bail}. It also asserts the
+  flag is True while the script spawns.
+- `tests/test_launch_script.py::test_writer_command_sweeps_after_in_process_read_only_call`:
+  `cli.main` writer argv whose app calls `launch(read_only=True)`. The sweep
+  runs once with no withheld warning.
+- `tests/test_recurring.py::test_recurring_option_before_list_sweeps_without_withheld_warning`:
+  `--force list` (exit 2) and `--interactive list` (exit 0), each with one
+  sweep and no "withheld" text on stderr.
+- Without the launch.py fix, 4 of the 7 launch_script cases fail, and so does
+  the `--interactive` recurring case.
+
+Note: the shell's `python` lacks `tomlkit`; use `.venv/bin/python -m pytest`.
+
+## Peer review
+
+Independent direct Codex review of Claude's implementation completed on
+head `4384e80416d19cfc354a7c21c1161fbae49b05f9` against base `3f206d29676ee19488097c7e26b842492631680d`.
+No must-fix findings. The token reset covers normal return, early refusal, and
+target resolution failure. The recurring adapter can rely on the restored
+policy. The CLI argv test and direct API test cover their respective entry
+points. `--force list` exits 2 before dispatching the adapter and
+`--interactive list` reaches it. Both exercise the exit sweep without a
+withheld warning. The diff changes no terminal rendering or input handling.
+
+The full Linux suite passed with 4992 tests passed and 33 skipped.
+Python 3.11 test dependencies were unavailable in the existing environment.
+Native Windows and macOS verification is deferred to release.
+
+## PR
+
+```yaml
+title: "Restore caller sweep policy after read-only launch API calls"
+author: "claude"
+author_evidence: "Implement session ran on Claude (Opus 5.5) in a megalaunch queue; commit adc5516d4 authored there."
+head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+base: "3f206d29676ee19488097c7e26b842492631680d"
+depth: "skim"
+rationale: "The change is confined to one ContextVar scope and removal of its adapter workaround. Independent review\
+  \ and the Linux suite passed. The recurring option cases exercise distinct dispatch paths."
+implementation: "launch.launch's read_only branch keeps the state_sweep_withheld token and resets it in finally\
+  \ on both the return and LaunchBail paths. The recurring list adapter's set/reset workaround is removed. coga/launch\
+  \ notes that the withheld policy is scoped to the read-only call."
+deviations: "The ticket expected `coga recurring --force list` to reach the adapter. The recurring callback refuses\
+  \ it first (exit 2), so the test also covers `--interactive list`, which does reach the adapter and sweeps at\
+  \ exit."
+limitations: "Linux checks used Python 3.12.12. The Python 3.11 environment lacked test dependencies. Native Windows\
+  \ and macOS verification is deferred to release."
+files:
+  src/coga/launch.py: "Scope the read-only branch's withheld policy with a token reset in finally."
+  src/coga/commands/recurring.py: "Remove the now-redundant caller-policy set/reset around the read-only list call."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "State that the read-only withheld\
+    \ policy is scoped to the call."
+  tests/test_launch_script.py: "Regression tests for caller False/True restoration on return and bail, and for a\
+    \ writer's exit sweep after an in-process read-only call."
+  tests/test_recurring.py: "Show that recurring --force list and --interactive list sweep without a withheld warning."
+review:
+  reviewer: "codex"
+  kind: "independent"
+  status: "passed"
+  head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+  base: "3f206d29676ee19488097c7e26b842492631680d"
+  detail: "Direct Codex peer review of Claude's implementation completed with no must-fix findings."
+checks:
+- command: "env PYTHONPATH=\"$PWD/src\" .venv/bin/python -m pytest -q"
+  status: "passed"
+  head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+  base: "3f206d29676ee19488097c7e26b842492631680d"
+  detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 4992 passed, 33 skipped in 854.82s."
+- command: ".venv/bin/python -m pytest -q tests/test_launch_script.py tests/test_recurring.py tests/test_cli.py\
+    \ -k 'restores_caller_sweep_policy or writer_command_sweeps or option_before_list or read_only_launch_finalization'"
+  status: "passed"
+  head: "4384e80416d19cfc354a7c21c1161fbae49b05f9"
+  base: "3f206d29676ee19488097c7e26b842492631680d"
+  detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 10 passed, 669 deselected in 0.53s."
+```

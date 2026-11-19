@@ -511,3 +511,9 @@ Each one must be settled with the owner before the bump.
 ## Blockers
 
 - [ ] [2026-11-17 16:23] [agent:claude] id=20261117T162308 Design spec written with 19 proposed verdicts (Description table). Per the ticket, the owner must settle them live before bump: answer Open Questions Q1-Q6 on the blackboard — chiefly Q1 (replace retired/ archive tag + patch-id/state-path analysis with 'tip contained in control or a GitHub PR head') and Q2 (move discharge_owned_followups to autoclose.py → branchsweep.py target <=300 lines). Relaunch this task attended to settle them, then bump.
+
+---
+
+## Blocker reminders
+
+- ea849af7ba0d last_reminded: 2026-11-18 09:02

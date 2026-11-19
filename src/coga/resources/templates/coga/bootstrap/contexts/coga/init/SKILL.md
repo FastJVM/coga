@@ -41,7 +41,7 @@ Then init:
    ignored `contexts/_template/`, `skills/_template/` and
    `workflows/_template.md` authoring starters, and `tasks/coga-build.md`
    (pruned on a filled repo). It also writes `recurring/jobs.toml` once,
-   selecting the nine bundled recurring jobs with explicit `true` entries
+   selecting the ten bundled recurring jobs with explicit `true` entries
    ([coga/recurring/templates](../recurring/templates/SKILL.md#selection-and-state)).
    No reusable definition is copied: contexts, skills, workflows, bootstrap
    tickets and recurring jobs (with their scripts and runbooks) resolve from
@@ -181,7 +181,8 @@ top-level key, and table entries also named `user` are left alone. An
 unparseable local file is a hard error. Without `--user` it fails naming the
 flag. Once `user` is set, re-running init is refused with the upgrade menu:
 upgrade via the owning installer, fix or remove a broken `coga/`, or
-`coga uninstall`.
+`coga uninstall` (its [recovery admission](../uninstall/SKILL.md#recovery-admission)
+works even with broken config).
 
 ## Instruction files and skill discovery
 

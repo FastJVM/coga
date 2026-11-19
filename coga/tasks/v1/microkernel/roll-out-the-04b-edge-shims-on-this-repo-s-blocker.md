@@ -1,5 +1,5 @@
 ---
-title: Redesign Coga's git sync around explicit session-end publication
+title: Roll out the 04b edge shims on this repo's blocker-reminders period
 status: draft
 owner: nicktoper
 workflow: null
@@ -7,27 +7,7 @@ workflow: null
 
 ## Description
 
-Coga publishes state automatically: lifecycle commands publish their own
-writes, and an end-of-command sweep (`git.sync_coga_state`) commits and pushes
-every dirty eligible file under the Coga and contexts roots after most
-state-changing commands. On the control checkout this includes definition
-edits (workflows, skills, contexts, recurring definitions), so an unfinished
-or stock copy of a definition can land on control before the user meant it to.
-This surfaced while designing `v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`:
-a fork command would publish a byte-identical override that silently stops
-following package updates.
-
-Owner intuition (2026-11-14), to be designed rather than assumed: return to
-"normal Git". Work accumulates in the checkout during a session, and an
-explicit `coga sync` (or the session end) publishes it, instead of
-a per-command sweep.
-
-The design must account for what the sweep currently guarantees: lifecycle
-transitions visible to other checkouts and notifications, launch audit lines,
-megalaunch/recurring admission and chaining across clones, held-for-merge
-behavior on feature checkouts, retry after a failed push, and unattended
-sessions with no human to run sync. Owners today are `coga/state-publication`,
-`coga/sync` and `coga/checkouts`.
+Post-merge rollout for v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the (plan on its blackboard). After the 04b PR merges and every writer runs the new wheel (edge-code-upgrades runbook: quiesce first), check coga/tasks/recurring/blocker-reminders/ticket.py (stock PR-827 shim, blob 035f27cb). If that period will be resumed rather than replaced, run the runbook 'Recipe-backed recurring shims' compare/replace with JOB=blocker-reminders before the next sweep; otherwise it fails with 'unknown recipe'. Re-run the recipe-shim-callers inventory to confirm no other old skill-update or blocker-reminders shim remains.
 
 ## Context
 

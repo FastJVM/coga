@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import contextlib
-import io
 import os
+import subprocess
 import sys
 import traceback
 from dataclasses import replace
@@ -19,25 +19,33 @@ from coga.blackboard import append_blackboard_report
 from coga.blocker_reminders import run_blocker_reminders_recipe
 from coga.branchsweep import run_branch_sweep_recipe
 from coga.checkouts import run_prepare_checkout_recipe
-from coga.config import Config
+from coga.config import Config, load_config
 from coga.delete_task import run_delete_task_recipe
 from coga.dream_cleanup_orphan_markers import (
-    coga_os_root as orphan_markers_root,
     run_cleanup_orphan_markers_recipe,
+    target_root as orphan_markers_root,
 )
 from coga.dream_validate_drift import (
-    recipe_parser as validate_drift_parser,
     run_validate_drift_recipe,
+    target_root as validate_drift_root,
 )
+from coga.git import RETRY_WITHOUT_SWEEP_EXIT_CODE
 from coga.open_pr import run_open_pr_recipe
 from coga.publish_state import run_publish_state_recipe
 from coga.recurring_autofix import run_autofix_analyze_recipe
 from coga.recurring_runner import run_recurring_scan_recipe
 from coga.skill_update import (
-    recipe_parser as skill_update_parser,
     run_skill_update_recipe,
+    target_root as skill_update_root,
 )
-from coga.task_env import blackboard_from_env, discover_coga_os_root
+from coga.state_sweep import sweep_root, sweep_suppressed
+from coga.task_env import (
+    SCRIPT_TASK_ENV,
+    RootResolver,
+    blackboard_from_env,
+    is_script_task,
+)
+from coga.tasks import DuplicateTaskSlugError, TaskNotFoundError, resolve_task
 from coga.text import strip_ansi
 
 
@@ -58,6 +66,15 @@ RECIPES: dict[str, RecipeFn] = {
     "delete-task": run_delete_task_recipe,
     "publish-state": run_publish_state_recipe,
     "prepare-checkout": run_prepare_checkout_recipe,
+}
+
+# Registered workers whose operating root is not the invoking config's: each
+# owner supplies its resolver, as an edge worker passes its own to
+# `run_reported`. An entry leaves with its job.
+RECIPE_ROOTS: dict[str, RootResolver] = {
+    "validate-drift": validate_drift_root,
+    "cleanup-orphan-markers": orphan_markers_root,
+    "skill-update": skill_update_root,
 }
 
 RECIPE_FAILURE_HEADING = "Recipe Failure"
@@ -128,15 +145,25 @@ def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
         raise UnknownRecipeError(
             f"unknown recipe {name!r}; known recipes: {known}"
         ) from exc
-    return run_reported(cfg, name, recipe, argv)
+    return run_reported(cfg, name, recipe, argv, root=RECIPE_ROOTS.get(name))
 
 
-def run_reported(cfg: Config, name: str, recipe: RecipeFn, argv: list[str]) -> int:
+def run_reported(
+    cfg: Config,
+    name: str,
+    recipe: RecipeFn,
+    argv: list[str],
+    *,
+    root: RootResolver | None = None,
+) -> int:
     """Run ``recipe`` under the `## Recipe Failure` floor that `run_recipe` gives.
 
     Shared by the registry and by ticket-owned `ticket.py` code that keeps its
     deterministic work at the edge instead of in `RECIPES`: ``name`` labels the
-    failure section, and ``recipe`` need not be registered.
+    failure section, and ``recipe`` need not be registered. ``root`` selects
+    the Coga OS root the worker operates on from its argv (default: the
+    invoking config's); the report goes only to a blackboard inside that root,
+    and nowhere when it returns `None`.
     """
     tail = _StderrTail(sys.stderr)
     failure: tuple[int, str] | None = None
@@ -157,7 +184,8 @@ def run_reported(cfg: Config, name: str, recipe: RecipeFn, argv: list[str]) -> i
         # stderr rather than the tail it is reporting on.
         if failure is not None:
             _record_failure(
-                cfg, name, argv, failure[0], stderr=tail.tail, detail=failure[1]
+                cfg, name, argv, failure[0], root,
+                stderr=tail.tail, detail=failure[1],
             )
 
 
@@ -178,40 +206,25 @@ def _escaping_exit_code(exc: BaseException) -> int | None:
     return 1
 
 
-def _failure_root(cfg: Config, name: str, argv: list[str]) -> Path | None:
-    """Use the same target selection as the registered recipe being reported.
-
-    The two --cwd recipes may operate outside the invoking config's root.
-    Reuse their actual parsers, including abbreviation and --cwd= spelling;
-    unknown arguments can still leave a known target for an argv refusal.
-    Suppress this second parse's help/errors: the recipe already emitted them.
-    """
-    if name in {"validate-drift", "skill-update"}:
-        parser = (
-            validate_drift_parser() if name == "validate-drift" else skill_update_parser()
-        )
-        with (
-            contextlib.redirect_stdout(io.StringIO()),
-            contextlib.redirect_stderr(io.StringIO()),
-        ):
-            try:
-                args, _ = parser.parse_known_args(argv)
-            except SystemExit:
-                return None
-        return discover_coga_os_root(args.cwd)
-    if name == "cleanup-orphan-markers":
-        return orphan_markers_root()
+def _invoking_root(cfg: Config, argv: list[str]) -> Path | None:
     return cfg.repo_root
 
 
 def _record_failure(
-    cfg: Config, name: str, argv: list[str], exit_code: int, *, stderr: str, detail: str
+    cfg: Config,
+    name: str,
+    argv: list[str],
+    exit_code: int,
+    resolver: RootResolver | None,
+    *,
+    stderr: str,
+    detail: str,
 ) -> None:
     target = os.environ.get("COGA_TASK_BLACKBOARD")
     if not target:
         return
     try:
-        root = _failure_root(cfg, name, argv)
+        root = (resolver or _invoking_root)(cfg, argv)
         blackboard = blackboard_from_env(root)
         if root is None or blackboard is None:
             return
@@ -231,6 +244,94 @@ def _record_failure(
             f"Warning: could not record the {name} failure on {target}: "
             f"{write_exc}\n"
         )
+
+
+def run_entry(
+    name: str,
+    worker: RecipeFn,
+    argv: list[str],
+    *,
+    root: RootResolver | None = None,
+    scheduled: bool = False,
+    cfg: Config | None = None,
+) -> int:
+    """The report → publish → bump sequence an edge entrypoint runs.
+
+    ``worker`` runs under `run_reported`'s failure floor. Then, on success,
+    ordinary failure and an escaping exception alike, the operating root's
+    eligible state is published, so a worker that never bumps (a manual run, a
+    Dream invocation) still reaches control. A publication problem only warns.
+
+    Only a ``scheduled`` entry (a recurring `ticket.py`) advances its task, and
+    only after successful work, when launch named this exact task as its
+    script; the bump's own exit is the result. An inherited `COGA_TASK_SLUG`
+    alone never completes anything.
+    """
+    cfg = cfg if cfg is not None else load_config()
+    try:
+        code = run_reported(cfg, name, worker, argv, root=root)
+    except BaseException as exc:
+        _publish_after(cfg, name, argv, root, _escaping_exit_code(exc) or 0)
+        raise
+    _publish_after(cfg, name, argv, root, code)
+    if code or not scheduled:
+        return code
+    return _bump_script_task(cfg, name)
+
+
+def _publish_after(
+    cfg: Config,
+    name: str,
+    argv: list[str],
+    resolver: RootResolver | None,
+    exit_code: int,
+) -> None:
+    """The CLI's end-of-command exclusions, applied to one worker run."""
+    if exit_code == RETRY_WITHOUT_SWEEP_EXIT_CODE:
+        return
+    if "--help" in argv or "-h" in argv:
+        return
+    if sweep_suppressed():
+        return
+    try:
+        target = (resolver or _invoking_root)(cfg, argv)
+    except Exception as exc:
+        sys.stderr.write(f"[git] {name}: target root unavailable ({exc}); state sweep skipped\n")
+        return
+    if target is None:
+        sys.stderr.write(f"[git] {name}: target root unknown; state sweep skipped\n")
+        return
+    try:
+        sweep_root(target)
+    except Exception as exc:  # never outrank the worker's own result
+        sys.stderr.write(f"Warning: could not publish {name} state under {target}: {exc}\n")
+
+
+def _bump_script_task(cfg: Config, name: str) -> int:
+    slug = os.environ.get("COGA_TASK_SLUG")
+    if not os.environ.get(SCRIPT_TASK_ENV) or not slug:
+        # Run by hand: no launched script step to complete.
+        return 0
+    try:
+        ref = resolve_task(cfg, slug)
+    except (TaskNotFoundError, DuplicateTaskSlugError) as exc:
+        sys.stderr.write(f"{name}: cannot complete script task {slug!r}: {exc}\n")
+        return 1
+    if not is_script_task(ref):
+        sys.stderr.write(
+            f"{name}: {SCRIPT_TASK_ENV} does not name task {slug!r}; "
+            "refusing to advance an inherited task\n"
+        )
+        return 1
+    return _bump(slug)
+
+
+def _bump(slug: str) -> int:
+    # Complete the step through the CLI: calling a Typer command function
+    # in-process would pass `OptionInfo` sentinels instead of real defaults.
+    return subprocess.run(
+        [sys.executable, "-m", "coga.cli", "bump", slug], check=False
+    ).returncode
 
 
 def render_failure_section(

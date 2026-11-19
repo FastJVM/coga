@@ -154,6 +154,7 @@ SCAFFOLD_COUNTERPARTS = {
 STATE_CARRIER_COUNTERPARTS = {
     "coga/recurring/address-pr-comments/ticket.md": "saved parent blackboard, independent of its delegated definition",
     "coga/recurring/autoclose-merged/ticket.md": "saved cross-run notes; retires.md remains a separate worklist",
+    "coga/recurring/blackboard-size/ticket.md": "state carrier created on the selected job's first admitted run",
     "coga/recurring/blocker-reminders/ticket.md": "saved parent blackboard, including state without declared state_keys",
     "coga/recurring/branch-sweep/ticket.md": "saved parent notes; clone success ledgers remain machine-local",
     "coga/recurring/dream/ticket.md": "saved cross-run sweep state and notes",
@@ -163,7 +164,9 @@ STATE_CARRIER_COUNTERPARTS = {
     "coga/recurring/trim-log/ticket.md": "state carrier created on the adopted job's first admitted run",
 }
 # Newly adopted jobs need no eager parent file; first use creates their state.
-LAZY_STATE_CARRIER_COUNTERPARTS = frozenset({"coga/recurring/trim-log/ticket.md"})
+LAZY_STATE_CARRIER_COUNTERPARTS = frozenset(
+    {"coga/recurring/blackboard-size/ticket.md", "coga/recurring/trim-log/ticket.md"}
+)
 # A future reviewed local fork must explain every counterpart it retains.
 LOCAL_DEFINITION_OVERRIDES: dict[str, str] = {}
 
@@ -1248,8 +1251,8 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     )
 
 
-NINE_BUNDLED_PARENTS = (
-    "address-pr-comments", "autoclose-merged", "blocker-reminders", "branch-sweep",
+BUNDLED_PARENTS = (
+    "address-pr-comments", "autoclose-merged", "blackboard-size", "blocker-reminders", "branch-sweep",
     "dream", "phone-home", "resolve-conflicts", "skill-update", "trim-log",
 )
 
@@ -1277,7 +1280,7 @@ def test_installed_wheel_init_and_phone_home_are_isolated(tmp_path):
 
     Built from a pristine copy, installed into an isolated target with no
     inherited editable `PYTHONPATH`, made read-only, and run from a separate
-    project: fresh init copies no definitions, all nine bundled parents
+    project: fresh init copies no definitions, all ten bundled parents
     resolve from the package, and the first phone-home run creates the repo
     carrier from the unused seed. Package resource bytes must not change.
     """
@@ -1374,6 +1377,8 @@ def stub_bump(argv, **kwargs):
     if argv[1:4] == ["-m", "coga.cli", "bump"]:
         assert argv[4].startswith("recurring/")
         return subprocess.CompletedProcess(argv, 0)
+    if argv[1:3] == ["-m", "coga.validate"]:
+        return subprocess.CompletedProcess(argv, 0, stdout='{"issues": []}', stderr="")
     assert argv[0] == "git", argv
     return real_run(argv, **kwargs)
 calls = []
@@ -1436,7 +1441,7 @@ print("installed init and suppressed first snapshot passed")
 '''
     try:
         result = subprocess.run(
-            [sys.executable, "-c", script, ",".join(NINE_BUNDLED_PARENTS)],
+            [sys.executable, "-c", script, ",".join(BUNDLED_PARENTS)],
             cwd=target, env=env, capture_output=True, text=True, encoding="utf-8",
             timeout=60,
         )

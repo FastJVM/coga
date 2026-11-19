@@ -76,12 +76,12 @@ after review and fixes.
    a fresh checkout lacks"). Stop on failure; never synthesize an actor.
 4. **Implement on the feature branch.** Match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
-   note its symptom, affected code, evidence or reproduction, and any
-   existing follow-up ticket reference for the blackboard (write it with the
-   handoff in step 11); don't fix it here.
-   State what remains unresolved. `retro/done-ticket` owns carrying that
-   finding into a durable context before deleting this ticket, so the
-   blackboard is a handoff, not the bug's final home.
+   don't fix it here. Cite an existing follow-up ticket, or file the bug as
+   its own draft (`coga create`) with its symptom, affected code, and
+   evidence or reproduction, and link it from the handoff in step 11. A done
+   ticket retires with no Retro and a closed ticket owns nothing
+   (`coga/workflows`, "Obligations the merge does not discharge"), so the
+   blackboard note is a pointer, not the bug's home.
 5. **Test.** Add a regression test before the fix when the ticket is a
    bug. Run `python -m pytest`. If validation behavior changed, run
    `coga validate --json` against the repo's seeded fixture. **Make new tests

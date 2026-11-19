@@ -1,21 +1,24 @@
 ---
-title: Record the output-quality comparison result
+title: Update the testing topic known-failure note on the control_relay_started leak
 status: in_progress
 owner: nicktoper
 workflow:
-  name: docs/with-review
+  name: code/with-review
   steps:
   - name: implement
-    skills: []
+    skills:
+    - code/implement
     assignee: agent
     requires: branch
     checkout: create-or-reuse
   - name: peer-review
-    skills: []
+    skills:
+    - code/peer-review
     assignee: other-agent
     checkout: reuse-required
   - name: open-pr
-    skills: []
+    skills:
+    - code/open-pr
     assignee: agent
     requires: pr
     checkout: control
@@ -30,20 +33,18 @@ agent: claude
 
 ## Description
 
-Record in `coga/prompt-composition` (`src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md`) the result of ticket `v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality`. The owner judged 8 blinded output pairs (PR body/diff, design spec, topic edit, authored ticket) comparing the current assembly against C1′, which is C1 with the baseline checkout/reconcile guidance restored. Result: baseline 4, C1′ 3, tie 1. Every mechanical gate passed in both arms. Owner decision (2026-11-15): **inconclusive**; keep the current assembly. No further trial was commissioned.
+Filed by Dream recurring/dream, period 2026-W47 (run 20261118T170921Z), Phase 6 disposition. Target docs/contexts/coga-dev/testing/SKILL.md is also edited by open PRs #1246, #1255 and #1256, none of which carries this fix. The test-side fix itself is in open PR #1245 (v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co); once #1245 merges, remove or re-word the bullet accordingly. Phase 2 shard ks-20.
 
-### What to write
+Route: open a PR against the target once the overlapping PR(s) have landed or been rebased; the fix is pr-required (human review).
 
-- One or two sentences extending the assembler ruling that PR #1234 (`record-the-prompt-assembly-non-replacement-ruling`) adds. Ticket 02 measured rule compliance only. Ticket 04 measured output quality and found no clear difference. The current assembler stays.
-- Note the limits: a one-model pilot with two repetitions, judged from chat presentations with varying abridgment.
-- Link `coga/tasks/v1/microkernel/03-prompt-assembly/04-compare-prompt-assembly-output-quality/report.md` (§3, §5) the same way PR #1234 links ticket 02 evidence (GitHub main URL).
+Finding: coga-dev/testing calls the control_relay_started leak "open, no ticket", but an open ticket fixes it
 
-### Sequencing and scope
+- shard: ks-20
+- class: stale
+- target: docs/contexts/coga-dev/testing/SKILL.md
+- area: coga-dev/testing
 
-- Start after PR #1234 merges. This builds on its `## Assembler ruling` section; do not duplicate it.
-- Summarise and link only; do not restate the protocol.
-- Edit only the packaged topic. No production code.
-- Ticket 03 has been rescoped to fix current-assembly defects. Do not describe that work here.
+The "Known suite failures" bullet says `control_relay_started` leaks between tests and labels it "(open, no ticket)". The leak is still real on current main: on 2026-11-18, running `tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree` and then `tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep` failed the second test at `test_git.py:2946` (1 failed, 2 passed). The "no ticket" part is out of date. The in-progress `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co` (PR https://github.com/FastJVM/coga/pull/1245) records "Adjacent finding fixed in tests only: `git.control_relay_started` leaked between tests ... the conftest withheld-scope fixture now scopes it too", and its PR file list includes `tests/conftest.py: Scope control_relay_started per test, like state_sweep_withheld`. The production per-invocation scope in `cli.main` (`relay_token = git.control_relay_started.set(False)` ... `reset`) does not cover these tests, because they call `run_recurring_scan` directly. Change the label to name that ticket and PR as the owner. Remove the bullet when PR #1245 merges.
 
 ## Context
 
@@ -134,92 +135,82 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-## Dev
-
-pr: https://github.com/FastJVM/coga/pull/1237
-branch: coga/v1-microkernel-03-prompt-assembly-record-the-out-38f7c9
-
-
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Handoff (implement, 2026-11-15)
+## Dev
 
-- Sequencing: PR #1234 was still open. With the owner's explicit approval, I
-  merged it (merge commit 210a140fb) and fast-forwarded this branch onto it.
-- Change: commit 3685c8d38 adds one paragraph to `## Assembler ruling` in
-  `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md`.
-  It says ticket 02 measured rule compliance only. It records ticket 04's
-  output-quality result: baseline 4, C1' 3, tie 1, all gates passed in both
-  arms, and the owner ruled it inconclusive, so the current assembler stays.
-  It names the limits: one model, two reps, chat presentations with varying
-  abridgment. It links report.md §3, §5 by GitHub main URL, as the ticket-02
-  evidence is linked. It does not restate the protocol or mention ticket 03's
-  rescope.
-- Verified: the link target is tracked on main.
-  `python -m pytest -q tests/test_packaging.py` gave 40 passed.
-  `coga validate --json` exited 0.
-- Pushed. The PR is not opened yet; that is the next step.
+pr: https://github.com/FastJVM/coga/pull/1269
+branch: docs/remove-control-relay-started-known-failure
+
+## Handoff (implement)
+
+PR #1245 merged on 2026-11-19 at 01:31 UTC. Its `tests/conftest.py` fixture now
+scopes `git.control_relay_started` per test, so the ticket's own end condition
+("Remove the bullet when PR #1245 merges") applies. The commit removes the
+"Known suite failures" bullet from `docs/contexts/coga-dev/testing/SKILL.md`
+instead of relabeling it. Nothing else under docs/ or package resources
+mentions the leak.
+
+Verification: on main 9b863665d, the reordered pair
+`tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree`
+then `tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep`
+gave 3 passed, so the leak no longer reproduces. Run with `.venv/bin/python`,
+because the user-level `python` lacks `tomlkit`.
+
+The overlapping open PRs #1246, #1255 and #1256 touch other sections. This
+diff only deletes a self-contained bullet, so a textual conflict is unlikely.
 
 ## Peer review
 
-- Independent Codex content review of Claude's commit 3685c8d38; authorship
-  confirmed by its Claude co-author trailer and the implement handoff.
-- No must-fix findings. The result, mechanical gates, owner decision and
-  limitations match report sections 2, 3 and 5; the GitHub main target is
-  tracked. Only the packaged topic changes; no duplicate definition is added.
-- The paragraph uses more than the suggested one or two sentences but remains
-  a concise summary; no protocol restatement or ticket-03 discussion.
-- Freshness: fetched origin/main twice. Its changes since the reviewed base
-  affect only this ticket and coga/log.md, not the topic or evidence. This
-  read-only review requires no branch merge; projected ticket state is preserved.
-- `git diff --check origin/main...HEAD` passed. Pytest was not run because
-  neither code nor fixtures changed. Branch push confirmed up to date.
+Codex completed an independent direct review of Claude's implementation at
+`8a7ba34932fe0044384dc18330a4a90d70e48dbf` against main `636388e8dd86d842bda0aac18f711eb0ca15679c`. No findings.
+PR #1245 is merged and its autouse fixture scopes the relay flag per test.
+The other open PRs touching this topic (#1246, #1255 and #1256) edit separate
+sections. The rebased branch was pushed with a lease and the checkout
+returned to main. Native Windows and macOS verification is deferred to release.
 
 ## PR
 
 ```yaml
-title: Record the prompt-assembly output-quality result
+title: Drop the fixed control_relay_started known-failure note
 author: claude
-author_evidence: >-
-  Implementation commit 3685c8d38 has a Claude Opus 5.5 co-author trailer;
-  the implement handoff records that change.
-head: 3685c8d38f329eceee788833f18499fec768ec0f
-base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
-depth: merge
+author_evidence: "Implement session ran as Claude (claude-opus-5-5) under megalaunch."
+head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+depth: skim
 rationale: >-
-  Small prose-only evidence summary; independent content review and whitespace
-  check passed, with no unresolved findings.
-implementation: >-
-  Extends the assembler ruling with the inconclusive output-quality pilot,
-  its 4/3/1 result, passed gates, limitations and report link.
-deviations: >-
-  Uses a short paragraph rather than the suggested one or two sentences to
-  preserve readability while including the requested evidence and limits.
-limitations: >-
-  The underlying comparison is a one-model pilot with two repetitions and
-  varying abridgment in chat presentations; it establishes no replacement.
+  The documentation deletion follows the ticket's post-merge instruction.
+  The fixture fix is present on main, the original failure sequence passes,
+  and the full Linux suite passed after rebase.
+implementation: "Removes the stale control_relay_started bullet from Known suite failures."
+deviations: "None. PR #1245 merged, so the ticket calls for removal."
+limitations: "Native Windows and macOS checks are deferred to release."
 files:
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: >-
-    The packaged topic owns the assembler ruling and links the comparison evidence.
+  docs/contexts/coga-dev/testing/SKILL.md: "Remove the known-failure note for the isolation issue fixed by #1245."
 review:
   reviewer: codex
   kind: independent
   status: passed
-  head: 3685c8d38f329eceee788833f18499fec768ec0f
-  base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
-  detail: >-
-    Reviewed the complete Markdown diff, surrounding ruling, report sections
-    2/3/5, prerequisite merge and tracked link target; no must-fix findings.
+  head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+  base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+  detail: "Direct review completed with no findings. Verified the merged fixture and inspected the other PRs' topic edits."
 checks:
-  - command: git diff --check origin/main...HEAD
+  - command: .venv/bin/python -m pytest -q
     status: passed
-    head: 3685c8d38f329eceee788833f18499fec768ec0f
-    base: 210a140fbeb9613151eabcc9e8bdbd0c1c8e5b3b
-    detail: >-
-      Exit 0; no whitespace errors.
-  - command: python -m pytest
-    status: not-run
-    detail: >-
-      Pure prose change; the peer-review workflow directs pytest only for code
-      or fixture changes.
+    head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+    base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 5004 passed, 33 skipped in 841.37s."
+  - command: >-
+      .venv/bin/python -m pytest -q -p no:randomly
+      tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree
+      tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep
+    status: passed
+    head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+    base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 3 passed in 0.74s."
+  - command: git diff --check main...HEAD
+    status: passed
+    head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+    base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+    detail: "No whitespace errors."
 ```
