@@ -4304,3 +4304,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 18:45 v1 [git-sync/03-reduce-git-py-to-a-trivial-sync-core] [system] blocked: unresolved blocker still open after resumed megalaunch pick exited
 2026-11-18 18:45 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 18:45 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-11-18 18:45 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] launched via coga megalaunch
