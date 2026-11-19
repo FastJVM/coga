@@ -55,6 +55,14 @@ Finding: windows-aws skill shows the bare uv installer the walk no longer runs
 
 The Walk section's step 2 says the walk runs "uv's official installer (`irm https://astral.sh/uv/install.ps1 | iex`)". `scripts/clean-install/windows-walk.ps1` `Install-Uv` (line 35) actually runs it in a child process as `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'irm https://astral.sh/uv/install.ps1 | iex'`, matching README.md line 135 (`powershell -ExecutionPolicy ByPass -c "irm … | iex"`). The distinction is load-bearing: v1/31's attended Windows 11 walk (finding 5, 2026-11-10) showed the bare form exits and closes the window under the client default `Restricted` policy, while Server 2025 defaults to `RemoteSigned`, so the harness never exercises that failure. Update step 2 to show the ByPass child-process form and note that harness evidence does not cover the client `Restricted` default.
 
+Finding: walk-user phase skips the README's `uv python install 3.11 --default`
+
+- source: fix-the-readme-windows-walk-findings-left-unowned (open-pr handoff, 2026-11-18)
+- target: scripts/clean-install/windows-walk.ps1 (walk phase, line ~197) and the windows-aws skill Walk step 2 (line ~116)
+- area: coga/testing/clean-install
+
+That ticket's README change (v1/31 Finding 10) now tells Windows users to run `uv python install 3.11 --default`, then check that `python --version` resolves to uv's Python rather than the WindowsApps Store alias. The walk script's Administrator setup already uses `--default` (line ~86), but the walk-user phase and the skill's Walk step 2 still run plain `uv python install 3.11`, so a harness walk does not exercise the README's step or its PATH-precedence check. Align both with the README as merged.
+
 ## Context
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
