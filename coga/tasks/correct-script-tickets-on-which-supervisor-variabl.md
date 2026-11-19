@@ -1,6 +1,6 @@
 ---
 title: Correct script-tickets on which supervisor variables a ticket.py child loses
-status: draft
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
+agent: claude
 ---
 
 ## Description
@@ -134,4 +135,105 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/correct-script-tickets-on-which-supervisor-variabl
+
+## Plan
+
+Docs-only fix to step 4 of `coga/script-tickets` (package copy). Overlapping
+PRs #1244/#1247 (still open) only touch the classification paragraph and add a
+new help section; neither touches step 4, so no textual conflict expected.
+
+## Handoff (implement)
+
+- Commit `7dafd8f` on the branch (pushed). It rewords step 4 of
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md`.
+  The child loses `COGA_SUPERVISED` and `COGA_EXPECTED_{TASK,STEP,AGENT}`.
+  `COGA_DONE_SENTINEL` is exported as the explicit empty string, with a link
+  to the inactivity leaf. Only a strict human assist re-mints
+  `COGA_EXPECTED_TASK` (the target path), `COGA_EXPECTED_STEP` and
+  `COGA_ASSIST_*`. Verified against `launch_script.run_script_phase` (the env
+  block after `apply_task_env`).
+- No code or test change. No existing test pins the old wording (grep).
+- Peer review: check the new wording against `launch_script.py`. The
+  open-pr step should note that #1244/#1247 touch other paragraphs of the same
+  file, so rebasing after either one lands should be clean.
+- Env note: the system `python` lacks `tomlkit`; use `.venv/bin/python`.
+
+## Peer review
+
+Codex completed an independent direct review of
+`5ad9f48f1ddf921e70fd88a096fffc9529f9d61b` against
+`f9502b9af1efdc2e39947bde74bc13f52c50e87e`. No findings. Step 4 matches
+the environment block in `launch_script.run_script_phase` and the inactivity
+topic. The rebase was clean and the reviewed commit was pushed with
+`--force-with-lease`. The full suite passed with 5004 passed and 33 skipped.
+
+Publication waits on #1244 and #1247 under the ticket's routing condition.
+Both are open with no rebase since the ticket was filed. Their current
+diffs touch the classification and help prose in the same topic and leave
+the documented script-phase environment block intact.
+
+## PR
+
+```yaml
+title: Correct script-tickets on which supervisor variables a ticket.py child loses
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Opus 5.5 (claude-opus-5-5) under megalaunch.
+head: 5ad9f48f1ddf921e70fd88a096fffc9529f9d61b
+base: f9502b9af1efdc2e39947bde74bc13f52c50e87e
+depth: skim
+rationale: >-
+  One shipped paragraph was checked directly against its implementation
+  and the inactivity topic. Skim the publication sequencing given the
+  adjacent edits in #1244 and #1247.
+implementation: >-
+  Step 4 documents the explicitly empty COGA_DONE_SENTINEL and the
+  task, step, and assist variables that strict human assist re-mints.
+deviations: "None."
+limitations: >-
+  The diff covers documentation only. Publication waits for overlapping
+  PRs #1244 and #1247 to land or be rebased.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: >-
+    Align step 4 with the script child's actual environment and link
+    the canonical sentinel explanation.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 5ad9f48f1ddf921e70fd88a096fffc9529f9d61b
+  base: f9502b9af1efdc2e39947bde74bc13f52c50e87e
+  detail: >-
+    Direct Codex review completed with no findings. Checked the launcher
+    environment block, the linked inactivity topic, and the overlap
+    with #1244 and #1247.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 5ad9f48f1ddf921e70fd88a096fffc9529f9d61b
+    base: f9502b9af1efdc2e39947bde74bc13f52c50e87e
+    detail: "5004 passed, 33 skipped in 846.82s on the clean rebased branch."
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 5ad9f48f1ddf921e70fd88a096fffc9529f9d61b
+    base: f9502b9af1efdc2e39947bde74bc13f52c50e87e
+    detail: "No whitespace errors."
+```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-18 21:38] [agent:codex] id=20261118T213802 Before opening this PR, wait for #1244 (v1/microkernel/09-work-orchestration-commands-to-tickets) and #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) to land or be rebased, as required by the ticket. Then unblock and refresh the peer-review handoff against current main.
+
+- [ ] [2026-11-19 11:20] [agent:codex] id=20261119T112015 Wait for both overlapping PRs #1244 (v1/microkernel/09-work-orchestration-commands-to-tickets) and #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) to land or be rebased, or explicitly waive that publication condition. Both PRs remain open with no new commits since the original blocker. Then unblock and refresh the peer-review handoff against current main.
+
+
+---
+
+## Blocker reminders
+
+- e7ff8d2aff56 last_reminded: 2026-11-19 09:03

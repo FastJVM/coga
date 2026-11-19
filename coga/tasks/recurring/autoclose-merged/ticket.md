@@ -5,7 +5,7 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: fcfd91d8-e66a-45be-8e0e-4dd4631fd1af
+period_generation: e149d3fc-44f6-4d64-8c7f-886dcac274a8
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -89,28 +89,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Autoclose Sweep: retire follow-ups
 
-Generated: 2026-11-18T17:07:57+00:00
+Generated: 2026-11-19T17:08:04+00:00
 Task: `recurring/autoclose-merged`
 
-10 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+1 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
 
-- `v1/45-fix-the-readme-s-native-windows-install-steps` "Fix the README's native-Windows install steps": branch `coga/v1-45-fix-the-readme-s-native-windows-install-st-2006e1`
-- `v1/47-cap-requires-python-and-stop-init-leading-with-a-c` "Cap requires-python and stop init leading with a coga.toml edit": branch `coga/v1-47-cap-requires-python-and-stop-init-leading--7ac3ac`
-- `v1/microkernel/02-declare-each-workflow-step-s-checkout-policy-in-th` "Declare each workflow step's checkout policy in the workflow file": branch `coga/v1-microkernel-02-declare-each-workflow-step-s-c-614991`
-- `v1/microkernel/03-launch-decomposition` "Decompose launch into substrate plus ticket orchestration": branch `coga/v1-microkernel-03-launch-decomposition-6852fc`
-- `v1/microkernel/03-prompt-assembly/03-implement-the-proven-prompt-assembly` "03 Fix prompt assembly defects": branch `coga/v1-microkernel-03-prompt-assembly-03-implement-t-3ce4ed`
-- `v1/microkernel/03-prompt-assembly/record-the-output-quality-comparison-result` "Record the output-quality comparison result": branch `coga/v1-microkernel-03-prompt-assembly-record-the-out-38f7c9`
-- `v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling` "Record the prompt-assembly non-replacement ruling": branch `coga/v1-microkernel-03-prompt-assembly-record-the-pro-f6ea54`
-- `v1/microkernel/06-read-report-commands-as-ticket-workflows` "Classify read and report commands under the small-core rule": branch `coga/v1-microkernel-06-read-report-commands-as-ticket-a9e2cd`
-- `v1/microkernel/avoid-duplicate-attended-launch-prompt-composition` "Avoid duplicate attended launch prompt composition": branch `coga/v1-microkernel-avoid-duplicate-attended-launch-p-f53f94`
-- `v1/microkernel/normalize-signal-exits-from-read-only-launch` "Normalize signal exits from read-only launch": branch `normalize-signal-exits-from-read-only-launch`
-
-## Autoclose Sweep: unanswered review threads
-
-Generated: 2026-11-18T17:07:57+00:00
-Task: `recurring/autoclose-merged`
-
-1 auto-closed ticket(s) merged with a review thread that is unresolved, not outdated, and got no reply. Autoclose only names them — reading, resolving, or replying stays with a human:
-
-- `v1/microkernel/03-prompt-assembly/record-the-prompt-assembly-non-replacement-ruling` "Record the prompt-assembly non-replacement ruling" — PR #1234:
-  - `src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md:152` by @chatgpt-codex-connector: "P1 Badge Keep the assembler experiment ruling in a local Coga-dev topic" — https://github.com/FastJVM/coga/pull/1234#discussion_r4570620245
+- `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co` "Recipe migration, part 1: shared reporting and publication for edge jobs": branch `coga/v1-microkernel-04-gigantic-refactor-move-recurri-779f80`

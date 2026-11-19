@@ -1,6 +1,6 @@
 ---
 title: Refresh the v1 microkernel task READMEs after the W47 Retro deletions
-status: draft
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,6 +28,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -124,3 +125,33 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Status (implement, 2026-11-18)
+
+Precondition unmet; no branch created, no edits made.
+
+- PR #1255 (`codex/retro-prompt-assembly-trials-knowledge`, "New context: paired
+  agent-behavior trial method for prompt changes") is OPEN. It deletes the
+  `03-prompt-assembly/01-…` ticket tree that `03-prompt-assembly/README.md` links.
+- PR #1259 (`codex/retro-v1-microkernel-06-read-report-commands-as-ticket-workflows-knowledge`)
+  is OPEN. It deletes/edits `06-read-report-commands-as-ticket-workflows.md`
+  and `docs/contexts/coga-dev/microkernel/SKILL.md`.
+- Doing the README refresh before they merge would conflict with both and
+  could not cite their merge-commit permalinks.
+
+Next: once both merge, relaunch; refresh `coga/tasks/v1/microkernel/README.md`
+rows for 01/02/03/06 and `03-prompt-assembly/README.md` using commit
+permalinks, then decide the fate of
+`03-prompt-assembly/03-implement-the-proven-prompt-assembly-evidence/`.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-18 23:57] [agent:claude] id=20261118T235751 Waiting on PRs #1255 (retro prompt-assembly trials knowledge) and #1259 (retro 06 read/report commands knowledge) to merge; both are still OPEN. The ticket says to refresh the READMEs only after they merge (their deletions and merge commits are what the rows must cite). Unblock once both are merged.
+
+---
+
+## Blocker reminders
+
+- 7b0e53102f6a last_reminded: 2026-11-19 09:03

@@ -1295,7 +1295,7 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         DEFAULT_PERIOD_WORKFLOW,
         RecurringError,
         Template,
-        _validate_schedule,
+        validate_schedule,
         delegated_workflow_violation,
     )
 
@@ -1381,7 +1381,7 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             ))
         else:
             try:
-                _validate_schedule(ticket.frontmatter["schedule"], now)
+                validate_schedule(ticket.frontmatter["schedule"], now)
                 schedule_bad = False
             except RecurringError as exc:
                 out.append(Issue(

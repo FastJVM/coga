@@ -1,6 +1,6 @@
 ---
 title: Decide where the Google helper skills read their credentials from
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 4 (review)
+agent: claude
 ---
 
 ## Description
@@ -123,4 +124,134 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1270
+branch: google-helpers-read-env-credentials
+
+## Decision (implement step)
+
+Helpers read credentials from **environment variables**, delivered by the consuming
+ticket's `secrets:` (`env:VAR` or `op://`) per `coga/secrets`, or exported by the
+operator for a manual run. Reasons: it is the existing credential model ("tickets
+carry pointers, the machine carries values, config carries almost nothing"); it needs
+no core change (microkernel: helpers stay at the edge); allowing `[extensions]` in
+`coga.local.toml` would put literal tokens in config and widen the loader for one
+consumer pair; the config-directory option is a parked `_v2` draft. Non-secret calendar
+ids stay in shared `coga.toml` `[extensions.<ns>]`.
+
+## Implement handoff
+
+Done on `google-helpers-read-env-credentials` (pushed, head `087ea084e`, contains origin/main).
+
+- `gcal.py`: `resolve_service_account_info()` reads `GCAL_SERVICE_ACCOUNT_JSON` (key
+  contents; wins) else `GCAL_SERVICE_ACCOUNT_FILE` (path); builds creds with
+  `from_service_account_info`. `tomllib`/`_coga_os_root` removed.
+- `gmail.py`: `resolve_gmail_config()` reads `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
+  `GMAIL_REFRESH_TOKEN`, `GMAIL_USER`, naming every missing var. `authorize` now prints
+  `GMAIL_*=<value>` lines plus storage guidance instead of a `[gmail]` TOML block.
+- Setup docs (`coga/google-calendar`, `coga/gmail`, `coga/calendar-reminder`) show the
+  `secrets:` declarations; calendar-reminder now resolves the (non-secret) calendar id
+  from shared `coga.toml` `[extensions.<ns>]` instead of a rejected `[calendar]` table.
+- New `tests/test_google_helpers.py` (6 tests) covers env resolution, precedence, and that
+  a `coga.local.toml` with the retired tables is ignored.
+- No core change, no seeded-fixture change (helpers are edge skill attachments).
+
+Adjacent, not fixed here (separate Dream findings ks-28/ks-29 in
+`coga/tasks/recurring/dream/ticket.md`): the skills still tell callers to run
+`$COGA_COGA_OS_ROOT/skills/coga/<skill>/<script>.py`, a path that no longer exists after
+the package-definition cutover, and to `pip install` "from this skill's dir". No open
+ticket owns that yet; retro should carry it.
+
+### Open-pr handoff
+
+Filed `fix-the-google-skills-dead-helper-invocation-paths` (draft) for the helper
+invocation-path drift above; the merge of this PR does not discharge it.
+
+## Peer review
+
+Codex completed direct review of the final diff at `75d599dc9db16291ba6f0db7a79474a702a647c2` against
+`25b98b15f137099c6a537db19af92e5ad0e54118`. Claude authored the implementation. Codex independently reviewed
+that work and self-reviewed the follow-up commit.
+
+- Fixed a Calendar credential-file decoding error that escaped the helper's
+  diagnostic. Added regression coverage for non-UTF-8 files.
+- Added migration instructions so operators can reuse their values and remove
+  the retired local config tables.
+- Parsed both documented `secrets:` examples with Coga's parser. Ran both
+  helper commands in a PTY with their credential variables unset. Each named
+  its missing variables and exited 1.
+- 5011 passed and 33 skipped in 840.35 seconds. No unresolved findings within the credential migration scope.
+
+## PR
+
+```yaml
+title: Read Google helper credentials from ticket secrets
+author: claude
+author_evidence: "Implement session ran as Claude Code (claude-opus-5-5) under megalaunch."
+head: 75d599dc9db16291ba6f0db7a79474a702a647c2
+base: 25b98b15f137099c6a537db19af92e5ad0e54118
+depth: skim
+rationale: "Bounded change to the shipped Google helpers and setup instructions. Existing installations\
+  \ need to migrate credentials out of the retired local tables. Credential resolution and CLI\
+  \ error handling were verified locally."
+implementation: "Calendar reads GCAL_SERVICE_ACCOUNT_JSON or GCAL_SERVICE_ACCOUNT_FILE and reports\
+  \ unreadable or non-UTF-8 key files. Gmail reads four GMAIL_* variables and authorize prints\
+  \ the corresponding values. The setup instructions explain ticket secret declarations and\
+  \ migration, and calendar reminders take the calendar ID from shared configuration."
+deviations: "The implementation chose per-ticket secrets over expanding local configuration.\
+  \ Codex added the Calendar file error handling and the migration instructions during review."
+limitations: "No live Google API, OAuth browser flow, or 1Password call was exercised. The pre-existing\
+  \ helper invocation path drift is tracked in the implement handoff."
+files:
+  src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/gcal.py: "Read the\
+    \ service-account key from GCAL_SERVICE_ACCOUNT_JSON or GCAL_SERVICE_ACCOUNT_FILE."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/gmail.py: "Read OAuth credentials\
+    \ from GMAIL_* env vars; authorize prints them."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/SKILL.md: "Document\
+    \ the env vars and secrets declaration."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/SKILL.md: "Document the env\
+    \ vars and secrets declaration."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md: "Point\
+    \ setup at secrets and calendar id at [extensions]."
+  tests/test_google_helpers.py: "Exercise environment credential resolution, precedence, retired\
+    \ tables and unreadable key encoding."
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 75d599dc9db16291ba6f0db7a79474a702a647c2
+  base: 25b98b15f137099c6a537db19af92e5ad0e54118
+  detail: "Codex completed direct review of Claude's implementation and checked the final rebased\
+    \ diff. Codex authored and self-reviewed the follow-up error handling and migration instructions.\
+    \ No unresolved findings within the credential migration scope."
+checks:
+- command: .venv/bin/python -m pytest -q
+  status: passed
+  head: 75d599dc9db16291ba6f0db7a79474a702a647c2
+  base: 25b98b15f137099c6a537db19af92e5ad0e54118
+  detail: "5011 passed and 33 skipped in 840.35 seconds."
+- command: .venv/bin/python -m pytest -q tests/test_google_helpers.py
+  status: passed
+  head: 75d599dc9db16291ba6f0db7a79474a702a647c2
+  base: 25b98b15f137099c6a537db19af92e5ad0e54118
+  detail: "7 passed."
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 75d599dc9db16291ba6f0db7a79474a702a647c2
+  base: 25b98b15f137099c6a537db19af92e5ad0e54118
+  detail: "No whitespace errors."
+- command: env -u GCAL_SERVICE_ACCOUNT_JSON -u GCAL_SERVICE_ACCOUNT_FILE .venv/bin/python src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/gcal.py
+    get --calendar-id example --event-id example
+  status: passed
+  head: 75d599dc9db16291ba6f0db7a79474a702a647c2
+  base: 25b98b15f137099c6a537db19af92e5ad0e54118
+  detail: "In a PTY, stderr named both unset variables and the CLI exited 1."
+- command: env -u GMAIL_CLIENT_ID -u GMAIL_CLIENT_SECRET -u GMAIL_REFRESH_TOKEN -u GMAIL_USER
+    .venv/bin/python src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/gmail.py
+    search --query example
+  status: passed
+  head: 75d599dc9db16291ba6f0db7a79474a702a647c2
+  base: 25b98b15f137099c6a537db19af92e5ad0e54118
+  detail: "In a PTY, stderr named all four unset variables and the CLI exited 1."
+```

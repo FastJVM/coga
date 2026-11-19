@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: draft
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
+agent: claude
 ---
 
 ## Description
@@ -146,4 +147,100 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/add-the-megalaunch-dependency-resolution-append-lo
+
+## Handoff (implement, 2026-11-18)
+
+- Changed `docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md`: count 32 -> 33 and a new `coga/megalaunch.py::_publish_partial_dependency_resolution` (1) row placed after the launch-audit row. Row text was verified against the source: the append runs under `git.state_lock` after `update_blackboard_under_barrier`; the strict `git.sync_task_state(..., expect={ticket: source_bytes}, strict=True)` follows. `UncertainPublishError` retains state. A refusal calls `_restore_ticket_bytes`, which also retracts the log line via `retract_log_lines`, only when the local ticket still equals the written bytes; otherwise state is retained.
+- Recount: `grep -rn "append_log(" src/ | grep -v "def append_log"` gives 33, and the table's per-row counts sum to 33.
+- Overlap: PRs #1247 and #1248 are still OPEN. Neither touches the count line or the launch-audit row, so the hunks are disjoint. #1247 adds a `coga/commands/mark.py::_finish_stateless_command` (1) row without bumping the count; whichever lands second must recount. Per the ticket route, open-pr should check their state; this PR does not need to wait for them to merge cleanly.
+- Not run: `coga validate --json`, because no validation behavior changed (docs-only).
+
+## Peer review
+
+Codex completed an independent direct review of `33eb0fd7431df7cc6b2e70db9553181a65f45bda` against
+`122f82ae9c31c732a893d0cf4f462f8ccc5fac11`. No must-fix findings. The 33 committed source calls match the
+table's row totals. The megalaunch row accurately describes the lock, strict
+ticket-plus-log publish, conditional rollback, and retention on uncertainty.
+The diff changes documentation only.
+
+PRs #1247 and #1248 remain open and the reviewed branch excludes their changes.
+Their documentation edits touch different rows. #1247 adds one call site and
+will require a fresh count. The ticket's publication ordering takes precedence
+over the implement handoff's suggestion to proceed based on disjoint hunks.
+
+## PR
+
+```yaml
+title: Add megalaunch dependency-resolution writer to the log-writers inventory
+author: claude
+author_evidence: >-
+  Implement step ran in a Claude Code session (Opus 5.5) under coga megalaunch.
+head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+depth: skim
+rationale: >-
+  The docs-only change has independent review and source-level verification.
+  The merge sequence matters because PR #1247 adds another writer.
+implementation: >-
+  Document the megalaunch writer's strict ticket-plus-log publication,
+  conditional rollback on refusal, and retention on uncertain publication.
+  Update the direct call-site count from 32 to 33.
+deviations: "None."
+limitations: >-
+  The ticket requires reconciliation with PRs #1247 and #1248 before opening
+  its PR. Recount the writers and refresh this review after incorporating them.
+files:
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: >-
+    Add the missing megalaunch writer and update the inventory count.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+  base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+  detail: >-
+    Direct review completed with no must-fix findings. Verified the new row
+    against the publisher and rollback helper.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+    base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+    detail: "5004 passed, 33 skipped in 830.16s."
+  - command: git grep -n -F 'append_log(' HEAD -- src/ | rg -vc 'def append_log'
+    status: passed
+    head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+    base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+    detail: "33 source calls. Independently summed the table rows to 33."
+  - command: git diff --check main...HEAD
+    status: passed
+    head: 33eb0fd7431df7cc6b2e70db9553181a65f45bda
+    base: 122f82ae9c31c732a893d0cf4f462f8ccc5fac11
+    detail: "No whitespace errors."
+  - command: coga validate --json
+    status: not-run
+    detail: "The diff changes the prose inventory and its count."
+```
+
+## Plan
+
+- Add a `coga/megalaunch.py::_publish_partial_dependency_resolution` (1) row to the log-writers table and change the count 32 -> 33.
+- Overlapping PRs #1247 and #1248 are still OPEN (checked 2026-11-18). Their diffs to the target only rewrite the slack row (#1247, also adds a `_finish_stateless_command` row without updating the count) and the recurring row (#1248); neither touches the count line. The new row is inserted after the launch-audit row so the hunks do not touch. Whichever lands later must recount.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-18 21:07] [agent:codex] id=20261118T210707 Reconcile this inventory after v1/microkernel/move-slack-fyis-to-a-command-ticket (PR #1247) and v1/microkernel/08-residual-command-surfaces (PR #1248) land, or provide a reconciled stacked base for both. Recount append_log calls after incorporating their changes before opening this PR.
+
+- [ ] [2026-11-19 11:18] [agent:codex] id=20261119T111841 PRs #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) and #1248 (v1/microkernel/08-residual-command-surfaces) are both still open. Resume after both land, or provide the intended reconciled stacked base. Recount append_log call sites on that base before publishing.
+
+
+---
+
+## Blocker reminders
+
+- 075595a1991e last_reminded: 2026-11-19 09:03

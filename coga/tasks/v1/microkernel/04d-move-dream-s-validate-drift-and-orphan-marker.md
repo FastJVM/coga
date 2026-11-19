@@ -30,9 +30,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
-launch_generation: de807fd4-f403-487d-ae0f-0ebb2d955932
 ---
 
 ## Description
@@ -316,6 +315,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1265
 branch: coga/v1-microkernel-04d-dream-workers-to-edge
 
 ---
@@ -425,3 +425,140 @@ Tests/docs reported separately in the PR receipt.
 ## Blocker reminders
 
 - 576c34ebc29d last_reminded: 2026-11-18 09:02
+
+## Peer review
+
+Codex independently reviewed Claude Opus 5.5's implementation. Direct review
+completed against base `bd1f2bec80550bff576505cee1605a5f89e89fc1` and final head `bb7f1280d38cf3335be0bff971e16bd323b753c7`.
+The migration previously matched passages across the entire ticket, allowing
+a historical quotation to be rewritten when the body had been customized.
+The runbook now scopes the edit to the authored body. It also ships a
+replacement for the old dispatch paragraph so resumed periods use the
+correct interpreter and phase commands. The installed-wheel fixture now
+executes the virtual environment's Python without following a symlink out
+of that environment. The orphan scan now uses the shared Ticket reader for
+the exact done-status gate. Re-reviewed the final diff with no unresolved must-fix
+findings.
+
+Linux, Pop!_OS 24.04 LTS, Python 3.11.15. Full suite 5010 passed, 33 skipped, 0 failed in 249.38s. Focused suite
+769 passed, 0 skipped, 0 failed in 159.88s. Disposable seeded-repo validation passed. Native Windows and
+macOS verification is deferred to release.
+
+For rollout, reconcile the dispatch paragraph as well as the two phase
+passages if the existing done period is ever resumed. Production Python counts below use `wc -l` at the review base and head.
+
+| Path | Layer | Before | After | Change |
+| --- | --- | ---: | ---: | --- |
+| `src/coga/dream_validate_drift.py` | Core | 851 | 0 | Moved |
+| `src/coga/dream_cleanup_orphan_markers.py` | Core | 344 | 0 | Moved |
+| `src/coga_edge/validate_drift.py` | Edge | 0 | 864 | Moved logic, removed report wrapper, added entrypoint |
+| `src/coga_edge/cleanup_orphan_markers.py` | Edge | 0 | 350 | Moved logic, removed report wrapper and duplicate status parsing, added entrypoint |
+| `src/coga/runner.py` | Core | 364 | 352 | Deleted registry and resolver entries and two imports |
+| `src/coga/validate.py` | Core | 2085 | 2085 | Docstring |
+| `src/coga/resources/__init__.py` | Core | 27 | 27 | Docstring |
+
+Core −1,207, edge +1,214, net +7. No standalone script was added. Docs and
+packaged definitions add 233 lines and remove 66. Tests and fixture
+documentation add 259 lines and remove 71. These separate counts use
+rename-aware `git diff --numstat`.
+
+## PR
+
+```yaml
+"title": "Move Dream's validation and orphan scan workers to the edge"
+"author": "claude"
+"author_evidence": "Claude Opus 5.5 implemented the migration, as recorded in the implement handoff and\
+  \ first commit. Codex independently reviewed it and authored the follow-up fixes."
+"head": "bb7f1280d38cf3335be0bff971e16bd323b753c7"
+"base": "bd1f2bec80550bff576505cee1605a5f89e89fc1"
+"depth": "skim"
+"rationale": "The workers retain their existing classifier, repair, and report-only logic. Review the\
+  \ upgrade passages because existing local and frozen Dream copies require coordinated edits before resuming\
+  \ under the new wheel."
+"implementation": "Dream invokes both edge workers through the shared report and publication entry. The\
+  \ recipe names are retired. The migration replaces the dispatch and phase passages only in the authored\
+  \ ticket body, preserving archived blackboard text. The worker move adds seven net production Python\
+  \ lines after replacing duplicate status parsing with the shared Ticket reader. Separately, docs and\
+  \ packaged definitions add 233 lines and remove 66, while tests and fixture documentation add 259 and\
+  \ remove 71."
+"deviations": "Dream stays agent-backed and the workers never advance it. Cleanup uses the canonical Ticket\
+  \ reader for its exact done-status gate."
+"limitations": "Native Windows and macOS checks are deferred to release. Adopting this upgrade in Coga's\
+  \ own saved Dream period is a separate rollout."
+"files":
+  "AGENTS.md": "Describe shipped edge implementations selected by packaged definitions."
+  "docs/contexts/coga-dev/codebase/SKILL.md": "Map Dream's workers to the edge source paths."
+  "docs/contexts/coga-dev/internals/notifications/SKILL.md": "Point the notification producer inventory\
+    \ at the migrated worker."
+  "docs/contexts/coga-dev/microkernel/SKILL.md": "Record worker placement and shared reporting ownership."
+  "src/coga/resources/__init__.py": "Update the resource loader's description of Dream."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md": "Remove the two recipe names\
+    \ from the CLI inventory."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md": "Document the Dream\
+    \ worker fork boundary."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md": "Ship exact\
+    \ old, new and fork passages, copy instructions, and a body-only reconciliation procedure."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md": "Describe Dream's execution\
+    \ of validator fixes through the edge worker."
+  "src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/cleanup-orphan-markers/SKILL.md": "Update\
+    \ the orphan scan's invocation and reporting contract."
+  "src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/validate-drift/SKILL.md": "Update\
+    \ the drift repair invocation, arguments and reporting contract."
+  "src/coga/resources/templates/coga/recurring/dream/ticket.md": "Run both workers from the agent-backed\
+    \ phase instructions."
+  "src/coga/runner.py": "Remove the recipes and their root resolver registrations."
+  "src/coga/validate.py": "Describe the validator's CLI and module entrypoints."
+  "src/coga/dream_cleanup_orphan_markers.py": "Remove the core orphan worker and its private report wrapper."
+  "src/coga/dream_validate_drift.py": "Remove the core drift worker and its private report wrapper."
+  "src/coga_edge/cleanup_orphan_markers.py": "Run the report-only scan through the shared entry and publication\
+    \ path."
+  "src/coga_edge/validate_drift.py": "Run drift classification and safe repair through the shared entry\
+    \ and publication path."
+  "tests/fixtures/edge-migration/README.md": "Explain the legacy Dream fixture and preservation checks."
+  "tests/test_checkouts.py": "Exercise real worker exit publication in the checkout accounting test."
+  "tests/test_dream_skill_scripts.py": "Exercise Dream's CLI worker modules including the report-only\
+    \ scan."
+  "tests/test_dream_validate_drift.py": "Keep drift classification and repair coverage on the migrated\
+    \ module."
+  "tests/test_dream_worker_templates.py": "Verify the packaged phase commands and reject retired spellings."
+  "tests/test_edge_distribution.py": "Exercise the upgrade passages, historical blackboard protection,\
+    \ wheel installation and complete fork."
+  "tests/test_runner.py": "Pin exit 2 for the removed names and exercise cross-root report routing."
+"review":
+  "reviewer": "codex"
+  "kind": "independent"
+  "status": "passed"
+  "head": "bb7f1280d38cf3335be0bff971e16bd323b753c7"
+  "base": "bd1f2bec80550bff576505cee1605a5f89e89fc1"
+  "detail": "Direct review completed. Fixed blackboard rewrite risk, stale dispatch instructions, the\
+    \ installed-wheel fixture's Python selection and the orphan worker's direct YAML dependency. Re-reviewed\
+    \ the final diff with no unresolved must-fix findings."
+"checks":
+- "command": "env TMPDIR=/home/n/Code/coga-04d-pytest.Apisih TERM=dumb /home/n/Code/coga/.venv/peer-review.wT1qVC/venv/bin/python\
+    \ -m pytest -n 8 --dist loadfile"
+  "status": "passed"
+  "head": "bb7f1280d38cf3335be0bff971e16bd323b753c7"
+  "base": "bd1f2bec80550bff576505cee1605a5f89e89fc1"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.11.15. 5010 passed, 33 skipped, 0 failed in 249.38s."
+- "command": "env TMPDIR=/home/n/Code/coga-04d-pytest.Apisih TERM=dumb /home/n/Code/coga/.venv/peer-review.wT1qVC/venv/bin/python\
+    \ -m pytest tests/test_dream_validate_drift.py tests/test_dream_skill_scripts.py tests/test_dream_worker_templates.py\
+    \ tests/test_runner.py tests/test_recurring.py tests/test_blackboard.py tests/test_packaging.py tests/test_edge_distribution.py"
+  "status": "passed"
+  "head": "bb7f1280d38cf3335be0bff971e16bd323b753c7"
+  "base": "bd1f2bec80550bff576505cee1605a5f89e89fc1"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.11.15. 769 passed, 0 skipped, 0 failed in 159.88s."
+- "command": "cd /tmp/coga-04d-fixture.uWEnnM/coga && env -u SLACK_WEBHOOK_URL /home/n/Code/coga/.venv/peer-review.wT1qVC/venv/bin/coga\
+    \ validate --json"
+  "status": "passed"
+  "head": "bb7f1280d38cf3335be0bff971e16bd323b753c7"
+  "base": "bd1f2bec80550bff576505cee1605a5f89e89fc1"
+  "detail": "Disposable seeded repo. Exit 0, five valid entries, zero issues or fixes."
+- "command": "git diff --check bd1f2bec80550bff576505cee1605a5f89e89fc1...bb7f1280d38cf3335be0bff971e16bd323b753c7"
+  "status": "passed"
+  "head": "bb7f1280d38cf3335be0bff971e16bd323b753c7"
+  "base": "bd1f2bec80550bff576505cee1605a5f89e89fc1"
+  "detail": "Passed with no whitespace errors."
+- "command": "Native Windows and macOS full suites"
+  "status": "not-run"
+  "detail": "Deferred to release under coga-dev/testing."
+```

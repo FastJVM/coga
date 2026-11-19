@@ -5,7 +5,7 @@ The reusable way for coga skills to create/read/update/delete Google Calendar
 events without a per-host `gws`/`gcloud` binary. Other skills shell to this
 script (the calendar analogue of shelling to `coga slack`):
 
-    python <coga>/skills/coga/google-calendar/gcal.py get \
+    python /resolved/coga/google-calendar/gcal.py get \
         --calendar-id <id> --event-id <id>
     python .../gcal.py create --calendar-id <id> --body '<json event>'
     python .../gcal.py update --calendar-id <id> --event-id <id> --body '<json>'
@@ -80,7 +80,7 @@ def _coga_os_root() -> Path:
 def resolve_credentials_path() -> str:
     """Read `[calendar].service_account_file` from coga.local.toml.
 
-    Supports `env:VAR` indirection (same convention as coga's `[secrets]`).
+    A value of the form `env:VAR` is read from the process environment.
     Returns the path, or bails with a clear setup message when unset.
     """
     local = _coga_os_root() / "coga.local.toml"

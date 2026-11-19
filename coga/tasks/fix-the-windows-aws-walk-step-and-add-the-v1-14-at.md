@@ -1,6 +1,6 @@
 ---
 title: Fix the windows-aws walk step and add the v1-14 attended-launch harness gotchas
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,9 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 3 (open-pr)
+agent: claude
+launch_generation: 818df4ff-e47d-4b29-882c-a3767027db61
 ---
 
 ## Description
@@ -54,6 +56,14 @@ Finding: windows-aws skill shows the bare uv installer the walk no longer runs
 - area: coga/testing/clean-install
 
 The Walk section's step 2 says the walk runs "uv's official installer (`irm https://astral.sh/uv/install.ps1 | iex`)". `scripts/clean-install/windows-walk.ps1` `Install-Uv` (line 35) actually runs it in a child process as `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'irm https://astral.sh/uv/install.ps1 | iex'`, matching README.md line 135 (`powershell -ExecutionPolicy ByPass -c "irm … | iex"`). The distinction is load-bearing: v1/31's attended Windows 11 walk (finding 5, 2026-11-10) showed the bare form exits and closes the window under the client default `Restricted` policy, while Server 2025 defaults to `RemoteSigned`, so the harness never exercises that failure. Update step 2 to show the ByPass child-process form and note that harness evidence does not cover the client `Restricted` default.
+
+Finding: walk-user phase skips the README's `uv python install 3.11 --default`
+
+- source: fix-the-readme-windows-walk-findings-left-unowned (open-pr handoff, 2026-11-18)
+- target: scripts/clean-install/windows-walk.ps1 (walk phase, line ~197) and the windows-aws skill Walk step 2 (line ~116)
+- area: coga/testing/clean-install
+
+That ticket's README change (v1/31 Finding 10) now tells Windows users to run `uv python install 3.11 --default`, then check that `python --version` resolves to uv's Python rather than the WindowsApps Store alias. The walk script's Administrator setup already uses `--default` (line ~86), but the walk-user phase and the skill's Walk step 2 still run plain `uv python install 3.11`, so a harness walk does not exercise the README's step or its PATH-precedence check. Align both with the README as merged.
 
 ## Context
 
@@ -145,3 +155,183 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/fix-the-windows-aws-walk-step-and-add-the-v1-14-at
+
+## Plan (implement, 2026-11-18)
+
+- Skill Walk step 2: show the walk's real ByPass child-process uv installer,
+  `uv python install 3.11 --default` + `python --version`; note Server 2025
+  covers neither the client `Restricted` default nor the Store alias.
+- `windows-walk.ps1` walk phase: `--default`, then a `python --version` step
+  resolved against the registry PATH a new terminal would get.
+- Attended-session section: five short v1/14 gotcha bullets.
+- Dependencies for open-pr: #1256/#1257 (same skill, other hunks) and #1267
+  (README `--default`/`python --version`, which this aligns with) still open.
+
+## Implement handoff (2026-11-18)
+
+Done as planned; pushed `fff9598b3` on the branch (one commit over main
+`5971b24e7`).
+
+- `scripts/clean-install/windows-walk.ps1` walk phase: step
+  `uv python install 3.11 --default`, then step `python --version`, which
+  temporarily rebuilds `$env:Path` from the registry (`Refresh-MachinePath`,
+  as a new terminal would), records `Get-Command python` source and version,
+  and fails (exit 2) on a `\WindowsApps\` source or a non-3.11 version; PATH
+  is restored afterward so later steps are unchanged. ASCII only.
+- windows-aws skill: Walk step 2 rewritten (ByPass child-process installer,
+  `--default`, `python --version`, Server 2025 evidence gaps); five gotcha
+  bullets appended to "Attended agent session over SSH".
+- Not verified natively: no Windows box this session; the new PowerShell step
+  first runs on the next harness walk. If uv's installer leaves `.local\bin`
+  off the user registry PATH or behind WindowsApps, that walk fails here,
+  which is the README finding this check exists to catch.
+- **For open-pr (ordering):** #1267 (README `--default` + `python --version`)
+  is still open; this aligns the walk with it, so land #1267 first or at
+  least together. #1256 (Restricted paragraph near the skill's top) and #1257
+  (Long native runs) touch other hunks of the same skill; rebase after they
+  land. #1256's paragraph partly overlaps this step-2 note; trim one if the
+  reviewer prefers a single statement.
+- v1/14 knowledge carried: points (1)–(5) of the ks-11 finding; the rest was
+  already homed per the Description. v1/14 can be retired once this merges.
+
+## Peer review
+
+Independent direct Codex review completed on head `ab243ceb52b574d2890652abb8176229909a2d94`
+against main `b3129bbb27acbc096ce2a867ee77d72c16814c97`. Claude implemented
+the original patch. Codex rebased it, fixed one finding, then reviewed
+the resulting two-file diff and checked the five attended-launch notes
+against v1/14's phase 2 handoff.
+
+The first version accepted any non-Store Python 3.11 on PATH. The revised
+step compares the resolved executable with `python.exe` in
+`uv python dir --bin` before invoking it. It still validates the version and
+uses the registry-derived PATH for resolution. No unresolved code findings.
+
+Linux PowerShell 7.7 parsed the full script and ran the committed step with
+simulated command resolution. Expected cases passed: uv's 3.11 returned 0,
+shadowed Python and wrong version each returned 2, and missing Python returned
+1. The successful case restored the caller's PATH. Windows PowerShell 5.1,
+native registry PATH and actual Store alias behavior remain unverified.
+The interactive launch instructions describe existing behavior from v1/14.
+
+At handoff, PRs #1256 and #1257 were open. They change the same runbook's
+environment and long-run notes, respectively. Follow the ticket's publication
+order and reconcile their changes before opening this PR. In particular,
+#1256 overlaps the Restricted-policy explanation. The Windows README
+alignment comes from open PR #1267, which should land first or together.
+
+## PR
+
+```yaml
+title: Align the Windows walk with the README and add attended-run gotchas
+author: claude
+author_evidence: >-
+  Claude Code (claude-opus-5-5) implemented the original patch, as recorded
+  in the implement handoff. Codex authored the peer-review follow-up
+  ab243ceb5 that tightens executable validation.
+head: ab243ceb52b574d2890652abb8176229909a2d94
+base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+depth: deep
+rationale: >-
+  Inspect the new fail-fast Windows PATH check. Linux tested its decision
+  logic with a simulated resolver. Windows PowerShell 5.1, native PATH
+  resolution and publication ordering still need attention.
+implementation: >-
+  The walk-user phase installs Python 3.11 with --default and checks that
+  python resolves to uv's unversioned executable and reports 3.11. The
+  runbook records the installer child process, Server 2025 coverage limits
+  and five attended-launch findings from v1/14.
+deviations: >-
+  The harness builds the registry-derived PATH for command discovery,
+  checks the resolved location against uv python dir --bin, then runs
+  the selected executable with --version.
+limitations: >-
+  Native verification is deferred to release. The Server 2025 harness
+  cannot cover the Windows 11 Restricted policy or Store alias.
+  Publication must account for open runbook PRs #1256 and #1257 and
+  Windows README PR #1267.
+files:
+  scripts/clean-install/windows-walk.ps1: >-
+    Exercise the README's --default and python --version steps as the
+    fresh walk user, including PATH precedence.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: >-
+    Document the actual walk commands and Server 2025 evidence gaps and
+    retain the five attended-run notes from v1/14.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: ab243ceb52b574d2890652abb8176229909a2d94
+  base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+  detail: >-
+    Direct independent review of Claude's implementation completed.
+    Codex fixed a false pass for a shadowing Python 3.11 and reviewed
+    the resulting head, including its own follow-up. No unresolved code
+    findings.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: ab243ceb52b574d2890652abb8176229909a2d94
+    base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+    detail: >-
+      5004 passed, 33 skipped in 844.69 seconds. Linux Pop!_OS 24.04 LTS, Python 3.12.12, clean committed tree.
+  - command: bash /tmp/coga-windows-walk-peer-pwsh/run-probe.sh
+    status: passed
+    head: ab243ceb52b574d2890652abb8176229909a2d94
+    base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+    detail: >-
+      Temporary PowerShell 7.7 probe on Linux parsed the script and executed
+      its Step function and the Python check against mocked resolution.
+      All four exit-code cases and the successful PATH restoration passed.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: ab243ceb52b574d2890652abb8176229909a2d94
+    base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+    detail: >-
+      Exited zero with 17 warnings and no errors.
+  - command: git diff --check main...HEAD
+    status: passed
+    head: ab243ceb52b574d2890652abb8176229909a2d94
+    base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+    detail: >-
+      No whitespace errors.
+  - command: Windows clean-install walk on Server 2025
+    status: not-run
+    detail: >-
+      Native Windows verification is deferred to release under coga-dev/testing.
+```
+
+### Open-pr hold (2026-11-18)
+
+Did not run `coga open-pr`. The ticket's route is to open this PR only after
+the overlapping PRs land or rebase. All three are still open on
+`origin/main` `4b943120e`:
+
+- #1256 (`codex/retro-install-python-pins-knowledge`) and #1257
+  (`codex/retro-coga-dev-hazards-knowledge`): Retro PRs editing the same
+  windows-aws skill. #1256's Restricted paragraph overlaps this step-2 note.
+- #1267: README `--default` / `python --version`, which this aligns the walk
+  with. Its ticket `fix-the-readme-windows-walk-findings-left-unowned` is
+  still `in_progress`.
+
+Peer review (Codex, direct) completed with no unresolved findings, so the
+only gate is ordering. On resume: rebase the branch onto main after the
+dependencies merge, drop any duplicate Restricted explanation from #1256,
+re-run `python -m pytest`, push with `--force-with-lease`, then
+`coga open-pr`.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-18 23:15] [agent:claude] id=20261118T231524 Ticket route says open this PR only after overlapping PRs land: #1256 and #1257 (same windows-aws skill) and #1267 (README, task fix-the-readme-windows-walk-findings-left-unowned) are still open. Merge them, or say to open now and accept rebasing later.
+
+---
+
+## Blocker reminders
+
+- 281fc4fc6566 last_reminded: 2026-11-19 09:03

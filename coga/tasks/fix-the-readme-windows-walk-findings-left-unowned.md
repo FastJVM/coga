@@ -1,6 +1,6 @@
 ---
 title: Fix the README Windows walk findings left unowned by v1-33
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,10 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 4 (review)
+agent: claude
+contexts:
+- coga-dev/principles
 ---
 
 ## Description
@@ -124,3 +127,95 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1267
+branch: coga/fix-the-readme-windows-walk-findings-left-unowned
+
+## Implement handoff
+
+Done on `coga/fix-the-readme-windows-walk-findings-left-unowned` (pushed, commit 1ceeb41f5, README.md only):
+- Finding 6: removed the `git var GIT_AUTHOR_IDENT` pre-check and the per-repo `git config` advice. The README now says init stops before writing anything and prints the `git config --global` commands, which matches `commands/init._check_git_identity` and init's fail-before-writes ordering (v1/31 S7a/S8 evidence).
+- Finding 7: "Initialize a repository" now explains how to create a new repo (`cd ~`, `mkdir my-project`, `cd my-project`, `git init`) and says PowerShell opens in system32. These lines run in both PowerShell and sh.
+- Finding 10: changed to `uv python install 3.11 --default`, plus a one-line note that without it `python` opens the Store stub. `scripts/clean-install/windows-walk.ps1` already uses `--default` for the same reason.
+
+Limitations / for review:
+- Not verified on Windows. The ticket names the human Windows 11 walk as the check. Not verified: whether uv's bin dir precedes `%LOCALAPPDATA%\Microsoft\WindowsApps` on a fresh user PATH, so `--default` actually shadows the stub.
+- Not changed (out of scope): the windows-aws walk skill (`skills/coga/testing/clean-install/windows-aws`, walk step 2) and `windows-walk.ps1` walk phase still run plain `uv python install 3.11` for the walk user, so a walk does not exercise the README's new `--default`. Consider aligning it in a follow-up if the walk should mirror the README exactly.
+- v1/31 Findings 6/7/10 still say "owner v1/33; open". After merge, whoever closes this should mark them resolved there.
+
+## Peer review
+
+Codex completed a direct review of `8558ef195a59a4e4ad34e115c3d8bd40be2a325d...0bfa2d341b872a106ee452a307a7945df044bbce` after rebasing.
+Claude authored the original change. Codex independently reviewed it and
+then verified its own follow-up against the final diff. The review found
+that installing the unversioned executable does not establish PATH
+precedence and that the home-folder rationale generalized one PowerShell
+start location. The follow-up adds a version check and a PATH remedy for the
+Store alias and qualifies the PowerShell start location.
+
+Compared findings 6, 7 and 10 in v1/31 with the README, init's Git identity
+guard and its ordering, and Astral's Python executable and storage docs.
+Ran the repository creation commands in a fresh temporary home with POSIX
+sh and confirmed the new Git root. The full Linux suite passed and
+`git diff --check origin/main...HEAD` passed. No unresolved review findings.
+The attended Windows 11 walk still needs to exercise the README directly.
+
+## PR
+
+```yaml
+title: Fix README init and Windows Python steps from the Windows walk
+author: claude
+author_evidence: >-
+  Claude Code (Opus 5.5) implemented the original README change. Codex
+  authored the follow-up wording and verification steps during peer review.
+head: 0bfa2d341b872a106ee452a307a7945df044bbce
+base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
+depth: skim
+rationale: >-
+  Bounded README changes checked against Git and uv behavior, with the
+  Windows 11 acceptance walk still pending.
+implementation: >-
+  Uses init's own Git identity diagnostic, shows how to create a new
+  repository from the home folder, and installs and checks uv's unversioned
+  Python command with a remedy if the Store alias takes precedence.
+deviations: "None."
+limitations: >-
+  The attended Windows 11 walk remains the acceptance check. Native suite
+  verification is deferred to release. The AWS walk harness's walk-user
+  phase still uses plain uv python install 3.11 and misses the README's
+  --default step.
+files:
+  README.md: >-
+    Addresses v1/31 findings 6, 7 and 10 in installation and repository setup.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 0bfa2d341b872a106ee452a307a7945df044bbce
+  base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
+  detail: >-
+    Direct review completed on the final diff. Independent of Claude's
+    implementation, with self-review of Codex's follow-up. The PATH wording
+    and PowerShell start-location findings were fixed. No unresolved findings.
+checks:
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q
+    status: passed
+    head: 0bfa2d341b872a106ee452a307a7945df044bbce
+    base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.12.12. 5004 passed, 33 skipped, 0 failed in
+      839.98 seconds. This receipt covers Python 3.12.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 0bfa2d341b872a106ee452a307a7945df044bbce
+    base: 8558ef195a59a4e4ad34e115c3d8bd40be2a325d
+    detail: "No whitespace errors."
+```
+
+## Open-PR handoff
+
+Opened https://github.com/FastJVM/coga/pull/1267 with `coga open-pr` from `main`. The peer-review note records a completed direct Codex review with no unresolved findings. Obligations the merge does not discharge:
+- Attended Windows 11 walk (acceptance check): owned by the live `v1/31-test-install-on-windows`. Its Findings 6, 7 and 10 now name this ticket and PR #1267 as "fixed pending Windows 11 re-walk".
+- Walk harness `--default` alignment (walk-user phase of `scripts/clean-install/windows-walk.ps1`, windows-aws skill Walk step 2): added as a finding to the existing draft `fix-the-windows-aws-walk-step-and-add-the-v1-14-at`, which already edits that step.

@@ -47,8 +47,9 @@ CLI path) or a typed
 call an external provider. Callers keep their distinct admission/publication
 transactions. Ordinary launch renders its final prospective ticket and checkout
 notice using the resolved layers while their selection still matches.
-Megalaunch retains its readiness prompt, adds its supervised identity to the
-prepared environment, and keeps
+Megalaunch retains its readiness prompt, passes `build_supervised_step_env` as
+the `env_transform`, so the command check and the returned environment are the
+supervised step mapping it spawns with, and keeps
 its claim and held-child release proof. An
 open blocker left after a resumed session is restored by
 `_reblock_unresolved_resume`; the `--agent` continuation rule is
@@ -191,7 +192,12 @@ characters for this reason.
 
 `launch.agent_command_refusal` plans the pointer form at the callers'
 preflight: launch's `_prepare_agent` before lifecycle writes, `coga ticket`
-before a new draft, and megalaunch before claim admission. An unrepresentable
+before a new draft, and megalaunch before claim admission. Megalaunch's check
+plans against the supervised step environment it spawns with (via
+`prepare_agent_launch(env_transform=...)`). Ordinary launch's check plans
+against the plain launch environment, because its spawn step and checkout-return
+witness are settled only after checkout preparation; the planner reads only
+PATH/PATHEXT, which neither addition changes. An unrepresentable
 command exits 2 with the sweep withheld (`require_representable_agent_command`)
 or, in megalaunch, fails only that ticket. The spawn-time plan refuses the same
 way before audit or admission (`AgentCommandRefused`, a `ComposeError`).
@@ -233,7 +239,12 @@ under way, or in one final check after the child exits and before the
 sentinel is deleted (cleanup runs on every path). It never feeds exit
 classification, so a done signal followed by a real crash stays a `crash`
 with `done_signalled` true. The non-TTY path has no sentinel channel and
-reports false (no observation). Launch and megalaunch freeze `(status, step)`
+reports false (no observation). The POSIX PTY child records a failed
+`exec` in its private session directory. The supervisor reads and removes
+the record after the child exits. It passes `exec_failed` through
+`ReplOutcome` and `AgentSessionResult` for megalaunch's
+[startup compensation](../launch-claims/SKILL.md#failed-agent-start).
+Launch and megalaunch freeze `(status, step)`
 immediately before spawn. They compare it with post-session state through
 `repl_supervisor.unsignalled_advance_warning` to print the
 [advisory](#unsignalled-advance-advisory) below. After a Coga teardown the

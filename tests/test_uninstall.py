@@ -528,3 +528,271 @@ def test_uninstall_outside_repo_errors(
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
     assert result.exit_code == 2
     assert "No coga.toml" in result.output
+
+
+# --- running_cli_location --------------------------------
+
+
+def _stub_executable_in(venv: Path) -> Path:
+    """Create a venv-shaped tree with `bin/python` and return the python path."""
+    (venv / "bin").mkdir(parents=True, exist_ok=True)
+    py = venv / "bin" / "python"
+    py.write_text("#!/bin/sh\n", encoding="utf-8", newline="\n")
+    py.chmod(0o755)
+    return py
+
+
+def test_running_cli_location_detects_pipx(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    coga_os = tmp_path / "project" / "coga"
+    coga_os.mkdir(parents=True)
+    pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "coga"
+    py = _stub_executable_in(pipx_venv)
+    (pipx_venv / "pipx_metadata.json").write_text("{}\n", encoding="utf-8", newline="\n")
+    monkeypatch.setattr(uninstall_cmd.sys, "executable", str(py))
+
+    kind, where = uninstall_cmd.running_cli_location()
+    assert kind == "pipx"
+    assert where == pipx_venv.absolute()
+
+
+def test_running_cli_location_detects_uv_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uv_venv = tmp_path / "home" / ".local" / "share" / "uv" / "tools" / "coga"
+    py = _stub_executable_in(uv_venv)
+    (uv_venv / "uv-receipt.toml").write_text("[tool]\n", encoding="utf-8", newline="\n")
+    monkeypatch.setattr(uninstall_cmd.sys, "executable", str(py))
+
+    kind, where = uninstall_cmd.running_cli_location()
+    assert kind == "uv"
+    assert where == uv_venv.absolute()
+
+
+def test_running_cli_location_falls_through_to_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    coga_os = tmp_path / "project" / "coga"
+    coga_os.mkdir(parents=True)
+    other_venv = tmp_path / "some-other-venv"
+    py = _stub_executable_in(other_venv)
+    monkeypatch.setattr(uninstall_cmd.sys, "executable", str(py))
+
+    kind, where = uninstall_cmd.running_cli_location()
+    assert kind == "other"
+    assert where == other_venv.absolute()
+
+
+def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for the macOS-Homebrew pipx case.
+
+    pipx creates `<venv>/bin/python` as a symlink to whatever Python it was
+    invoked with (Homebrew, pyenv, system). Following the symlink lands in
+    the host Python's framework dir, which doesn't have `pipx_metadata.json`.
+    Detection must work off the unresolved venv path.
+    """
+    coga_os = tmp_path / "project" / "coga"
+    coga_os.mkdir(parents=True)
+
+    # Mimic Homebrew's framework Python at a totally unrelated path.
+    host_py_dir = tmp_path / "opt" / "homebrew" / "Cellar" / "python@3.14" / "bin"
+    host_py_dir.mkdir(parents=True)
+    host_py = host_py_dir / "python3.14"
+    host_py.write_text("#!/bin/sh\n", encoding="utf-8", newline="\n")
+    host_py.chmod(0o755)
+
+    pipx_venv = tmp_path / "home" / ".local" / "pipx" / "venvs" / "coga"
+    (pipx_venv / "bin").mkdir(parents=True)
+    (pipx_venv / "pipx_metadata.json").write_text("{}\n", encoding="utf-8", newline="\n")
+    pipx_python = pipx_venv / "bin" / "python"
+    pipx_python.symlink_to(host_py)
+    monkeypatch.setattr(uninstall_cmd.sys, "executable", str(pipx_python))
+
+    kind, where = uninstall_cmd.running_cli_location()
+    assert kind == "pipx", (
+        "symlink resolution would land in homebrew Cellar; detection must "
+        "stay on the unresolved venv path so pipx_metadata.json is found"
+    )
+    assert where == pipx_venv.absolute()
+
+
+@pytest.mark.parametrize(
+    "broken", ["shared", "local", "shared-bytes", "local-bytes", "alias", "absent"],
+)
+def test_main_uninstall_recovers_without_launch_or_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str], broken: str,
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    coga_os = target / "coga"
+    # This fixture has no definitions, configured user or agent.
+    if broken == "shared":
+        (coga_os / "coga.toml").write_text("bad = [", encoding="utf-8")
+    elif broken == "local":
+        (coga_os / "coga.local.toml").write_text("bad = [", encoding="utf-8")
+    elif broken == "shared-bytes":
+        (coga_os / "coga.toml").write_bytes(b"version = 1\n# caf\xe9\n")
+    elif broken == "local-bytes":
+        (coga_os / "coga.local.toml").write_bytes(b'user = "caf\xe9"\n')
+    elif broken == "alias":
+        (coga_os / "coga.toml").write_text(
+            'version = 1\n[aliases]\nbad = "nonexistent-command"\n', encoding="utf-8",
+        )
+    monkeypatch.setattr(sys, "argv", ["coga", "uninstall", "--yes"])
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("uninstall crossed recovery admission/teardown boundary")
+
+    for seam in (
+        "coga.cli._validate_aliases", "coga.cli._sweep_coga_state",
+        "coga.git.publish", "coga.git.refresh", "coga.logfile.append_log",
+        "coga.notification.post", "coga.notification.notify",
+        "coga.compose.compose_prompt", "coga.usage.append_record",
+    ):
+        monkeypatch.setattr(seam, forbidden)
+    with pytest.raises(SystemExit) as exc:
+        coga_cli.main()
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert "Uninstalling Coga from" in captured.out
+    assert "Coga uninstalled" in captured.out
+    assert not coga_os.exists()
+
+
+def test_uninstall_confirmation_defaults_to_no(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    before = {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+    result = CliRunner().invoke(app, ["uninstall"], input="\n")
+    assert result.exit_code == 0, result.output
+    assert "Uninstalling Coga from" in result.stdout
+    assert "[y/N]" in result.stdout
+    assert "Aborted" in result.stdout
+    assert {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()} == before
+    assert (target / ".claude" / "skills" / "coga").is_symlink()
+
+
+@pytest.mark.parametrize("failure", ["raises", "remains"])
+def test_uninstall_external_context_failure_keeps_config_and_footprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    (target / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    config_path = target / "coga" / "coga.toml"
+    config_path.write_text('version = 1\n[layout]\ncontexts = "docs/contexts"\n', encoding="utf-8")
+    contexts = target / "docs" / "contexts"
+    contexts.mkdir(parents=True)
+    (contexts / "keep.txt").write_text("operator context", encoding="utf-8")
+    calls = []
+
+    def refuse(path):
+        calls.append(path)
+        if failure == "raises":
+            raise PermissionError("fake external-root refusal")
+
+    monkeypatch.setattr(uninstall_cmd.shutil, "rmtree", refuse)
+    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+    assert result.exit_code == 2, result.output
+    assert "Failed to remove" in result.stderr
+    assert calls == [contexts.resolve()]
+    assert config_path.is_file()
+    assert (contexts / "keep.txt").read_text(encoding="utf-8") == "operator context"
+    assert (target / "AGENTS.md").is_file()
+    assert "Coga uninstalled" not in result.stdout
+
+
+def test_uninstall_unsafe_context_root_warns_and_leaves_external_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    (target / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    keep = outside / "keep.txt"
+    keep.write_text("outside repo", encoding="utf-8")
+    (target / "coga" / "coga.toml").write_text(
+        'version = 1\n[layout]\ncontexts = "../outside"\n', encoding="utf-8",
+    )
+    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert "any relocated contexts directory will be left in place" in result.stdout
+    assert keep.read_text(encoding="utf-8") == "outside repo"
+    assert not (target / "coga").exists()
+
+
+def test_uninstall_refuses_root_layout_without_removal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "root-layout"
+    target.mkdir()
+    config_path = target / "coga.toml"
+    config_path.write_text("version = 1\n", encoding="utf-8")
+    monkeypatch.chdir(target)
+    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+    assert result.exit_code == 2
+    assert "Refusing to guess" in result.stderr
+    assert config_path.read_text(encoding="utf-8") == "version = 1\n"
+
+
+def test_uninstall_prunes_only_empty_agent_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    keep = target / ".claude" / "skills" / "other.md"
+    keep.write_text("another skill", encoding="utf-8")
+    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert keep.read_text(encoding="utf-8") == "another skill"
+    assert not (keep.parent / "coga").is_symlink()
+    assert not (target / ".codex").exists()
+
+
+@pytest.mark.parametrize("kind", ["pipx", "other"])
+def test_uninstall_purge_failure_reports_matching_manual_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str,
+) -> None:
+    _seed_footprint(tmp_path, monkeypatch)
+    monkeypatch.setattr(uninstall_cmd, "running_cli_location", lambda: (kind, Path("/fake/venv")))
+    monkeypatch.setattr(uninstall_cmd.shutil, "which", lambda _: "/fake/pipx")
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(returncode=1, stdout="", stderr="fake purge failure")
+
+    monkeypatch.setattr(uninstall_cmd.subprocess, "run", fake_run)
+    result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
+    assert result.exit_code == 0, result.output
+    assert "fake purge failure" in result.stdout
+    if kind == "pipx":
+        assert calls == [["/fake/pipx", "uninstall", "coga"]]
+        assert "pipx uninstall coga" in result.stdout
+    else:
+        assert calls == [[sys.executable, "-m", "pip", "uninstall", "-y", "coga"]]
+        assert f"{sys.executable} -m pip uninstall coga" in result.stdout
+
+
+@pytest.mark.parametrize("block", ["missing", "truncated", "complete"])
+def test_remove_host_gitignore_preserves_user_rules_and_is_idempotent(
+    tmp_path: Path, block: str,
+) -> None:
+    from coga.commands.update import HOST_GITIGNORE_BEGIN, HOST_GITIGNORE_END
+
+    user_rules = "node_modules/\ncustom/\n"
+    text = user_rules
+    if block != "missing":
+        text += f"\n{HOST_GITIGNORE_BEGIN}\n.coga/\n"
+    if block == "complete":
+        text += f"{HOST_GITIGNORE_END}\nkeep-after/\n"
+    path = tmp_path / ".gitignore"
+    path.write_text(text, encoding="utf-8")
+    assert uninstall_cmd.remove_host_gitignore(tmp_path) == (block != "missing")
+    expected = user_rules + ("\nkeep-after/\n" if block == "complete" else "")
+    assert path.read_text(encoding="utf-8") == expected
+    assert not uninstall_cmd.remove_host_gitignore(tmp_path)

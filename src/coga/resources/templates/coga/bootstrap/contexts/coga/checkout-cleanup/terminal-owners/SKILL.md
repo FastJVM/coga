@@ -64,7 +64,7 @@ A terminal-owned branch with no merged or closed PR is reported for a human
 decision, never inferred.
 
 **When it runs.** `coga mark done`, `coga mark canceled` and a final-step
-`coga bump` delete nothing and make no network call. A checkout therefore
+`coga bump` delete nothing and make no cleanup or PR-lookup call. A checkout therefore
 never disappears beneath the session that finished the ticket. Cleanup
 happens at `coga retire`, at the autoclose disposal of a ticket it closes,
 and at the next daily clone-scoped branch sweep in the clone holding the

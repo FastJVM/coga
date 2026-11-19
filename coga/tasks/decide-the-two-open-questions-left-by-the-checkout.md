@@ -1,6 +1,6 @@
 ---
 title: Decide the two open questions left by the checkout-policy declaration ticket
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 4 (review)
+agent: claude
 ---
 
 ## Description
@@ -123,4 +124,100 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1266
+branch: coga/decide-checkout-open-questions
+
+## Decisions
+
+- **Q1 — no `coga validate` lint for `requires: branch` + `checkout: control|manual`.**
+  `checkout:` is entry policy and `requires:` a completion gate; `coga/checkouts`
+  already declares them independent ("a `manual` step that `requires: branch`
+  still needs its `branch:` before bump"), the seeded fixture's
+  `tests/fixtures/seeded-repo/coga/workflows/code/with-review.md` `implement` step
+  pairs `requires: branch` with `checkout: manual` on purpose, and the bump gate
+  (`src/coga/step_gate.py`, `_has_branch_linkage`) already refuses loudly, naming
+  `branch:` under `## Dev`. A warning would nag a declared, authoritative choice
+  and validate has no definition-lint surface; project-stage (no premature
+  generality) argues against adding one. Recorded in `coga/checkouts` next to
+  the independence sentence.
+- **Q2 — the retirement is owned by a filed draft ticket:**
+  `coga/tasks/v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac.md`
+  (draft, `code/with-review`, owner nicktoper; published on main as 201999f62).
+  "When" stays the existing `coga/checkouts` "Legacy snapshots" rule (no live
+  code/docs snapshot without `checkout:` in supported repos, or a reviewed
+  migration). Evidence at filing: 50 live code/docs tickets in this repo still
+  carry such snapshots, so the condition does not hold today; the draft says to
+  re-count and choose wait vs. reviewed migration. `coga-dev/codebase`
+  (`checkout_policy.py` entry) now names that ticket as the owner. Not recorded
+  in the shipped topic because adopting repos cannot see this repo's tickets.
+
+## Handoff (implement)
+
+Commit 6bcaac1bb on `coga/decide-checkout-open-questions` (pushed), on top of
+origin/main 5c6cb9641. Docs-only: two topic edits. No code or fixture change.
+Next: peer-review, then open-pr.
+
+## Peer review
+
+Codex completed an independent direct review of Claude's changes at head
+a71ca5caa3f6ffa73fc903ccb09b73460393d08d against base
+17fbd41ef93e942db5e6aa7c9d001165c9f430a0. No must-fix findings.
+The seeded manual workflow uses the combination in question, and bump
+provides remediation for missing branch linkage. The draft retirement ticket
+on main preserves the current eligibility rule. The documentation diff
+changes no interactive surface. The rebased branch was pushed and the
+checkout returned to main.
+
+## PR
+
+```yaml
+"title": "Record checkout-policy lint and fallback-retirement decisions"
+"author": "claude"
+"author_evidence": "Claude Code (Opus 5.5), as recorded in the implement handoff and\
+  \ commit trailer."
+"head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+"base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+"depth": "merge"
+"rationale": "Two documentation edits record existing behavior and follow-up ownership.\
+  \ Independent review and the full Linux suite passed at this revision."
+"implementation": "The checkout topic records the decision to accept either entry\
+  \ policy alongside the branch completion gate. The codebase topic names the draft\
+  \ retirement ticket."
+"deviations": "None. The follow-up draft was filed separately on main."
+"limitations": "Retirement remains gated by snapshot inventory or a reviewed migration.\
+  \ Native Windows and macOS verification is deferred to release. The Linux suite\
+  \ ran on Python 3.12.12."
+"files":
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md": "Record\
+    \ the decision on cross-field lint beside the checkout policy and completion gate\
+    \ contract."
+  "docs/contexts/coga-dev/codebase/SKILL.md": "Identify the follow-up ticket that\
+    \ owns retirement of the legacy table."
+"review":
+  "reviewer": "codex"
+  "kind": "independent"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "Direct review completed with no must-fix findings. Verified the checkout\
+    \ contract, validator, branch gate, seeded workflow and draft retirement ticket."
+"checks":
+- "command": "TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.12.12. 5004 passed, 33 skipped, 0 failed\
+    \ in 819.12 seconds."
+- "command": ".venv/bin/python -m coga.cli validate --json"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "Pop!_OS 24.04 LTS, Python 3.12.12. 105 OK, 17 warnings, 0 errors."
+- "command": "git diff --check origin/main...HEAD"
+  "status": "passed"
+  "head": "a71ca5caa3f6ffa73fc903ccb09b73460393d08d"
+  "base": "17fbd41ef93e942db5e6aa7c9d001165c9f430a0"
+  "detail": "No whitespace errors."
+```

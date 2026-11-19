@@ -1,6 +1,6 @@
 ---
 title: Update the testing topic known-failure note on the control_relay_started leak
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 4 (review)
+agent: claude
 ---
 
 ## Description
@@ -135,3 +136,81 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1269
+branch: docs/remove-control-relay-started-known-failure
+
+## Handoff (implement)
+
+PR #1245 merged on 2026-11-19 at 01:31 UTC. Its `tests/conftest.py` fixture now
+scopes `git.control_relay_started` per test, so the ticket's own end condition
+("Remove the bullet when PR #1245 merges") applies. The commit removes the
+"Known suite failures" bullet from `docs/contexts/coga-dev/testing/SKILL.md`
+instead of relabeling it. Nothing else under docs/ or package resources
+mentions the leak.
+
+Verification: on main 9b863665d, the reordered pair
+`tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree`
+then `tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep`
+gave 3 passed, so the leak no longer reproduces. Run with `.venv/bin/python`,
+because the user-level `python` lacks `tomlkit`.
+
+The overlapping open PRs #1246, #1255 and #1256 touch other sections. This
+diff only deletes a self-contained bullet, so a textual conflict is unlikely.
+
+## Peer review
+
+Codex completed an independent direct review of Claude's implementation at
+`8a7ba34932fe0044384dc18330a4a90d70e48dbf` against main `636388e8dd86d842bda0aac18f711eb0ca15679c`. No findings.
+PR #1245 is merged and its autouse fixture scopes the relay flag per test.
+The other open PRs touching this topic (#1246, #1255 and #1256) edit separate
+sections. The rebased branch was pushed with a lease and the checkout
+returned to main. Native Windows and macOS verification is deferred to release.
+
+## PR
+
+```yaml
+title: Drop the fixed control_relay_started known-failure note
+author: claude
+author_evidence: "Implement session ran as Claude (claude-opus-5-5) under megalaunch."
+head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+depth: skim
+rationale: >-
+  The documentation deletion follows the ticket's post-merge instruction.
+  The fixture fix is present on main, the original failure sequence passes,
+  and the full Linux suite passed after rebase.
+implementation: "Removes the stale control_relay_started bullet from Known suite failures."
+deviations: "None. PR #1245 merged, so the ticket calls for removal."
+limitations: "Native Windows and macOS checks are deferred to release."
+files:
+  docs/contexts/coga-dev/testing/SKILL.md: "Remove the known-failure note for the isolation issue fixed by #1245."
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+  base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+  detail: "Direct review completed with no findings. Verified the merged fixture and inspected the other PRs' topic edits."
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+    base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 5004 passed, 33 skipped in 841.37s."
+  - command: >-
+      .venv/bin/python -m pytest -q -p no:randomly
+      tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree
+      tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep
+    status: passed
+    head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+    base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 3 passed in 0.74s."
+  - command: git diff --check main...HEAD
+    status: passed
+    head: 8a7ba34932fe0044384dc18330a4a90d70e48dbf
+    base: 636388e8dd86d842bda0aac18f711eb0ca15679c
+    detail: "No whitespace errors."
+```

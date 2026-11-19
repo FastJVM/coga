@@ -127,7 +127,8 @@ completed work. States and gates: [coga/lifecycle](../lifecycle/SKILL.md).
 ## What you touched
 
 - **Ticket**: the durable unit of work, in files rather than a session.
-- **Workflow**: ordered steps, frozen into the ticket when it activates.
+- **Workflow**: ordered steps, frozen into the ticket at `coga create --workflow`
+  (or when a draft carrying a bare workflow ref activates).
 - **Blackboard**: scratch memory that survives torn-down sessions.
 - **Composition**: each prompt is rebuilt from files on disk at launch.
 - **Correction loop**: when an agent is misled, fix and commit the context
