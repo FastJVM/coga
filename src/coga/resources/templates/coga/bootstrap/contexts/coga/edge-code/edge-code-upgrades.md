@@ -162,6 +162,33 @@ before resuming Dream. Write each passage below to a text file, without its
 fence lines and without a trailing newline, and set `OLD_PASSAGE` to the old
 passage and `NEW_PASSAGE` to the replacement.
 
+If the body also contains the old dispatch paragraph, reconcile it separately
+with the same command. This updates the interpreter instructions for either
+package-backed or forked phases.
+
+<!-- migration:dream-dispatch-old -->
+```text
+The two deterministic phases (1 and 5) run registered recipes directly from
+this Dream task. Before each run, read the matching skill's
+`## Known Skill Contract`, keep reads and writes inside its declared scope,
+then invoke the exact `coga run` command below. The recipe inherits this
+task's `COGA_TASK_*` context and writes its `## Dream Skill: <name>` section
+directly to this task's blackboard. Do not create child worker tasks.
+```
+
+<!-- migration:dream-dispatch-new -->
+```text
+The two deterministic phases (1 and 5) run Python workers directly from
+this Dream task. Before each run, read the matching skill's
+`## Known Skill Contract`, keep reads and writes inside its declared scope,
+then invoke the exact command below with the Python interpreter that runs
+`coga`. The worker inherits this task's `COGA_TASK_*` context, writes its
+`## Dream Skill: <name>` section directly to this task's blackboard, publishes
+eligible Coga state on exit, and never advances this task. An interpreter that
+cannot import the worker is a failed phase, not permission to substitute
+another command. Do not create child worker tasks.
+```
+
 Phase 1, as shipped before the move:
 
 <!-- migration:dream-phase-1-old -->
@@ -258,20 +285,27 @@ copies beside the override's ticket. A copied worker imports nothing from
 `coga_edge` and stops receiving wheel fixes; restoring the
 package-backed passages rejoins them.
 
-After reviewing the diff, this bounded edit preserves all bytes outside the
-selected passage and fails on missing or ambiguous matches:
+After reviewing the diff, this bounded edit replaces one exact match in the
+ticket body and preserves all other bytes:
 
 <!-- migration:reconcile -->
 ```sh
 "$COGA_PY" - <<'PY'
 import os
+import re
 from pathlib import Path
 path = Path(os.environ["CANDIDATE"])
 old = Path(os.environ["OLD_PASSAGE"]).read_bytes()
 new = Path(os.environ["NEW_PASSAGE"]).read_bytes()
 raw = path.read_bytes()
-assert old and raw.count(old) == 1, "review customized or ambiguous passage"
-path.write_bytes(raw.replace(old, new, 1))
+frontmatter = re.match(rb"\A---\r?\n.*?^---\r?\n", raw, re.MULTILINE | re.DOTALL)
+assert frontmatter, "review missing frontmatter"
+fences = list(re.finditer(rb"^<!-- coga:blackboard -->[ \t]*\r?$", raw, re.MULTILINE))
+assert len(fences) == 1 and frontmatter.end() <= fences[0].start(), "review ticket fence"
+start, end = frontmatter.end(), fences[0].start()
+body = raw[start:end]
+assert old and body.count(old) == 1, "review customized or ambiguous passage"
+path.write_bytes(raw[:start] + body.replace(old, new, 1) + raw[end:])
 PY
 ```
 

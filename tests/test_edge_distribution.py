@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,9 +35,8 @@ def test_dream_workers_are_forkable_edge_modules(name):
     import importlib
 
     module = importlib.import_module(f"coga_edge.{name}")
-    # A copied module is a complete local fork: no sibling edge imports, only
-    # the standard library, Coga's own runtime dependency and shared core.
-    allowed = sys.stdlib_module_names | {"coga", "yaml"}
+    # A copied module is a complete local fork with only stdlib and core imports.
+    allowed = sys.stdlib_module_names | {"coga"}
     tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -522,6 +522,12 @@ def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_p
     assert custom_dream.read_bytes() == custom_dream_before
     remaining = _operator_command("callers", root, env).splitlines()
     assert remaining and all(line.startswith(str(custom_dream.relative_to(root)) + ":") for line in remaining)
+    # A historical quotation is never a migration target.
+    old = _passage("dream-phase-1-old")
+    with_history = custom_dream_before + b"\n\nPrior instructions:\n\n" + old.encode() + b"\n"
+    custom_dream.write_bytes(with_history)
+    _reconcile(root, env, tmp_path, custom_dream, old, _passage("dream-phase-1-new"), success=False)
+    assert custom_dream.read_bytes() == with_history
     for path in (template, period, parked):
         assert "## Phone home B" in _run(root, env, str(path))
     assert edited.read_bytes() == edited_before
@@ -544,7 +550,10 @@ def test_reconciled_dream_phases_run_the_installed_wheel_or_a_local_fork(tmp_pat
     shipped = _packaged(installed, "recurring", "dream", "ticket.md").read_text(encoding="utf-8")
     replacement = "new" if layout == "package" else "fork"
     # A Dream body frozen before the move: the shipped body with old passages.
-    legacy = shipped
+    old_dispatch = _passage("dream-dispatch-old")
+    new_dispatch = _passage("dream-dispatch-new")
+    assert shipped.count(new_dispatch) == 1
+    legacy = shipped.replace(new_dispatch, old_dispatch, 1)
     for phase in (1, 5):
         legacy = legacy.replace(_passage(f"dream-phase-{phase}-new"), _passage(f"dream-phase-{phase}-old"), 1)
     assert "coga run validate-drift" in legacy and "coga run cleanup-orphan-markers" in legacy
@@ -562,11 +571,16 @@ def test_reconciled_dream_phases_run_the_installed_wheel_or_a_local_fork(tmp_pat
                       encoding="utf-8", newline="\n")
     scripts = tmp_path / "python-bin"
     scripts.mkdir()
-    (scripts / "python").symlink_to(sys.executable)
+    python = scripts / "python"
+    # A symlink outside a venv bypasses its pyvenv.cfg and loses dependencies.
+    python.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n',
+                      encoding="utf-8", newline="\n")
+    python.chmod(0o755)
     env["PATH"] = str(scripts) + os.pathsep + env["PATH"]
     env["COGA_PY"] = sys.executable
     candidates = [period] + ([definition] if layout == "fork" else [])
     for candidate in candidates:
+        _reconcile(root, env, tmp_path, candidate, old_dispatch, new_dispatch)
         for phase in (1, 5):
             _reconcile(root, env, tmp_path, candidate, _passage(f"dream-phase-{phase}-old"), _passage(f"dream-phase-{phase}-{replacement}"))
         assert "coga run validate-drift" not in candidate.read_text(encoding="utf-8")

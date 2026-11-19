@@ -2,7 +2,7 @@
 
 Dream's Phase 5 runs it as ``python -m coga_edge.cleanup_orphan_markers``; a
 full local Dream fork may instead run a copy of this file beside its ticket.
-It is report-only and imports only the standard library, PyYAML and shared
+It is report-only and imports only the standard library and shared
 ``coga`` infrastructure.
 """
 
@@ -19,12 +19,11 @@ from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
-import yaml
-
 from coga.blackboard import append_blackboard_report
 from coga.config import Config
 from coga.runner import run_entry
 from coga.task_env import blackboard_from_env
+from coga.ticket import Ticket, TicketError
 
 
 # `## Retro` must be matched only as a line-start markdown heading. A ticket
@@ -84,21 +83,11 @@ def script_task_slug() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
-def load_status(ticket_path: Path) -> str | None:
-    text = ticket_path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return None
-    parts = text.split("---", 2)
-    if len(parts) < 3:
-        return None
+def is_done(ticket_path: Path) -> bool:
     try:
-        frontmatter = yaml.safe_load(parts[1]) or {}
-    except yaml.YAMLError:
-        return None
-    if not isinstance(frontmatter, dict):
-        return None
-    status = frontmatter.get("status")
-    return str(status) if status is not None else None
+        return Ticket.read(ticket_path).status == "done"
+    except TicketError:
+        return False
 
 
 def retro_block(text: str) -> str:
@@ -149,7 +138,7 @@ def find_candidates(coga_os: Path) -> list[Candidate]:
         ticket = task_dir / "ticket.md"
         if not ticket.is_file():
             continue
-        if load_status(ticket) != "done":
+        if not is_done(ticket):
             continue
         if not has_cleanup_eligible_retro_marker(ticket):
             continue
