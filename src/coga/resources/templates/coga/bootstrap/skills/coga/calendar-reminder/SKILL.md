@@ -49,12 +49,12 @@ not found (so `verify`/`delete` can tell "already gone" from "broken").
 
 One-time service-account setup lives in the `coga/google-calendar`
 SKILL.md — read it. In short: create a Google service account + JSON
-key, enable the Calendar API, and **share the reminders calendar with
-the service account's email** (grant "Make changes to events"). That
-SKILL.md also records the current credential-configuration gap: the
-helper reads a `[calendar]` table that Coga's config loader rejects.
-Install the Google client libs yourself: `python -m pip install -r
-requirements.txt` from the resolved `coga/google-calendar` skill dir.
+key, enable the Calendar API, **share the reminders calendar with the
+service account's email** (grant "Make changes to events"), and declare
+the key as `GCAL_SERVICE_ACCOUNT_JSON` (or `GCAL_SERVICE_ACCOUNT_FILE`) in
+the reminder ticket's `secrets:` frontmatter. Install the
+Google client libs yourself: `python -m pip install -r requirements.txt` from
+the `coga/google-calendar` skill's dir.
 
 ### Calendar target — NOT `primary`
 
@@ -63,10 +63,10 @@ Google account it **cannot write to a human's `primary` calendar**.
 Reminder events must target a calendar that has been **shared with the
 service account's email** — e.g. a dedicated "Coga reminders" calendar.
 Resolve the calendar id from the repo's free-form `coga.toml`
-`[extensions.calendar]` table (`calendar_id = "..."`) when the repo
-records one there, or ask the human which shared calendar to use. Do not
-add a top-level `[calendar]` table: Coga's config loader rejects unknown
-sections. **Never pass `primary`** — it returns 403/404.
+`[extensions.calendar]` table (`calendar_id = "..."`; a calendar id is not a
+secret) when the repo records one there, or ask the human which shared
+calendar to use. Do not add a top-level `[calendar]` table: Coga's config
+loader rejects unknown sections. **Never pass `primary`** — it returns 403/404.
 
 Throughout the call shapes below, `<calendar-id>` means that shared
 calendar id, never `primary`.

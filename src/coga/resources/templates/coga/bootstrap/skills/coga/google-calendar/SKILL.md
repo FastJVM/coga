@@ -42,25 +42,30 @@ override.
 
 ## Auth — service account
 
-Credentials are a Google **service-account JSON key**. `gcal.py` reads its
-path from a `[calendar]` table in `coga.local.toml` (found via
-`COGA_COGA_OS_ROOT`, else by walking up from the working directory):
+Credentials are a Google **service-account JSON key**, read from the
+environment — never from Coga config:
 
-```toml
-[calendar]
-service_account_file = "/path/to/service-account.json"   # or "env:GCAL_SA_KEY"
+| variable | value |
+|----------|-------|
+| `GCAL_SERVICE_ACCOUNT_JSON` | the key's JSON contents (wins when both are set) |
+| `GCAL_SERVICE_ACCOUNT_FILE` | a path to the key file |
+
+The consuming ticket declares one of them in its `secrets:` frontmatter, and
+launch resolves it into the child environment (`coga/secrets`):
+
+```yaml
+secrets:
+  - GCAL_SERVICE_ACCOUNT_JSON: op://<automation-vault>/<item>/<field>
 ```
 
-`gcal.py` itself resolves an `env:VAR` value from the process environment.
-A service account authenticates headlessly — the point, for an unattended cron.
+Store the key's contents in the automation vault for headless runs, or map
+`GCAL_SERVICE_ACCOUNT_FILE: env:<VAR>` to a path the operator already exports.
+A manual run outside launch exports either variable itself. A service account
+authenticates headlessly — the point, for an unattended cron.
 
-**Known gap.** Coga's config loader rejects unknown top-level sections in
-`coga.local.toml`, and `[calendar]` is not an accepted section, so adding this
-table makes every `coga` command in that checkout fail with a `ConfigError`.
-Coga does not yet define a supported home for this credential (the free-form
-`[extensions]` table is accepted only in the shared `coga.toml`, which must not
-hold machine-local credential paths). Until that is settled, there is no
-supported configuration that keeps `coga` working in the same checkout.
+To migrate an existing `[calendar]` entry, export its key path as
+`GCAL_SERVICE_ACCOUNT_FILE` or store the key contents in the automation vault,
+then remove the retired table from `coga.local.toml` so Coga can load the repo.
 
 **Important limitation.** A service account is a robot identity. On a personal
 (non-Workspace) Google account there is no domain-wide delegation, so it can
@@ -73,8 +78,7 @@ Setup once:
 1. Create a service account + JSON key in Google Cloud, enable the Calendar API.
 2. Share the target calendar (e.g. a dedicated reminders calendar) with
    the service account's email, granting "Make changes to events".
-3. Point `[calendar].service_account_file` at the key (subject to the known
-   gap above).
+3. Store the key as above and declare it in the consuming ticket's `secrets:`.
 
 (A durable auth-hardening story — rotation, alternative backends — is tracked
 as a separate ticket.)
