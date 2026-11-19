@@ -182,8 +182,8 @@ copy the new packaged shim. Inventory the callers, including customized ones:
 ```sh
 rg -l -U --hidden --no-ignore -g '*.py' \
   -e 'coga run (blocker-reminders|skill-update|autoclose)' \
-  -e "run_recipe\(\s*(load_config\([^)]*\)|[^,()]+)\s*,\s*[\"'](blocker-reminders|skill-update|autoclose)[\"']" \
-  -e "[\"']run[\"']\s*,\s*[\"'](blocker-reminders|skill-update|autoclose)[\"']" \
+  -e "run_recipe\(\s*(load_config\([^)]*\)|[^,()]+)\s*,\s*(\"|')(blocker-reminders|skill-update|autoclose)(\"|')" \
+  -e "(\"|')run(\"|')\s*,\s*(\"|')(blocker-reminders|skill-update|autoclose)(\"|')" \
   -e 'coga\.(blocker_reminders|skill_update|autoclose)' \
   -e 'from coga import (blocker_reminders|skill_update|autoclose)\b' \
   coga/recurring coga/tasks
