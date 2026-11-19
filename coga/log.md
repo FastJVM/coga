@@ -4425,3 +4425,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 09:03 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-11-19
 2026-11-19 09:03 v1 [recurring/blocker-reminders] [system] created (status=active)
 2026-11-19 09:03 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-18
+2026-11-19 09:03 v1 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
