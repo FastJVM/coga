@@ -227,6 +227,12 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ---
 
+## Dev
+
+branch: coga/v1-microkernel-04d-dream-workers-to-edge
+
+---
+
 ## Blockers
 
 - [x] [2026-11-16 22:19] [agent:claude] id=20261116T221924 Prerequisite not merged: v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co (PR #1245, open, step review) must merge first. This ticket must start from main after that merge and use its shared report->publish->bump entry sequence and run_reported root-resolver support, which are absent from main at 77e263258.
