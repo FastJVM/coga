@@ -3689,6 +3689,7 @@ def prepare_agent_launch(
     discussion: bool = False,
     kickoff: str | None = None,
     defer_prompt: bool = False,
+    env_transform: Callable[[dict[str, str]], dict[str, str]] | None = None,
 ) -> PreparedAgentLaunch:
     """Validate CLI, prompt layers, secrets and command without repo writes.
 
@@ -3697,6 +3698,9 @@ def prepare_agent_launch(
 
     Callers own prospective lifecycle, admission and publication. Secret
     resolution may call an external provider; the result is not cached.
+    ``env_transform`` maps the launch env to the env the caller will spawn
+    with (megalaunch's supervised step identity); the command check and the
+    returned ``env`` both use its result.
     """
     try:
         agent = cfg.agent_type(launch_agent)
@@ -3712,6 +3716,8 @@ def prepare_agent_launch(
         else:
             prompt = compose_prompt(cfg, ref, ticket, launch_context=launch_context)
         env = build_launch_env(cfg, ticket.secrets)
+        if env_transform is not None:
+            env = env_transform(env)
     except FileNotFoundError as exc:
         raise AgentPreparationError(missing_launch_file_message(exc)) from exc
     except (ConfigError, ComposeError, SecretError) as exc:
