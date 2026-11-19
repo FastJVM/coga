@@ -1,6 +1,6 @@
 ---
 title: 'Recipe migration, part 2: move blocker-reminders and skill-update to the edge'
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/microkernel/objectives
