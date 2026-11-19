@@ -38,8 +38,9 @@ not found (so `verify`/`delete` can tell "already gone" from "broken").
 One-time service-account setup lives in the `coga/google-calendar`
 SKILL.md — read it. In short: create a Google service account + JSON
 key, enable the Calendar API, **share the reminders calendar with the
-service account's email** (grant "Make changes to events"), and point
-`[calendar].service_account_file` in `coga.local.toml` at the key. Install the
+service account's email** (grant "Make changes to events"), and declare
+the key as `GCAL_SERVICE_ACCOUNT_JSON` (or `GCAL_SERVICE_ACCOUNT_FILE`) in
+the reminder ticket's `secrets:` frontmatter. Install the
 Google client libs yourself: `python -m pip install -r requirements.txt` from
 the `coga/google-calendar` skill's dir.
 
@@ -49,8 +50,9 @@ A service account is a robot identity; on a personal (non-Workspace)
 Google account it **cannot write to a human's `primary` calendar**.
 Reminder events must target a calendar that has been **shared with the
 service account's email** — e.g. a dedicated "Coga reminders" (or
-"FastJVM Patent") calendar. Resolve the calendar id from `coga.toml`
-`[calendar]`, or ask the human which shared calendar to use. **Never
+"FastJVM Patent") calendar. Resolve the calendar id from the repo's own
+`[extensions.<namespace>]` table in shared `coga.toml` (a calendar id is
+not a secret), or ask the human which shared calendar to use. **Never
 pass `primary`** — it returns 403/404.
 
 Throughout the call shapes below, `<calendar-id>` means that shared

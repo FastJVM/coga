@@ -28,15 +28,29 @@ python .../gmail.py authorize --client-secret /path/to/client_secret.json
 - `get` → normalized `{id, threadId, date, sender, subject, snippet, body_text,
   attachments: [{filename, mimeType, size, attachmentId}]}`
 - `download` → writes bytes to `--out`, prints `{path, bytes}`
-- `authorize` → prints the `[gmail]` block to paste into `coga.local.toml`
+- `authorize` → prints the four `GMAIL_*=<value>` lines to store as secrets
 
 Exit codes are the contract: `0` ok · `1` config/auth/API error (stderr) · `3`
 message/attachment not found.
 
 ## Auth — OAuth user credentials
 
-Reads `[gmail]` from `coga.local.toml` (`client_id`, `client_secret`,
-`refresh_token`, `user`; each `env:VAR`-referenceable). OAuth works on any
+Reads `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, and
+`GMAIL_USER` (the mailbox address) from the environment — never from Coga
+config. The consuming ticket declares all four in its `secrets:` frontmatter,
+and launch resolves them into the child environment
+(`coga/secrets`):
+
+```yaml
+secrets:
+  - GMAIL_CLIENT_ID: op://<automation-vault>/<item>/client_id
+  - GMAIL_CLIENT_SECRET: op://<automation-vault>/<item>/client_secret
+  - GMAIL_REFRESH_TOKEN: op://<automation-vault>/<item>/refresh_token
+  - GMAIL_USER: op://<automation-vault>/<item>/user
+```
+
+`env:VAR` refs work for values the operator already exports; a manual run
+outside launch exports the four variables itself. OAuth works on any
 Google account — Workspace or personal — and needs no admin, unlike the
 calendar service account; that is the right model for reading a human's
 mailbox. Scope is `gmail.readonly` — this capability never sends or modifies
@@ -45,7 +59,8 @@ mail.
 One-time setup: create an OAuth **Desktop app** client in Google Cloud Console,
 enable the Gmail API, download the client-secret JSON, then run
 `gmail.py authorize --client-secret <json>` (opens a browser; sign in as the
-mailbox to read) and paste the printed `[gmail]` block into `coga.local.toml`.
+mailbox to read) and store the four printed values in the automation vault (or
+your environment). Never commit them.
 
 ## Dependencies
 

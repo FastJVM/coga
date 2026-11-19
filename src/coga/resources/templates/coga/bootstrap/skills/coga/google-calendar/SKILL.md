@@ -37,16 +37,26 @@ so it resolves regardless of the consuming repo.
 
 ## Auth — service account
 
-Credentials are a Google **service-account JSON key**. Its path is read from
-`coga.local.toml`:
+Credentials are a Google **service-account JSON key**, read from the
+environment — never from Coga config:
 
-```toml
-[calendar]
-service_account_file = "/path/to/service-account.json"   # or "env:GCAL_SA_KEY"
+| variable | value |
+|----------|-------|
+| `GCAL_SERVICE_ACCOUNT_JSON` | the key's JSON contents (wins when both are set) |
+| `GCAL_SERVICE_ACCOUNT_FILE` | a path to the key file |
+
+The consuming ticket declares one of them in its `secrets:` frontmatter, and
+launch resolves it into the child environment (`coga/secrets`):
+
+```yaml
+secrets:
+  - GCAL_SERVICE_ACCOUNT_JSON: op://<automation-vault>/<item>/<field>
 ```
 
-`env:VAR` indirection is supported (same convention as coga's `[secrets]`).
-A service account authenticates headlessly — the point, for an unattended cron.
+Store the key's contents in the automation vault for headless runs, or map
+`GCAL_SERVICE_ACCOUNT_FILE: env:<VAR>` to a path the operator already exports.
+A manual run outside launch exports either variable itself. A service account
+authenticates headlessly — the point, for an unattended cron.
 
 **Important limitation.** A service account is a robot identity. On a personal
 (non-Workspace) Google account there is no domain-wide delegation, so it can
@@ -59,7 +69,7 @@ Setup once:
 1. Create a service account + JSON key in Google Cloud, enable the Calendar API.
 2. Share the target calendar (e.g. a dedicated "FastJVM Patent" calendar) with
    the service account's email, granting "Make changes to events".
-3. Point `[calendar].service_account_file` at the key.
+3. Store the key as above and declare it in the consuming ticket's `secrets:`.
 
 (A durable auth-hardening story — rotation, alternative backends — is tracked
 as a separate ticket.)
