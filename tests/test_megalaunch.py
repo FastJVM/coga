@@ -3209,6 +3209,43 @@ def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
     assert _log_lines_for(cfg, draft["slug"], "activated") == []
 
 
+def test_preflight_agent_launch_refuses_unconfigured_agent_without_writes(
+    repo: Path,
+) -> None:
+    """`prepare_agent_launch` alone resolves the agent; its refusal is the
+    `ConfigError` text, and preflight writes nothing.
+
+    `megalaunch()` validates names before preflight, so only a direct call
+    reaches this refusal.
+    """
+    from coga.config import ConfigError
+    from coga.megalaunch import _preflight_agent_launch
+    from coga.paths import log_path
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    task = create_task(
+        cfg=cfg,
+        title="Ghost agent pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    ref = resolve_task(cfg, task["slug"])
+    ticket_before = Path(task["path"]).read_bytes()
+    log_before = log_path(cfg).read_bytes()
+    with pytest.raises(ConfigError) as expected:
+        cfg.agent_type("ghost")
+
+    refusal = _preflight_agent_launch(cfg, ref, Ticket.read(ref.path), "ghost")
+
+    assert refusal == str(expected.value)
+    assert Path(task["path"]).read_bytes() == ticket_before
+    assert log_path(cfg).read_bytes() == log_before
+
+
 def test_megalaunch_selection_preserves_peer_edit_during_preflight(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

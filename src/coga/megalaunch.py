@@ -2341,14 +2341,10 @@ def _preflight_agent_launch(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    launch_agent: str | None,
+    launch_agent: str,
     *,
     source_ticket_bytes: bytes | None = None,
 ) -> _PreparedAgentLaunch | str:
-    try:
-        agent = cfg.agent_type(launch_agent or "")
-    except ConfigError as exc:
-        return str(exc)
     # A not-yet-activated pick arrives as its prospective `active` view. Keep
     # the launch boundary strict so malformed or concurrently changed states
     # cannot reach the agent spawn path.
@@ -2388,7 +2384,7 @@ def _preflight_agent_launch(
     # command check vouches for the exact env handed to spawn.
     try:
         prepared = prepare_agent_launch(
-            cfg, ref, launch_ticket, launch_agent or "", launch_context="megalaunch",
+            cfg, ref, launch_ticket, launch_agent, launch_context="megalaunch",
             env_transform=lambda env: build_supervised_step_env(
                 env, task_path=ref.path, step=launch_ticket.step, agent=launch_agent,
             ),
