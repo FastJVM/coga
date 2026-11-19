@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: dc449461-36b1-4dbe-922d-3e057651891e
 ---
 
 ## Description
@@ -154,3 +153,66 @@ branch: docs/secrets-clone-scrub
   the script inherits the scan's environment.
 - Overlap: PR #1246 (open) edits only the `coga secret get` section of the same
   file; hunks are disjoint, so no conflict expected.
+
+## Handoff (implement)
+
+- Done: commit `2cf8838` on `docs/secrets-clone-scrub` (pushed, based on
+  current origin/main `45ecb5e`). Docs-only, two shipped topics; no code, test
+  or fixture change (behavior unchanged, topics now match it).
+- Next (peer-review): check that the wording matches
+  `recurring_clone.run_clone_template` / `config.build_launch_env`, and that
+  the scheduling link anchor resolves.
+- open-pr: PR #1246 was still open at implement time. Its edit to
+  `coga/secrets` is the `coga secret get` section only, disjoint from this
+  hunk; rebase if it lands first.
+- Unrelated flake: `tests/test_repl_supervisor.py::test_terminal_ticket_backstop_waits_for_a_live_pending_command`
+  failed once in the full run (`assert seen and all(seen)`), then passed 3/3
+  in isolation. It looks timing-sensitive under load, and this docs-only diff
+  can't affect it. Not fixed here.
+
+## PR
+
+```yaml
+title: Name clone-scoped recurring scripts among the scrubbed children in coga/secrets
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Code (claude-opus-5-5); manual (no launch-prepared) checkout.
+head: 2cf8838dc013e9b3a4eea2815d84044123576cd4
+base: 45ecb5e2992f6a9fd7e0ad326d3a2a83ec1ad43a
+depth: skim
+rationale: >-
+  Docs-only correction of one sentence plus a cross-link; it brings coga/secrets in line with
+  recurring_clone.run_clone_template, which builds the clone script env via build_launch_env.
+implementation: >-
+  coga/secrets now names a scope clone template's ticket.py among the scrubbed children and
+  states that the clone scripts the unscrubbed recurring scan runs are not part of that scan.
+  coga/recurring/scheduling links its "gets the template's secrets" sentence to that section
+  instead of restating the rule.
+deviations: None.
+limitations: >-
+  No rendered-markdown check of the new anchor link; the relative path and slug were checked by hand.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: >-
+    Add clone-scoped recurring scripts to the env-scrub coverage sentence.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: >-
+    Link the clone-script secrets sentence to the coga/secrets scrub section.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Not reviewed yet; the workflow's peer-review step follows implement.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py tests/test_layout_contexts.py tests/test_validate.py tests/test_recurring_clone.py
+    status: passed
+    head: 2cf8838dc013e9b3a4eea2815d84044123576cd4
+    base: 45ecb5e2992f6a9fd7e0ad326d3a2a83ec1ad43a
+    detail: 257 passed, 2 skipped.
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 2cf8838dc013e9b3a4eea2815d84044123576cd4
+    base: 45ecb5e2992f6a9fd7e0ad326d3a2a83ec1ad43a
+    detail: >-
+      1 failed, 5003 passed, 33 skipped. The one failure was
+      test_repl_supervisor.py::test_terminal_ticket_backstop_waits_for_a_live_pending_command,
+      which then passed 3/3 when rerun alone; it is a timing flake unrelated to this docs-only diff.

@@ -4363,3 +4363,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 23:15 v1 [name-clone-scoped-recurring-scripts-among-the-scru] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 23:15 v1 [name-clone-scoped-recurring-scripts-among-the-scru] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 23:15 v1 [name-clone-scoped-recurring-scripts-among-the-scru] [megalaunch] launched via coga megalaunch
+2026-11-18 23:40 v1 [name-clone-scoped-recurring-scripts-among-the-scru] [agent:claude] advanced to step 2 (peer-review) → codex — Docs fix pushed on docs/secrets-clone-scrub; full suite 1 unrelated flaky failure (repl_supervisor), noted on blackboard
