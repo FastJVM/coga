@@ -4350,3 +4350,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 22:41 v1 [fix-the-windows-aws-walk-step-and-add-the-v1-14-at] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 22:41 v1 [fix-the-windows-aws-walk-step-and-add-the-v1-14-at] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 22:41 v1 [fix-the-windows-aws-walk-step-and-add-the-v1-14-at] [megalaunch] launched via coga megalaunch
+2026-11-18 22:58 v1 [fix-the-windows-aws-walk-step-and-add-the-v1-14-at] [agent:claude] advanced to step 2 (peer-review) → codex

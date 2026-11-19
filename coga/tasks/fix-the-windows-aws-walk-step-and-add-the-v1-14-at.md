@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: da82f2d1-e1e9-45bf-8b41-3b8d29e3c638
 ---
 
 ## Description
@@ -170,3 +169,91 @@ branch: coga/fix-the-windows-aws-walk-step-and-add-the-v1-14-at
 - Attended-session section: five short v1/14 gotcha bullets.
 - Dependencies for open-pr: #1256/#1257 (same skill, other hunks) and #1267
   (README `--default`/`python --version`, which this aligns with) still open.
+
+## Implement handoff (2026-11-18)
+
+Done as planned; pushed `fff9598b3` on the branch (one commit over main
+`5971b24e7`).
+
+- `scripts/clean-install/windows-walk.ps1` walk phase: step
+  `uv python install 3.11 --default`, then step `python --version`, which
+  temporarily rebuilds `$env:Path` from the registry (`Refresh-MachinePath`,
+  as a new terminal would), records `Get-Command python` source and version,
+  and fails (exit 2) on a `\WindowsApps\` source or a non-3.11 version; PATH
+  is restored afterward so later steps are unchanged. ASCII only.
+- windows-aws skill: Walk step 2 rewritten (ByPass child-process installer,
+  `--default`, `python --version`, Server 2025 evidence gaps); five gotcha
+  bullets appended to "Attended agent session over SSH".
+- Not verified natively: no Windows box this session; the new PowerShell step
+  first runs on the next harness walk. If uv's installer leaves `.local\bin`
+  off the user registry PATH or behind WindowsApps, that walk fails here,
+  which is the README finding this check exists to catch.
+- **For open-pr (ordering):** #1267 (README `--default` + `python --version`)
+  is still open; this aligns the walk with it, so land #1267 first or at
+  least together. #1256 (Restricted paragraph near the skill's top) and #1257
+  (Long native runs) touch other hunks of the same skill; rebase after they
+  land. #1256's paragraph partly overlaps this step-2 note; trim one if the
+  reviewer prefers a single statement.
+- v1/14 knowledge carried: points (1)–(5) of the ks-11 finding; the rest was
+  already homed per the Description. v1/14 can be retired once this merges.
+
+## PR
+
+```yaml
+title: Align the Windows walk with the README and add attended-run gotchas
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
+head: fff9598b3436875d889b2ae7802e353f8e5b2d8f
+base: 5971b24e767ff291e3d828e046fc11c3ecaa9a31
+depth: skim
+rationale: >-
+  Docs plus one bounded PowerShell harness step; read the new walk step for
+  the PATH-refresh choice and the skill wording against #1267.
+implementation: >-
+  The walk-user phase installs Python with --default and checks python
+  --version against the registry PATH; the skill's Walk step 2 shows the real
+  ByPass installer form and Server 2025 evidence gaps; the attended section
+  gains five v1/14 harness gotchas.
+deviations: >-
+  The python check resolves against the registry PATH (new-terminal view)
+  rather than the in-process PATH, so it actually exercises PATH precedence.
+limitations: >-
+  Not run on Windows; the PowerShell step is unexercised until the next
+  harness walk. Depends on README PR #1267 landing; #1256/#1257 edit other
+  hunks of the same skill.
+files:
+  scripts/clean-install/windows-walk.ps1: >-
+    Walk-user phase runs uv python install 3.11 --default and a python
+    --version precedence check, matching the README.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: >-
+    Walk step 2 shows the ByPass installer, --default and python --version
+    with Server 2025 gaps; attended section adds the v1/14 gotchas.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Peer review is the next workflow step and has not run yet.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: fff9598b3436875d889b2ae7802e353f8e5b2d8f
+    base: 5971b24e767ff291e3d828e046fc11c3ecaa9a31
+    detail: >-
+      5004 passed, 33 skipped (Linux). Ran on the uncommitted tree whose
+      contents equal the committed head (commit added exactly those two
+      files; tree clean after). A concurrent duplicate run showed one
+      test_owner failure from shared temp dirs; that test passed alone.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: fff9598b3436875d889b2ae7802e353f8e5b2d8f
+    base: 5971b24e767ff291e3d828e046fc11c3ecaa9a31
+    detail: >-
+      17 issues, all pre-existing ticket warnings identical on main; none
+      from this change.
+  - command: tests/test_windows_clean_install.py (native PowerShell cases)
+    status: not-run
+    detail: >-
+      Skipped off Windows; no Windows instance provisioned for a docs-sized fix.
+```
