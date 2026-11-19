@@ -125,4 +125,15 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/decide-checkout-open-questions
+
+## Plan
+
+- Q1 (validate lint for `requires: branch` + `checkout: control|manual`): decided no lint; record in `coga/checkouts`.
+- Q2 (who retires the legacy-snapshot fallback, when): filed draft
+  `coga/tasks/v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac.md`
+  as the owner; point at it from `coga-dev/codebase`.
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
