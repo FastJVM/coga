@@ -38,8 +38,19 @@ guarantees in [coga/launch](../../../../../src/coga/resources/templates/coga/boo
 boundaries. Entry preparation is `git.prepare_control_checkout`
 ([git refresh](../git-refresh/SKILL.md)); a prepared step spawns with the
 prompt composed before the switch
-(`spawn_agent_session(composed_prompt=...)`). Agent preflight looks up the
-CLI with `shutil.which` and resolves secrets with `build_launch_env`; an
+(`spawn_agent_session(composed_prompt=...)`). `prepare_agent_launch` is the shared readiness operation for ordinary launch
+and megalaunch. It resolves the agent and CLI, validates prompt layers, builds
+the scoped environment, and checks command representability. It returns
+`PreparedAgentLaunch` (agent, rendered prompt or resolved layers, environment,
+CLI path) or a typed
+`AgentPreparationError`; it writes no repo state, though secret resolution may
+call an external provider. Callers keep their distinct admission/publication
+transactions. Ordinary launch renders its final prospective ticket and checkout
+notice using the resolved layers while their selection still matches.
+Megalaunch retains its readiness prompt, passes `build_supervised_step_env` as
+the `env_transform`, so the command check and the returned environment are the
+supervised step mapping it spawns with, and keeps
+its claim and held-child release proof. An
 open blocker left after a resumed session is restored by
 `_reblock_unresolved_resume`; the `--agent` continuation rule is
 `consecutive_agent_override`.
@@ -50,6 +61,18 @@ publishes and confirms the group before checkout entry and notification.
 [`_publish_startup`](../state-publication/publish/SKILL.md#ordinary-managed-startup)
 owns the finalizer and its failure paths. Other launch routes keep their own
 publication order.
+
+The same public `launch(..., read_only=True)` selects the stateless script
+policy owned by [launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#read-only-command-dispatch),
+before ordinary invocation/checkout setup. It uses `run_script_phase` with an
+explicit effect policy, not a second subprocess implementation.
+
+The retained named agent defaults are `bootstrap/orient` and
+`bootstrap/ticket`: their discussion delivery lets the human supply the first
+substantive turn; authoring's kickoff starts its greet-first interview. The
+orientation checkout guard/receipt proves occupancy across a chat and cannot
+move into editable procedure prose. This change does not introduce a new
+prompt applicability rule or relocate those existing delivery defaults.
 
 ## Order inside one call
 
@@ -169,7 +192,12 @@ characters for this reason.
 
 `launch.agent_command_refusal` plans the pointer form at the callers'
 preflight: launch's `_prepare_agent` before lifecycle writes, `coga ticket`
-before a new draft, and megalaunch before claim admission. An unrepresentable
+before a new draft, and megalaunch before claim admission. Megalaunch's check
+plans against the supervised step environment it spawns with (via
+`prepare_agent_launch(env_transform=...)`). Ordinary launch's check plans
+against the plain launch environment, because its spawn step and checkout-return
+witness are settled only after checkout preparation; the planner reads only
+PATH/PATHEXT, which neither addition changes. An unrepresentable
 command exits 2 with the sweep withheld (`require_representable_agent_command`)
 or, in megalaunch, fails only that ticket. The spawn-time plan refuses the same
 way before audit or admission (`AgentCommandRefused`, a `ComposeError`).
@@ -211,7 +239,12 @@ under way, or in one final check after the child exits and before the
 sentinel is deleted (cleanup runs on every path). It never feeds exit
 classification, so a done signal followed by a real crash stays a `crash`
 with `done_signalled` true. The non-TTY path has no sentinel channel and
-reports false (no observation). Launch and megalaunch freeze `(status, step)`
+reports false (no observation). The POSIX PTY child records a failed
+`exec` in its private session directory. The supervisor reads and removes
+the record after the child exits. It passes `exec_failed` through
+`ReplOutcome` and `AgentSessionResult` for megalaunch's
+[startup compensation](../launch-claims/SKILL.md#failed-agent-start).
+Launch and megalaunch freeze `(status, step)`
 immediately before spawn. They compare it with post-session state through
 `repl_supervisor.unsignalled_advance_warning` to print the
 [advisory](#unsignalled-advance-advisory) below. After a Coga teardown the

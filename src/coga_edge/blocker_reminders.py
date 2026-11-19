@@ -1,0 +1,270 @@
+"""Reminder scan for first-class blocked tasks: the blocker-reminders job.
+
+Wheel-owned edge code (`coga/edge-code`). The packaged recurring
+`blocker-reminders/ticket.py` shim runs `main`, as does
+`python -m coga_edge.blocker_reminders` by hand. This module imports only the
+standard library and shared `coga` infrastructure, so a copy of this single
+file over a recurring `ticket.py` is a complete local fork.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+import sys
+from dataclasses import dataclass, replace
+from datetime import datetime
+from pathlib import Path
+from typing import Iterable
+
+from coga import git
+from coga.blackboard import (
+    Blocker,
+    append_to_section_text,
+    parse_blockers_text,
+    update_blackboard_under_barrier,
+)
+from coga.config import Config
+from coga.notification import post
+from coga.recurring import _pause_origins
+from coga.runner import run_entry
+from coga.taskfile import TaskFileError, read_blackboard
+from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.ticket import TicketError
+
+
+REMINDERS_HEADING = "Blocker reminders"
+
+_REMINDER_RE = re.compile(
+    r"^\s*[-*]\s+(?P<fingerprint>[0-9a-f]{12})\s+last_reminded:\s*(?P<ts>.+?)\s*$"
+)
+
+
+@dataclass(frozen=True)
+class BlockerReminder:
+    """One open blocker eligible for a recurring reminder."""
+
+    slug: str
+    title: str
+    status: str
+    step: str
+    owner: str | None
+    blocker: Blocker
+    fingerprint: str
+    reminded: bool
+    task_path: Path
+    ticket_path: Path
+    # A paused period the sweep itself or the watchdog parked, which the next
+    # sweep resumes once its asks are answered. A human pause stays parked.
+    sweep_resumes: bool = False
+
+    @property
+    def next_command(self) -> str:
+        if self.status == "paused" and not self.sweep_resumes:
+            return f"coga launch {self.slug}"
+        return f'coga unblock {self.slug} --answer "..."'
+
+
+def scan_blocker_reminders(
+    cfg: Config,
+    *,
+    refs: Iterable[TaskRef] | None = None,
+) -> list[BlockerReminder]:
+    """Scan blocked tasks and paused recurring periods for unresolved asks."""
+    out: list[BlockerReminder] = []
+    paused: list[str] = []
+    for ref in refs if refs is not None else list_tasks(cfg):
+        try:
+            ticket = read_ticket(ref)
+        except TicketError:
+            continue
+        if ticket.status != "blocked" and not (
+            ticket.status == "paused" and ref.id_slug.startswith("recurring/")
+        ):
+            continue
+
+        try:
+            blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
+        except (OSError, TaskFileError):
+            continue
+
+        reminded = reminder_fingerprints(blackboard)
+        for blocker in parse_blockers_text(blackboard):
+            if blocker.resolved:
+                continue
+            fingerprint = _fingerprint(blocker)
+            if ticket.status == "paused":
+                paused.append(ref.id_slug)
+            out.append(
+                BlockerReminder(
+                    slug=ref.id_slug,
+                    title=ticket.title,
+                    status=ticket.status or "-",
+                    step=ticket.step or "-",
+                    owner=ticket.owner,
+                    blocker=blocker,
+                    fingerprint=fingerprint,
+                    reminded=fingerprint in reminded,
+                    task_path=ref.path,
+                    ticket_path=ref.ticket_path,
+                )
+            )
+    if not paused:
+        return out
+    machine = _pause_origins(cfg, set(paused))
+    return [
+        replace(reminder, sweep_resumes=True)
+        if reminder.status == "paused" and reminder.slug in machine
+        else reminder
+        for reminder in out
+    ]
+
+
+def reminder_fingerprints(blackboard_text: str) -> set[str]:
+    """Return blocker reminder fingerprints already recorded on a task."""
+    section = _section(blackboard_text, REMINDERS_HEADING)
+    if not section:
+        return set()
+    found: set[str] = set()
+    for line in section.splitlines():
+        match = _REMINDER_RE.match(line)
+        if match:
+            found.add(match.group("fingerprint"))
+    return found
+
+
+def record_reminder(
+    cfg: Config,
+    ticket_path: Path,
+    fingerprint: str,
+    *,
+    now: datetime,
+) -> bool:
+    """Record one reminder watermark in the task blackboard.
+
+    Returns False when the fingerprint is already present.
+    """
+    stamp = now.strftime("%Y-%m-%d %H:%M")
+    entry = f"- {fingerprint} last_reminded: {stamp}"
+
+    def add_watermark(blackboard: str) -> str | None:
+        if fingerprint in reminder_fingerprints(blackboard):
+            return None
+        return append_to_section_text(blackboard, REMINDERS_HEADING, entry)
+
+    return (
+        update_blackboard_under_barrier(
+            cfg,
+            ticket_path,
+            add_watermark,
+        )
+        is not None
+    )
+
+
+def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
+    """Post one reminder for each blocked-task ask not yet watermarked."""
+    now = now or datetime.now()
+    reminded = 0
+    for reminder in scan_blocker_reminders(cfg):
+        if reminder.reminded:
+            continue
+        owner = reminder.owner or cfg.current_user
+        if reminder.status != "paused":
+            action = "to record the answer and resume."
+        elif reminder.sweep_resumes:
+            action = "to record the answer; the next recurring sweep resumes the period."
+        else:
+            action = (
+                "to review the ask, then record the answer in the resumed session "
+                f'with `coga unblock {reminder.slug} --answer "..."`.'
+            )
+        post(
+            cfg,
+            (
+                f"Blocker reminder: *{reminder.slug}* \"{reminder.title}\" "
+                f"is {reminder.status}: {reminder.blocker.reason}. Run "
+                f"`{reminder.next_command}` {action}"
+            ),
+            task_path=reminder.task_path,
+            owner=owner,
+        )
+        if record_reminder(
+            cfg,
+            reminder.ticket_path,
+            reminder.fingerprint,
+            now=now,
+        ):
+            git.sync_task_state(
+                cfg,
+                reminder.task_path,
+                message=f"Ticket: {reminder.slug} — blocker reminder",
+            )
+        reminded += 1
+    return reminded
+
+
+def run_blocker_reminders(cfg: Config, argv: list[str]) -> int:
+    """Run the recurring blocker-reminder job."""
+    if argv:
+        sys.stderr.write(
+            "blocker-reminders: unexpected arguments: "
+            f"{' '.join(repr(arg) for arg in argv)}\n"
+        )
+        return 2
+    count = remind_blocked_tasks(cfg)
+    if count == 0:
+        sys.stdout.write("[blockers] no unresolved blockers to remind.\n")
+    else:
+        sys.stdout.write(f"[blockers] reminded {count} blocker(s).\n")
+    return 0
+
+
+def main(argv: list[str] | None = None, *, scheduled: bool = False) -> int:
+    """Report, publish and, for a launched period script, complete the step.
+
+    A scheduled invocation advances only the task named by launch.
+    """
+    return run_entry(
+        "blocker-reminders",
+        run_blocker_reminders,
+        sys.argv[1:] if argv is None else argv,
+        scheduled=scheduled,
+    )
+
+
+_SECTION_RE = re.compile(r"^##[ \t]+(?P<heading>.+?)\s*$", re.MULTILINE)
+
+
+def _section(markdown: str, heading: str) -> str:
+    target = heading.strip().casefold()
+    matches = list(_SECTION_RE.finditer(markdown))
+    for i, match in enumerate(matches):
+        if match.group("heading").strip().casefold() != target:
+            continue
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(markdown)
+        return markdown[match.end():end]
+    return ""
+
+
+def _fingerprint(blocker: Blocker) -> str:
+    stamp = blocker.created_at.strftime("%Y-%m-%d %H:%M") if blocker.created_at else ""
+    normalized = " ".join(blocker.reason.split()).casefold()
+    raw = f"{blocker.id}\n{stamp}\n{blocker.actor}\n{normalized}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+
+__all__ = [
+    "BlockerReminder",
+    "REMINDERS_HEADING",
+    "record_reminder",
+    "main",
+    "run_blocker_reminders",
+    "remind_blocked_tasks",
+    "reminder_fingerprints",
+    "scan_blocker_reminders",
+]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(scheduled=Path(__file__).name == "ticket.py"))

@@ -22,6 +22,17 @@ Server 2025 is not a Windows 11 desktop: it has no Store or winget-first
 setup, and its Git for Windows comes from the harness. The owner accepted
 these gaps for automated evidence. A human Windows 11 walk is separate work.
 
+One gap matters for the install step. Windows 11 client editions default to
+the `Restricted` PowerShell execution policy, while Server 2025 defaults to
+`RemoteSigned`, so this harness cannot reproduce policy-dependent install
+failures. Under `Restricted`, the bare `irm https://astral.sh/uv/install.ps1 | iex`
+refuses to run and calls `exit`, which closes the PowerShell window before the
+error can be read; `uv` is then "not recognized". The README therefore uses
+uv's documented one-shot form,
+`powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`,
+which leaves the machine's policy unchanged. A green Server 2025 walk is not
+evidence for that step; only a human Windows 11 walk checks it.
+
 ## Cost and approval
 
 Windows EC2 bills per second while the instance exists: compute with the
@@ -166,8 +177,13 @@ pass the line to `cmd /c` as one word (that explicitly requests shell parsing).
 
 ### Long native runs
 
-The full native `python -m pytest` takes about two hours, longer than an SSH
-session or agent tool server reliably lives (transport exit 255). Run it as a
+The full native `python -m pytest` can take far longer than two hours; plan
+for most of a working day. On 2026-11-11 a run on the default `t3.large`
+(build 26100, Python 3.11, Defender exclusions in place, short
+`--basetemp C:\ct`) reached only 58% after about 3 h 55 min, so budget the
+instance time, the SSO session lifetime and the owner's attention. That is
+longer than an SSH session or agent tool server reliably lives (transport
+exit 255). Run it as a
 temporary Administrator S4U scheduled task that writes stdout, stderr, JUnit
 XML and the exit code under `C:\coga-clean-install\`, and poll with brief
 reconnects. Stopping the task's PowerShell action leaves its `uv` child

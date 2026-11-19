@@ -93,7 +93,9 @@ Write every free-text value (`rationale`, `implementation`, `deviations`,
 a folded block scalar (`>-`) or a quoted string: a plain scalar containing
 `: ` or starting with `[` or `{` is invalid YAML, and `coga open-pr` refuses
 it. `review` is always a nested mapping, never a string, and `depth` is exactly
-`merge`, `skim`, or `deep`.
+`merge`, `skim`, or `deep`. `author` is one compact identity (1–32 letters,
+digits, `.`, `_`, `-`, `/`), which `coga open-pr` refuses otherwise; put
+multi-author or co-author detail in `author_evidence`.
 
 The formatter enumerates paths using Git's NUL-delimited rename-aware diff.
 The file table shows only each path and its change type (`M`, `A`, `D`, or the
@@ -110,6 +112,12 @@ and the complete Description and Context as Markdown, preserving their source
 text, excluding frontmatter, blackboard and PR preparation. The snapshot has no
 outer code fence: its headings, lists, links and own code blocks render normally.
 Snapshot extraction happens at publication.
+GitHub rejects a body over 65,536 characters. When the full body would exceed
+that, only the file table changes: it groups paths by parent directory with
+per-status counts and names the `git diff --name-status` command that lists
+every path. Preparation coverage is still checked per path, and the snapshot
+stays literal. If the grouped body still exceeds the limit, publication refuses
+before pushing; shorten the preparation prose or receipts.
 The closure marker remains machine-readable outside that snapshot.
 
 Missing/unstructured preparation publishes a `deep` fallback with unknown

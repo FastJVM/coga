@@ -9,7 +9,6 @@ import os
 import shlex
 import signal
 import sys
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +23,7 @@ from coga.aliases import (
 )
 from coga.config import Config, ConfigError, find_repo_root, load_config
 from coga.logfile import log_lines, log_path
+from coga.state_sweep import sweep_root, sweep_suppressed
 
 
 def _print_version_and_exit(value: bool) -> None:
@@ -53,14 +53,11 @@ _LAZY_COMMANDS: dict[str, tuple[str, str, dict[str, object]]] = {
     "create": ("coga.commands.create", "create", {}),
     "ticket": ("coga.commands.ticket", "ticket", {}),
     "launch": ("coga.commands.launch", "launch", {}),
-    "status": ("coga.commands.status", "status", {}),
-    "show": ("coga.commands.show", "show", {}),
     "bump": ("coga.commands.bump", "bump", {}),
     "block": ("coga.commands.block", "block", {}),
     "unblock": ("coga.commands.unblock", "unblock", {}),
     "owner": ("coga.commands.owner", "owner", {}),
     "delete": ("coga.commands.delete", "delete", {}),
-    "usage": ("coga.commands.usage", "usage", {}),
     "validate": ("coga.commands.validate", "validate", {}),
     "skill": ("coga.commands.skill", "app", {}),
     "mark": ("coga.commands.mark", "app", {}),
@@ -147,7 +144,7 @@ def _root(
 # and run with a possibly-absent config — not the steady-state boundary the
 # sweep is for.
 _NON_SWEEPING_COMMANDS = frozenset(
-    {"status", "show", "validate", "usage", "init", "uninstall"}
+    {"validate", "init", "uninstall"}
 )
 _SWEEPING_COMMANDS = frozenset(
     {
@@ -179,20 +176,13 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     Wired only to mutating commands via `_NON_SWEEPING_COMMANDS` and the
     option/`--help` guards: a bare `coga`, `--version`, or any `--help` is not a
     state change and must not commit. No repo (`cfg is None`) → nothing to sweep.
-    The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
-    so it never masks the command's own exit. The exit diagnostic separately
-    checks for retained log lines, including ones the sweep excluded.
+    Admission policy lives here; the mechanism (withheld/relay suppression,
+    config reload, the guarded sync) is `state_sweep`, shared with edge
+    entrypoints. It is non-fatal, so it never masks the command's own exit.
+    The exit diagnostic separately checks for retained log lines, including
+    ones the sweep excluded.
     """
-    if git.control_relay_started.get():
-        return
-    if git.state_sweep_withheld.get():
-        typer.secho(
-            "[git] state sweep withheld: the command refused before changing "
-            "state, or preserved local changes after a refused or failed "
-            "publication or checkout return.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
+    if sweep_suppressed():
         return
     if cfg is None or not _should_sweep_coga_state(sys.argv):
         return
@@ -203,20 +193,7 @@ def _sweep_coga_state(cfg: Config | None) -> None:
         # host feature checkout's dirty `coga/` state on control. On control
         # this is the inner CLI (or an ordinary direct child) and sweeps.
         return
-    try:
-        # A launched agent may edit coga.toml and move the context tree while
-        # the command is running. The eager config fed aliases at dispatch;
-        # reusing it here would sweep the old root and could commit the new
-        # config without its destination. Reload at the publication boundary.
-        live_cfg = load_config(cfg.repo_root, require_user=False)
-    except (ConfigError, tomllib.TOMLDecodeError) as exc:
-        typer.secho(
-            f"[git] current config is invalid (state sweep skipped): {exc}",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        return
-    git.sync_coga_state(live_cfg)
+    sweep_root(cfg.repo_root)
 
 
 # How many unpublished log lines an exit warning prints before it
@@ -385,6 +362,16 @@ def _checkout_is_off_control(cfg: Config) -> bool:
         return False
 
 
+def _read_only_launch_requested(argv: list[str]) -> bool:
+    """Select dispatch effects before any target/config-dependent launch work.
+
+    Alias expansion has already produced the same argv as a direct launch.
+    Operands after the CLI separator cannot change invocation policy.
+    """
+    options = argv[2:argv.index("--") if "--" in argv else len(argv)]
+    return argv[1:2] == ["launch"] and "--read-only" in options
+
+
 def _should_sweep_coga_state(argv: list[str]) -> bool:
     args = argv[1:]
     if not args:
@@ -404,12 +391,13 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
         # session's unfinished contexts and skills. The launcher's own
         # return and final sweep own that state.
         return False
-    if command == "launch":
-        launch_options = args[:args.index("--")] if "--" in args else args
-        if "--prompt-report" in launch_options:
-            # Reports do not write state. Script operands after the separator
-            # cannot select report mode, even when they spell the option.
-            return False
+    if command == "launch" and any(
+        arg in {"--prompt-report", "--read-only"}
+        for arg in args[1:args.index("--") if "--" in args else len(args)]
+    ):
+        # Reports and explicit readers must not publish the effective local
+        # edits they inspect, including when parsing or admission refuses.
+        return False
     if command == "bump" and any(
         arg in {"--backward", "--to"} or arg.startswith("--to=")
         for arg in args[1:]
@@ -436,8 +424,6 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
             return False
         subcommand = args[1] if len(args) > 1 else None
         return subcommand is None or subcommand.startswith("-") or subcommand == "launch"
-    if command == "secret":
-        return False
     return False
 
 
@@ -535,7 +521,7 @@ def main(
     try:
         find_repo_root()
         cfg = load_config(require_user=False)
-    except (ConfigError, tomllib.TOMLDecodeError) as exc:
+    except ConfigError as exc:
         msg = str(exc)
         if "No coga.toml found" in msg:
             help_invoked = command_help_requested(sys.argv[1:])
@@ -591,7 +577,7 @@ def main(
     aliases = {**_DEFAULT_ALIASES, **user_aliases}
     try:
         _validate_aliases(aliases)
-    except (ConfigError, tomllib.TOMLDecodeError) as exc:
+    except ConfigError as exc:
         if init_invoked or recurring_all_invoked:
             prefix = (
                 f"Note: ignoring config error so `{sys.argv[1]}` can run"
@@ -620,6 +606,16 @@ def main(
         full = expanded + rest
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
+
+    if _read_only_launch_requested(sys.argv):
+        # No checkout scope, log observation, completion finalization or sweep.
+        # This applies to refusals too, before the adapter loads its config.
+        policy_token = git.state_sweep_withheld.set(True)
+        try:
+            app()
+        finally:
+            git.state_sweep_withheld.reset(policy_token)
+        return
 
     from coga.launch import checkout_guard_scope
     from coga.repl_supervisor import deferred_done_marker

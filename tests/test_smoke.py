@@ -12,6 +12,8 @@ Verifies:
 
 from __future__ import annotations
 
+from report_helpers import report_cli
+
 import shutil
 from pathlib import Path
 
@@ -188,12 +190,12 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "checked DNS resolver logs" in log2
 
     # 5. Status hides done tasks by default; --all includes them.
-    r = runner.invoke(app, ["status"])
+    r = report_cli(["status"])
     assert r.exit_code == 0
     assert ref["slug"] not in r.output  # done — hidden by default
     assert "declined-dream-finding" not in r.output  # canceled — also hidden
     assert ref2["slug"] in r.output
-    r = runner.invoke(app, ["status", "--all"])
+    r = report_cli(["status", "--all"])
     assert r.exit_code == 0
     assert ref["slug"] in r.output
     assert "declined-dream-finding" in r.output

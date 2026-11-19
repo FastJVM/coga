@@ -52,6 +52,10 @@ removed gitlink. Source outside the roots, including the packaged copies
 under `src/`, is ordinary code: it reaches control only through a branch and
 reviewed PR.
 
+Explicit [read-only command dispatch](../launch/SKILL.md#read-only-command-dispatch)
+has no publication boundary or exit sweep. Ordinary script/write dispatch
+continues to use the publication rules below.
+
 ## When Coga publishes
 
 - **Lifecycle commands** first reconcile the ticket with freshly fetched
@@ -64,14 +68,21 @@ reviewed PR.
   checkout it publishes routine state only and reports the files it
   [holds for merge](#held-for-merge-on-feature-checkouts). Read-only commands
   (`status`, `show`, `validate`, `usage`, `--help`, `launch --prompt-report`)
-  never sweep, and neither do `init` and `uninstall`. Stateless command-script
-  help follows the same exclusion, including aliases and invalid config; a
-  script-level operand separator ends help recognition. The sweep is best-effort: a failed push is
+  never sweep, and neither do `init` and `uninstall`. Report aliases use
+  explicit read-only launch; the fixed `recurring list` adapter forwards to
+  that same API. Stateless command-script help follows the same exclusion,
+  including aliases and invalid config; a script-level operand separator ends
+  help recognition. Validation, including local `--fix`, remains non-sweeping. The sweep is best-effort: a failed push is
   reported on stderr, the files stay as written, and the next command retries.
   A command that deliberately leaves retryable state dirty, or a launch whose
   checkout preparation or return refused, withholds its sweep so that state
   is not published. At exit, a changed log is checked for lines control does
   not hold, even after a sweep (which may have excluded an ignored log).
+  An edge worker run outside the CLI through `runner.run_entry` (a recurring
+  `ticket.py`, a Dream worker run as `python -m coga_edge.<worker>`) gets the
+  same sweep at its own exit, over the root that worker operated on, with the
+  same `--help`, exit-75 and withheld exclusions; an unknown root publishes
+  nothing.
   The warning names up to 10 retained lines, counts any others, and gives the
   recovery command; it reports those lines rather than publishing them beside
   withheld state. After a checkout rewrite, the check can also name older

@@ -24,6 +24,22 @@ timeout names its trigger and duration. A task chains through at most 8
 agent steps per run (`failed: exceeded 8 unattended steps`), and an exit that
 changes neither step nor status is `failed`.
 
+An agent that **fails to start** stops the whole run, in the sweep, the
+dependency drain, and an explicit selection alike. The POSIX terminal
+supervisor confirms this when the operating system refuses to execute the
+agent command. A CLI that executes and then returns a nonzero code follows
+the ordinary `failed` rule and the run continues. This includes an agent
+that starts and rejects its configuration. Supervisors without a confirmed
+execution-failure signal retain the ordinary behavior. Megalaunch restores the ticket to the exact bytes that
+step found (a pick's `draft`, `paused`, or `blocked`; otherwise `active` or
+`in_progress`, which a drained ticket reaches with its dependency answer
+kept), drops the launch claim, and records no blocker: the environment is at
+fault, not the ticket. No later task is read, activated, or launched. The
+agent's own error stays on the console above the summary; fix the
+environment and rerun (`--relaunch` replays a pick). If the restore cannot
+complete, the run still stops and the row says the ticket needs manual
+reconciliation.
+
 Megalaunch has no deterministic phase: it never runs a ticket's `ticket.py`
 ([script tickets](../script-tickets/SKILL.md)); each step is an agent
 session composed directly.
@@ -135,8 +151,9 @@ draft interviews plus each task's first launched step only. `DIR` scopes to
 
 The summary counts launched, drained, completed, canceled, blocked,
 skipped-human-gate, skipped-unresolved-blocker, skipped-unlaunchable, and
-failed, one row per task; one notification line follows. Any `failed` row
-exits 1; usage errors exit 2. Claims and recovery:
+failed, one row per task; one notification line follows. A failed start has a row naming the task (`failed - agent failed to start (exited with code N);
+run stopped; restored to <status>`). Any `failed` row exits 1; usage errors
+exit 2. Claims and recovery:
 [launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md).
 
 ## Editable implementation

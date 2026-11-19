@@ -698,10 +698,10 @@ def test_extra_state_publications_are_counted_outside_the_ordinary_bound(
     def work(seen: dict) -> None:
         _handoff(git_repo, ref, "First handoff edit.")
         if extra == "command":
-            # A separate real mutating command sweeps the early blackboard.
+            # A separate real worker publishes the early blackboard on exit.
             env = {k: v for k, v in os.environ.items() if not k.startswith("COGA_")}
             env["PYTHONPATH"] = str(Path(checkouts.__file__).resolve().parents[1])
-            result = subprocess.run([sys.executable, "-m", "coga.cli", "run", "cleanup-orphan-markers"], cwd=git_repo.coga_os, env=env, capture_output=True, text=True, encoding="utf-8")
+            result = subprocess.run([sys.executable, "-m", "coga_edge.cleanup_orphan_markers"], cwd=git_repo.coga_os, env=env, capture_output=True, text=True, encoding="utf-8")
             assert result.returncode == 0, result.stdout + result.stderr
         _handoff(git_repo, ref, "Final handoff edit.")
         _bump(git_repo, ref.id_slug, subprocess_run=True)
@@ -767,6 +767,42 @@ def test_grouped_preflight_refuses_before_any_startup_write(
     assert ref.ticket_path.read_bytes() == original + (b"\nConcurrent local note.\n" if failure == "source" else b"")
     assert (log.read_bytes() if log.exists() else None) == original_log
     assert _control(git_repo, _rel(git_repo, ref)).encode() == original
+
+
+def test_grouped_launch_composes_its_first_prompt_once(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """The entry preflight resolves every layer; preparation composes once from
+    the prospective final ticket and the checkout notice, reusing those layers.
+    The `compose` refusal case above keeps a missing layer ahead of any write."""
+    import coga.compose as compose_module
+
+    ref = _startup_task(git_repo, "draft", "create")
+    counts = {"compose": 0, "resolve": 0}
+    real_compose = launch_module.compose_prompt
+    real_resolve = compose_module.resolve_prompt_layers
+
+    def compose(*args, **kwargs):  # type: ignore[no-untyped-def]
+        counts["compose"] += 1
+        assert kwargs.get("checkout") is not None
+        assert kwargs.get("resolved") is not None
+        return real_compose(*args, **kwargs)
+
+    def resolve(*args, **kwargs):  # type: ignore[no-untyped-def]
+        counts["resolve"] += 1
+        return real_resolve(*args, **kwargs)
+
+    monkeypatch.setattr(launch_module, "compose_prompt", compose)
+    monkeypatch.setattr(launch_module, "resolve_prompt_layers", resolve)
+    monkeypatch.setattr(compose_module, "resolve_prompt_layers", resolve)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    assert counts == {"compose": 1, "resolve": 1}
+    assert len(agent.seen) == 1
+    prompt = agent.seen[0]["prompt"]
+    assert "Status: in_progress" in prompt
+    assert "Checkout policy: create-or-reuse" in prompt
 
 
 def test_failed_start_notification_is_nonfatal_after_clean_branch_entry(

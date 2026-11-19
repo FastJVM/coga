@@ -52,6 +52,12 @@ warns when `user` is unset. Network probes are opt-in:
 ([coga/notifications](../notifications/SKILL.md)). Neither combines with
 `--task`.
 
+Validation remains a core command. Its CLI and `python -m coga.validate`
+entry share execution and JSON/text rendering; Dream's
+`coga_edge.validate_drift` worker consumes the module entry. Both need no configured user and never publish, including
+`--fix`, which only applies conservative local blackboard-fence repairs under
+a state lock and refuses concurrent changes.
+
 These checks do not test agent authentication or complete a first task.
 
 On an empty repo, `init` seeded an onboarding ticket. `coga build` is a
@@ -121,7 +127,8 @@ completed work. States and gates: [coga/lifecycle](../lifecycle/SKILL.md).
 ## What you touched
 
 - **Ticket**: the durable unit of work, in files rather than a session.
-- **Workflow**: ordered steps, frozen into the ticket when it activates.
+- **Workflow**: ordered steps, frozen into the ticket at `coga create --workflow`
+  (or when a draft carrying a bare workflow ref activates).
 - **Blackboard**: scratch memory that survives torn-down sessions.
 - **Composition**: each prompt is rebuilt from files on disk at launch.
 - **Correction loop**: when an agent is misled, fix and commit the context

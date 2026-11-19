@@ -5263,7 +5263,8 @@ def test_feature_sync_plan_offers_the_shortcut_for_identical_state(git_repo):
 
 @pytest.mark.skipif(os.name == "nt", reason="runs the POSIX rendering")
 def test_feature_sync_command_merges_control_from_a_nested_cwd(git_repo):
-    from coga.views import feature_sync_message
+    from report_helpers import report_module
+    feature_sync_message = report_module("status").feature_sync_message
 
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)

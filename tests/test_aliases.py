@@ -90,7 +90,7 @@ def test_main_passes_through_non_alias_argv(
 ) -> None:
     """Built-in commands should not be rewritten."""
     monkeypatch.chdir(repo)
-    monkeypatch.setattr("sys.argv", ["coga", "status"])
+    monkeypatch.setattr("sys.argv", ["coga", "validate"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
 
     captured: dict[str, list[str]] = {}
@@ -101,7 +101,7 @@ def test_main_passes_through_non_alias_argv(
 
     monkeypatch.setattr("coga.cli.app", fake_app)
     main()
-    assert captured["argv"] == ["coga", "status"]
+    assert captured["argv"] == ["coga", "validate"]
 
 
 def test_main_collision_exits_nonzero(

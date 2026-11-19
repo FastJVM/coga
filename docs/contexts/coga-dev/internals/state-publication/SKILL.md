@@ -86,6 +86,13 @@ held. Its decision logic is unchanged.
 
 ## The end-of-command sweep
 
+The mechanism is `state_sweep`: `sweep_suppressed` (the control-relay and
+withheld checks, with the withheld warning) and `sweep_root` (config reload and
+`git.sync_coga_state`). `cli._sweep_coga_state` adds the CLI's admission
+policy; `runner.run_entry` applies the same exclusions (`--help`/`-h`, exit
+75, withheld, relay) to an edge worker's own exit, over the root its resolver
+names, and never falls back to the invoking repo for an unknown root.
+
 `cli.main` calls `_sweep_coga_state` after a command returns or raises, except
 on exit code `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75), which a command uses when it
 deliberately left retryable state dirty (stale recurring control, refused
@@ -101,7 +108,8 @@ checkout return. The sweep:
   `_SWEEPING_MARK_SUBCOMMANDS`, and bare `recurring` or `recurring launch`
   sweep; every other command falls through to no sweep. Within that set it
   still never sweeps for `--help`/`-h`, `recurring --all`, `run
-  publish-state`, `run prepare-checkout`, `launch --prompt-report`, or `bump
+  publish-state`, `run prepare-checkout`, `launch --prompt-report`,
+  `launch --read-only`, or `bump
   --backward`/`--to`. `prepare-checkout` is skipped on success, failure,
   and a configuration refusal before dispatch alike: a chat calls it
   repeatedly over unfinished contexts and skills, which only its launcher's
@@ -131,6 +139,14 @@ checkout return. The sweep:
   path whose control copy moved beyond its provenance stays unselected until
   the operator rebases. Overlapping roots are one pathspec, so nothing is
   examined twice.
+
+After alias expansion, `cli._read_only_launch_requested` selects the no-effects
+finalization path before launch config/target work: `app()` runs without the
+checkout guard scope, deferred completion finalizer, log observation or sweep.
+The command adapter and Python API also withhold sweeping before any refusing
+operation. Arguments after `--` cannot select policy. This implements the
+[read-only launch contract](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#read-only-command-dispatch);
+ordinary launch still uses the boundary above.
 
 ## Strict recipe wiring
 

@@ -55,133 +55,82 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (review-design)
+step: 7 (review)
 ---
 
 ## Description
 
-Classify secret inspection and installation removal against the small-core
-rule, preserving their operational boundaries. Move the human secret query
-onto an editable deterministic command ticket after the generic stateless
-runner ships; retain the bounded uninstall recovery command. Do not introduce
-a second recovery launcher merely to move code out of the command directory.
-These are proposals for owner review, not ratified placement decisions.
+Classify secret inspection and removal against the small-core rule. Owner
+confirmed the revised implementation scope on 2026-11-16: retain `secret get`
+in core to preserve the operator's 1Password authentication, retain uninstall
+recovery, and move uninstall-only helpers beside their consumer. The earlier
+secret-ticket proposal is superseded by this decision and the evaluator's
+credential-preservation finding below.
 
 ### Objectives advanced
 
-The secret query becomes repo-customizable Python using the same resolver as
-launch. Removing its Typer group and command-specific dispatch exceptions
-simplifies the command surface. Uninstall retention avoids another loader,
-configuration bypass and teardown policy for a single recovery procedure.
-Relocation alone is not a reduction; measure the whole implementation.
+Settle both support command placements with concrete invariant proofs, avoid
+a privileged ticket-child policy or a second recovery loader, and remove
+misleading helper ownership. This gives up repo-editable secret-query behavior.
+Relocation alone is not a code reduction; measure the whole implementation.
 
 ### Acceptance criteria
 
-- [ ] Record the reviewed placement of both heads in
-      `docs/contexts/coga-dev/microkernel/SKILL.md`, with the concrete proofs
-      below. Remove their open row only once the reviewed implementation
-      settles both; leave other command placements untouched.
-- [ ] Replace the built-in secret group with a packaged
-      `bootstrap/secret/ticket.md` and exact sibling `ticket.py`, using the
-      read-only stateless contract owned by
-      `v1/microkernel/03-launch-decomposition`. Proposed alias:
-      `secret = "launch --read-only bootstrap/secret --"`; the script parses
-      `get <ref>`. Preserve the public `coga secret get <ref>` spelling.
-      Do not migrate until that generic seam is implemented and verified.
-- [ ] Preserve discovery of a valid repo, `require_user=False`, existing
-      malformed-config failures, and invocation without agent configuration
-      or TTY. A successful query prints only the resolved value and existing
-      trailing newline to stdout. Framing/help failures use stderr; invalid
-      subcommands, missing/excess operands, raw literals, missing env refs,
-      missing op and failed op reads exit 2 with no value on stdout.
-- [ ] Fake resolver/tool outputs, including a distinctive failure sentinel,
-      and prove values never enter prompts, audit, notifications, reports,
-      usage files or Git publication. Test direct read-only launch and alias
-      invocation from a dirty repo, with no configured user/agent and no TTY.
-      Capture stdin/stdout/stderr as separate streams; never acquire real
-      credentials. Do not put returned values in a ticket's `secrets:` field.
-- [ ] Retain `uninstall` as a built-in recovery entry before alias validation,
-      tolerant of invalid shared/local config and absent local definitions,
-      without user/agent/TTY requirements when `--yes` is supplied. Preserve
-      preview, default-no confirmation, refusal with no deletion, guide
-      backups, relocated-root warning/containment and external-root-first
-      failure order, skill-link pruning, gitignore cleanup, and root-layout
-      refusal. No publication, checkout refresh or audit follows removal.
-- [ ] Exercise removal only in disposable fixtures. Cover malformed TOML,
-      invalid aliases, absent definitions/local config, edited and unmodified
-      guides, external contexts and failure before deleting coga.toml,
-      confirmation refusal, plus fake uv/pipx/pip purge success/failure.
-      Keep unresolved executable detection, UV_TOOL_DIR targeting and
-      platform-specific quoted manual recovery commands intact.
-- [ ] Classify launch-adjacent checks as below. Remove no preflight merely
-      because a later subprocess can fail. Any proposed deletion must prove
-      visible failure on ordinary, scripted and delegated recurring paths
-      before their relevant activation/publication effects.
-- [ ] Update package-owned `coga/secrets`, `coga/uninstall`, `coga/init`,
-      `coga/cli` and relevant launch/extension guidance in the same PR for
-      changed contracts; update packaging manifests for new/removed resources.
-      No live twins, forwarding modules or second upgrade mechanism.
-- [ ] Report before/after full revisions and physical production line counts
-      (including blanks/comments) separately for core, edge and ticket scripts;
-      list deleted entrypoints, exceptions and dependency edges. Report tests,
-      docs and resource copies separately. Run focused secret/uninstall/init/
-      CLI/launch/packaging tests, task validation and the full Linux suite with
-      receipts per `coga-dev/testing`. Native Windows/macOS checks are deferred
-      to release, not implementation gates.
+- [x] Record both reviewed retained placements and launch-adjacent checks in
+      `docs/contexts/coga-dev/microkernel/SKILL.md`; remove only their open row.
+- [x] Retain `coga secret get <ref>` in the parent process using the shared
+      resolver. Prove fake OP auth reaches `op read` while ordinary task
+      environments still scrub it. No secret-only runner, alias, bootstrap
+      ticket, or provider/scrubbing change.
+- [x] Preserve repo/config admission, `require_user=False`, operation without
+      user/agent/TTY, exact value plus newline on successful stdout, and exit 2
+      without values on stdout for invalid arguments, literals, missing env,
+      missing op and failed op reads. Preserve help behavior: explicit help
+      exits 0 on stdout; bare group usage exits 2 on stdout.
+- [x] Use only fake credentials/tool outputs, including a failure stdout
+      sentinel. Verify separate streams, no prompt/audit/notification/report/
+      usage writes or Git publication, and dirty state preservation. Exercise
+      the real CLI entrypoint and subprocess environment in disposable repos.
+- [x] Retain uninstall's pre-alias recovery entry, including malformed shared
+      and local TOML, invalid aliases and absent local definitions/config.
+      No user/agent/TTY requirement with --yes, no publication/refresh/audit
+      after removal. Cover preview, default-no/refusal, guide backups,
+      safe relocated contexts and external-root-first failure, link pruning,
+      gitignore cleanup and root-layout refusal in disposable fixtures.
+- [x] Move `remove_host_gitignore`, `running_cli_location` and
+      `COGA_PIPX_PACKAGE` from update to uninstall, with tests/imports and no
+      forwarding exports. Keep shared marker constants and guide templates.
+      Preserve fake uv/pipx/pip success/failure, unresolved executable detection,
+      UV_TOOL_DIR targeting and platform-specific manual recovery hints.
+- [x] Keep auth preflights and shared skill-view refresh in core. Reverify the
+      absence of installed/source skew diagnostics and remove stale guidance.
+- [x] Update package-owned user topics for the retained contracts; add no
+      resources, live twins, manifest changes or second upgrade mechanism.
+- [x] Report full before/after revisions, physical production line counts
+      including blanks/comments separately for core, edge and ticket scripts,
+      dependency changes, and separate test/docs/resource counts. Run focused
+      secret/uninstall/init/CLI/launch/packaging checks, task validation and
+      the full Linux suite with receipts. Native checks defer to release.
 
-### Proposed shape
+### Implementation shape
 
-1. Consume the reviewed generic read-only runner from launch-decomposition.
-   Its contract must suppress launch and exit publication on success and
-   refusal, inherit streams without capture, avoid composition/agent fallback,
-   skip skill-view writes and checkout preparation, and clear outer lifecycle
-   authority. Reuse its subprocess/environment machinery; add no secret-only
-   mode or command-name allowlist. If it is unavailable at implementation,
-   block on exact slug `v1/microkernel/03-launch-decomposition` rather than
-   implement a second runner.
-2. Author the secret procedure directly beside its packaged ticket. Parse its
-   small argv with stdlib, reject literals with the existing human-facing
-   error, call `config.select_launch_secrets(None, [{"value": ref}])`, catch
-   `SecretError`, and print only the result. Do not duplicate configuration
-   loading already owned by read-only dispatch. The ticket has no agent
-   procedure or secret declarations. Use the dedicated customization ticket's
-   local-first discovery/forking route; the script itself contains the editable
-   behavior, rather than an import-only edge wrapper.
-3. Remove `src/coga/commands/secret.py` and its lazy registration/group entry
-   in `src/coga/cli.py`; add the alias in `src/coga/aliases.py`. Remove the
-   obsolete secret-specific sweep branch once the generic invocation policy
-   covers alias expansion and refusals. Keep help/argument behavior explicit
-   in integration tests. Do not edit this repository's coga.toml.
-4. Retain `src/coga/commands/uninstall.py` and `cli.main`'s early dispatch.
-   The co-versioned invariant is recovery before config/alias admission and
-   teardown without publishing after deleting the configuration/state roots.
-   Ordinary ticket launch cannot supply this contract: it loads those roots,
-   validates config and has lifecycle teardown. Moving the procedure behind
-   another recovery loader increases mechanisms without an identified saving.
-   Do not split the plan/executor or add core-to-edge imports.
-5. Remove misleading dependency ownership within the retained recovery code:
-   `commands.update.remove_host_gitignore`, `running_cli_location` and
-   `COGA_PIPX_PACKAGE` have only uninstall as a production consumer; move
-   their definitions into uninstall and update their tests/imports, without
-   forwarding exports. Keep shared gitignore marker constants in update and
-   the actual init/uninstall guide template shared as it is. No speculative
-   install-helper module. Count these moves as relocation, not deletion.
-6. Keep `launch._preflight_push_auth` and shared
-   `github_preflight.check_git_auth` enforced at use; keep
-   `agent_skills.refresh_agent_skill_view` shared by init and ordinary launch.
-   The read-only runner deliberately skips materialization. No installed/source
-   skew diagnostic implementation was found at the baseline; do not invent or
-   resurrect one from stale prose. Correct stale diagnostic guidance only after
-   verifying its absence again at implementation. No readiness check moves
-   into agent instructions.
+Retain `commands.secret.get`, its Typer registration and built-in name. Remove
+only the redundant false-return sweep branch, keeping the generic nonmutating
+outcome. Parent-side resolution preserves service-account verification without
+passing OP auth to ticket code. Reconsider migration only after a separately
+reviewed execution policy can preserve that boundary.
+
+Retain `commands.uninstall` and `cli.main`'s early return. Config parsing
+failures must reach the existing recovery admission alongside schema errors.
+Keep plan/execution together and move its three sole-consumer definitions
+from update without new modules or core-to-edge imports. No preflight moves
+into agent instructions.
 
 ### Out of scope
 
-Changes to secret acquisition providers, launch injection/scrubbing/redaction,
-new secret stores, recovery plugins, uninstall customization loaders, package
-upgrade commands, arbitrary recipe registration, the generic runner itself,
-and implementation of resource discovery/forking. No real uninstall or secret
-query against this live repository. No code, branch or PR in this design step.
+Secret providers, launch injection/scrubbing/redaction, the generic read-only
+runner, discovery/forking, recovery plugins and real secret/uninstall queries
+against this live repository. No PR in this implementation step.
 
 ## Context
 
@@ -224,6 +173,12 @@ and blanks: `commands/secret.py` 75, `commands/uninstall.py` 413,
 
 <!-- coga:blackboard -->
 
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1246
+branch: coga/v1-microkernel-07-support-commands-boundary-b684a3
+
+
 ## Design handoff — 2026-11-14
 
 Traced production callers at the baseline above. Proposed secret migration
@@ -233,11 +188,25 @@ actual caller, without claiming line reduction. No implementation changed.
 The previous native-Windows implementation gate was stale: current testing
 policy defers native checks to release.
 
-## Open Questions
+## Owner decision — 2026-11-16
 
-Owner scope review: accept the proposed retained uninstall recovery contract
-and secret migration dependent on launch-decomposition? These are review
-choices for the scheduled owner gate, not implementation authorization.
+Attended session proposed retaining `secret get` in core to preserve operator
+1Password auth and completing uninstall/helper relocation; owner replied
+"conf!". This supersedes the secret migration proposal. 03 remains unmerged
+(PR #1233), but is no longer a dependency for the retained-command scope.
+Checkout matches launch notice, no PR exists for this branch. Preserved and
+verified the projected ticket across rebase onto origin/main
+`db9f9a5643e6851c0c99a858a6dafea2de280313`; only linkage publication advanced
+main from entry HEAD `54d9463b958a2e304cdf8b2edf9004dcff5129d2`.
+
+### Implementation findings
+
+The new malformed-TOML entrypoint tests exposed an existing parser exception
+escaping `cli.main` before uninstall admission (shared and local config).
+Catch that parser error with ConfigError at eager admission so recovery works
+and secret queries exit 2 without stdout. Bare secret usage actually exits 2
+on stdout, while explicit help exits 0 on stdout; preserve both. All test
+credentials and provider values are artificial.
 
 ## Evaluator review
 
@@ -403,3 +372,254 @@ warnings may be handed here by `v1/microkernel/03-launch-decomposition`.
 Previous ref: `microkernel/support-commands-boundary` (renamed 2026-10-27); earlier audit lines retain that ref. Parked by the owner for v2; this work does not gate v1.
 
 Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.
+
+
+## Implementation evidence — 2026-11-16
+
+Author: Codex in attended launch `5a54a5db-2fb1-47fb-8682-4d2482f9c8fa`;
+no agent override used. Owner confirmed revised retained-secret scope in this
+session. Implementation committed at
+`10679e3b828985da6bca982d0a05803e110046a2`, based on
+`db9f9a5643e6851c0c99a858a6dafea2de280313` (full before revision).
+
+Both heads remain built-ins. Microkernel removes only their open placement
+row and records authentication/recovery proofs. No bootstrap resources or
+aliases were added; no manifests need changes. Uninstall owns its removal
+helper, package name and installer detection; shared marker constants and
+init's guide template stay shared. Generic script execution, auth scrubbing,
+push preflights and skill-view materialization have no implementation changes.
+Reverified absence of installed/source skew code and removed the stale testing
+promise. User topics link the retained operational contracts.
+
+New malformed shared/local TOML regressions initially failed: parsing raised
+TOMLDecodeError before the CLI's recovery branch. CLI eager admission now
+handles that alongside ConfigError. Uninstall therefore reaches its early
+built-in and secret console queries exit 2 on stderr, with no value stdout.
+This fix also gives other ordinary commands clean parser diagnostics and
+existing init/cross-repo recovery the same admission treatment.
+
+### Physical line counts
+
+Method: `git show <full-revision>:<path>` bytes, counting physical lines with
+`splitlines()`, including comments and blanks. Scope is the four production
+modules inspected/changed for this boundary, not a claim about the entire
+repository. Revisions are the full before/after OIDs above.
+
+| Core module | Before | After |
+| --- | ---: | ---: |
+| `src/coga/cli.py` | 654 | 653 |
+| `src/coga/commands/secret.py` (unchanged) | 75 | 75 |
+| `src/coga/commands/uninstall.py` | 413 | 477 |
+| `src/coga/commands/update.py` | 408 | 342 |
+| Core total in scope | 1550 | 1547 |
+
+Edge and ticket/skill scripts: 0 before/after in scope, none added or changed.
+66 physical lines moved from update to uninstall; that is relocation, not
+simplification by deletion. Net production delta is -3: import adjustments
+and a redundant two-line false-return sweep branch removed while adding parser
+error admission. No public entrypoint was deleted. Removed dependency edges:
+uninstall no longer imports update's remove_host_gitignore,
+running_cli_location or COGA_PIPX_PACKAGE; it now shares the end-marker data
+constant too. No core-to-edge import, forwarding export, helper module,
+privileged child policy or recovery loader was introduced.
+
+Separately, changed tests total 4231 -> 4612 physical lines across test_init
+(3603 -> 3508), test_secret (98 -> 312) and test_uninstall (530 -> 792).
+Four installer-detection tests moved with their helper; new tests exercise
+credential/environment separation, separate pipes, malformed config admission,
+no publication from dirty repos, removal refusal/order/containment, purge
+failures and managed-block cleanup. Local dev topics total 482 -> 519 lines;
+five package-owned user topics total 564 -> 591. No copied resources or live
+twins. All credentials/results are fake; destructive operations use fixtures.
+
+### Verification complete
+
+All receipts are for head `10679e3b828985da6bca982d0a05803e110046a2`
+and merge base `db9f9a5643e6851c0c99a858a6dafea2de280313`.
+Linux Pop!_OS 24.04 LTS, kernel 7.2.15-76070215-generic, Python 3.12.12.
+Final focused suite: 673 passed, 1 skipped in 61.83s. Full suite:
+4930 passed, 33 skipped, 0 failed in 813.50s. Both exit 0.
+Task validation: 1 valid task, no issues/fixes. Seeded validation: 5 valid
+tasks, no issues/fixes. Exact commands are in the structured record below.
+No command-line test exclusions; native checks and Python 3.11 floor evidence
+are deferred to release. Focused skip requires Windows PowerShell. No real
+credentials or live installation removal/purge were exercised.
+
+Final fetch/rebase confirmed origin/main unchanged and branch up to date;
+rebase rewrote no commits. The projected ticket was preserved and verified
+byte-for-byte outside the repository across rebase. Committed implementation,
+tests and docs are identical to the full-suite tree. No independent code
+review in implement; peer-review is the next workflow step. No PR opened.
+
+## PR
+
+```yaml
+title: Retain secret authentication and uninstall recovery boundaries
+author: codex
+author_evidence: 'Implementation: attended Codex implement session, launch 5a54a5db-2fb1-47fb-8682-4d2482f9c8fa;
+  no agent override used. Two fix commits (5e3774d77, 44bd81d0f) authored by Claude in attended peer-review
+  launch 3f5a362a-afaf-4a64-8c25-fa7a6c02ef8b, approved by the owner in session.'
+head: 44bd81d0fa993c2110a791f90c36ab0065105352
+base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+depth: deep
+rationale: Owner-approved boundary change plus a config-parse error contract change touching every load_config
+  caller; deep review is warranted.
+implementation: Retain secret get in the CLI parent and uninstall before alias validation; move uninstall-only
+  helpers. config._read_toml now raises ConfigParseError (a ConfigError subclass naming the file) for
+  TOML syntax or non-UTF-8 bytes, so recovery admission, secret refusal and every load_config caller get
+  a file-naming ConfigError; recurring --all still dispatches malformed config to the child instead of
+  skipping it as unconfigured. Scoped core physical lines (cli, config, recurring_runner, secret, uninstall,
+  update) 9259 to 9266 at db9f9a564..44bd81d0f; 66 moved lines are relocation, not deletion.
+deviations: Owner confirmed retaining secret get after evaluation showed ticket children scrub required
+  OP authentication. No secret bootstrap or alias is added; launch-decomposition is not a dependency for
+  this revised scope. Preserve existing bare-group usage on stdout with exit 2. Peer review replaced the
+  implement step's cli.main-only TOMLDecodeError catch with the config-level ConfigParseError so non-UTF-8
+  config is also admitted and errors name the file.
+limitations: No real credentials, live-repo removal or real package purge exercised. Native Windows/macOS
+  and Python 3.11 floor checks defer to release. No new packaged resources, manifests or seeded-fixture
+  changes; dedicated disposable fixtures cover retained behavior.
+files:
+  docs/contexts/coga-dev/microkernel/SKILL.md: Settle only the two support heads with parent-auth and
+    early-recovery proofs; retain shared launch checks.
+  docs/contexts/coga-dev/testing/SKILL.md: Remove a promise of installed/source skew warnings that have
+    no implementation.
+  src/coga/cli.py: Remove the redundant secret false-return sweep branch; parse failures now arrive as
+    ConfigError.
+  src/coga/commands/uninstall.py: Own the three sole-consumer definitions formerly imported from update;
+    preserve recovery mechanics. Also tolerate non-UTF-8 coga.toml when resolving a relocated contexts
+    root.
+  src/coga/commands/update.py: Remove uninstall-only helpers and package constant without forwarding exports.
+  src/coga/config.py: Add ConfigParseError and raise it from _read_toml for TOML syntax or non-UTF-8 config,
+    naming the file.
+  src/coga/recurring_runner.py: Keep malformed config dispatched to the authoritative child under recurring
+    --all rather than skipped as unconfigured.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Index the retained built-in
+    support heads.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Link retained secret/auth
+    and recovery boundaries when choosing extensions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Point broken-config removal
+    guidance at uninstall recovery admission.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: Document parent authentication,
+    exact stream/help behavior and no-publication query contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Own malformed or non-UTF-8
+    config recovery admission and the no-publication teardown contract.
+  tests/test_init.py: Move installer-detection tests to their actual consumer and drop empty installer
+    headings.
+  tests/test_recurring.py: Pin malformed and non-UTF-8 config as dispatched failures under recurring --all.
+  tests/test_secret.py: Prove fake operator auth, separate pipes, dirty-state preservation, refusal behavior
+    and absence of launch/publication effects. Pin file-naming parse errors and that secret never sweeps.
+  tests/test_uninstall.py: Move installer tests and exercise recovery admission, refusal/order/containment,
+    purge failures and managed-block cleanup in fixtures. Cover non-UTF-8 shared/local config admission.
+review:
+  reviewer: claude
+  kind: independent
+  status: failed
+  head: 6156d16818018b54a1d094cea9c1bd9923c6f7b5
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+  detail: 'Claude /code-review (default effort) returned on head 6156d1681 (implementation rebased onto
+    base 4b4b6b12e), 8 findings. Applied: non-UTF-8 config escaping recovery admission, parse errors not
+    naming the file, cli-only catch altitude, unpinned secret no-sweep. Declined as nits/out of scope:
+    module-attribute seam patches, alias-placeholder stub (subprocess test covers real path), pre-existing
+    init/tomlkit import. The two fix commits on top were authored by the reviewer and are self-reviewed
+    only; the full suite caught and drove the recurring regression fix.'
+checks:
+- command: TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/coga-pytest-support-07-peerfull2
+  status: passed
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. 4937 passed, 33 skipped, 0
+    failed in 756.59s, exit 0. No exclusions. The previous run at 5e3774d77 failed 1 (test_recurring_all_isolates_malformed_config_during_remote_grouping),
+    fixed in 44bd81d0f.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+- command: TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/microkernel/07-support-commands-boundary
+    --json
+  status: passed
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. 1 valid task, no issues or
+    fixes.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+- command: git diff --check 4b4b6b12e...HEAD
+  status: passed
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. No whitespace errors.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+- command: Native Windows/macOS full suites and Python 3.11 floor verification
+  status: not-run
+  detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. Deferred to release per testing
+    policy; Linux/Python 3.12 only.
+  head: 44bd81d0fa993c2110a791f90c36ab0065105352
+  base: 4b4b6b12ee22f84f35d99630be4f41d4aad8bc82
+```
+
+
+## Implement handoff
+
+Pushed `coga/v1-microkernel-07-support-commands-boundary-b684a3` at
+`10679e3b828985da6bca982d0a05803e110046a2`; upstream confirms that same OID.
+Both support placements are settled under the owner's confirmed scope;
+secret customization was explicitly declined to preserve parent auth.
+All revised acceptance criteria are implemented and verified. New malformed
+TOML admission fix is covered by initially failing shared/local regressions.
+No unresolved implementation blocker, no new follow-up, and no PR opened.
+
+Peer review should assess the retained-boundary proofs and small CLI parser
+exception change as well as the helper moves. The complete scoped counts,
+limitations and Linux receipts are above, and structured PR preparation covers
+every diff path. Native checks remain release-only. This projected ticket was
+never staged or committed; all other paths are clean. Ready for one bump to
+peer-review; launch owns publication and checkout return.
+
+## Peer review — 2026-11-17
+
+Reviewer: Claude (attended launch 3f5a362a-afaf-4a64-8c25-fa7a6c02ef8b),
+independent of the Codex implementation. Rebased onto origin/main
+`4b4b6b12e` (ticket/log commits only; projected ticket preserved
+byte-for-byte), then ran `/code-review` (default effort) on `6156d1681`; it
+**returned** with 8 findings.
+
+Applied with owner approval: `config._read_toml` raises `ConfigParseError`
+(a `ConfigError` subclass naming the file) for TOML syntax or non-UTF-8
+bytes, replacing the `cli.main`-only `TOMLDecodeError` catch. This makes
+non-UTF-8 config reach uninstall recovery, which previously crashed, and
+names the broken file for secret and every other command. Uninstall's
+contexts-root probe also tolerates `UnicodeError`. Pinned `secret` as
+non-sweeping. The first full run caught a regression: `recurring --all`
+classified the new ConfigError as "unconfigured" and silently skipped it, so
+it now treats `ConfigParseError` as a child-reported failure. Both cases are
+pinned in tests. The other launch/sweep `except ConfigError` sites now warn
+instead of tracebacking on malformed config.
+
+Declined: module-attribute seam patches miss `from` imports (subprocess
+dirty-state tests cover it); alias-placeholder stub (subprocess test covers
+the real path); `uninstall` importing `init`/`tomlkit` (pre-existing,
+declared dependency).
+
+Final head `44bd81d0fa993c2110a791f90c36ab0065105352`, pushed; the fix
+commits are self-reviewed only. Full suite 4937 passed, 33 skipped. Ready for
+open-pr.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/microkernel/07-support-commands-boundary`
+Recorded: 2026-11-17T07:58:53+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: author must be a compact identity (1–32 letters, digits, ./_-).
+
+## Open PR handoff
+
+Opened https://github.com/FastJVM/coga/pull/1246 from clean control via
+`coga open-pr v1/microkernel/07-support-commands-boundary`; verified open,
+non-draft, recorded under Dev, at reviewed/tested final head
+`44bd81d0fa993c2110a791f90c36ab0065105352`. Fresh fetch confirmed only
+non-overlapping ticket/log drift since the recorded base. All acceptance
+items are checked; native and Python 3.11 checks remain release obligations
+under testing policy, with no new task-specific outstanding work.
+
+Publication initially refused the noncompact author field. Normalized it to
+`codex`, retaining Claude fix authorship in author_evidence, and encoded the
+returned review with findings as a historical failed receipt at its actual
+reviewed head/base. Deep recommendation and disclosure that subsequent fixes
+were self-reviewed remain visible; no new test or review receipt was claimed.
+Ready for the owner review gate; no merge performed.

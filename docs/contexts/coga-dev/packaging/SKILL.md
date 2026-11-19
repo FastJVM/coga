@@ -22,6 +22,11 @@ editing `bootstrap/workflows/code/*.md` changes what `mark_active` freezes into
 Coga's own tickets. Check which side is live before assuming an edit is
 downstream-only.
 
+The four report command directories (`show`, `status`, `usage`,
+`recurring-list`) ship both `ticket.md` and their full `ticket.py`
+implementations. The required-resource manifest pins these owners; wheel
+verification exercises local overrides without a live repository mirror.
+
 ## Distribution states for a context
 
 - **Bootstrap fallback**: `templates/coga/bootstrap/contexts/<ref>/SKILL.md`
@@ -86,7 +91,7 @@ holds local Coga-dev knowledge. There are no forwarding files or symlink mirrors
 - `STATE_CARRIER_COUNTERPARTS` explains saved recurring parent blackboards.
   `inspect_parent_dir` requires the exact carrier shape and rejects leftover
   definition siblings. `LAZY_STATE_CARRIER_COUNTERPARTS` names the adopted
-  trim-log parent, which may be absent until its first admitted run creates
+  trim-log and blackboard-size parents, which may be absent until its first admitted run creates
   state; any present copy still requires the exact carrier shape. Arbitrary
   blackboard notes remain state even without declared `state_keys`;
   phone-home's complete cursor is independently parsed.

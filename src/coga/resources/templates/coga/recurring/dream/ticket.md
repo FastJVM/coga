@@ -50,13 +50,13 @@ before executing is deliberate: the knowledge scan and contract audit read the
 corpus while every done ticket still exists (Phase 4 may delete the eligible
 ones), so nothing is missed, and their findings steer the Retro pass.
 
-1. **validate-drift** — deterministic repo hygiene (registered recipe).
+1. **validate-drift** — deterministic repo hygiene (edge worker).
 2. **knowledge scan** — sharded corpus read; classifies every finding.
 3. **contract audit** — sharded check of the contract surface against code
    reality.
 4. **retro/done-ticket** — extracts durable knowledge from every eligible done
    ticket in one pass.
-5. **cleanup-orphan-markers** — delete-only orphan cleanup (registered recipe).
+5. **cleanup-orphan-markers** — delete-only orphan cleanup (edge worker).
 6. **disposition + run summary** — routes every finding to a durable home.
 
 This body is the dispatch contract. Do not auto-discover skills, scan a plugin
@@ -70,12 +70,15 @@ Destructive actions must be deterministic, narrow, and explicitly named
 in the invoked skill's `May change`; otherwise propose the change for
 review. Missing or failed phases grant no substitute action.
 
-The two deterministic phases (1 and 5) run registered recipes directly from
+The two deterministic phases (1 and 5) run Python workers directly from
 this Dream task. Before each run, read the matching skill's
 `## Known Skill Contract`, keep reads and writes inside its declared scope,
-then invoke the exact `coga run` command below. The recipe inherits this
-task's `COGA_TASK_*` context and writes its `## Dream Skill: <name>` section
-directly to this task's blackboard. Do not create child worker tasks.
+then invoke the exact command below with the Python interpreter that runs
+`coga`. The worker inherits this task's `COGA_TASK_*` context, writes its
+`## Dream Skill: <name>` section directly to this task's blackboard, publishes
+eligible Coga state on exit, and never advances this task. An interpreter that
+cannot import the worker is a failed phase, not permission to substitute
+another command. Do not create child worker tasks.
 
 ### Agent capability preflight
 
@@ -111,8 +114,8 @@ agent with ordinary machine access passes all three checks unchanged.
 ### Phase 1 — validate-drift
 
 Read `bootstrap/dream/tasks/validate-drift`, then run
-`coga run validate-drift`. The recipe runs the same deterministic surface as
-`coga validate --json`, classifies every issue, and appends
+`python -m coga_edge.validate_drift`. The worker runs the same deterministic
+surface as `coga validate --json`, classifies every issue, and appends
 `## Dream Skill: validate-drift` to this task's blackboard.
 
 The skill's default safe-repair pass applies only deterministic repairs
@@ -123,7 +126,7 @@ or `log.md`, and retained history goes to the repo-global `coga/log.md`. It
 does not rewrite existing files, synthesize `ticket.md`, freeze workflows, or
 change lifecycle/assignee state.
 
-The recipe's three buckets are inputs to Phase 6, not results. `direct-fix`
+The worker's three buckets are inputs to Phase 6, not results. `direct-fix`
 repairs land in the safe-repair pass; Phase 6 routes `pr-proposal` issues to
 proposal PRs or covering tickets; `human-needed` issues are routed to hygiene
 draft tickets, one per validator `kind`, by the Phase 6 rule below. The
@@ -437,10 +440,11 @@ candidate here; the gate still excludes any `result: no-new-durable-knowledge`
 marker left behind by an older run.
 
 Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
-`coga run cleanup-orphan-markers`. The recipe detects cleanup candidates and
-gates deletion through `bootstrap/delete-task` (`coga run delete-task`). That
-delete surface ships, but until its cleanup PR-dispatch wiring is finished the
-recipe reports `human-needed` and deletes nothing.
+`python -m coga_edge.cleanup_orphan_markers`. The worker detects cleanup
+candidates and gates deletion through `bootstrap/delete-task`
+(`coga run delete-task`). That delete surface ships, but until its cleanup
+PR-dispatch wiring is finished the worker reports `human-needed` and deletes
+nothing.
 
 For each candidate, cleanup must open a PR that deletes only the resolved task
 directory under `coga/tasks/`. The deletion goes in the PR, not the working
@@ -521,7 +525,7 @@ per **systematic class**, never one per issue:
   that are new since the owner was filed. If none does, create one draft:
   `coga create "validate-drift: <kind> — <one-line class description>"
   --workflow brief-for-human --description "<...>"` whose description carries
-  the tag line `validate-drift: <kind>` verbatim, the recipe's remediation
+  the tag line `validate-drift: <kind>` verbatim, the worker's remediation
   text, this run's member slugs with their messages, and the instruction that
   `coga validate --json` is the live member list. Membership is not copied
   from run to run: the ticket is the durable record that the class needs a
@@ -564,7 +568,7 @@ file or reuse a scoped `code/with-review` draft preserving the issue,
 remediation, and specific decision needed under the filing rules above.
 These are `pr-required` proposals: never apply them directly on `main` or
 auto-merge them. List each issue's PR or owner draft in the run summary; an
-entry left only in the recipe's disposable blackboard bucket is unfinished.
+entry left only in the worker's disposable blackboard bucket is unfinished.
 
 **Coga-owned findings go upstream, whatever their class.** Before routing by
 class, take every Phase 2 and Phase 3 finding that carries `owner: coga` — a
@@ -685,7 +689,7 @@ gates. Keep it short enough for a human to scan.
 
 ### Slack
 
-The registered recipes write their durable results to this Dream task's
+The Phase 1 and 5 workers write their durable results to this Dream task's
 blackboard; the Dream run sends the broader one-line summary. Call:
 
 `coga slack --task <this-dream-task> --message "<summary>"`

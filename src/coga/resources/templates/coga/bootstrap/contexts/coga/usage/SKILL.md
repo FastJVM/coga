@@ -42,6 +42,9 @@ YYYY-MM-DD HH:MM [<task-ref>] [system] {"schema": 2, ...}
 
 ## The read API — `coga usage` and `src/coga/usage.py`
 
+The editable report lives in [bootstrap/usage](../../../usage/ticket.md),
+reached through a read-only alias. Shared record reading and rollups stay in core.
+
 `coga usage` is the single accessor; consumers call it (or
 `usage.load_records` plus `usage.rollup`) instead of re-parsing the log or
 transcripts. `load_records` reads `coga/log.md` and keeps only lines whose

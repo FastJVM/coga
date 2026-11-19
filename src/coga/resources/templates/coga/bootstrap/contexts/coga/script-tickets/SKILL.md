@@ -10,7 +10,8 @@ A ticket owns deterministic work by carrying one file named exactly
 scan, no import of ticket code, and no frontmatter switch; workflow skills
 stay prompt contracts. Registered `coga run` recipes remain the
 repository-independent command surface (`coga/extension-model`); a script may
-call them through `runner.run_recipe`.
+call them through `runner.run_recipe`, or run edge code through
+`runner.run_entry`.
 
 A repo script can be a thin import of a wheel-owned edge implementation or a
 full local fork; distribution and adoption are in
@@ -29,10 +30,13 @@ launch repeats it after every moving sync. A vanished file becomes an
 agent-only handoff for stateful tasks. A stateless bootstrap target positively
 classified as a script instead exits 2 if its entry disappears before spawn;
 bootstrap targets classified agent-only still accept launch arguments.
+Explicit
+[read-only command dispatch](../launch/SKILL.md#read-only-command-dispatch)
+likewise refuses a vanished entry and never hands off to an agent.
 
 ## One deterministic phase
 
-The script phase runs before any agent setup: no prompt composition, CLI
+The ordinary script phase runs before any agent setup: no prompt composition, CLI
 lookup, skill refresh, or push probe.
 
 1. Declared secrets resolve before any lifecycle write.
@@ -56,10 +60,13 @@ lookup, skill refresh, or push probe.
    `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and
    `COGA_EXPECTED_AGENT`, so a
    child completion cannot finish an outer agent session.
-5. `script exited with code N` is logged even if the script deleted or broke
-   its ticket. A non-zero exit posts `💥 script failed` (non-fatal to the
-   post) and launch exits with that code. On success config, target, and
-   ticket are re-derived again. A bootstrap script keeps framing on stderr so
+5. Launch reports a child killed by signal `N` as exit status `128 + N`
+   (SIGINT 130, SIGKILL 137), including in read-only dispatch. A stateful
+   launch logs `script exited with code N` even if the script deleted or broke
+   its ticket, and a non-zero exit posts `💥 script failed` with posting
+   failures treated as non-fatal. Both use the reported exit status. On
+   success config, target, and ticket are re-derived
+   again. A bootstrap script keeps framing on stderr so
    `$(coga <verb>)` sees only its stdout. A bootstrap script that exits 75
    declares it retained local state:
    launch skips its teardown refresh, withholds the end-of-command sweep, and
@@ -70,6 +77,13 @@ lookup, skill refresh, or push probe.
    [audit mutation contract](../state-publication/SKILL.md) and
    [trim-log runbook](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
    specify recovery before retrying a later command.
+
+Read-only command dispatch reuses this subprocess and environment builder but
+skips lifecycle and reload/teardown handling; its complete effects contract is
+owned by [launch](../launch/SKILL.md#read-only-command-dispatch). Ordinary
+bootstrap scripts keep their existing config requirements and exit sweep.
+The report command tickets carry their complete implementations beside
+`ticket.md`; copying one does not require importing another report.
 
 ## Stateless command help and interrupts
 

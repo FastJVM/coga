@@ -70,12 +70,14 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "### Phase 6" in text
     assert "Dream runs six phases in order" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
-    assert "`coga run validate-drift`" in text
+    assert "`python -m coga_edge.validate_drift`" in text
+    assert "coga run validate-drift" not in text
     # The skill updater is a standalone recurring task now, not a Dream phase.
     assert "skill-update" not in text
     assert "retro/done-ticket" in text
     assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
-    assert "`coga run cleanup-orphan-markers`" in text
+    assert "`python -m coga_edge.cleanup_orphan_markers`" in text
+    assert "coga run cleanup-orphan-markers" not in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" not in text
     assert "dev/stale-branches" not in text
     assert "### Skill: dev/stale-branches" not in text
@@ -370,7 +372,8 @@ def test_validate_drift_worker_declares_contract() -> None:
     assert "- Idempotency: `coga validate --fix`" in text
     assert "- Output: append `## Dream Skill: validate-drift`" in text
     assert "COGA_TASK_BLACKBOARD" in text
-    assert "coga run validate-drift" in text
+    assert "python -m coga_edge.validate_drift" in text
+    assert "coga run validate-drift" not in text
     assert "script: run.py" not in text
     assert "--blackboard" not in text
 
@@ -389,7 +392,8 @@ def test_cleanup_orphan_markers_declares_contract() -> None:
     assert "`result: no-new-durable-knowledge`" in text
     assert "not a prefix match" in text
     assert "reports eligible candidates as `human-needed`" in norm
-    assert "coga run cleanup-orphan-markers" in text
+    assert "python -m coga_edge.cleanup_orphan_markers" in text
+    assert "coga run cleanup-orphan-markers" not in text
     assert "script: run.py" not in text
 
 

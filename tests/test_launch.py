@@ -7078,8 +7078,8 @@ def test_launch_names_the_missing_file_instead_of_blaming_the_cli(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The reported incident: the entry preflight composes fine, then the
-    supervisor's per-step compose hits a file that vanished under it (a
+    """The reported incident: the entry preflight resolves every layer fine,
+    then the step's one composition hits a file that vanished under it (a
     concurrent checkout / mid-sync tree). That must name the path — the old
     blanket handler called it `'claude' not found` two lines after
     `shutil.which` had already located the CLI."""
@@ -7087,16 +7087,13 @@ def test_launch_names_the_missing_file_instead_of_blaming_the_cli(
     _allow_interactive_tty(monkeypatch)
 
     missing = str(active_task / "skills" / "code" / "open-pr" / "SKILL.md")
-    real_compose = launch_module.compose_prompt
     calls: list[int] = []
 
-    def flaky(cfg, ref, ticket, *args, **kwargs):  # type: ignore[no-untyped-def]
+    def vanished(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         calls.append(1)
-        if len(calls) == 1:  # entry preflight
-            return real_compose(cfg, ref, ticket, *args, **kwargs)
         raise FileNotFoundError(2, "No such file or directory", missing)
 
-    monkeypatch.setattr("coga.launch.compose_prompt", flaky)
+    monkeypatch.setattr("coga.launch.compose_prompt", vanished)
     monkeypatch.setattr(
         "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
@@ -7104,7 +7101,7 @@ def test_launch_names_the_missing_file_instead_of_blaming_the_cli(
     slug = list_tasks(load_config(active_task))[0].id_slug
     result = CliRunner().invoke(app, ["launch", slug])
 
-    assert len(calls) == 2, calls
+    assert len(calls) == 1, calls
     assert result.exit_code != 0
     assert missing in result.output
     assert "No such file or directory" in result.output
@@ -7116,9 +7113,10 @@ def test_launch_preflight_names_the_missing_file_too(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The entry preflight catches only `ComposeError`; a raw
-    `FileNotFoundError` used to escape it as a bare traceback."""
-    _allow_slack(monkeypatch)
+    """A layer file that vanishes between resolve and read in the entry
+    preflight is named, not dumped as a bare traceback, and refuses before
+    any lifecycle write."""
+    slack = _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
 
     missing = str(active_task / "context.md")
@@ -7126,18 +7124,115 @@ def test_launch_preflight_names_the_missing_file_too(
     def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise FileNotFoundError(2, "No such file or directory", missing)
 
-    monkeypatch.setattr("coga.launch.compose_prompt", boom)
+    def never_compose(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a refused preflight must not compose")
+
+    monkeypatch.setattr("coga.launch.resolve_prompt_layers", boom)
+    monkeypatch.setattr("coga.launch.compose_prompt", never_compose)
     monkeypatch.setattr(
         "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
-    slug = list_tasks(load_config(active_task))[0].id_slug
-    result = CliRunner().invoke(app, ["launch", slug])
+    ref = list_tasks(load_config(active_task))[0]
+    original = ref.ticket_path.read_bytes()
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
     assert result.exit_code != 0
     assert missing in result.output
     assert "not the agent CLI" in result.output
     assert "'claude' not found" not in result.output
+    assert ref.ticket_path.read_bytes() == original
+    assert slack == []
+
+
+def _count_prompt_work(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """Count launch's prompt compositions and the layer resolutions under them.
+
+    `compose_prompt` is counted where launch calls it; resolution is counted in
+    both modules, since a composition that cannot reuse the preflight's layers
+    resolves them itself inside `coga.compose`.
+    """
+    import coga.compose as compose_module
+
+    counts = {"compose": 0, "resolve": 0}
+    real_compose = launch_module.compose_prompt
+    real_resolve = compose_module.resolve_prompt_layers
+
+    def compose(*args, **kwargs):  # type: ignore[no-untyped-def]
+        counts["compose"] += 1
+        return real_compose(*args, **kwargs)
+
+    def resolve(*args, **kwargs):  # type: ignore[no-untyped-def]
+        counts["resolve"] += 1
+        return real_resolve(*args, **kwargs)
+
+    monkeypatch.setattr("coga.launch.compose_prompt", compose)
+    monkeypatch.setattr("coga.launch.resolve_prompt_layers", resolve)
+    monkeypatch.setattr("coga.compose.resolve_prompt_layers", resolve)
+    return counts
+
+
+def test_plain_attended_launch_composes_its_first_prompt_once(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The entry preflight resolves the layers; the spawn composes once from
+    them, rendering the ticket it starts on (now `in_progress`) and the
+    checkout notice."""
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    counts = _count_prompt_work(monkeypatch)
+    prompts: list[str] = []
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        prompts.append(cmd[-1])
+
+        class _Result:
+            returncode = 0
+
+        return _Result()
+
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+
+    assert result.exit_code == 0, result.output
+    assert counts == {"compose": 1, "resolve": 1}
+    assert len(prompts) == 1
+    assert "Status: in_progress" in prompts[0]
+    assert "## Checkout (runtime)" in prompts[0]
+    assert "using preflighted prompt" not in result.output
+
+
+def test_plain_attended_launch_refuses_missing_layer_before_lifecycle_write(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    slack = _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    counts = _count_prompt_work(monkeypatch)
+    monkeypatch.setattr(
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+    )
+    ref = list_tasks(load_config(active_task))[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["contexts"] = ["missing/topic"]
+    ticket.write(ref.ticket_path)
+    original = ref.ticket_path.read_bytes()
+    log = active_task / "log.md"
+    log_before = log.read_bytes() if log.exists() else None
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code != 0
+    assert "references context 'missing/topic'" in result.output
+    assert counts == {"compose": 0, "resolve": 1}
+    assert ref.ticket_path.read_bytes() == original
+    assert (log.read_bytes() if log.exists() else None) == log_before
+    assert slack == []
 
 
 def test_launch_still_reports_a_genuinely_missing_agent_cli(

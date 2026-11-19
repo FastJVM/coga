@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/compose
-description: How `src/coga/compose.py` implements prompt composition — prompt files, `PromptLayer`, the launch marker, resource-override errors and validate codes, section extraction, the authoring projection, conduct selection, and argv delivery of large prompts.
+description: How `src/coga/compose.py` implements prompt composition — prompt files, `PromptLayer`, the resolve/render split, the launch marker, resource-override errors and validate codes, section extraction, blackboard projections, layer normalization, the authoring projection, conduct selection, and argv delivery of large prompts.
 ---
 
 # Prompt composition internals
@@ -27,6 +27,23 @@ is built from `compose.CheckoutNotice`; composition runs no Git and infers
 nothing from the workflow, so callers that pass no notice (bare
 `compose_prompt_report`, megalaunch, recurring) get the "no preparation was
 supplied" text.
+
+## Resolve, then render
+
+`compose.resolve_prompt_layers` is the file-backed half of a composition. It
+checks the ticket's fence and reads the base, ticket-loop, conduct, repo
+context, ticket contexts, skills, and step layers, plus the blocker template
+when open asks exist. Every `ComposeError` and vanished-file
+`FileNotFoundError` a composition can raise from those layers is raised here.
+`compose_prompt_report(..., resolved=)` renders the header, blocker
+preamble, ticket regions, and checkout notice from the ticket and notice it
+is given, around the resolved layers. It reuses them only when their
+`ResolvedPromptLayers.selection` (contexts, skills, current step, workflow,
+conduct, blocker flag) matches that ticket; otherwise it resolves again.
+`coga launch` resolves at its entry preflight, before any lifecycle write, and
+hands the result to the first step's single `compose_prompt` call, in
+`_prepare_step_checkout` or in `spawn_agent_session`. Chained steps compose
+without it, so they read files as they stand at that step.
 
 ## Launch marker
 
@@ -70,16 +87,67 @@ selects the placeholder; unexpected programming errors are not swallowed.
 
 ## Ticket extraction and projections
 
-`_extract_section` takes one `##` heading (case-insensitive) up to the next
-`##`, using the shared fence-aware `taskfile.body_sections`, so a `##` line
-inside a code fence does not end a section. `blackboard_for_prompt` replaces
-the exact `## Superseded designs` content with a pointer; the same projection
-feeds the blocker preamble, the report's blackboard size, and the size
-warning.
+`compose_prompt_report` first runs `_without_html_comments` over the body
+above the fence, so a complete comment holding `##` lines cannot end or start
+a section. `_extract_section` then takes one `##` heading (case-insensitive)
+up to the next `##`, using the shared fence-aware `taskfile.body_sections`,
+so a `##` line inside a code fence does not end a section. The stripped body
+is composition-only: `taskfile.body_sections` callers, validation and the
+file see the comment.
+
+The blackboard region passes through, in order:
+`blackboard.without_stock_placeholder` (before the archive pointer exists, so
+a placeholder leading the stored region is still recognized; candidates come
+from `_stock_templates`, shared with `_is_stock_blackboard`);
+`blackboard_for_prompt`, which replaces the exact `## Superseded designs`
+content with a pointer and feeds the blocker preamble; then, only when the
+preamble layer composes, `blackboard.without_open_blockers`, which removes
+the entry lines `_scan_blockers` reports open (the same scan as
+`parse_blockers_text`) and puts `compose.OPEN_BLOCKERS_POINTER` once in their
+place. `blackboard_size_warning` still measures `blackboard_for_prompt`
+alone; readiness still uses `_is_stock_blackboard` on the whole region.
+
+## Layer normalization
+
+Every `PromptLayer` except the header (raw) and the checkout notice is built
+from `_prompt_text(text, drop_title=..., frontmatter=...)`, so `text`,
+`rendered`, the report and the prompt agree. Steps, line-based over
+`taskfile.markdown_lines` so fenced lines are untouched: strip a leading
+`_FRONTMATTER_RE` block (whole-file layers only; ticket regions and inline
+workflow sections pass `frontmatter=False`, because a leading `---` there is a
+rule, not frontmatter); `_without_html_comments` (a non-fenced line starting
+with `<!--` through the first `-->`, which must end its line, plus one
+following blank line; an unterminated opener stays); with `drop_title`, drop
+the first non-blank line when it is the body's single shallowest ATX heading;
+demote every remaining ATX heading so the shallowest is level 3, never
+promoting, clamped at 6. `drop_title` is true for fixed resources,
+`context.md`, contexts and skills, and false for inline workflow sections,
+the ticket regions and the blackboard, whose first heading is content. The
+conduct layer's title is `_leading_heading` of its resource.
 
 Guided `coga ticket` authoring composes `commands/ticket.py`
 `_authoring_ticket`: `skills:` becomes only `bootstrap/ticket`, `step:` is
 removed, and `include_blocker_preamble=False`.
+
+Known limits, left out of scope by the 2026-11-15 defect fix and not tracked
+by any ticket: the CLI-maintained `## Blocker reminders` blackboard section
+(`blocker_reminders.REMINDERS_HEADING`, reminder fingerprints rather than
+working state) still composes as a demoted heading; and a `---` thematic break
+inside a ticket or blackboard region is indistinguishable from the
+`\n\n---\n\n` layer separator `PromptComposition.prompt` joins with. Changing
+the separator is a composition-contract change owned by
+`coga/prompt-composition`.
+
+Open placement question: the shipped
+[coga/prompt-composition](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md#assembler-ruling)
+`## Assembler ruling` carries Coga's own 2026-11 trial evidence and owner
+rulings, which by `coga/context-layout` audiences reads as development
+knowledge. A P1 review thread on PR #1234
+(<https://github.com/FastJVM/coga/pull/1234#discussion_r4570620245>) asked to
+keep that ruling in a local `coga-dev` topic and was never answered. Unresolved:
+whether to move the evidence here (or to
+[agent-behavior trials](../../testing/agent-trials/SKILL.md)) and leave the
+shipped topic a one-line "the current assembler is retained" statement.
 
 ## Conduct selection
 

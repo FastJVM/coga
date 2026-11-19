@@ -254,15 +254,19 @@ def _stub_init_identity_check(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _scope_state_sweep_withholding():
-    """Give every test its own `git.state_sweep_withheld` scope.
+    """Give every test its own `git.state_sweep_withheld` and
+    `git.control_relay_started` scopes.
 
-    `cli.main` scopes it per invocation; tests that call launch helpers or
-    `CliRunner` directly would otherwise leak a refusal into later tests.
+    `cli.main` scopes both per invocation; tests that call launch or recurring
+    helpers or `CliRunner` directly would otherwise leak a refusal or a relay
+    into later tests, silently suppressing their exit publication.
     """
     from coga import git
 
     token = git.state_sweep_withheld.set(False)
+    relay_token = git.control_relay_started.set(False)
     yield
+    git.control_relay_started.reset(relay_token)
     git.state_sweep_withheld.reset(token)
 
 
@@ -377,7 +381,7 @@ def _stub_git(monkeypatch, request):
     if {"git_repo", "real_git"} & set(request.fixturenames):
         return
     # Every publishing entry point is stubbed: `publish` (the one primitive:
-    # `coga ticket` authoring, delete, recurring promote, megalaunch admission
+    # `coga ticket` authoring, delete, megalaunch admission
     # call it directly), `sync_task_state` (mark / bump / create / block),
     # `sync_log` (a bootstrap-ticket launch), and the catch-all
     # `sync_coga_state` sweep fired from the CLI dispatch boundary. Stubbing
@@ -421,10 +425,12 @@ def _stub_git(monkeypatch, request):
         "coga.launch._orientation_checkout_guard", lambda cfg: nullcontext()
     )
     monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
-    # `views` binds the probe at import time, so patch its name too.
-    monkeypatch.setattr("coga.views.stale_coga_task_rels", lambda *a, **k: [])
-    monkeypatch.setattr("coga.views.feature_sync_plan", lambda *a, **k: None)
-    monkeypatch.setattr("coga.views.stale_index_lock", lambda *a, **k: None)
+    # The report binds probes at import time; patch the owning script.
+    from report_helpers import report_module
+    status_report = report_module("status")
+    monkeypatch.setattr(status_report, "stale_coga_task_rels", lambda *a, **k: [])
+    monkeypatch.setattr(status_report, "feature_sync_plan", lambda *a, **k: None)
+    monkeypatch.setattr(status_report, "stale_index_lock", lambda *a, **k: None)
     # Launch's push-auth gate also shells out to git (check_git_remote /
     # check_git_auth). Default the remote probe to "unresolved" so the gate
     # self-skips exactly as it would in a non-git checkout; the dedicated gate

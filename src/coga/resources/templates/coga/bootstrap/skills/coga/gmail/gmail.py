@@ -6,7 +6,7 @@ parsed message, and **download attachment bytes** — without a per-host binary.
 Other skills shell to this script (the Gmail analogue of shelling to `gcal.py`
 or `coga slack`):
 
-    python <coga>/skills/coga/gmail/gmail.py search \
+    python /resolved/coga/gmail/gmail.py search \
         --query 'from:uspto.gov has:attachment newer_than:12m' --max 50
     python .../gmail.py get --message-id <id>
     python .../gmail.py download --message-id <id> --attachment-id <id> \
@@ -17,15 +17,18 @@ or `coga slack`):
 normalized message `{id, threadId, date, sender, subject, snippet, body_text,
 attachments: [{filename, mimeType, size, attachmentId}]}`; `download` writes
 the bytes to `--out` and prints `{path, bytes}`; `authorize` prints the
-`[gmail]` block to paste into `coga.local.toml`. Exit codes are the contract:
+`GMAIL_*` values to store as the consuming ticket's secrets. Exit codes are the
+contract:
 
     0  ok
     1  config / auth / API error (message on stderr)
     3  message or attachment not found (so a caller can tell "gone" from "broken")
 
 Auth — OAuth user credentials
-  Reads `[gmail]` from `coga.local.toml`: `client_id`, `client_secret`,
-  `refresh_token`, and `user` (the mailbox address). Unlike the calendar
+  Reads `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, and
+  `GMAIL_USER` (the mailbox address) from the environment. A consuming ticket
+  delivers them through its `secrets:` frontmatter (`op://` or `env:VAR`, see
+  coga/secrets); a manual run exports them. Unlike the calendar
   service account, OAuth works on any Google account — Workspace or personal —
   and needs no admin, which is what reading a human's mailbox requires. Scope
   is `gmail.readonly`: this capability never sends or modifies mail. Mint the
@@ -43,7 +46,6 @@ import base64
 import json
 import os
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -62,50 +64,27 @@ def _bail(message: str, code: int = EXIT_ERROR) -> None:
 # --- credentials ---------------------------------------------------------------
 
 
-def _coga_os_root() -> Path:
-    """Locate the coga dir holding coga.local.toml.
-
-    Prefers COGA_COGA_OS_ROOT (set for launched work), else walks up
-    from cwd looking for coga.local.toml or coga.toml.
-    """
-    env_root = os.environ.get("COGA_COGA_OS_ROOT")
-    if env_root:
-        return Path(env_root)
-    cur = Path.cwd().resolve()
-    for candidate in [cur, *cur.parents]:
-        if (candidate / "coga.local.toml").is_file() or (candidate / "coga.toml").is_file():
-            return candidate
-        nested = candidate / "coga"
-        if (nested / "coga.toml").is_file():
-            return nested
-    return cur
+ENV_VARS = {
+    "client_id": "GMAIL_CLIENT_ID",
+    "client_secret": "GMAIL_CLIENT_SECRET",
+    "refresh_token": "GMAIL_REFRESH_TOKEN",
+    "user": "GMAIL_USER",
+}
 
 
 def resolve_gmail_config() -> dict[str, str]:
-    """Read and validate the `[gmail]` block from coga.local.toml.
+    """Read the OAuth credentials from the `GMAIL_*` environment variables.
 
-    Each value supports `env:VAR` indirection (same convention as coga's
-    `[secrets]`). Bails with a clear setup message when unset or incomplete.
+    Bails with a setup message naming every unset variable.
     """
-    local = _coga_os_root() / "coga.local.toml"
-    section: Any = None
-    if local.is_file():
-        with local.open("rb") as fh:
-            section = tomllib.load(fh).get("gmail")
-    if not isinstance(section, dict):
+    out = {key: os.environ.get(var, "") for key, var in ENV_VARS.items()}
+    missing = [ENV_VARS[key] for key, value in out.items() if not value]
+    if missing:
         _bail(
-            "no Gmail credentials configured. Set the [gmail] block in "
-            "coga.local.toml (run `gmail.py authorize` to mint one)."
+            "no Gmail credentials configured: "
+            f"{', '.join(missing)} unset. Deliver them via the ticket's secrets: "
+            "frontmatter (run `gmail.py authorize` to mint them)."
         )
-    required = ("client_id", "client_secret", "refresh_token", "user")
-    out: dict[str, str] = {}
-    for key in required:
-        raw = section.get(key)  # type: ignore[union-attr]
-        if isinstance(raw, str) and raw.startswith("env:"):
-            raw = os.environ.get(raw[4:])
-        if not isinstance(raw, str) or not raw:
-            _bail(f"[gmail] is missing {key!r}; re-run `gmail.py authorize`")
-        out[key] = raw
     return out
 
 
@@ -213,7 +192,7 @@ def _handle_api_error(exc: Exception, *, what: str | None) -> None:
         _bail(f"gmail {what} not found", code=EXIT_NOT_FOUND)
     if status in (401, 403):
         _bail(
-            f"Google returned {status}. The [gmail] credentials are likely "
+            f"Google returned {status}. The GMAIL_* credentials are likely "
             "expired or lack gmail.readonly scope — re-run `gmail.py authorize`."
         )
     _bail(str(exc))
@@ -316,18 +295,19 @@ def op_authorize(client_secret_file: Path) -> dict[str, Any]:
     )
     with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
         user = json.loads(resp.read()).get("email", "<unknown>")
-    block = (
-        "\n[gmail]\n"
-        f'user = "{user}"\n'
-        f'client_id = "{creds.client_id}"\n'
-        f'client_secret = "{creds.client_secret}"\n'
-        f'refresh_token = "{creds.refresh_token}"\n'
-    )
+    values = {
+        "user": user,
+        "client_id": creds.client_id,
+        "client_secret": creds.client_secret,
+        "refresh_token": creds.refresh_token,
+    }
+    block = "".join(f"{ENV_VARS[key]}={value}\n" for key, value in values.items())
     sys.stderr.write(
-        f"Authorized as {user}. Paste the block below into "
-        "coga/coga.local.toml (it is gitignored):\n"
+        f"Authorized as {user}. Store each value below in the 1Password "
+        "automation vault (or your environment) and declare it in the consuming "
+        "ticket's secrets: frontmatter under the same name. Never commit them:\n"
     )
-    return {"user": user, "toml_block": block}
+    return {"user": user, "env_block": block}
 
 
 # --- cli -----------------------------------------------------------------------
@@ -361,7 +341,7 @@ def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "authorize":
         payload = op_authorize(Path(args.client_secret))
-        sys.stdout.write(payload["toml_block"])
+        sys.stdout.write(payload["env_block"])
         return
     config = resolve_gmail_config()
     service = build_service(config)

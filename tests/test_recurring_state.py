@@ -42,7 +42,7 @@ from coga.validate import _check_recurring_templates
 
 NOW = datetime(2026, 4, 22, 10, 0, 0)
 BUNDLED = (
-    "address-pr-comments", "autoclose-merged", "blocker-reminders", "branch-sweep",
+    "address-pr-comments", "autoclose-merged", "blackboard-size", "blocker-reminders", "branch-sweep",
     "dream", "phone-home", "resolve-conflicts", "skill-update", "trim-log",
 )
 
@@ -137,7 +137,8 @@ def test_listing_keeps_names_and_schedules_visible_with_disabled_reasons(
 ) -> None:
     from io import StringIO
     from rich.console import Console
-    from coga.commands.recurring import _print_templates_table
+    from report_helpers import report_module
+    _print_templates_table = report_module("recurring-list")._print_templates_table
 
     _jobs(repo, "[jobs]\nbranch-sweep = true\nphone-home = true\ndream = false\nskill-update = true\n")
     _write(repo / "recurring/_skill-update/ticket.md", render_carrier("cursor: 1\n"))

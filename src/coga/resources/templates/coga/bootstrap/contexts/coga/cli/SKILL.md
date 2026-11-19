@@ -17,9 +17,9 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | Command | Owner |
 | --- | --- |
 | `init` | [coga/init](../init/SKILL.md) (install first: [Get started](https://github.com/FastJVM/coga/blob/main/README.md#get-started)) |
-| `uninstall` | [coga/uninstall](../uninstall/SKILL.md) |
+| `uninstall` (built-in recovery) | [coga/uninstall](../uninstall/SKILL.md) |
 | `build` → `launch coga-build` | [coga/init](../init/SKILL.md) |
-| `secret get` | [coga/secrets](../secrets/SKILL.md) |
+| `secret get` (built-in parent query) | [coga/secrets](../secrets/SKILL.md) |
 | `validate` | [coga/first-task](../first-task/SKILL.md) |
 | `--version` | The installed package version (`unknown` without package metadata); one CLI serves every repo, so there is no per-repo version |
 
@@ -27,10 +27,13 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 
 | Command | Owner |
 | --- | --- |
-| `create`, `ticket`, `show` | [coga/tickets/authoring](../tickets/authoring/SKILL.md) |
+| `create`, `ticket` | [coga/tickets/authoring](../tickets/authoring/SKILL.md) |
+| `show` → `launch --read-only bootstrap/show --` | [report ticket](../../../show/ticket.md) |
+| `status` → `launch --read-only bootstrap/status --` | [report ticket](../../../status/ticket.md) |
 | `owner` | [coga/tickets](../tickets/SKILL.md#owner-and-relationships) |
-| `mark`, `bump`, `block`, `unblock`, `status` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
+| `mark`, `bump`, `block`, `unblock` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete` | [coga/checkout-cleanup](../checkout-cleanup/SKILL.md) |
+| `promote-recurring` → `launch bootstrap/recurring-promote --` | packaged `bootstrap/recurring-promote/ticket.md` |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
 | `open-pr` → `run open-pr` | [coga/pr-publication](../pr-publication/SKILL.md) |
 | `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [coga/checkouts](../checkouts/SKILL.md) |
@@ -42,7 +45,8 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `launch` | [coga/launch](../launch/SKILL.md); script phase: [coga/script-tickets](../script-tickets/SKILL.md) |
 | `chat` → `launch bootstrap/orient` | [coga/launch](../launch/SKILL.md) |
 | `megalaunch` → `launch bootstrap/megalaunch --`; `pick` → `launch bootstrap/megalaunch -- --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
-| `recurring` (`--force`, `--all`, `launch`, `promote`, `list`) | [coga/recurring](../recurring/SKILL.md) and its children |
+| `recurring` (`--force`, `--all`, `launch`) | [coga/recurring](../recurring/SKILL.md) and its children |
+| `recurring list` → `launch --read-only bootstrap/recurring-list --` (fixed adapter) | [report ticket](../../../recurring-list/ticket.md) |
 | `dream` → `recurring launch dream` | [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) |
 | `autoclose` → `recurring launch autoclose-merged --rerun` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |
 | `skill-update` → `recurring launch skill-update` | [coga/skill-management](../skill-management/SKILL.md) |
@@ -54,7 +58,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `run <recipe>` and `[aliases]` | [coga/extension-model](../extension-model/SKILL.md) |
 | `skill` | [coga/skill-management](../skill-management/SKILL.md) |
 | `slack` → `launch bootstrap/slack --` | [coga/notifications](../notifications/SKILL.md); packaged `bootstrap/slack/ticket.md` |
-| `usage` | [coga/usage](../usage/SKILL.md) |
+| `usage` → `launch --read-only bootstrap/usage --` | [report ticket](../../../usage/ticket.md); [read API](../usage/SKILL.md) |
 
 ## Stateless command completion
 
@@ -85,8 +89,9 @@ rewrites that dispatch even when `coga.toml` omits them; a repo adds or
 overrides them in `[aliases]`.
 
 `coga run` accepts only these fixed recipe names: `autoclose`,
-`blocker-reminders`, `branch-sweep`, `validate-drift`,
-`cleanup-orphan-markers`, `recurring-scan`, `autofix-analyze`,
-`skill-update`, `open-pr`, `delete-task`, `publish-state`, and
-`prepare-checkout`. How both mechanisms behave, and why a new command usually
+`branch-sweep`, `recurring-scan`, `autofix-analyze`, `open-pr`, `delete-task`,
+`publish-state`, and `prepare-checkout`. The blocker-reminders, skill-update,
+validate-drift and cleanup-orphan-markers jobs left this list for wheel-owned
+edge modules ([coga/edge-code](../edge-code/SKILL.md)); their old names take
+the unknown-recipe exit 2. How both mechanisms behave, and why a new command usually
 belongs at the edge, is in [coga/extension-model](../extension-model/SKILL.md).

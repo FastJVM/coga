@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -61,8 +62,10 @@ from coga.compose import (
     LaunchContext,
     CheckoutNotice,
     PromptComposition,
+    ResolvedPromptLayers,
     compose_prompt,
     compose_prompt_report,
+    resolve_prompt_layers,
     write_prompt_file,
 )
 from coga import oscompat
@@ -70,6 +73,7 @@ from coga.oscompat import lock_fd
 from coga.config import (
     build_launch_env,
     Config,
+    AgentType,
     ConfigError,
     parse_inline_secrets,
     SecretError,
@@ -81,7 +85,7 @@ from coga import checkouts
 from coga import git
 from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.launch_script import run_script_chain, script_entry_point
+from coga.launch_script import run_script_chain, run_script_phase, script_entry_point
 from coga.logfile import append_log, log_path
 from coga.paths import RESOURCE_NAMES, RepoResourceUnreadable
 from coga.mark import (
@@ -305,12 +309,36 @@ def launch(
     max_session: float | None = None,
     return_timeout: bool = False,
     script_failure_important: bool = False,
+    read_only: bool = False,
 ) -> LaunchResult:
     """Launch with ordinary Python defaults, returning a result or LaunchBail.
 
     Queue callers use the specialized recurring/delegation entry points below.
     No command-line parser objects or process exits cross this boundary.
     """
+    if read_only:
+        # Withhold publication only for this read-only call: the caller's
+        # policy comes back on return and on LaunchBail, so a writer command
+        # that makes an in-process read-only call still sweeps at exit.
+        policy_token = git.state_sweep_withheld.set(True)
+        try:
+            if (agent_override is not None or prompt_report or idle_timeout is not None
+                    or max_session is not None or return_timeout or script_failure_important):
+                _bail("--read-only cannot be combined with agent, report or REPL options.")
+            try:
+                cfg = load_config(require_user=False)
+                ref = resolve_target(cfg, task)
+                if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
+                    _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
+                ticket = read_ticket(ref)
+                result = run_script_phase(
+                    cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
+                )
+            except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
+                _bail(str(exc))
+        finally:
+            git.state_sweep_withheld.reset(policy_token)
+        return LaunchResult(kind="script", exit_code=result.exit_code)
     from coga.argv import help_requested
     from coga.launch_script import run_bootstrap_script_help
 
@@ -851,6 +879,9 @@ class _LaunchInvocation:
         self.return_timeout = return_timeout
         self.script_failure_important = script_failure_important
         self.launch_context = launch_context
+        # File-backed prompt layers resolved by the entry preflight and handed
+        # to the first step's one composition (see `_launch`).
+        self.resolved_layers: ResolvedPromptLayers | None = None
         self.before_recompose = before_recompose
         self.before_final_spawn = before_final_spawn
         self.require_agent_target = require_agent_target
@@ -1774,47 +1805,21 @@ class _LaunchInvocation:
                 f"(cli={self.agent.cli})"
             )
 
-            # Verify the configured CLI binary exists. Coga never installs agent
-            # CLIs; every agent-backed command uses the same point-of-need error.
-            agent_path = shutil.which(self.agent.cli)
-            if agent_path is None:
-                _bail(agent_cli_missing_message(self.agent.name, self.agent.cli))
-            _report(f"Launch: found agent CLI at {agent_path}")
-
-            # Fail loud BEFORE any status is written: if a referenced context or
-            # skill is missing, the composed prompt would drop a layer the human
-            # expected the agent to have. Refuse to start — and don't write the
-            # activation, flip the ticket to in_progress, or post a "started"
-            # broadcast for a task that never runs.
-            # The per-step loop below re-composes; this is a cheap pre-flight (file
-            # reads only) so the flip and notification post are never reached on a bad ref.
             try:
-                compose_prompt(self.cfg, self.ref, self.ticket, launch_context=self.launch_context)
-            except ComposeError as exc:
+                prepared = prepare_agent_launch(
+                    self.cfg, self.ref, self.ticket, self.launch_agent,
+                    launch_context=self.launch_context,
+                    defer_prompt=True,
+                    discussion=_is_discussion_bootstrap(self.ref),
+                    kickoff=_bootstrap_kickoff(self.ref),
+                )
+            except AgentPreparationError as exc:
+                if exc.command_refused:
+                    git.state_sweep_withheld.set(True)
                 _bail(str(exc))
-            except FileNotFoundError as exc:
-                # A layer file that exists at resolve time but not at read time
-                # (a concurrent checkout, a mid-sync working tree). Loud either
-                # way, but name the path instead of dumping a traceback.
-                _bail(missing_launch_file_message(exc))
-
-            # Preflight and build the child env before mutating ticket state. A missing
-            # declared secret is a launch refusal, not a started task.
-            try:
-                self.env = build_launch_env(self.cfg, self.ticket.secrets)
-            except SecretError as exc:
-                _bail(str(exc))
-
-            # Native Windows: refuse a command line no transport can carry
-            # before any lifecycle write, with the exit sweep withheld.
-            require_representable_agent_command(
-                self.agent,
-                env=self.env,
-                ref=self.ref,
-                name=self.ticket.title or "",
-                discussion=_is_discussion_bootstrap(self.ref),
-                kickoff=_bootstrap_kickoff(self.ref),
-            )
+            self.agent, self.env = prepared.agent, prepared.env
+            self.resolved_layers = prepared.resolved_layers
+            _report(f"Launch: found agent CLI at {prepared.cli_path}")
 
             # Refuse to start an agent session when git push access is broken. Coga
             # drives the whole session through git/gh (branch push, `gh pr create`,
@@ -2063,9 +2068,13 @@ class _LaunchInvocation:
                 checkout_notice: CheckoutNotice | None = None
                 composed_prompt: str | None = None
                 record_launch = self.record_launch
+                # Only the first step reuses the entry preflight's layer reads;
+                # a chained step composes from the files as they stand then.
+                resolved_layers = self.resolved_layers if is_first_step else None
                 if self._manages_branch_checkout():
                     spawn_ticket, composed_prompt = self._prepare_step_checkout(
-                        spawn_ticket, actor=actor, log_message=log_message
+                        spawn_ticket, actor=actor, log_message=log_message,
+                        resolved_layers=resolved_layers,
                     )
                     self.ticket = spawn_ticket
                     record_launch = False
@@ -2115,6 +2124,7 @@ class _LaunchInvocation:
                         record_launch=record_launch,
                         composed_prompt=composed_prompt,
                         checkout_notice=checkout_notice,
+                        resolved_layers=resolved_layers,
                     )
                 except ComposeError as exc:
                     _bail(str(exc))
@@ -2289,7 +2299,8 @@ class _LaunchInvocation:
         )
 
     def _prepare_step_checkout(
-        self, ticket: Ticket, *, actor: str, log_message: str
+        self, ticket: Ticket, *, actor: str, log_message: str,
+        resolved_layers: ResolvedPromptLayers | None = None,
     ) -> tuple[Ticket, str]:
         """Plan on control, compose, publish startup, then switch and project.
 
@@ -2298,7 +2309,9 @@ class _LaunchInvocation:
         preparation leaves no launch record; the switch-time checks were
         already run once while planning. Returns the authoritative ticket and
         the prompt composed from control state; the spawn must use both
-        unchanged. A refusal reports where the checkout stands and stops the
+        unchanged. `resolved_layers` are the entry preflight's file-backed
+        layers; composition renders this plan's ticket and notice around them.
+        A refusal reports where the checkout stands and stops the
         launch without a sweep or a return over state it did not start.
         """
         assert isinstance(self.ref, TaskRef)
@@ -2312,6 +2325,7 @@ class _LaunchInvocation:
             prompt = compose_prompt(
                 self.cfg, self.ref, current,
                 launch_context=self.launch_context, checkout=notice,
+                resolved=resolved_layers,
             )
             return current, notice, prompt
 
@@ -3588,6 +3602,76 @@ def require_representable_agent_command(agent, **kwargs) -> None:
         _bail(refusal)
 
 
+class AgentPreparationError(Exception):
+    """Readiness refusal before a caller publishes startup state."""
+
+    def __init__(self, reason: str, *, command_refused: bool = False) -> None:
+        super().__init__(reason)
+        self.command_refused = command_refused
+
+
+class PreparedAgentLaunch(NamedTuple):
+    """One fresh readiness pass; never retained across publication/reload."""
+
+    agent: AgentType
+    prompt: str | None
+    env: dict[str, str]
+    cli_path: str
+    resolved_layers: ResolvedPromptLayers | None
+
+
+def prepare_agent_launch(
+    cfg: Config,
+    ref: TargetRef,
+    ticket: Ticket,
+    launch_agent: str,
+    *,
+    launch_context: LaunchContext = "attended",
+    discussion: bool = False,
+    kickoff: str | None = None,
+    defer_prompt: bool = False,
+    env_transform: Callable[[dict[str, str]], dict[str, str]] | None = None,
+) -> PreparedAgentLaunch:
+    """Validate CLI, prompt layers, secrets and command without repo writes.
+
+    Ordinary launch defers rendering until it has the final ticket and checkout
+    notice. Queue callers retain the prompt rendered during readiness.
+
+    Callers own prospective lifecycle, admission and publication. Secret
+    resolution may call an external provider; the result is not cached.
+    ``env_transform`` maps the launch env to the env the caller will spawn
+    with (megalaunch's supervised step identity); the command check and the
+    returned ``env`` both use its result.
+    """
+    try:
+        agent = cfg.agent_type(launch_agent)
+        cli_path = shutil.which(agent.cli)
+        if cli_path is None:
+            raise AgentPreparationError(agent_cli_missing_message(agent.name, agent.cli))
+        prompt = None
+        resolved_layers = None
+        if defer_prompt:
+            resolved_layers = resolve_prompt_layers(
+                cfg, ref, ticket, launch_context=launch_context
+            )
+        else:
+            prompt = compose_prompt(cfg, ref, ticket, launch_context=launch_context)
+        env = build_launch_env(cfg, ticket.secrets)
+        if env_transform is not None:
+            env = env_transform(env)
+    except FileNotFoundError as exc:
+        raise AgentPreparationError(missing_launch_file_message(exc)) from exc
+    except (ConfigError, ComposeError, SecretError) as exc:
+        raise AgentPreparationError(str(exc)) from exc
+    refusal = agent_command_refusal(
+        agent, env=env, ref=ref, name=ticket.title or "",
+        discussion=discussion, kickoff=kickoff,
+    )
+    if refusal is not None:
+        raise AgentPreparationError(refusal, command_refused=True)
+    return PreparedAgentLaunch(agent, prompt, env, cli_path, resolved_layers)
+
+
 def build_agent_command(
     agent,
     prompt: str,
@@ -3676,6 +3760,7 @@ class AgentSessionResult(NamedTuple):
     # `termination_kind` (a signal followed by a crash is still a `crash`).
     # False also means "no sentinel channel"; see `ReplOutcome`.
     done_signalled: bool = False
+    exec_failed: bool = False
 
 
 def missing_launch_file_message(exc: FileNotFoundError) -> str:
@@ -3731,6 +3816,7 @@ def spawn_agent_session(
     include_blocker_preamble: bool = True,
     composed_prompt: str | None = None,
     checkout_notice: CheckoutNotice | None = None,
+    resolved_layers: ResolvedPromptLayers | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -3757,6 +3843,9 @@ def spawn_agent_session(
     own preflight boundary. The spawn uses those exact bytes instead of
     recomposing after intervening lifecycle publication. `checkout_notice`
     is the caller's observed checkout result for a prompt composed here.
+    `resolved_layers` are file-backed layers the caller already resolved at
+    its preflight; composition here renders `ticket` and `checkout_notice`
+    around them instead of reading those files again.
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately publishes the `log.md` launch append (via
@@ -3846,6 +3935,7 @@ def spawn_agent_session(
             include_blocker_preamble=include_blocker_preamble,
             launch_context=launch_context,
             checkout=checkout_notice,
+            resolved=resolved_layers,
         )
     else:
         _report(f"{label}: using preflighted prompt")
@@ -4059,6 +4149,7 @@ def spawn_agent_session(
             outcome.kind,
             outcome.reason,
             outcome.done_signalled,
+            outcome.exec_failed,
         )
     except KeyboardInterrupt:
         outcome_status = "interrupted"

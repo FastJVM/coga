@@ -110,8 +110,9 @@ next sweep or the operator.
 
 Callers: exempt `coga launch` teardown and its between-children recheck in recurring
 runs (bails when a refresh after a preceding child fails or the admitted
-remote has vanished), and the recurring scan's pre-scan catch-up
-(`recurring_runner`), whose stale-control path exits
+remote has vanished), `coga megalaunch` before it picks or queues
+(exits 1 on `False`, nothing picked or launched), and the recurring scan's
+pre-scan catch-up (`recurring_runner`), whose stale-control path exits
 `STALE_CONTROL_EXIT_CODE` (75) so the CLI sweep does not publish the state it
 left dirty. Admission details are `coga-dev/internals/recurring-admission`.
 
@@ -142,8 +143,10 @@ the diagnostics and remedy above (from a feature branch, the
 `CheckoutPreparation`: `prepared`, `exempt` (Git disabled, not a checkout,
 no remote, or no remote control branch unless `require_remote_control`),
 `refused` (nothing but the remote-tracking ref changed), or `failed` (where
-it stopped after mutation began). Its only caller is the launch checkout
-boundary. The rules it enforces are owned by
+it stopped after mutation began). Its callers are the launch checkout
+boundary and `checkouts._prove_control` (with `require_remote_control=True`),
+which backs ticket-checkout planning and its re-checks and the
+`coga run prepare-checkout` direct-chat recipe (`prepare_chat_checkout`). The rules it enforces are owned by
 [coga/checkouts/launch-boundary](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md).
 
 `fetch_control(cfg, root)` fetches and returns the commit to read control from

@@ -90,12 +90,23 @@ def script_entry_point(ref: TargetRef) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def _normalize_exit_code(returncode: int) -> int:
+    """Map a signal-killed child's POSIX ``-N`` to the shell's ``128 + N``.
+
+    Non-negative codes pass through unchanged: 75 keeps its retained-state
+    meaning, and Windows NTSTATUS values are never negative.
+    """
+
+    return 128 - returncode if returncode < 0 else returncode
+
+
 def run_script_phase(
     cfg: Config,
     ref: TargetRef,
     ticket: Ticket,
     *,
     stateless: bool,
+    read_only: bool = False,
     args: Sequence[str] = (),
     assist_branch: str | None = None,
     assist_agent: str | None = None,
@@ -118,6 +129,9 @@ def run_script_phase(
     published to control right after it exits.
     """
 
+    if read_only and (not stateless or not isinstance(ref, BootstrapRef) or assist_branch is not None):
+        raise ValueError("Read-only dispatch requires a stateless bootstrap script without assist authority.")
+
     strict_assist = assist_branch is not None
     if strict_assist and (not assist_agent or not assist_pr_url):
         raise ScriptPublicationError(
@@ -126,6 +140,8 @@ def run_script_phase(
 
     entry = script_entry_point(ref)
     if entry is None:
+        if read_only:
+            raise FileNotFoundError(f"Read-only script entry disappeared: {ref.id_slug}/ticket.py")
         if stateless:
             raise FileNotFoundError(f"Classified bootstrap script disappeared: {ref.id_slug}/ticket.py")
         # Classification is a point-in-time observation. Activation, a prior
@@ -202,55 +218,56 @@ def run_script_phase(
     # may have replaced or removed ticket.py, changed coga.toml, edited the
     # ticket, or changed its secret declarations. A vanished entry point is a
     # fresh agent-only classification, not a failed execution of a stale path.
-    cfg = load_config(cfg.repo_root)
-    try:
-        refreshed_ref = resolve_target(cfg, ref.id_slug)
-    except TaskNotFoundError:
-        return ScriptPhaseResult(
-            exit_code=0,
-            ticket=None,
-            ran=False,
-            cfg=cfg,
-            ref=ref,
-        )
-    if refreshed_ref.id_slug != ref.id_slug:
-        raise FileNotFoundError(
-            f"Selected task {ref.id_slug!r} disappeared while preparing "
-            "ticket.py."
-        )
-    ref = refreshed_ref
-    ticket = read_ticket(ref)
-    entry = script_entry_point(ref)
-    if entry is None:
-        if stateless:
-            raise FileNotFoundError(f"Classified bootstrap script disappeared: {ref.id_slug}/ticket.py")
-        return ScriptPhaseResult(
-            exit_code=0,
-            ticket=ticket,
-            ran=False,
-            cfg=cfg,
-            ref=ref,
-        )
+    if not read_only:
+        cfg = load_config(cfg.repo_root)
+        try:
+            refreshed_ref = resolve_target(cfg, ref.id_slug)
+        except TaskNotFoundError:
+            return ScriptPhaseResult(
+                exit_code=0,
+                ticket=None,
+                ran=False,
+                cfg=cfg,
+                ref=ref,
+            )
+        if refreshed_ref.id_slug != ref.id_slug:
+            raise FileNotFoundError(
+                f"Selected task {ref.id_slug!r} disappeared while preparing "
+                "ticket.py."
+            )
+        ref = refreshed_ref
+        ticket = read_ticket(ref)
+        entry = script_entry_point(ref)
+        if entry is None:
+            if stateless:
+                raise FileNotFoundError(f"Classified bootstrap script disappeared: {ref.id_slug}/ticket.py")
+            return ScriptPhaseResult(
+                exit_code=0,
+                ticket=ticket,
+                ran=False,
+                cfg=cfg,
+                ref=ref,
+            )
 
-    if not stateless and (
-        ticket.status != "in_progress"
-        or _routing_identity(ticket) != pre_sync_identity
-    ):
-        # The moving sync above is authoritative. A peer may have closed or
-        # parked the task, advanced it to a configured agent after a human
-        # assist, handed it to a human, changed its owner, or changed its
-        # main-agent choice — any of which reroutes the next phase. Do not
-        # execute code selected from the stale pre-sync lifecycle; let the chain
-        # classify the fresh state.
-        return ScriptPhaseResult(
-            exit_code=0,
-            ticket=ticket,
-            ran=False,
-            cfg=cfg,
-            ref=ref,
-        )
+        if not stateless and (
+            ticket.status != "in_progress"
+            or _routing_identity(ticket) != pre_sync_identity
+        ):
+            # The moving sync above is authoritative. A peer may have closed or
+            # parked the task, advanced it to a configured agent after a human
+            # assist, handed it to a human, changed its owner, or changed its
+            # main-agent choice — any of which reroutes the next phase. Do not
+            # execute code selected from the stale pre-sync lifecycle; let the chain
+            # classify the fresh state.
+            return ScriptPhaseResult(
+                exit_code=0,
+                ticket=ticket,
+                ran=False,
+                cfg=cfg,
+                ref=ref,
+            )
 
-    env = build_launch_env(cfg, ticket.secrets)
+        env = build_launch_env(cfg, ticket.secrets)
     env.pop("COGA_SCRIPT_HELP", None)
     env = apply_task_env(env, cfg, ref, ticket)
     # A normal ticket script must not inherit ownership witnesses from an outer
@@ -273,7 +290,7 @@ def run_script_phase(
         env[ASSIST_BRANCH_ENV] = assist_branch or ""
         env[ASSIST_PR_ENV] = assist_pr_url or ""
 
-    if stateless:
+    if stateless and not read_only:
         exit_code, _ = run_foreground_child(
             [sys.executable, str(entry), *args], cwd=host_repo_root(cfg),
             env=env, defer_interrupt=True,
@@ -283,7 +300,13 @@ def run_script_phase(
             [sys.executable, str(entry), *args], cwd=host_repo_root(cfg),
             env=env, check=False,
         )
-        exit_code = completed.returncode
+        # Normalize before any return so every consumer (the shell, the
+        # audit line, the failure notice, LaunchBail) sees one status.
+        exit_code = _normalize_exit_code(completed.returncode)
+
+    if read_only:
+        # No teardown reload, lifecycle inspection, notification or agent fallback.
+        return ScriptPhaseResult(exit_code=exit_code, ticket=ticket, cfg=cfg, ref=ref)
 
     after: Ticket | None = None
     ticket_read_error: Exception | None = None

@@ -18,6 +18,19 @@ The repo separates implementation from the OS it operates:
 
 - `src/coga_edge/phone_home.py`: the default telemetry implementation behind
   the repo shim; [phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md) owns its contract.
+- `src/coga_edge/validate_drift.py`, `src/coga_edge/cleanup_orphan_markers.py`:
+  Dream's Phase 1 and Phase 5 workers, run by the packaged
+  [Dream ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) as `python -m coga_edge.<worker>`
+  through `runner.run_entry` (they never bump); their
+  `bootstrap/dream/tasks/*` skills own the contracts.
+- `src/coga_edge/blackboard_size.py`: the weekly oversized-blackboard report
+  behind the `blackboard-size` shim; its [template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blackboard-size/ticket.md) owns the contract.
+- `src/coga_edge/blocker_reminders.py` and `src/coga_edge/skill_update.py`:
+  the recurring blocker-reminders and skill-update jobs. Their packaged
+  `ticket.py` shims call `main`, which runs `runner.run_entry`. The packaged
+  [blocker-reminders](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md)
+  and [skill-update](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/skill-update/ticket.md)
+  tickets own their contracts.
 
 - `src/coga_edge/slack.py`: the `coga slack` FYI behind the
   `bootstrap/slack` shim; stateless completion is `commands/mark.py`
@@ -47,15 +60,23 @@ The repo separates implementation from the OS it operates:
   (`coga-dev/internals/git-regressions`).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
+  It also owns the shared `## Recipe Failure` floor (`run_reported`, with an
+  optional root resolver) and the edge entry sequence `run_entry`
+  (report → publish → bump). `state_sweep.py` is the end-of-invocation sweep
+  mechanism shared by `cli._sweep_coga_state` and `run_entry`.
 - `oscompat.py`: per-user lock paths and descriptor locks for publication
   and chat, and owned process trees for both recurring runners and the
   Windows agent supervisor. POSIX uses flock/process groups; Windows uses
   byte-range locks and Job Objects. Its interactive mode runs
   `_nt_session_wrapper.py`, a stdlib-only script run by path under the base
   interpreter.
-- `launch.py` (launch API, preparation and supervision),
+- `launch.py` (launch API, preparation and supervision; `prepare_agent_launch`
+  shares CLI/prompt/secret/command readiness with megalaunch, and explicit
+  read-only invocation reuses `launch_script.run_script_phase`),
   `checkout_policy.py` (pure entry-checkout selection: the frozen step's
-  `checkout:`, else the legacy table for older snapshots) and
+  `checkout:`, else the legacy table for older snapshots; the draft
+  `v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac`
+  owns that table's retirement under the `coga/checkouts` rule) and
   `checkouts.py` (shared branch preparation for launch and the
   `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
@@ -70,7 +91,8 @@ The repo separates implementation from the OS it operates:
   state-only carriers (`parent_state_path`, `ensure_parent_state`), so
   definition lookup and repo-local state writes stay separate. Definition
   resolution for other refs (`resolve_skill_path`, `local_definition_entry`)
-  is in `paths.py`.
+  is in `paths.py`. Task-to-template promotion lives in the packaged
+  `bootstrap/recurring-promote` command ticket.
 - `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
   disposal order), `retire_worklist.py` (`retires.md`).
 - `dependencies.py` (supporting-tool install manifest, supported agent CLI

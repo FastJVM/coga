@@ -23,7 +23,9 @@ Reach for the lowest tier the shape allows:
   trailing argv as its operands and no agent; its `ticket.md` owns the verb's
   contract. Repo-local definitions win over packaged ones.
   `resolve-conflicts` and `address-pr-comments` are the shipped agent
-  examples; `retire` (`bootstrap/retire`) is the shipped script example.
+  examples; `retire` (`bootstrap/retire`) is a shipped writer example.
+  The show, status, usage and recurring-list command tickets are editable
+  readers using [read-only dispatch](../launch/SKILL.md#read-only-command-dispatch).
 - **External tool**: an existing CLI (`git`, `gh`, `op`) that Coga shells out
   to and whose output it verifies.
 - **Stateful ticket or workflow**: reviewable work that wants its own
@@ -50,6 +52,11 @@ is owned by [coga/script-tickets](../script-tickets/SKILL.md). Recurring
   skills; `op` or the environment resolves secrets), while enforcement at the
   moment of use is kernel (launch injects secrets). Secret values never flow
   through tickets, prompts, blackboards, or Git.
+  The human [secret query](../secrets/SKILL.md#coga-secret-get-ref) stays in
+  the parent process; making a script read-only does not grant operator auth.
+  [Uninstall recovery](../uninstall/SKILL.md#recovery-admission) also remains
+  built-in because ordinary extension admission depends on the config it
+  must be able to remove.
 
 ## `coga run <recipe> [args...]`
 

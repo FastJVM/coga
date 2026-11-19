@@ -18,11 +18,12 @@ rg --files --hidden --no-ignore -g '*.py' coga/recurring coga/tasks | LC_ALL=C s
 
 For a release removing recipe targets, also inventory their exact callers in
 Python shims and markdown, including Dream Phase 1/5 in templates and all
-outstanding/parked period bodies. Search names even when callers are customized:
+outstanding/parked period bodies. Search names even when callers are customized.
+The removed names so far are `validate-drift` and `cleanup-orphan-markers`:
 
 <!-- migration:callers -->
 ```sh
-rg -n --hidden --no-ignore -g '*.md' -g '*.py' 'coga run (validate-drift|cleanup-orphan-markers|delete-task)' coga/recurring coga/tasks
+rg -n --hidden --no-ignore -g '*.md' -g '*.py' 'coga run (validate-drift|cleanup-orphan-markers)' coga/recurring coga/tasks
 ```
 
 2. Quiesce affected launches and sweeps in **all participating checkouts**.
@@ -149,44 +150,290 @@ git diff -- "$CANDIDATE"
 Retain any previous customized source in Git before replacement. Restore the
 stock shim to rejoin upstream implementation updates.
 
-### Instruction reconciliation for the later recipe-removal release
+### Recipe-backed recurring shims
 
-`_v2/gigantic-refactor-move-recurring-recipes-out-of-co` must use this same adoption
-policy for old shims **and** old Dream Phase 1/5 instructions before deleting
-registry targets. That release supplies reviewed old/new passages from its
-artifacts; use `OLD_PASSAGE` and `NEW_PASSAGE` text files for each exact passage,
-and `CANDIDATE` for each selected template or period markdown. After reviewing
-the diff, this bounded edit preserves all bytes outside that passage and fails
-on missing or ambiguous matches:
+The release that moved the blocker-reminders and skill-update jobs to
+`coga_edge.blocker_reminders` and `coga_edge.skill_update` removed both names
+from `coga run`. Shims written before it reach the old code in one of two
+stock shapes, and both stop working once the new wheel is installed:
+
+- the registry shim (PR 827, `368ae080b`) calls
+  `run_recipe(load_config(), "<name>", [])` and then runs `coga bump` itself.
+  It now fails with `unknown recipe '<name>'`;
+- the earlier direct shim (PR 705, `df1d06022`) imports
+  `coga.blocker_reminders` or `coga.skill_update`, which no longer exist. It
+  now fails with `ModuleNotFoundError`.
+
+Either failure leaves the period `in_progress` and reported by the sweep. It
+never runs other code. Copies live wherever recurring creation or a full local
+override put them: a full override's `coga/recurring/<name>/ticket.py`, each
+outstanding period's `ticket.py`, and parked copies. A package-backed
+definition (a state-only carrier) needs no template change: its future periods
+copy the new packaged shim. Inventory the callers, including customized ones:
+
+<!-- migration:recipe-shim-callers -->
+```sh
+rg -n --hidden --no-ignore -g '*.py' -e 'coga run (blocker-reminders|skill-update)' -e 'run_recipe\(.*(blocker-reminders|skill-update)' -e 'coga\.(blocker_reminders|skill_update)' coga/recurring coga/tasks
+```
+
+Each stock generation is one exact file per job. Extract both from the
+retained old wheel (`coga/resources/templates/coga/recurring/<name>/ticket.py`)
+or a source clone, and compare every candidate against both with the
+`compare` command above. A candidate matching either is stock:
+
+```sh
+git show 368ae080b:src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py > /tmp/blocker-reminders-827.py
+git show df1d06022:src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py > /tmp/blocker-reminders-705.py
+```
+
+The skill-update paths are the same with `skill-update` in place of
+`blocker-reminders`. The Git blobs are `035f27cb` (827) and `6f84c384` (705)
+for blocker-reminders, and `4cdc7759` (827) and `039a1d5c` (705) for
+skill-update. After installing the new wheel, set `JOB` to the job name and
+locate its implementation and new shim by importing, which runs nothing:
+
+<!-- migration:locate-job -->
+```sh
+"$COGA_PY" - <<'PY'
+import importlib
+import os
+from pathlib import Path
+from coga.paths import packaged_template_path
+job = os.environ["JOB"]
+module = importlib.import_module("coga_edge." + job.replace("-", "_"))
+print(Path(module.__file__).resolve())
+print(packaged_template_path("recurring", job, "ticket.py"))
+PY
+```
+
+Set `NEW_SHIM` to the second printed path, and use the `replace` command above
+for each proven stock candidate, once per baseline. It refuses a customized
+file. Port a customized shim by hand. Its old invocation:
+
+```python
+code = run_recipe(load_config(), "skill-update", ["--no-pr"])
+if code:
+    sys.exit(code)
+sys.exit(subprocess.run([sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"]], check=False).returncode)
+```
+
+becomes this, keeping its own argv and other customizations:
+
+```python
+from coga_edge.skill_update import main
+
+raise SystemExit(main(["--no-pr"], scheduled=True))
+```
+
+`main(..., scheduled=True)` completes the step itself, so delete the shim's own `coga bump`; a
+second bump would advance the next step. It also writes the shared
+`## Recipe Failure` report and publishes the job's state on exit.
+
+To keep a reviewed copy instead of following wheel updates, copy the installed
+module over a stock new shim. Do this for a full local override's
+`ticket.py` (never beside a state-only carrier) or a single period's. The copy
+refuses any other existing file:
+
+<!-- migration:job-fork-copy -->
+```sh
+"$COGA_PY" - <<'PY'
+import importlib
+import os
+import shutil
+from pathlib import Path
+job = os.environ["JOB"]
+module = importlib.import_module("coga_edge." + job.replace("-", "_"))
+target = Path(os.environ["CANDIDATE"])
+stock = Path(os.environ["NEW_SHIM"]).read_bytes()
+assert not target.exists() or target.read_bytes() == stock, f"review existing {target}"
+shutil.copyfile(module.__file__, target)
+print(target)
+PY
+```
+
+The copy imports only shared `coga` modules and completes its own step.
+Restoring the stock shim rejoins wheel updates. Inventory the callers again:
+finding none (exit 1) is the expected result. Replacement and the fork copy
+change no state: frontmatter, blackboards, `period_state`, generation and
+frozen workflows stay byte-for-byte.
+
+### Dream Phase 1/5 reconciliation (recipe removal)
+
+The release that moved Dream's workers to `coga_edge` removed the
+`validate-drift` and `cleanup-orphan-markers` recipe names; `coga run` now
+refuses both with exit 2. Dream bodies written before it still name them: a
+local Dream override's `ticket.md`, outstanding and parked Dream periods, and
+customized copies. A stale passage fails its phase loudly; it never runs other
+code. Reconcile each selected markdown file after installing the new wheel and
+before resuming Dream. Write each passage below to a text file, without its
+fence lines and without a trailing newline, and set `OLD_PASSAGE` to the old
+passage and `NEW_PASSAGE` to the replacement.
+
+If the body also contains the old dispatch paragraph, reconcile it separately
+with the same command. This updates the interpreter instructions for either
+package-backed or forked phases.
+
+<!-- migration:dream-dispatch-old -->
+```text
+The two deterministic phases (1 and 5) run registered recipes directly from
+this Dream task. Before each run, read the matching skill's
+`## Known Skill Contract`, keep reads and writes inside its declared scope,
+then invoke the exact `coga run` command below. The recipe inherits this
+task's `COGA_TASK_*` context and writes its `## Dream Skill: <name>` section
+directly to this task's blackboard. Do not create child worker tasks.
+```
+
+<!-- migration:dream-dispatch-new -->
+```text
+The two deterministic phases (1 and 5) run Python workers directly from
+this Dream task. Before each run, read the matching skill's
+`## Known Skill Contract`, keep reads and writes inside its declared scope,
+then invoke the exact command below with the Python interpreter that runs
+`coga`. The worker inherits this task's `COGA_TASK_*` context, writes its
+`## Dream Skill: <name>` section directly to this task's blackboard, publishes
+eligible Coga state on exit, and never advances this task. An interpreter that
+cannot import the worker is a failed phase, not permission to substitute
+another command. Do not create child worker tasks.
+```
+
+Phase 1, as shipped before the move:
+
+<!-- migration:dream-phase-1-old -->
+```text
+Read `bootstrap/dream/tasks/validate-drift`, then run
+`coga run validate-drift`. The recipe runs the same deterministic surface as
+`coga validate --json`, classifies every issue, and appends
+`## Dream Skill: validate-drift` to this task's blackboard.
+```
+
+Phase 1 for a package-backed Dream (the shipped body):
+
+<!-- migration:dream-phase-1-new -->
+```text
+Read `bootstrap/dream/tasks/validate-drift`, then run
+`python -m coga_edge.validate_drift`. The worker runs the same deterministic
+surface as `coga validate --json`, classifies every issue, and appends
+`## Dream Skill: validate-drift` to this task's blackboard.
+```
+
+Phase 1 for a full local Dream fork that runs its own copy:
+
+<!-- migration:dream-phase-1-fork -->
+```text
+Read `bootstrap/dream/tasks/validate-drift`, then run
+`python "$COGA_COGA_OS_ROOT/recurring/dream/validate_drift.py"`. The worker
+runs the same deterministic surface as `coga validate --json`, classifies
+every issue, and appends `## Dream Skill: validate-drift` to this task's
+blackboard.
+```
+
+Phase 5, as shipped before the move:
+
+<!-- migration:dream-phase-5-old -->
+```text
+Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
+`coga run cleanup-orphan-markers`. The recipe detects cleanup candidates and
+gates deletion through `bootstrap/delete-task` (`coga run delete-task`). That
+delete surface ships, but until its cleanup PR-dispatch wiring is finished the
+recipe reports `human-needed` and deletes nothing.
+```
+
+Phase 5 for a package-backed Dream (the shipped body):
+
+<!-- migration:dream-phase-5-new -->
+```text
+Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
+`python -m coga_edge.cleanup_orphan_markers`. The worker detects cleanup
+candidates and gates deletion through `bootstrap/delete-task`
+(`coga run delete-task`). That delete surface ships, but until its cleanup
+PR-dispatch wiring is finished the worker reports `human-needed` and deletes
+nothing.
+```
+
+Phase 5 for a full local Dream fork that runs its own copy:
+
+<!-- migration:dream-phase-5-fork -->
+```text
+Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
+`python "$COGA_COGA_OS_ROOT/recurring/dream/cleanup_orphan_markers.py"`. The
+worker detects cleanup candidates and gates deletion through
+`bootstrap/delete-task` (`coga run delete-task`). That delete surface ships,
+but until its cleanup PR-dispatch wiring is finished the worker reports
+`human-needed` and deletes nothing.
+```
+
+Choose the fork passages only for a full local Dream override (its own
+`coga/recurring/dream/ticket.md` definition, not a state-only carrier) that
+should keep running a reviewed copy instead of following wheel updates, and
+for that override's periods. The fork path assumes the default
+`coga/recurring/` layout; adjust it to the configured recurring root. Copy the
+installed workers beside the override's ticket first, with `DREAM_DIR` set to
+that directory. The copy refuses to overwrite an existing file:
+
+<!-- migration:dream-fork-copy -->
+```sh
+"$COGA_PY" - <<'PY'
+import os
+import shutil
+from pathlib import Path
+import coga_edge.cleanup_orphan_markers
+import coga_edge.validate_drift
+destination = Path(os.environ["DREAM_DIR"])
+for module in (coga_edge.validate_drift, coga_edge.cleanup_orphan_markers):
+    target = destination / Path(module.__file__).name
+    assert not target.exists(), f"review existing {target}"
+    shutil.copyfile(module.__file__, target)
+    print(target)
+PY
+```
+
+Recurring creation copies only `ticket.py`, so the fork's periods run the
+copies beside the override's ticket. A copied worker imports nothing from
+`coga_edge` and stops receiving wheel fixes; restoring the
+package-backed passages rejoins them.
+
+After reviewing the diff, this bounded edit replaces one exact match in the
+ticket body and preserves all other bytes:
 
 <!-- migration:reconcile -->
 ```sh
 "$COGA_PY" - <<'PY'
 import os
+import re
 from pathlib import Path
 path = Path(os.environ["CANDIDATE"])
 old = Path(os.environ["OLD_PASSAGE"]).read_bytes()
 new = Path(os.environ["NEW_PASSAGE"]).read_bytes()
 raw = path.read_bytes()
-assert old and raw.count(old) == 1, "review customized or ambiguous passage"
-path.write_bytes(raw.replace(old, new, 1))
+frontmatter = re.match(rb"\A---\r?\n.*?^---\r?\n", raw, re.MULTILINE | re.DOTALL)
+assert frontmatter, "review missing frontmatter"
+fences = list(re.finditer(rb"^<!-- coga:blackboard -->[ \t]*\r?$", raw, re.MULTILINE))
+assert len(fences) == 1 and frontmatter.end() <= fences[0].start(), "review ticket fence"
+start, end = frontmatter.end(), fences[0].start()
+body = raw[start:end]
+assert old and body.count(old) == 1, "review customized or ambiguous passage"
+path.write_bytes(raw[:start] + body.replace(old, new, 1) + raw[end:])
 PY
 ```
 
-Export these variables for the Python command. Customized callers of removed
-symbols require reconciliation; preserving their bytes does not ensure they
-will run. Inventory again and review each remaining caller before removing its
-target. Record tester adoption before upgrading them to a contracting wheel;
-do not ship recipe removal as an unattended wheel-only upgrade. This release
-only tests representative instruction reconciliation in fixtures: it removes
-no recipes, edits no shipped Dream passages, and implements no Dream workers.
+Export these variables for the Python command. A refusal means a customized,
+missing or ambiguous passage: port that copy by hand to one of the new
+commands, keeping its other text. Preserving its bytes does not ensure it will
+run. Inventory callers again and review each remaining one; the command
+finding none (exit 1) is the expected result. Frontmatter, frozen workflows,
+`period_generation` and blackboards stay untouched. Record tester adoption
+before upgrading them to a contracting wheel; do not ship recipe removal as an
+unattended wheel-only upgrade.
 
 5. Review `git diff --check` and the precise file diff; merge through normal
    repo practice. In a scratch copy, verify with CI/pytest suppression and fake
    transport, never production phone-home merely to inspect code. The automated
    receipts are `tests/test_edge_distribution.py`: commands above are executed
-   against stock/edited/parked legacy copies and representative Dream passages,
-   with state and unrelated text checked byte-for-byte.
+   against stock/edited/parked legacy copies, the shipped Dream passages and
+   the blocker-reminders and skill-update shims; the reconciled commands and
+   the replaced or forked periods then run against the installed wheel (and,
+   for Dream, a full local fork), with state and unrelated text checked
+   byte-for-byte.
 
 Ensure every executing checkout and interpreter has the corresponding reviewed
 repo/wheel pair before resuming sweeps. For rollback, stop affected sessions

@@ -16,14 +16,11 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "uninstall",
         "create",
         "launch",
-        "status",
-        "show",
         "bump",
         "block",
         "unblock",
         "owner",
         "delete",
-        "usage",
         "skill",
         "mark",
         "recurring",
@@ -63,6 +60,9 @@ ONBOARDING_TASK = "coga-build"
 # the script's argv. ``slack`` fronts the script command ticket
 # ``bootstrap/slack`` the same way, so ``--task``/``--message`` reach its script.
 DEFAULT_ALIASES: dict[str, str] = {
+    "usage": "launch --read-only bootstrap/usage --",
+    "status": "launch --read-only bootstrap/status --",
+    "show": "launch --read-only bootstrap/show --",
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
     "build": f"launch {ONBOARDING_TASK}",
@@ -74,6 +74,7 @@ DEFAULT_ALIASES: dict[str, str] = {
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",
     "address-pr-comments": "launch bootstrap/address-pr-comments",
     "retire": "launch bootstrap/retire --",
+    "promote-recurring": "launch bootstrap/recurring-promote --",
     "slack": "launch bootstrap/slack --",
 }
 

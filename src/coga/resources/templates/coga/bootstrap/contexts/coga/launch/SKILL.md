@@ -14,7 +14,7 @@ the attended path: a human typed it. Queue draining is `coga megalaunch`
 - A task by any unique prefix of its ref. A nested task is its path under
   `tasks/` (`marketing/coga-crm`), exactly as `coga status` prints it.
 - `bootstrap/<name>` — a stateless target: no lifecycle or chaining.
-  Its launch log line publishes immediately; sessions in one checkout still
+  An agent launch log line publishes immediately; sessions in one checkout still
   share its branch and files.
   `coga chat` is the default alias for `launch bootstrap/orient`.
 - A `recurring/<name>` period is gated first (control branch, owner,
@@ -29,6 +29,50 @@ stateful `ticket.py` target refuses them
 ([script tickets](../script-tickets/SKILL.md)). That topic also owns stateless
 script help without repo/user setup, separator handling, no agent fallback
 after a script disappears, and foreground interrupt delivery.
+
+## Read-only command dispatch
+
+`coga launch --read-only bootstrap/<name> [args...]` runs one deterministic
+bootstrap script against the invoking checkout, including dirty effective local
+definitions. An alias can select it (`inspect = "launch --read-only
+bootstrap/inspect"`, written on one TOML line). This mode needs neither a
+configured user nor an agent or TTY. It still requires valid existing repo
+configuration; it never initializes a repository.
+
+Only a bootstrap target with the exact `ticket.py` entry qualifies. Stateful
+and agent-only targets refuse with exit 2, as do combinations with `--agent`,
+`--prompt-report`, or REPL/internal launch options. A vanished entry refuses;
+there is no agent fallback. Arguments remain separate ordered argv elements;
+the child inherits stdin/stdout/stderr and runs from the host repository root.
+Stdout belongs to the script; Coga errors and alias framing use stderr.
+
+Coga performs no audit, notification, usage capture, skill-view refresh,
+checkout preparation/return, fetch, refresh, push probe, publication or CLI
+exit sweep, on success or refusal. Declared secrets still resolve before
+spawn, with the ordinary scoping/redaction and fresh script environment
+([script tickets](../script-tickets/SKILL.md#coga_task_-contract)); outer
+completion and assist authority are cleared. One subprocess's exit is the
+invocation's result, using the usual process-status convention; zero completes
+only this stateless invocation, and 75 also has no refresh or sweep.
+
+This is a cooperative procedure contract, not a Python sandbox: the selected
+reader must itself avoid writes, including nested lifecycle commands. A writer
+must use ordinary launch. A mixed read/write procedure chooses its invocation
+policy before execution, through separate explicit invocations or a thin
+argv-parsing adapter calling the same launch API. A read-only entry rejects
+write operands; a child cannot upgrade its dispatch policy. Ordinary launch
+remains the default and retains its publication and completion boundaries.
+The withheld publication is scoped to the read-only call itself: an in-process
+API caller gets its own sweep policy back when the call returns or refuses, so
+a writer command that reads this way still publishes at its exit.
+
+The shipped report aliases and the `recurring list` adapter use this same
+boundary; their owning command tickets define selection and presentation.
+Use `--` before script flags so `--help` reaches the report parser. Report
+help therefore describes the effective, possibly local, script and needs the
+same valid repo configuration: outside a repository, or with a broken
+`coga.toml`, `coga status --help` refuses with exit 2 like any other read
+(owner decision, 2026-11-16, accepted over a package-only help fallback).
 
 ## Checkout boundary
 
@@ -100,13 +144,18 @@ operator. An assist's attribution is owned by
 
 ## Agent preflight order
 
-Agent type and CLI lookup, a full prompt composition (a missing layer
-refuses), declared secrets, the native Windows command-line check (below),
-push auth (`git push --dry-run`; skipped for
+Agent type and CLI lookup, prompt-layer resolution (every context, skill,
+step, and resource the spawn will compose is resolved and read; a missing or
+unreadable layer refuses), declared secrets, the native Windows command-line
+check (below), push auth (`git push --dry-run`; skipped for
 bootstrap targets, `[git].enabled = false`, or no resolvable remote).
-Ordinary managed agent-only launches then plan checkout policy, reserve/create
-or validate the branch, and compose from the prospective final ticket and
-checkout notice. Source-ticket, policy, branch occupancy, ignored-path, and
+Resolution assembles no prompt: the first step composes exactly once, around
+the layers already read, from the ticket it actually starts on and its
+checkout notice, re-resolving only if that ticket selects different contexts,
+skills, or step. Ordinary managed agent-only launches compose after planning
+checkout policy and reserving/creating or validating the branch, from the
+prospective final ticket and checkout notice; other launches compose at
+spawn. Source-ticket, policy, branch occupancy, ignored-path, and
 stranded-ticket checks precede every startup write. Activation/start, linkage,
 and audit publish together; fetched control must confirm the ticket contract
 before checkout entry and execution. Compatible owner notes are recomposed;

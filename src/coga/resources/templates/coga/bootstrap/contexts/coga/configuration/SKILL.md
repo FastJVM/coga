@@ -26,7 +26,16 @@ Init declares the agents whose CLI it found on `PATH` and comments out the
 `[agents.*]` table of every other supported agent. So with one agent installed
 you need no config edit: that agent is the only declared type and therefore the
 default. To add another, install its CLI and uncomment its table in
-`coga/coga.toml`.
+`coga/coga.toml`. When init found no agent CLI it comments nothing out, so the
+file declares every supported agent and installing one needs no edit.
+
+Init disables a table by adding one `# ` only to its header and key lines. The
+packaged explanatory comments between and after those keys, including the
+`# analyze` and `# peer` examples, were already comments and stay as shipped.
+To re-enable the table, remove only that leading `# ` from the
+`[agents.<name>]` header and its key lines; stripping `# ` from the whole
+region turns prose into invalid TOML, which config load (and so
+`coga validate`) reports.
 
 In a repo that declares both, choose which one new tasks get with this
 top-level setting, placed before any `[table]` in `coga/coga.local.toml`:

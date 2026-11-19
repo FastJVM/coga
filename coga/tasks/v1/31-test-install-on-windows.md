@@ -382,14 +382,14 @@ Walk 1 step results:
   src/coga/commands/init.py:705. Result: pass; the message renders correctly
   in Windows Terminal, em dash included.
 
-Finding 6 (docs, minor; owner v1/33; open): the README's manual
+Finding 6 (docs, minor; owner fix-the-readme-windows-walk-findings-left-unowned, PR #1267; fixed pending Windows 11 re-walk): the README's manual
 `git var GIT_AUTHOR_IDENT` pre-check repeats `coga init`'s own fail-loud
 guard (S7a) and is easy to miss (S7). Suggest dropping it: a user who skips
 it gets a clear fix from init anyway. The README also says to set the
 identity "in this repo" (no `--global`), while init's message says
 `--global`; they should agree.
 
-Finding 7 (docs, moderate; owner v1/33; open): the README's "Change into your
+Finding 7 (docs, moderate; owner fix-the-readme-windows-walk-findings-left-unowned, PR #1267; fixed pending Windows 11 re-walk): the README's "Change into your
 project's Git repository" gives no way to create one for its "new, otherwise
 empty Git repo" path, and PowerShell opens in `C:\WINDOWS\system32` (finding
 4). A new user needs `mkdir <name>; cd <name>; git init` spelled out.
@@ -500,7 +500,7 @@ Watch item resolved: the `master` default is handled. Init pins
   `Recurring: 9 templates · 9 due` and one hidden done task. Result: pass.
   Onboarding reached done on native Windows 11 Home.
 
-Finding 10 (docs/env, moderate; owner v1/33; open): the README's
+Finding 10 (docs/env, moderate; owner fix-the-readme-windows-walk-findings-left-unowned, PR #1267; fixed pending Windows 11 re-walk): the README's
 `uv python install 3.11` gives the user no `python` command. uv installs a
 managed interpreter and exposes only a versioned shim, so `python` resolves
 to the WindowsApps Store stub found in the baseline. The agent's first

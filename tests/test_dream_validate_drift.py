@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from coga import dream_validate_drift as validate_drift
+from coga_edge import validate_drift
 
 VALIDATE_DRIFT = (
     Path(__file__).resolve().parents[1]
@@ -406,9 +406,7 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "coga.cli",
-            "run",
-            "validate-drift",
+            "coga_edge.validate_drift",
             "--cwd",
             str(tmp_path),
             "--no-fix",
@@ -432,7 +430,7 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
 def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
     """An inherited blackboard path outside `tasks/` falls back to stdout.
 
-    A recipe run from a stateless bootstrap session used to inherit that
+    A worker run from a stateless bootstrap session used to inherit that
     session's ticket path — a *packaged* resource under
     `src/coga/resources/templates/` — and append its run report to it, dirtying
     a file that ships in the wheel. `build_task_env` no longer hands a bootstrap
@@ -469,9 +467,7 @@ def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "coga.cli",
-            "run",
-            "validate-drift",
+            "coga_edge.validate_drift",
             "--cwd",
             str(tmp_path),
             "--no-fix",
@@ -492,12 +488,12 @@ def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
 def test_worker_refuses_blackboard_from_another_checkout(tmp_path: Path) -> None:
     """A blackboard in a *different* repo's `tasks/` tree falls back to stdout.
 
-    This is the shape a `pytest` run inside `coga launch` produces: the recipe
+    This is the shape a `pytest` run inside `coga launch` produces: the worker
     validates a fixture repo under `/tmp` while the inherited
     `COGA_TASK_BLACKBOARD` still points at the live outer ticket. That path sits
     inside a `tasks/` tree, so the tasks-tree check alone waves it through —
     which is how twenty-plus fixture reports reached live tickets. The report
-    belongs to the repo the recipe is operating on.
+    belongs to the repo the worker is operating on.
     """
     coga_os = _seed_repo(tmp_path)
     outer = tmp_path / "outer-repo" / "coga" / "tasks" / "live-ticket.md"
@@ -519,9 +515,7 @@ def test_worker_refuses_blackboard_from_another_checkout(tmp_path: Path) -> None
         [
             sys.executable,
             "-m",
-            "coga.cli",
-            "run",
-            "validate-drift",
+            "coga_edge.validate_drift",
             "--cwd",
             str(tmp_path),
             "--no-fix",
@@ -547,7 +541,7 @@ def test_worker_refuses_blackboard_when_target_root_is_unknown(
 ) -> None:
     """The reading-side guard fails closed for the original direct-test shape.
 
-    The leaking test drove the recipe in-process against a bare temp directory,
+    The leaking test drove the worker in-process against a bare temp directory,
     with the validator itself mocked. There is no `coga.toml` from which to
     discover the target checkout, so an inherited outer blackboard must be
     refused rather than escaping the containment check.
@@ -607,9 +601,7 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
         [
             sys.executable,
             "-m",
-            "coga.cli",
-            "run",
-            "validate-drift",
+            "coga_edge.validate_drift",
             "--cwd",
             str(tmp_path),
         ],
@@ -753,3 +745,24 @@ def test_commit_and_push_main_passes_configured_remote(
 
     assert result == 0
     assert captured["remote"] == "upstream"
+
+
+@pytest.mark.parametrize("broken", [False, True])
+def test_recipe_consumes_real_module_entry_with_fix_and_thresholds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, broken: bool,
+) -> None:
+    from coga_edge.validate_drift import run_validate_json
+    root = tmp_path / "coga"
+    _write(root / "coga.toml", 'version = 1\n[git]\nenabled = false\n[notification]\nchannels = []\n')
+    _write(root / "tasks" / "sample.md",
+           '---\ntitle: Sample\nstatus: ' + ('invalid' if broken else 'draft') + '\nowner: tester\nworkflow: null\n---\n\n## Description\nSample.\n')
+    monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src"))
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    payload, command = run_validate_json(cwd=root, idle_hours=48, max_blackboard_kb=12)
+    assert command == build_validate_command(idle_hours=48, max_blackboard_kb=12)
+    assert set(payload) == {"generated_at", "ok_count", "fixes", "issues"}
+    assert payload["fixes"][0]["kind"] == "blackboard-fence"
+    assert any(i["severity"] == "error" for i in payload["issues"]) == broken
+    _write(root / "coga.toml", 'version = 99\n')
+    with pytest.raises(RuntimeError, match="exit 2"):
+        run_validate_json(cwd=root)

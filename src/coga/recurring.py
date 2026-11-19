@@ -59,11 +59,7 @@ from coga.recurring_clone import (
     CloneLedgerEntry,
     read_clone_ledger,
 )
-from coga.taskfile import (
-    TaskFileError,
-    join_task_body,
-    split_body,
-)
+from coga.taskfile import TaskFileError
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -429,7 +425,7 @@ class Template:
             )
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
-        _validate_schedule(fm["schedule"], now or datetime.now())
+        validate_schedule(fm["schedule"], now or datetime.now())
         if not isinstance(fm.get("run_when_inactive", False), bool):
             raise RecurringError("`run_when_inactive` must be a bool")
         scope = fm.get("scope", SCOPE_REPO)
@@ -649,7 +645,7 @@ def read_job_selection(cfg: Config) -> dict[str, bool]:
         raise RecurringError(f"{path}: `jobs` must be a table of name = true/false")
     out: dict[str, bool] = {}
     for name, value in jobs.items():
-        if not _TEMPLATE_NAME_RE.match(name):
+        if not valid_template_name(name):
             raise RecurringError(
                 f"{path}: {name!r} is not a recurring job name (parked `_name` "
                 "directories are not selected through jobs.toml)"
@@ -704,7 +700,7 @@ def _job_names(cfg: Config, selection: Mapping[str, bool]) -> list[str]:
             if not child.is_dir():
                 continue
             name = child.name[1:] if child.name.startswith("_") else child.name
-            if name and _TEMPLATE_NAME_RE.match(name):
+            if name and valid_template_name(name):
                 names.add(name)
     packaged = packaged_recurring_dir()
     if packaged.is_dir():
@@ -1918,228 +1914,14 @@ def list_templates(
     return out
 
 
-# --- promote ------------------------------------------------------------------
-
-# A task's per-run fields, which a template must not carry. `status`/`step` are
-# run state the scanner and workflow own, and `period_generation` is the
-# creator's per-run discriminator. `agent:` is *not* here: a template's main-agent
-# choice is a real preference, so promotion keeps it and every period task
-# inherits it (see `_TEMPLATE_PASSTHROUGH`). `skills:` is dropped too, but
-# reported separately: it is deliberately never copied into a period task (see
-# the `coga/recurring/templates` context), so leaving it on the template would look
-# load-bearing while doing nothing.
-_TASK_ONLY_FIELDS = (
-    "status",
-    "step",
-    "period_generation",
-)
-
-# What a template passes through to each period task, in render order. Mirrors
-# the fields `_create_at_slug` reads back off the template.
-_TEMPLATE_PASSTHROUGH = (
-    "title",
-    "workflow",
-    "owner",
-    "agent",
-    "contexts",
-    "secrets",
-)
-
-# A live run's step/blocker state has nowhere to go in a template, and dropping
-# it silently would abandon an in-flight handoff. Refuse instead and let the
-# human land the run first.
-_PROMOTE_REFUSED_STATUSES = ("in_progress", "blocked")
-
 # One `coga/recurring/` directory component — the same slug-ish shape a task
 # directory has. The template name becomes both the directory and the period
 # task's `recurring/<name>` slug, so it must not need escaping.
 _TEMPLATE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-_PROMOTED_BLACKBOARD = "\nThe cross-run state for this recurring task goes here.\n"
-
-
-@dataclass
-class PromoteOutcome:
-    """Result of promoting one task into a recurring template."""
-
-    name: str
-    path: Path  # the new `coga/recurring/<name>/` directory
-    source_slug: str
-    source_path: Path
-    dropped_skills: list[str]
-    dropped_blackboard: bool
-
-
-def promote_task(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    schedule: str,
-    name: str | None = None,
-    now: datetime | None = None,
-) -> PromoteOutcome:
-    """Move a task out of `tasks/` and into `recurring/<name>/` as a template.
-
-    The authoring path for "this ticket should run every period": it does the
-    task→template frontmatter transform, stamps the validated `schedule:`, and
-    resets the blackboard to cross-run state (task scratch is one-run state and
-    must not masquerade as a recurring cursor).
-
-    Order is deliberate — the cron is validated and the destination checked
-    *before* anything moves, and the written template is re-loaded through
-    `Template.load` before the source task is removed. A bad schedule, an
-    occupied name, or a template that fails to load leaves the source ticket
-    untouched.
-    """
-    now = now or datetime.now()
-    _validate_schedule(schedule, now)
-
-    ticket = read_ticket(ref)
-    if ticket.status in _PROMOTE_REFUSED_STATUSES:
-        raise RecurringError(
-            f"{ref.id_slug} is {ticket.status!r} — a template cannot hold a live "
-            f"run's step or blocker. Land the run first (`coga mark done "
-            f"{ref.id_slug}`, or `coga unblock`), then promote."
-        )
-
-    template_name = name or ref.slug
-    if not _TEMPLATE_NAME_RE.match(template_name):
-        raise RecurringError(
-            f"invalid recurring template name {template_name!r} — it is a single "
-            "directory name under `coga/recurring/` (letters, digits, `.`, `_`, "
-            "`-`; no slashes, and `_` is reserved for parked templates). Pass "
-            "`--name`."
-        )
-    dest = recurring_dir(cfg) / template_name
-    if dest.exists():
-        raise RecurringError(
-            f"`coga/recurring/{template_name}/` already exists — refusing to "
-            f"overwrite it. Pass `--name` to pick another template name, or "
-            f"remove the existing template first."
-        )
-
-    frontmatter, dropped_skills = _template_frontmatter(ticket, schedule)
-    _validate_promoted_workflow(cfg, frontmatter)
-    above, blackboard = split_body(ticket.body, blackboard_required=False)
-
-    dest.mkdir(parents=True)
-    try:
-        # Directory-form attachments travel with the ticket — the promote is a
-        # move, not a rewrite. The state snapshot is the one exception: it is a
-        # period task's create-time baseline, not template state.
-        if not ref.file_form:
-            for sibling in sorted(ref.path.iterdir()):
-                if sibling.name in ("ticket.md", ".state-snapshot.json"):
-                    continue
-                sibling_dest = dest / sibling.name
-                if sibling.is_symlink():
-                    sibling_dest.symlink_to(
-                        sibling.readlink(),
-                        target_is_directory=sibling.is_dir(),
-                    )
-                elif sibling.is_dir():
-                    shutil.copytree(sibling, sibling_dest, symlinks=True)
-                else:
-                    shutil.copy2(sibling, sibling_dest)
-        ticket_path = dest / "ticket.md"
-        ticket_path.write_text(
-            _render_template_text(frontmatter, join_task_body(above, _PROMOTED_BLACKBOARD)),
-            encoding="utf-8", newline="\n",
-        )
-        Template.load(dest, now=now)
-    except (RecurringError, OSError):
-        shutil.rmtree(dest, ignore_errors=True)
-        raise
-
-    try:
-        run_delete_task(cfg, ref)
-    except DeleteTaskError as exc:
-        raise RecurringError(
-            f"could not remove promoted task {ref.id_slug}: {exc}"
-        ) from exc
-
-    append_log(
-        cfg,
-        ref.id_slug,
-        "human",
-        f"promoted to recurring template `recurring/{template_name}` "
-        f"(schedule {schedule})",
-    )
-
-    return PromoteOutcome(
-        name=template_name,
-        path=dest,
-        source_slug=ref.id_slug,
-        source_path=ref.path,
-        dropped_skills=dropped_skills,
-        dropped_blackboard=bool((blackboard or "").strip()),
-    )
-
-
-def _template_frontmatter(
-    ticket: Ticket, schedule: str
-) -> tuple[dict[str, Any], list[str]]:
-    """Transform task frontmatter into template frontmatter.
-
-    Returns the new mapping (schedule first, then the documented passthrough
-    fields, then any repo extension fields) and the dropped `skills:` refs.
-    """
-    fm: dict[str, Any] = {"schedule": schedule}
-    for key in _TEMPLATE_PASSTHROUGH:
-        if key not in ticket.frontmatter:
-            continue
-        value = ticket.frontmatter[key]
-        if key == "workflow":
-            # A launched task carries the frozen workflow snapshot; a template
-            # names the workflow and lets the creator freeze it per period. An
-            # absent workflow stays absent — the creator defaults to
-            # `direct/body`.
-            value = value.get("name") if isinstance(value, dict) else value
-        if key == "contexts" and isinstance(value, list):
-            # The creator auto-attaches `coga/period-task` to every period task;
-            # a promoted former period task would otherwise carry it twice over.
-            value = [c for c in value if c != "coga/period-task"]
-        if value in (None, [], {}):
-            continue
-        fm[key] = value
-
-    dropped_skills = [str(s) for s in (ticket.frontmatter.get("skills") or [])]
-    handled = set(_TEMPLATE_PASSTHROUGH) | set(_TASK_ONLY_FIELDS) | {"skills"}
-    for key, value in ticket.frontmatter.items():
-        if key in handled or key in fm:
-            continue
-        fm[key] = value
-    return fm, dropped_skills
-
-
-def _render_template_text(frontmatter: dict[str, Any], body: str) -> str:
-    """Render a template `ticket.md`. Deliberately not `Ticket.render`, which
-    would push `schedule:` — not a canonical *task* key — below the extension
-    marker."""
-    fm_text = yaml.safe_dump(
-        frontmatter,
-        sort_keys=False,
-        allow_unicode=True,
-        default_flow_style=False,
-    ).rstrip()
-    return f"---\n{fm_text}\n---\n\n{body.lstrip(chr(10))}"
-
-
-def _validate_promoted_workflow(
-    cfg: Config, frontmatter: dict[str, Any]
-) -> None:
-    """Ensure the transformed template can resolve its per-period workflow."""
-    workflow_name = frontmatter.get("workflow") or "direct/body"
-    if not isinstance(workflow_name, str):
-        raise RecurringError(
-            "promoted template `workflow:` must be a workflow name"
-        )
-    try:
-        Workflow.load(resolve_workflow_path(cfg, workflow_name))
-    except WorkflowError as exc:
-        raise RecurringError(
-            f"cannot promote task with workflow {workflow_name!r}: {exc}"
-        ) from exc
+def valid_template_name(name: str) -> bool:
+    """Whether a name fits one recurring template directory component."""
+    return _TEMPLATE_NAME_RE.fullmatch(name) is not None
 
 
 def _create_at_slug(
@@ -2334,7 +2116,7 @@ def _last_firing(cron: str, now: datetime) -> datetime:
     return it.get_prev(datetime)
 
 
-def _validate_schedule(schedule: Any, now: datetime) -> None:
+def validate_schedule(schedule: Any, now: datetime) -> None:
     if not isinstance(schedule, str) or not schedule.strip():
         raise RecurringError("`schedule` must be a non-empty cron expression")
     field_count = len(schedule.split())
@@ -2362,6 +2144,30 @@ def _next_firing(cron: str, now: datetime) -> datetime:
 
 def _period_key(cron: str, fire_time: datetime) -> str:
     """Heuristic bucket for a cron schedule's firing."""
+    key = _period_bucket(cron, fire_time)
+    if key in (fire_time.strftime("%Y-%m-%d-%H"), fire_time.strftime("%Y%m%dT%H%M")):
+        return key
+    # A month/week/day bucket is only safe when the schedule fires at most
+    # once in it: `0 9 * * 1-5` fires five times per ISO week, and bucketing
+    # by week made Tuesday..Friday look already serviced. When a neighbouring
+    # firing shares the bucket, step down to the day, then the hour (never
+    # finer, so sub-hourly schedules keep their once-an-hour key).
+    from croniter import croniter
+
+    near = (
+        croniter(cron, fire_time).get_prev(datetime),
+        croniter(cron, fire_time).get_next(datetime),
+    )
+    if all(_period_bucket(cron, t) != key for t in near):
+        return key
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d-%H"):
+        key = fire_time.strftime(fmt)
+        if all(t.strftime(fmt) != key for t in near):
+            break
+    return key
+
+
+def _period_bucket(cron: str, fire_time: datetime) -> str:
     parts = cron.split()
     if len(parts) != 5:
         return fire_time.strftime("%Y%m%dT%H%M")
@@ -2644,7 +2450,7 @@ def _read_inactivity_fields(path: Path, now: datetime) -> tuple[bool, datetime |
     if not isinstance(exempt, bool):
         raise RecurringError("`run_when_inactive` must be a bool")
     try:
-        _validate_schedule(fm.get("schedule"), now)
+        validate_schedule(fm.get("schedule"), now)
     except RecurringError:
         return exempt, None
     return exempt, _last_firing(fm["schedule"], now)
@@ -2762,8 +2568,8 @@ __all__ = [
     "PAUSE_SWEEP",
     "PAUSE_WATCHDOG",
     "SWEEP_ACTOR",
-    "PromoteOutcome",
-    "promote_task",
+    "valid_template_name",
+    "validate_schedule",
     "serviced_periods",
     "read_serviced_ledger",
     "parse_serviced_period_entries",

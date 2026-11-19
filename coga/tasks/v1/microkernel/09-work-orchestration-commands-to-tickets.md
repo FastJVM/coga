@@ -50,7 +50,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 5 (peer-review)
+step: 7 (review)
 ---
 
 ## Description
@@ -635,6 +635,7 @@ Python 3.11 was not used; native Windows/macOS checks remain deferred to release
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1244
 branch: coga/v1-microkernel-09-work-orchestration-commands-to-b46008
 
 
@@ -1109,6 +1110,51 @@ also exited 0: 101 valid tickets, 21 warnings, zero errors (report at
 `/tmp/coga-orchestration-implement-validate.json`).
 
 
+## Peer review
+
+Reviewer: Claude (Opus 5.5), configured peer, attended session; the implement
+step was Codex, so this is independent review. Form: `/code-review` at
+default effort (not ultra) against `main...HEAD`. It **returned** (completed)
+before any fix. Covered head `5dffad16daf93815ede0acd78c68f197e250d05a`
+(the implement commit rebased unchanged onto base
+`657d6f5d65dd66e06800d86943a45660258552a4`; main had only gained Coga state
+commits). Each finding was checked against the code before action; the owner
+approved the fix scope in session.
+
+Applied in `d68562ea8174d9825c550e1d28025a2ccd334381` (must-fix):
+
+1. `cli.main(retained_state_exit=True)` mapped any withheld sweep to 75, so a
+   pre-write refusal (unrepresentable agent command, `AgentCommandRefused`)
+   aborted the whole queue. Now only `authoring.authored_state_retained`, set
+   by the refused guarded finalization, maps to 75.
+2. The adapter's public `coga ticket <slug>` scaffolded a new draft when a
+   picked ref no longer resolved. The Python-only `existing_target_only` seam
+   now refuses with exit 2; the queue leaves it to the check phase.
+3. Setup-free script help raised an uncaught `TaskNotFoundError` or
+   `BootstrapOverrideError` (a traceback). It now returns to ordinary launch,
+   which reports it as before.
+4. Claimed-session activation refusals all became `failed` rows. The
+   `activation_error` is now returned and classified through the edge's
+   `_activation_refusal`, restoring `skipped-unlaunchable` per `coga/megalaunch`.
+
+Cleanups: a named queue-owned `QUEUE_IDLE_TIMEOUT_SECONDS` (the reviewer
+suggested sharing recurring's constant, but the approved design gives each
+caller its own default); the orphaned `PREPARE_ACTIVE_ERRORS` comment moved
+beside its definition in `mark.py`.
+
+Declined: help-mode cwd duplicating `host_repo_root` (help must work with no
+loadable config); the `launch.run_claimed_agent_session` wrapper (spelling
+approved in this ticket); unused `ClaimedSessionResult.released`/`retained`
+fields (nit; leave for sibling 03's readiness consolidation).
+
+Each new regression test failed with the source fixes stashed and passed with
+them. No terminal-only surface changed in the fixes; the picker was not
+modified by this step. Its raw-mode behavior stays covered by the existing
+mocks, and native evidence is deferred to release. The fix commit was not
+re-reviewed by another agent; receipts in `## PR` name which head each covers.
+Full suite at `d68562ea8`: 4,945 passed, 33 skipped. Branch pushed with
+`--force-with-lease` after the rebase.
+
 ## PR
 
 ```yaml
@@ -1116,46 +1162,54 @@ also exited 0: 101 valid tickets, 21 warnings, zero errors (report at
 "author": "codex"
 "author_evidence": "Actual implement session used Codex; launch c50c7e56-efd4-418e-a79f-70ea1f95594b.\
   \ Owner confirmed the initial plan and three dependency decisions in attended chat."
-"head": "1a0b12c53586ac3945c679f03a491ea7efb29eb7"
-"base": "f661ea965df0679ebbcc7397369138b7d6fbb30e"
+"head": "d68562ea8174d9825c550e1d28025a2ccd334381"
+"base": "657d6f5d65dd66e06800d86943a45660258552a4"
 "depth": "deep"
 "rationale": "This moves a large queue surface across a process boundary and preserves concurrent claim/release/admission\
-  \ invariants. Independent review belongs to a later workflow step and has not run."
+  \ invariants. Independent peer review ran and its must-fix findings were applied; reviewers should still\
+  \ read the claim transaction and the authoring adapter seams closely."
 "implementation": "Complete edge queue/picker with direct launch aliases; bounded core claim transaction;\
   \ shared re-block and session-limit operations; generic setup-free help, no fallback after vanished\
-  \ scripts and interrupt-safe foreground waits. Authoring uses the public CLI with retained-state mapping."
+  \ scripts and interrupt-safe foreground waits. Authoring uses the public CLI with retained-state mapping.\
+  \ Peer review added two Python-only authoring-adapter seams (retained finalization only maps to 75;\
+  \ a vanished pick is refused, not created), setup-free help falling through on unknown or broken bootstrap\
+  \ targets, and activation-refusal classification carried to the edge."
 "deviations": "Sibling 03 remains unmerged, so readiness stays in the claim transaction. Sibling 05 discovery\
   \ is unavailable; the approved manual full-copy fallback is tested. Owner approved the public authoring\
   \ adapter and one-line repo alias migration."
 "limitations": "Linux Python 3.12 verification only; native Windows/macOS checks are deferred to release\
-  \ and Python 3.11 floor evidence is absent. No real agent session was launched during tests. Net physical\
-  \ production growth is 189 lines; this is an ownership extraction plus generic launch behavior, not\
-  \ a whole-system size reduction."
+  \ and Python 3.11 floor evidence is absent. No real agent session was launched during tests. The independent\
+  \ review covered the pre-fix head; the peer-review fixes were verified by regression tests and the full\
+  \ suite but not re-reviewed by another agent. Net physical production growth was 189 lines before the\
+  \ review fixes (the fixes add about 60); this is an ownership extraction plus generic launch behavior,\
+  \ not a whole-system size reduction."
 "files":
   "coga/coga.toml": "Apply the owner-approved one-line pick alias migration in this repository."
   "docs/contexts/coga-dev/codebase/SKILL.md": "Update the source map for edge policy and shared claim,\
     \ session-limit and foreground-wait modules."
   "docs/contexts/coga-dev/microkernel/SKILL.md": "Settle queue placement and document the bounded claim/authoring/Slack\
-    \ co-versioning proofs and sibling ownership."
+    \ co-versioning proofs and sibling ownership. Records the two authoring-adapter seams."
   "src/coga/aliases.py": "Replace the megalaunch built-in and pick target with direct launch aliases;\
     \ explain migration of user aliases."
   "src/coga/argv.py": "Share exact separator-aware help recognition between dispatch and publication."
-  "src/coga/authoring.py": "Invoke the public ticket CLI with selected agent, isolated identity and retained-state\
-    \ exit mapping."
+  "src/coga/authoring.py": "Invoke the public ticket CLI with selected agent, isolated identity, retained-finalization\
+    \ exit mapping and existing-target-only seams."
   "src/coga/claimed_session.py": "Own exact activation and claim transactions, readiness, held-child release/admission\
-    \ and guarded rollback."
-  "src/coga/cli.py": "Remove the queue head; preserve help exclusions and expose Python-only retained-state\
-    \ mapping before context reset."
+    \ and guarded rollback. Return refused activation errors for caller classification."
+  "src/coga/cli.py": "Remove the queue head; preserve help exclusions and expose Python-only retained-finalization\
+    \ mapping and existing-target-only seams before context reset."
   "src/coga/commands/megalaunch.py": "Delete the old built-in queue/picker command head."
-  "src/coga/commands/ticket.py": "Consume the renamed public TTY predicate."
+  "src/coga/commands/ticket.py": "Consume the renamed public TTY predicate; mark retained finalization\
+    \ and refuse creation under the queue adapter's existing-target-only seam."
   "src/coga/config.py": "Point shared limit resolution commentary at its new owner."
   "src/coga/launch.py": "Expose the bounded claimed-session operation, public TTY predicate, early script\
     \ help and shared re-block result adapter."
   "src/coga/launch_script.py": "Add stateless no-fallback, help isolation, foreground relay and exact\
-    \ exit propagation."
+    \ exit propagation. Unknown or broken bootstrap help falls through to ordinary reporting."
   "src/coga/mark.py": "Own the shared unresolved-resume operation, typed outcomes and activation refusal\
-    \ tuple."
-  "src/coga/megalaunch.py": "Remove the former core queue-policy import path."
+    \ tuple. Documents the prepare-half refusal tuple."
+  "src/coga/megalaunch.py": "Old side of the rename into src/coga_edge/megalaunch.py; removes the former\
+    \ core queue-policy import path."
   "src/coga/process_relay.py": "Share interrupt-safe foreground waiting and one-shot SIGTERM forwarding\
     \ with recurring."
   "src/coga/recurring_runner.py": "Migrate existing relay and limit-parser consumers while preserving\
@@ -1176,9 +1230,9 @@ also exited 0: 101 valid tickets, 21 warnings, zero errors (report at
   "src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md": "Update\
     \ this contract owner for editable queue dispatch, script help/interrupts, full forks or publication/authoring\
     \ boundaries."
-  "src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md": "Update this\
-    \ contract owner for editable queue dispatch, script help/interrupts, full forks or publication/authoring\
-    \ boundaries."
+  "src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md": "Specify the\
+    \ queue authoring adapter: retained finalization maps to 75, pre-write refusals continue, vanished\
+    \ picks are refused."
   "src/coga/resources/templates/coga/bootstrap/megalaunch/ticket.md": "Ship the editable stateless command\
     \ definition and links to its contract owners."
   "src/coga/resources/templates/coga/bootstrap/megalaunch/ticket.py": "Select the complete installed edge\
@@ -1192,17 +1246,19 @@ also exited 0: 101 valid tickets, 21 warnings, zero errors (report at
     \ defaults."
   "src/coga/task_env.py": "Clear inherited script-help identity with all other launch-owned task metadata."
   "src/coga_edge/megalaunch.py": "Provide the complete independently copyable queue policy, parser and\
-    \ picker; consume shared core operations."
+    \ picker; consume shared core operations. Classify claimed activation refusals as before; queue-owned\
+    \ idle default."
   "tests/fixtures/authoring_cancellation.py": "Migrate existing fixtures and mocks to the public TTY predicate;\
     \ preserve the existing behavior assertions."
   "tests/required_package_resources.txt": "Pin both new bootstrap command resource owners."
   "tests/test_aliases.py": "Test direct aliases, old-target migration errors and separator-consistent\
     \ sweep recognition."
-  "tests/test_authoring.py": "Exercise the approved public invocation adapter, identity isolation, real\
-    \ CLI dispatch and sweep boundary."
+  "tests/test_authoring.py": "Exercise the public invocation adapter, identity isolation, real CLI dispatch\
+    \ with pre-write and finalization refusals, and refusal of a vanished pick without creating a draft."
   "tests/test_checkouts.py": "Migrate existing fixtures and mocks to the public TTY predicate; preserve\
     \ the existing behavior assertions."
-  "tests/test_cli.py": "Update pick expansion and test retained-state mapping before context cleanup."
+  "tests/test_cli.py": "Update pick expansion and test that only retained authoring finalization maps\
+    \ to 75."
   "tests/test_create.py": "Migrate existing fixtures and mocks to the public TTY predicate; preserve the\
     \ existing behavior assertions."
   "tests/test_git.py": "Migrate existing fixtures and mocks to the public TTY predicate; preserve the\
@@ -1212,9 +1268,9 @@ also exited 0: 101 valid tickets, 21 warnings, zero errors (report at
   "tests/test_launch_restart.py": "Migrate existing fixtures and mocks to the public TTY predicate; preserve\
     \ the existing behavior assertions."
   "tests/test_launch_script.py": "Cover generic help, argv/cwd/streams/status, no-fallback and real alias\
-    \ interrupt/claim retention, plus public TTY seams."
+    \ interrupt/claim retention, plus public TTY seams. Unknown bootstrap help reports without a traceback."
   "tests/test_megalaunch.py": "Migrate policy/transaction seams and preserve queue coverage; add guarded\
-    \ rollback, routing, identity and authoring-exit regressions."
+    \ rollback, routing, identity and authoring-exit regressions. Claimed activation refusal keeps skipped-unlaunchable."
   "tests/test_packaging.py": "Test isolated installed command execution, a complete local fork, wheel\
     \ reinstall and stock-shim restoration."
   "tests/test_period_state.py": "Migrate existing fixtures and mocks to the public TTY predicate; preserve\
@@ -1224,41 +1280,45 @@ also exited 0: 101 valid tickets, 21 warnings, zero errors (report at
   "tests/test_ticket.py": "Migrate existing fixtures and mocks to the public TTY predicate; preserve the\
     \ existing behavior assertions."
 "review":
-  "reviewer": "none"
-  "kind": "none"
-  "status": "not-run"
-  "detail": "Independent code review is the next workflow responsibility; design approval is not a code\
-    \ review."
-"checks":
-- "command": "TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest --basetemp=/home/n/Code/coga-pytest-orchestration-implement-20261116\
-    \ > /tmp/coga-orchestration-implement-pytest.log 2>&1"
+  "reviewer": "claude"
+  "kind": "independent"
   "status": "passed"
-  "head": "1a0b12c53586ac3945c679f03a491ea7efb29eb7"
-  "base": "f661ea965df0679ebbcc7397369138b7d6fbb30e"
-  "detail": "4940 passed, 33 skipped, 0 failed in 840.51 seconds; exit 0. Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic,\
+  "head": "5dffad16daf93815ede0acd78c68f197e250d05a"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "Claude /code-review (default effort) of main...HEAD returned 9 findings on a Codex-authored\
+    \ diff. Four must-fix findings were applied in d68562ea8 with failing-then-passing regression tests;\
+    \ two cleanups applied; three declined with reasons under Peer review. The fix commit itself was not\
+    \ re-reviewed."
+"checks":
+- "command": "TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/coga-pytest-orchestration-peer-review-fixes-20261116"
+  "status": "passed"
+  "head": "d68562ea8174d9825c550e1d28025a2ccd334381"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "4945 passed, 33 skipped, 0 failed in 788.41s; exit 0. Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic,\
     \ Python 3.12.12."
+- "command": "TERM=dumb PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/coga-pytest-orchestration-peer-review-20261116"
+  "status": "passed"
+  "head": "5dffad16daf93815ede0acd78c68f197e250d05a"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "Pre-fix rebased head; 4940 passed, 33 skipped, 0 failed in 796.47s; exit 0. Same platform\
+    \ and interpreter."
 - "command": "PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/09-work-orchestration-commands-to-tickets\
     \ --json"
   "status": "passed"
-  "head": "1a0b12c53586ac3945c679f03a491ea7efb29eb7"
-  "base": "f661ea965df0679ebbcc7397369138b7d6fbb30e"
+  "head": "d68562ea8174d9825c550e1d28025a2ccd334381"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
   "detail": "One ticket valid; zero issues; exit 0."
 - "command": "cd tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src\
     \ /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json"
   "status": "passed"
-  "head": "1a0b12c53586ac3945c679f03a491ea7efb29eb7"
-  "base": "f661ea965df0679ebbcc7397369138b7d6fbb30e"
+  "head": "d68562ea8174d9825c550e1d28025a2ccd334381"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
   "detail": "Five tickets valid; zero issues; exit 0."
-- "command": "PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json"
-  "status": "passed"
-  "head": "1a0b12c53586ac3945c679f03a491ea7efb29eb7"
-  "base": "f661ea965df0679ebbcc7397369138b7d6fbb30e"
-  "detail": "101 valid tickets; 21 warnings; zero errors; exit 0. Warnings are retained in /tmp/coga-orchestration-implement-validate.json."
 - "command": "git diff --check"
   "status": "passed"
-  "head": "1a0b12c53586ac3945c679f03a491ea7efb29eb7"
-  "base": "f661ea965df0679ebbcc7397369138b7d6fbb30e"
-  "detail": "No whitespace errors; exit 0."
+  "head": "d68562ea8174d9825c550e1d28025a2ccd334381"
+  "base": "657d6f5d65dd66e06800d86943a45660258552a4"
+  "detail": "No whitespace errors before the fix commit; exit 0."
 - "command": "Native Windows and macOS full suites"
   "status": "not-run"
   "detail": "Deferred to release under coga-dev/testing; no native hosts were allocated."
@@ -1290,3 +1350,8 @@ and Python 3.11 floor evidence is not claimed.
 
 All requested implementation work and handoff preparation are complete. The
 next command is the one workflow bump, after which this session stops.
+
+
+## Open-PR handoff — 2026-11-16
+
+Ran `coga open-pr v1/microkernel/09-work-orchestration-commands-to-tickets` from clean control; exit 0. PR https://github.com/FastJVM/coga/pull/1244 is open, ready for review, targets main, and holds exact tested head `d68562ea8174d9825c550e1d28025a2ccd334381`. The command recorded `pr:` under Dev and published it. Required peer review returned and its must-fix findings were applied; no review remains in flight. All acceptance items are checked; deferred work has named sibling owners (03/05/08 and the draft Slack ticket), with native/floor verification left to the established release procedure. No new code or test changes were made and no new suite receipt is claimed. Fresh fetch before handoff confirmed only safe generated ticket/log drift from the feature branch; the publication command accepted that drift. Owner review is next; launch owns checkout settlement.
