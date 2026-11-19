@@ -4416,3 +4416,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 01:40 v1 [maintain-ticket-blackboards] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-11-19 01:41 v1 [maintain-ticket-blackboards] [megalaunch] launched via coga megalaunch
 2026-11-19 01:41 v1 [_v2/stop-dream-double-reporting-large-blackboards] [human:nicktoper] created (status=draft)
+2026-11-19 01:42 v1 [maintain-ticket-blackboards] [agent:claude] advanced to step 4 (review) → nicktoper — PR #1271 open; self-review only, no independent review yet. Follow-up parked: _v2/stop-dream-double-reporting-large-blackboards
