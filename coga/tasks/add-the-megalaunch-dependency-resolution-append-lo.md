@@ -28,9 +28,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 6a5b6580-efa8-4480-b5e7-7522c565de4b
 ---
 
 ## Description
@@ -151,6 +150,57 @@ ordinary ticket.
 ## Dev
 
 branch: coga/add-the-megalaunch-dependency-resolution-append-lo
+
+## Handoff (implement, 2026-11-18)
+
+- Changed `docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md`: count 32 -> 33 and a new `coga/megalaunch.py::_publish_partial_dependency_resolution` (1) row placed after the launch-audit row. Row text was verified against the source: the append runs under `git.state_lock` after `update_blackboard_under_barrier`; the strict `git.sync_task_state(..., expect={ticket: source_bytes}, strict=True)` follows. `UncertainPublishError` retains state. A refusal calls `_restore_ticket_bytes`, which also retracts the log line via `retract_log_lines`, only when the local ticket still equals the written bytes; otherwise state is retained.
+- Recount: `grep -rn "append_log(" src/ | grep -v "def append_log"` gives 33, and the table's per-row counts sum to 33.
+- Overlap: PRs #1247 and #1248 are still OPEN. Neither touches the count line or the launch-audit row, so the hunks are disjoint. #1247 adds a `coga/commands/mark.py::_finish_stateless_command` (1) row without bumping the count; whichever lands second must recount. Per the ticket route, open-pr should check their state; this PR does not need to wait for them to merge cleanly.
+- Not run: `coga validate --json`, because no validation behavior changed (docs-only).
+
+## PR
+
+```yaml
+title: Add megalaunch dependency-resolution writer to the log-writers inventory
+author: claude
+author_evidence: >-
+  Implement step ran in a Claude Code session (Opus 5.5) under coga megalaunch.
+head: 3153f808224ee699e5e78266d084295aebc1dd76
+base: 3393c84b1656a375a5af275baf13dba9b69ab2b4
+depth: skim
+rationale: >-
+  One-row documentation fix to a local coga-dev inventory plus its count; no
+  code or shipped resources change.
+implementation: >-
+  Adds a row for coga/megalaunch.py::_publish_partial_dependency_resolution
+  (strict task-plus-log publication; refused write restored with its log line
+  retracted, uncertain or locally changed state retained) and updates the
+  direct call-site count from 32 to 33.
+deviations: None.
+limitations: >-
+  Open PRs #1247 and #1248 edit other rows of the same table; #1247 adds a row
+  without updating the count, so whichever merges second needs a recount.
+files:
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: >-
+    Add the missing megalaunch append_log writer row and update the count to 33.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Code review has not run yet; the peer-review step follows implement.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 3153f808224ee699e5e78266d084295aebc1dd76
+    base: 3393c84b1656a375a5af275baf13dba9b69ab2b4
+    detail: 5004 passed, 33 skipped in 803s.
+  - command: grep -rn "append_log(" src/ | grep -v "def append_log" | wc -l
+    status: passed
+    head: 3153f808224ee699e5e78266d084295aebc1dd76
+    base: 3393c84b1656a375a5af275baf13dba9b69ab2b4
+    detail: 33 call sites, matching the new count and the table row sum.
+```
 
 ## Plan
 

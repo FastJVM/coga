@@ -4305,3 +4305,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-18 18:45 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-18 18:45 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-18 18:45 v1 [add-the-megalaunch-dependency-resolution-append-lo] [megalaunch] launched via coga megalaunch
+2026-11-18 19:10 v1 [add-the-megalaunch-dependency-resolution-append-lo] [agent:claude] advanced to step 2 (peer-review) → codex
