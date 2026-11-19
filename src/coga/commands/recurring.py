@@ -166,8 +166,8 @@ def list_recurring(ctx: typer.Context) -> None:
             fg=typer.colors.RED, err=True,
         )
         raise typer.Exit(2)
-    policy_token = git.state_sweep_withheld.set(False)
     try:
+        # The read-only launch API restores this command's sweep policy itself.
         result = launch_target(
             "bootstrap/recurring-list", args=list(ctx.args), read_only=True,
         )
@@ -175,8 +175,4 @@ def list_recurring(ctx: typer.Context) -> None:
         if exc.reason:
             typer.secho(exc.reason, fg=typer.colors.RED, err=True)
         raise typer.Exit(process_exit_status(exc.code)) from exc
-    finally:
-        # Read dispatch does not retain a failed writer transaction. Restore
-        # the caller policy; recurring list already has no exit sweep.
-        git.state_sweep_withheld.reset(policy_token)
     raise typer.Exit(process_exit_status(result.exit_code or 0))

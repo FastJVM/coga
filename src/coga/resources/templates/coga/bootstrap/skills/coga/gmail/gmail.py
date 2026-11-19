@@ -6,7 +6,7 @@ parsed message, and **download attachment bytes** — without a per-host binary.
 Other skills shell to this script (the Gmail analogue of shelling to `gcal.py`
 or `coga slack`):
 
-    python <coga>/skills/coga/gmail/gmail.py search \
+    python /resolved/coga/gmail/gmail.py search \
         --query 'from:uspto.gov has:attachment newer_than:12m' --max 50
     python .../gmail.py get --message-id <id>
     python .../gmail.py download --message-id <id> --attachment-id <id> \
@@ -84,8 +84,8 @@ def _coga_os_root() -> Path:
 def resolve_gmail_config() -> dict[str, str]:
     """Read and validate the `[gmail]` block from coga.local.toml.
 
-    Each value supports `env:VAR` indirection (same convention as coga's
-    `[secrets]`). Bails with a clear setup message when unset or incomplete.
+    A value of the form `env:VAR` is read from the process environment.
+    Bails with a clear setup message when unset or incomplete.
     """
     local = _coga_os_root() / "coga.local.toml"
     section: Any = None

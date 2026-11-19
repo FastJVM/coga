@@ -30,8 +30,10 @@ It then classifies every validator issue into one of three buckets:
   committed and pushed only from a non-main repair branch when
   `--commit-and-push` is passed manually
 - Action: `direct-fix`
-- Idempotency: `coga validate --fix` only creates missing standard files and
-  leaves existing files unchanged, so reruns converge on the same repo state
+- Idempotency: `coga validate --fix` creates no files; it appends a
+  blackboard fence + region only to a `ticket.md` that has none and skips any
+  `ticket.md` that already has a fence, so reruns converge on the same repo
+  state
 - Stop and ask: invalid validator JSON, validator process failure, unsafe push
   branch, lifecycle changes, unknown ownership, or secret access
 - Output: append `## Dream Skill: validate-drift` to the Dream run blackboard

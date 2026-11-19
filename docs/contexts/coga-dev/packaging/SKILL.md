@@ -91,7 +91,7 @@ holds local Coga-dev knowledge. There are no forwarding files or symlink mirrors
 - `STATE_CARRIER_COUNTERPARTS` explains saved recurring parent blackboards.
   `inspect_parent_dir` requires the exact carrier shape and rejects leftover
   definition siblings. `LAZY_STATE_CARRIER_COUNTERPARTS` names the adopted
-  trim-log parent, which may be absent until its first admitted run creates
+  trim-log and blackboard-size parents, which may be absent until its first admitted run creates
   state; any present copy still requires the exact carrier shape. Arbitrary
   blackboard notes remain state even without declared `state_keys`;
   phone-home's complete cursor is independently parsed.

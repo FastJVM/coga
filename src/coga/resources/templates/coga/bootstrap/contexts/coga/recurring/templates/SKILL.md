@@ -196,6 +196,14 @@ or escaping exception, `runner.run_recipe` appends a `## Recipe Failure`
 section (recipe, exit, task, stderr tail) because the sweep discards child
 stderr; shims call `run_recipe(load_config(), "<name>", [])` for that reason.
 Do not duplicate that write; add structured detail on top. Never write secrets.
+Edge code outside the registry gets the same floor from `runner.run_reported`,
+passing a `root=` resolver when its worker can operate on another Coga root
+(`task_env.cwd_option_root` reads a worker's own `--cwd`); an unknown root
+records nothing. `runner.run_entry` wraps that floor in the edge entry
+sequence: report, publish the operating root's state as the CLI's exit sweep
+would, then, only for a `scheduled` script launched as this exact task
+(`COGA_SCRIPT_TASK`), bump once after success and return the bump's exit.
+Manual and Dream invocations never bump.
 
 The `COGA_TASK_*` variables a script and recipe receive are specified in
 [coga/script-tickets](../../script-tickets/SKILL.md).

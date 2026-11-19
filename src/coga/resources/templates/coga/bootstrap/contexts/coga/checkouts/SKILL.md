@@ -68,7 +68,10 @@ procedure and its instructions freely; the checkout follows the declaration.
 The field is data for the shared mechanics below and never bypasses
 occupancy, Git, owner-gate or assist checks. Roles and completion gates stay
 independent: a `manual` step that `requires: branch` still needs its
-`branch:` before bump.
+`branch:` before bump. `coga validate` therefore does not warn when a step
+pairs `requires: branch` with `checkout: control` or `manual`: both are
+declared choices (the agent records the branch itself), and the bump gate
+already refuses, naming the missing `branch:`, when one is absent.
 
 Every frozen `checkout:` value is validated before launch reserves, creates or
 switches a branch; only the [launch boundary](launch-boundary/SKILL.md)'s
