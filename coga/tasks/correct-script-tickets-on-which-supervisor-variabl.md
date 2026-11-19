@@ -136,4 +136,12 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/correct-script-tickets-on-which-supervisor-variabl
+
+## Plan
+
+Docs-only fix to step 4 of `coga/script-tickets` (package copy). Overlapping
+PRs #1244/#1247 (still open) only touch the classification paragraph and add a
+new help section; neither touches step 4, so no textual conflict expected.
