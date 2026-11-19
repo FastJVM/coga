@@ -1,6 +1,6 @@
 ---
 title: Retire the legacy checkout-policy snapshot fallback
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,7 +29,6 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
-launch_generation: 36855c1b-e0a1-4a75-a0df-c3b6bf347bfb
 ---
 
 ## Description
@@ -126,3 +125,38 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Re-count (implement, 2026-11-19)
+
+Counted on origin/main 849061e43 (script: parse each `coga/tasks/**/*.md`
+frontmatter; status in draft/active/in_progress/blocked/paused; workflow name
+`code/*` or `docs/*`; at least one frozen step without `checkout:`).
+
+- This repo: **49** live legacy snapshots (50 at filing). Mostly `coga/tasks/_v2/*`
+  (draft/paused/in_progress), plus `v1/18`, `v1/44`, `v1/46`, `v1/49`, `v1/50`,
+  `v1/launch-on-a-stale-feature-branch-leaves-projected`,
+  `v1/microkernel/05-*`, `v1/microkernel/10-*`. Several are in_progress.
+- Supported adopting repos: no topic lists them (`coga-dev/project-stage`,
+  `coga-dev/current-direction` checked); not countable from here.
+
+Condition in `coga/checkouts` "Legacy snapshots" does not hold. Nothing implemented.
+
+## Decision needed (owner)
+
+Wait vs. reviewed migration. The migration would rewrite the frozen
+`workflow.steps` of 49 tickets (adding `checkout:` = what
+`checkout_policy.select_checkout_policy` selects today, `manual` where the skill
+or inline section drifted), including in_progress tickets held by other
+sessions — a frontmatter field agents may not edit — and adopting repos would
+need the same migration before upgrading. Options:
+1. Wait: park this ticket until the count reaches zero (most `_v2` drafts may be
+   canceled by triage instead).
+2. Migrate: owner approves a one-off migration script (reviewed in this PR) run
+   over this repo's tickets at a quiet moment, plus a statement of which adopting
+   repos are supported and must be migrated/counted.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-19 11:14] [agent:claude] id=20261119T111458 Re-count on main 849061e43: 49 live code/docs tickets here still have frozen steps without checkout: (list on blackboard), and no topic names the supported adopting repos. Choose: (1) wait/park until the count is zero, or (2) approve a reviewed migration that rewrites those 49 frozen workflow snapshots (incl. in_progress tickets) to pin today's selected checkout, and name which adopting repos must be counted/migrated.
