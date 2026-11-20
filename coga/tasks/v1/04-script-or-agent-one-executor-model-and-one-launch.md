@@ -48,7 +48,7 @@ step: 1 (design)
 
 Follow-up to the plain-Git ticket. Make script and agent two executors of one step model, deterministic by default, and collapse launch's three step loops and mode flags into one loop with callers. Owner finds the current script/ticket model unsatisfying; this ticket redesigns it.
 
-Depends on `v1/use-git-like-everyone-remove-coga-s-publication-ab`: read
+Depends on `v1/03-use-git-like-everyone-remove-coga-s-publication-ab`: read
 its "Target model" and "Owner decisions" first. That ticket removes Git
 from the kernel; this one reshapes what remains of launch.
 
@@ -81,10 +81,26 @@ from the kernel; this one reshapes what remains of launch.
   goes.
 - **One `in_progress` writer** instead of four; operator derived once per
   step instead of ~15 times per launch.
-- **Agent session end** (proposed, not confirmed): `mark done` / `bump` /
-  `block` finish their write, then signal; the supervisor watches only the
-  sentinel, idle and max-session. Drop the terminal-status probe, deferred
-  done marker and `.pending-<pid>`.
+- **Agent session end: the session ends itself, explicitly** (owner,
+  2026-11-19). The supervisor passes the agent's PID (`COGA_AGENT_PID`).
+  `mark`, `bump` and `block` only write the ticket and know nothing about
+  sessions, because a `coga chat` or coordinator session changes other
+  tickets without ending. When the agent has finished its step it runs
+  `coga exit`, which SIGTERMs that PID (name confirmed by the owner; `suicide` rejected
+  for a public CLI and because it trips model safety behavior). An agent
+  that forgets leaves the session open until the human or the idle limit
+  closes it; that costs time, not tokens. The supervisor only
+  spawns, waits, then re-reads the ticket to decide what follows (status or
+  step changed: chain; otherwise normal exit or crash), plus idle and
+  max-session limits. Drop the done sentinel, its file watching, the
+  session-id environment plumbing (`COGA_DONE_SENTINEL`, `EXPECTED_*`), the
+  terminal-status probe, the deferred done marker and `.pending-<pid>`. A
+  `<END>` stdout marker was rejected: tool output is captured by the agent
+  CLI, rendered with escapes, prone to false positives, and invisible on
+  Windows. To verify: whether Codex's Linux sandbox allows signalling a
+  process outside it (fallback: print "step finished, exit the session" and
+  let the human or idle timeout end it); TTY reset after a kill already
+  exists (`_TTY_SANITIZE`); on Windows `os.kill` terminates the process.
 - **Dead code**: `_prospective_assist_ticket` (no references), unreachable
   returns, forwarders.
 

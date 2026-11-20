@@ -94,10 +94,10 @@ Example workflow under this model:
     4. script  push-and-open-pr   git push; gh pr create
 
 What disappears: the control branch, automatic publication and the
-end-of-command sweep, `prepare-checkout`, per-step `checkout:` policy
-(pending confirmation), claims, generations and leases, byte-guarded
+end-of-command sweep, `prepare-checkout`, per-step `checkout:` policy, claims, generations and leases, byte-guarded
 publication and retraction, exit-75 threading, blocked re-parking, the
-terminal-status probe (pending confirmation), and `git.py`.
+terminal-status probe and done sentinel (session ends itself), the
+one-session-per-checkout guard, and `git.py`.
 
 ### Owner decisions (2026-11-19)
 
@@ -137,6 +137,17 @@ terminal-status probe (pending confirmation), and `git.py`.
    `coga sync`, 02 automatic sync at session end, 03 shrink `git.py`) was
    canceled on 2026-11-19 as a trap that kept the two-destination model;
    03's goal is absorbed here as "delete `git.py`".
+10. **The per-step `checkout:` field goes**, with `checkout_policy.py`,
+    `checkouts.py` and launch's `_prepare_step_checkout`. Opening a branch
+    is a command or script a workflow may use, never an obligation of the
+    model. `v1/microkernel/18-retire-the-legacy-checkout-policy…` was
+    canceled as moot.
+11. **No one-session-per-checkout guard.** Drop the chat guard (the
+    toplevel-keyed `flock`, chat receipt, `checkout_guard_scope`,
+    `_orientation_checkout_guard`) and launch's "occupied checkout" checks.
+    Two sessions in one checkout are the human's business, as with two
+    editors on one repo. Session end no longer needs a per-checkout channel
+    (see the script-or-agent ticket).
 
 ### Documentation
 
@@ -149,20 +160,10 @@ publication model (`coga/checkouts`, `coga/state-publication`, `coga/sync`,
 `coga/checkout-cleanup`, the base prompt's checkout and reconciliation
 sections) in the same PR.
 
-### Proposed, not yet confirmed
-
-- Agent session end: `mark done` / `bump` / `block` publish synchronously,
-  then write the sentinel; the supervisor watches only sentinel, idle and
-  max-session. Drop the terminal-status probe, the deferred done marker and
-  `.pending-<pid>`.
-
 ### Open questions
 
 - Branch/PR as a workflow **step** goes through the workflow markdown; is
   that the right home versus ticket-level behavior? (Owner unsure.)
-- The current per-step `checkout:` field (`control`, `create-or-reuse`,
-  `reuse-required`, `manual`) is hidden Git policy; it presumably goes away
-  with decision 2.
 - A separate effort will rework the script/ticket model itself (owner finds
   it unsatisfying). Not in this ticket's scope.
 

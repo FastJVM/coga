@@ -343,7 +343,7 @@ before the next sweep, otherwise it fails with `unknown recipe`. No skill-update
 period, parked copy or customized copy exists (`recipe-shim-callers` inventory
 on main: only that file).
 
-Filed as draft `v1/microkernel/11-roll-out-the-04b-edge-shims-on-this-repo-s-blocker`
+Filed as draft `v1/01-urgent-roll-out-the-04b-edge-shims-on-this-repo-s-blocker`
 (open-pr step, 2026-11-19); the merge does not discharge it.
 
 ---

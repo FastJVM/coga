@@ -474,6 +474,6 @@ Previous ref: `microkernel/lifecycle-verbs-to-ticket-operations` (renamed 2026-1
 
 ## Superseded in part by plain-Git (2026-11-19)
 
-Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Owner re-evaluation against `v1/03-use-git-like-everyone-remove-coga-s-publication-ab`.
 Still valid: an editable unblock procedure. Superseded: reliance on fresh-control reconciliation, git.state_lock, expected-control publication and retraction (decisions 1, 3, 4). Decision 6 also changes unblock: launch never touches blocked; unblock --answer moves a ticket with a running session to in_progress.
 Do not implement the superseded part; re-scope after that design lands.

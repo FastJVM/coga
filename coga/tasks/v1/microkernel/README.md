@@ -11,7 +11,7 @@ Pulled back into v1 by the owner on 2026-11-12: hackability is a base promise
 of the open-source 1.0, and a contributor got lost customizing the peer-review
 step (the bundled workflow lived only in the package, and the hidden
 `checkout_policy.py` table silently dropped a customized step to manual
-checkout). The whole group gates `v1/43`: the "Open command placements" table
+checkout). The whole group gates `v1/14`: the "Open command placements" table
 in `coga-dev/microkernel` must be empty before publication. This supersedes the
 2026-10-27 deferral; the decision is recorded in `coga-dev/current-direction`.
 
@@ -46,7 +46,7 @@ ask the refresh to propose the smallest useful executor and shared primitives,
 with behavior carried by tickets wherever possible. Preserve completion and
 failure visibility, but not the current transaction, claim and publication
 guarantees: the plain-Git direction (owner, 2026-11-19,
-`v1/use-git-like-everyone-remove-coga-s-publication-ab`) removes them. Apply
+`v1/03-use-git-like-everyone-remove-coga-s-publication-ab`) removes them. Apply
 this when proposing smaller heads
 or moving policy. The owner reviews the concrete retained set before any
 child implementation resumes.

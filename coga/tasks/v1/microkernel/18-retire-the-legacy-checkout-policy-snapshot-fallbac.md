@@ -133,7 +133,7 @@ frontmatter; status in draft/active/in_progress/blocked/paused; workflow name
 
 - This repo: **49** live legacy snapshots (50 at filing). Mostly `coga/tasks/_v2/*`
   (draft/paused/in_progress), plus `v1/18`, `v1/44`, `v1/46`, `v1/49`, `v1/50`,
-  `v1/launch-on-a-stale-feature-branch-leaves-projected`,
+  `v1/05-launch-on-a-stale-feature-branch-leaves-projected`,
   `v1/microkernel/05-*`, `v1/microkernel/10-*`. Several are in_progress.
 - Supported adopting repos: no topic lists them (`coga-dev/project-stage`,
   `coga-dev/current-direction` checked); not countable from here.
@@ -162,6 +162,6 @@ need the same migration before upgrading. Options:
 
 ## Superseded in part by plain-Git (2026-11-19)
 
-Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Owner re-evaluation against `v1/03-use-git-like-everyone-remove-coga-s-publication-ab`.
 Likely moot: if the per-step checkout: field goes (decision 2, open question), checkout_policy.py goes entirely. Wait for that answer, then cancel or keep.
 Do not implement the superseded part; re-scope after that design lands.

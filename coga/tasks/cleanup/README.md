@@ -21,7 +21,7 @@ ticket's body with the `git log --diff-filter=D` recipe in
 
 One hard dependency was recorded in the ticket bodies:
 `fix-coga-init-crash-on-python-3-11-by-adding-the-r` had to land before the
-release ticket, now `v1/43-publish-coga-1-0-as-the-final-v1-step`, cuts
+release ticket, now `v1/14-publish-coga-1-0-as-the-final-v1-step`, cuts
 the release. That fix is `done`, so nothing here still gates the release.
 
 ## Not here

@@ -27,7 +27,7 @@ Members this run (error severity; each blocks activation):
 - v1/19-install-link-for-claude-code-yields-the-desktop-ap — non-placeholder blackboard is 670 characters
 - v1/26-make-the-readme-install-section-the-only-install-p — 733 characters
 - v1/27-link-uninstall-from-the-readme — 605 characters
-- v1/31-test-install-on-windows — 762 characters
+- v1/10-test-install-on-windows — 762 characters
 
 Remediation (from the recipe): ask the owner to synthesize durable authoring decisions into each ticket body under coga/blackboard. Preserve intentional launch-only notes under `## Production notes`; do not discard ambiguous content. Publish the state edit through coga/state-publication; use direct owner editing.
 

@@ -7,7 +7,7 @@ workflow: null
 
 ## Description
 
-Follow-up from v1/18-handle-gh-not-being-installed-by-default (owner decision 4, 2026-11-12, review-design). On a fresh Mac, `/usr/bin/git` is an Xcode CLT stub: `shutil.which('git')` finds it, so `_require_init_tools` passes, but `_require_git_work_tree`, `_host_ignores_coga` and `_check_git_identity` then run the stub (or need a repo the user created with `git init`, which triggers the CLT install) before any optional-tool offer. Decide whether init should detect the stub (for example `xcode-select -p` failing) and print the `xcode-select --install` remedy up front instead of relying on the README's macOS Git note.
+Follow-up from v1/06-handle-gh-not-being-installed-by-default (owner decision 4, 2026-11-12, review-design). On a fresh Mac, `/usr/bin/git` is an Xcode CLT stub: `shutil.which('git')` finds it, so `_require_init_tools` passes, but `_require_git_work_tree`, `_host_ignores_coga` and `_check_git_identity` then run the stub (or need a repo the user created with `git init`, which triggers the CLT install) before any optional-tool offer. Decide whether init should detect the stub (for example `xcode-select -p` failing) and print the `xcode-select --install` remedy up front instead of relying on the README's macOS Git note.
 
 ## Context
 

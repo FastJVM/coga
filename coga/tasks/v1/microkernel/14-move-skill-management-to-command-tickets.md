@@ -536,6 +536,6 @@ satisfy the dispatch and audit criteria as written. Reviewed on main
 
 ## Superseded in part by plain-Git (2026-11-19)
 
-Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Owner re-evaluation against `v1/03-use-git-like-everyone-remove-coga-s-publication-ab`.
 Still valid: the move itself. Superseded: placing SKILL_UPDATE_BRANCH and the patch-ID helper in branchsweep, which is expected to be deleted (decision 1).
 Do not implement the superseded part; re-scope after that design lands.

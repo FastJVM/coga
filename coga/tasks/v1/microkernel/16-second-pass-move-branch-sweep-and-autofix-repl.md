@@ -617,6 +617,6 @@ small module instead of code that is about to be cut. Its spec also moves
 
 ## Superseded in part by plain-Git (2026-11-19)
 
-Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Owner re-evaluation against `v1/03-use-git-like-everyone-remove-coga-s-publication-ab`.
 Still valid: the autofix-analyze replay half. Superseded: the branch-sweep half and open questions Q1, Q2, Q4, which depend on the control branch, end-of-command sweep and stateless publication contract (decision 1).
 Do not implement the superseded part; re-scope after that design lands.

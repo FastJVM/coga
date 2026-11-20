@@ -698,6 +698,6 @@ PR opening; retain the merge-after-#1233 dependency notice.
 
 ## Superseded in part by plain-Git (2026-11-19)
 
-Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Owner re-evaluation against `v1/03-use-git-like-everyone-remove-coga-s-publication-ab`.
 Still valid: discover and fork packaged behavior. Superseded: reporting the checkout policy, if the per-step checkout: field goes (decision 2, open question). PR #1239 was closed unmerged on 2026-11-17; its reason is not recorded here.
 Do not implement the superseded part; re-scope after that design lands.

@@ -37,7 +37,7 @@ through its code workflow, then rerun affected steps against an unmodified
 candidate containing the fixes. Keep this ticket open until the complete walk
 passes. A successful `--version`, `--help`, or init alone does not satisfy this
 gate. Hand the evidence to `v1/33-review-all-doc` and
-`v1/43-publish-coga-1-0-as-the-final-v1-step`;
+`v1/14-publish-coga-1-0-as-the-final-v1-step`;
 the release ticket owns the repeat check against the published 1.0 artifact.
 
 ## Context
@@ -50,8 +50,8 @@ link the owning installer or Windows ticket and the candidate used for each
 retest.
 
 Follow `coga/workflows/human/run.md` for the human lifecycle: activate with
-`coga mark active v1/31-test-install-on-windows`, perform the walk, then close
-with `coga mark done v1/31-test-install-on-windows` once the evidence satisfies
+`coga mark active v1/10-test-install-on-windows`, perform the walk, then close
+with `coga mark done v1/10-test-install-on-windows` once the evidence satisfies
 the done criteria. No agent launch is needed. Zach selects and records the
 exact candidate and VM baseline after the prerequisite lands.
 

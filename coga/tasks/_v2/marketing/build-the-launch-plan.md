@@ -63,13 +63,13 @@ in the idea-piece ticket or README.
   installer tickets in [the numbered queue](README.md)
   (clean-install harnesses, then the run that files each issue; including
   one-task onboarding). The authenticated Linux/macOS × PyPI/main rerun is
-  owned by `v1/30-complete-the-authenticated-clean-install-audit`;
+  owned by `v1/12-complete-the-authenticated-clean-install-audit`;
   the earlier installer audit closed with authentication blockers and does
   not establish a completed first task. Track that evidence alongside
   the [weekly snapshot contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md). Record the verified first-run
   path and PostHog acceptance evidence; this ticket does not implement them.
 - Require macOS and native Windows first-task completion, not only installation
-  or CLI smoke checks. The Windows walk is `v1/31-test-install-on-windows`, after
+  or CLI smoke checks. The Windows walk is `v1/10-test-install-on-windows`, after
   `v1/14-interactive-coga-launch-on-native-windows`; retain the Linux/macOS audit
   above and the macOS human walk in ticket 29. The final README and user docs
   must match the verified artifact and its prerequisites before announcement.
@@ -81,7 +81,7 @@ in the idea-piece ticket or README.
 - Prepare a self-contained Show HN title, introduction, working product link,
   install/example path and replies. Readers need not have seen the argument.
 - Before the public product launch, obtain the verified release links from
-  `v1/43-publish-coga-1-0-as-the-final-v1-step`, following the final-release
+  `v1/14-publish-coga-1-0-as-the-final-v1-step`, following the final-release
   ordering: finish remaining V1 changes and readiness checks, publish and
   verify 1.0.0 as the last product-delivery step, then launch publicly.
 - Target roughly one week after the idea piece, conditional on readiness and
@@ -103,7 +103,7 @@ Record dated reactions, objections, first-run friction and adoption/activity
 observations with their limits. The weekly PostHog signal counts repos with
 active sweeps, not installs; it proves neither productivity nor attribution.
 Stars, downloads and voluntary feedback may supplement it. The owner-only
-live clean-wheel proof in `v1/41-verify-posthog-telemetry-with-the-live-clean-wheel`
+live clean-wheel proof in `v1/13-verify-posthog-telemetry-with-the-live-clean-wheel`
 remains a launch gate.
 
 ### Approved scope and disposition

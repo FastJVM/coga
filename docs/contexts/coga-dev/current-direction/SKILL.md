@@ -26,7 +26,7 @@ is `coga status` and the ticket bodies; stage posture is
   publication and claim guarantees that the microkernel work preserved, and
   cancels the `git-sync/` group. Until implemented, the current topics still
   describe today's behavior. Design and decisions:
-  [`v1/use-git-like-everyone-remove-coga-s-publication-ab`](../../../../coga/tasks/v1/use-git-like-everyone-remove-coga-s-publication-ab.md).
+  [`v1/03-use-git-like-everyone-remove-coga-s-publication-ab`](../../../../coga/tasks/v1/03-use-git-like-everyone-remove-coga-s-publication-ab.md).
 
 - **Two linked-worktree exceptions (2026-10-14).** Ticket work creates no
   linked worktrees, except the recurring runner's temporary control worktree
