@@ -1,6 +1,6 @@
 ---
 title: Restore sweep policy after read-only launch API calls
-status: in_progress
+status: canceled
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (review)
 agent: claude
 ---
 
