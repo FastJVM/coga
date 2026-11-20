@@ -17,7 +17,7 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 1 (inventory)
+step: 2 (approve)
 agent: claude
 ---
 
@@ -121,4 +121,18 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Inventory — 2026-11-20
+
+- Clean control matched `origin/main` at `ed2d599c77c7ec06a46a31fdc41ca9df7f2c0bea`, which contains PR #1272's merge `dcba1b1dcd4ffab1cb6573575b0b2660c2c8e384`. Loaded config resolves the roots to `coga/recurring` and `coga/tasks` in this checkout.
+- Both affected parents contain only state-carrier `ticket.md` files with empty YAML and the carrier marker. The merged package supplies both definitions and their shims, each calling its corresponding `coga_edge` module with `scheduled=True`.
+- The runbook's `recipe-shim-callers` search returned one hit across both roots with hidden and ignored paths included, covering parked copies. The name inventory found no skill-update period or additional affected shim. There are no symlinks in those roots. The sole hit is `coga/tasks/recurring/blocker-reminders/ticket.py:15`, a registry call. The working file and control blob both match the PR-827 baseline `035f27cb0bcf7fb8372c78c44392f0d5922bbe35`. The older direct-import baselines and both skill-update baselines had no callers. Its sibling ticket is `done`, generation `7c8e61c5-0b9c-410d-9069-cab3b3da6d9e`. The log records materialization for 2026-11-18 and completion on 2026-11-19 at 09:04.
+- Known writer environment is this repo's `.venv/bin/python`. Its Coga metadata points to this checkout with `editable: true`. The PATH entry `/home/n/.local/bin/coga` resolves to a second candidate writer, the uv tool at `/home/n/.local/share/uv/tools/coga/bin/coga`, with that tool's own Python shebang and another editable install of this checkout. Confirm its participation with the owner. No reviewed wheel hash or per-writer installation receipt was established.
+- A scoped process check in this sandbox found no matching Python/Coga worker. User crontab access was denied and the user timer bus was unavailable. Git lists this as the only non-prunable linked checkout. The owner must account for host processes, schedulers (including cron and agent apps), other users, hosts and standalone clones. These observations do not establish quiescence.
+
+## Proposed actions for owner approval
+
+1. Identify every writer and its operator, scheduler, checkout, command and actual interpreter. Confirm whether the PATH uv tool participates. Assign each operator to disable affected scheduling and drain any live runs before installation, then record when and how they verified the stop. Cover bare sweeps, force sweeps, named launches and direct current-period execution. Keep other writers paused through control verification. Plain named launch leaves a current-period done run alone. The documented named `--rerun` replaces it and runs a fresh job, so treat that as an explicit live invocation, not a diagnostic.
+2. Have the owner designate the reviewed build commit and wheel artifact. Propose the PR #1272 merge commit above as the minimum reviewed source, subject to owner choice of the exact artifact or a reviewed descendant. Record ancestry, build provenance and SHA-256. Have each operator retain its old wheel and hash where applicable, or record its editable source baseline, and install the reviewed artifact in the actual writer environment after the stop. Record install receipts, interpreter and package resource locations, and verify the installed shim bytes against the artifact in every writer. Both observed editable environments lack readiness receipts. A version or import alone is insufficient.
+3. Approve one disposition. Recommend retaining the existing period because it changes only the shim and does not trigger a reminder run. Recheck current control, generation, quiescence and receipts. Locate the installed wheel shim per the runbook with `JOB=blocker-reminders`, extract the PR-827 baseline, and use its byte-guarded compare/replace on that one path. Publish it as routine Coga state. Preserve the period ticket bytes (including lifecycle, generation, frozen workflow and blackboard), parent carriers, and unrelated attachments. Leave unexpected or changed candidates for owner review.
+4. Alternatively, approve normal rollover. After the same readiness checks, verify the package-backed parent, installed shim and that scheduling sees the retained generation as prior-period. Use the approved `coga recurring launch blocker-reminders` from current control with the reviewed writer. It may start the live reminder job immediately. Preserve parent state and log history through normal Coga dispatch. Avoid force and manual deletion. Confirm the replacement generation differs and its frozen shim came from that wheel.
+5. Fetch control after the selected action. Compare its frozen shim bytes to the reviewed wheel and verify the selected generation and preservation rules. Repeat the runbook search over configured roots (exit 1 expected for zero callers), including ignored and parked paths. Record artifact and control identities, per-writer receipts, final inventory and any unresolved exceptions before resuming sweeps or advancing. No cleanup, installation or scheduler changes occurred during inventory.
