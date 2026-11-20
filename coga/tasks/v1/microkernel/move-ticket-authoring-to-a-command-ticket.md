@@ -1,6 +1,6 @@
 ---
 title: Move ticket authoring to a command ticket
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -43,6 +43,7 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
+launch_generation: pending:84c9decb-e344-45ce-9876-6a2c73ddafd1
 ---
 
 ## Description
