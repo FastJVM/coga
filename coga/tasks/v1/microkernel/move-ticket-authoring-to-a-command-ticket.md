@@ -48,9 +48,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: b77f6940-bfce-412f-9306-0045ff55e6b2
 ---
 
 ## Description
@@ -607,3 +606,89 @@ For the owner at review-design. Each has a recommendation in the Description.
    finalization refusal moves from 2 to 75? Do you accept that the Windows
    representability refusal still exits 2 but no longer withholds the
    parent's ordinary sweep, since a script child cannot set it?
+
+## Evaluator review
+
+**Verdict: revise before implementation.** The edge module and stock shim
+fit the microkernel boundary and preserve a lightweight default-agent
+override. The refusal, exit-code and dispatch contracts need decisions in
+the ticket body. Reviewed on control at
+`1ec3f098dd10ea9839490c6f98c73eb082eb56b6`. Production and test sources
+match the stated baseline. The frozen workflow routes this review to the
+owner and all implementation requirements are under composed sections.
+
+### Must resolve before implementation
+
+1. **Define the publication guarantee for refusal.** The new-title
+   acceptance criterion promises “no publication” on exit 2, while
+   Deliberate Difference 3 explicitly allows the ordinary sweep.
+   `cli._should_sweep_coga_state` and the nonzero-exit handling in
+   `cli.main` allow publication of eligible entry dirt on a failed ordinary
+   launch. The proposed outer `--agent` refusal has the same distinction.
+   Specify whether refusal means no draft or interview audit from this
+   attempt, with incidental settlement and sweep still allowed, or no
+   publication even with dirty entry state. Test the chosen policy against
+   a Git-enabled control checkout with unrelated eligible dirt.
+2. **Resolve agent exit 75 versus retained finalization.**
+   `commands.ticket._run_authoring_session` currently forwards the
+   interviewer process status and `cli.main` uses a separate retained-state
+   marker for the queue adapter. After the move, `launch_script.run_script_chain`
+   and `megalaunch._author_draft` treat any 75 as retained state. An agent
+   that returns 75 would stop the queue and suppress settlement and sweep
+   despite finalization never running. Decide whether to reserve 75 and
+   translate that agent status, or accept the queue stop as a deliberate
+   difference. Test agent exit 75 separately from a real finalizer refusal.
+3. **Settle explicit read-only launch.** Once the shim ships,
+   `coga launch --read-only bootstrap/ticket` becomes executable.
+   `launch.launch` checks only bootstrap identity and a script entry, and
+   `launch_script.run_script_phase` passes the same task environment to
+   both forms. `COGA_SCRIPT_HELP` identifies help only. The proposed child
+   can create and publish despite the read-only invocation. This conflicts
+   with the “Read-only command dispatch” contract in `coga/launch`.
+   Specify how authoring refuses that route before effects and test empty
+   and new-title invocations. If a generic discriminator is needed, account
+   for it explicitly in the scope.
+4. **Complete the incomplete-override policy at every boundary.** A
+   resolver check alone does not provide all the promised outcomes.
+   `validate.py` resolves bootstrap targets referenced by delegates but
+   does not enumerate unreferenced bootstrap overrides. Help catches
+   `TaskNotFoundError` and falls through to ordinary launch, where user
+   config can fail before the override remedy appears. More importantly,
+   `run_script_phase` catches that base exception during re-resolution
+   and returns `ran=False`, which `_classify_script_handoff` can turn into
+   an agent handoff. Specify the validation entry point and require help
+   and script re-resolution to preserve the actionable override refusal.
+   Test an unreferenced legacy override and an override becoming invalid
+   after initial classification. The remedy should say “restore the
+   packaged script entry” for commands that ship a full implementation or
+   resource siblings. “Copy the stock shim” fits authoring specifically.
+
+### Confirmed and follow-up
+
+- I confirmed the premise of Open Question 3 in the ordinary launch
+  path. A successful stateless script returns in
+  `_run_initial_script` before `_prepare_agent` consumes the override.
+  Decide whether a generic refusal also applies when trailing script help
+  runs first, since `launch.launch` handles that before classification.
+- `launch_script.run_script_phase` omits startup and exit audit lines for
+  stateless targets. Deliberate Difference 1 can state that directly.
+  The interview's own audit still goes through
+  `spawn_agent_session` with `commit_log=True`.
+- Make the pre-create prompt check concrete. In the fallback listed in
+  Proposed Shape 2, TTY, agent lookup, CLI lookup and command planning
+  alone cannot detect missing prompt layers. Use an explicit secret-free
+  projected prompt check, define which layers a prospective draft can
+  check, and exercise an unresolved prompt layer before create. Verify
+  that the real-ref check and spawn use the projected authoring prompt
+  without consulting the target's secret declarations.
+- The cancellation fixture installs its observer patches in the same
+  interpreter as the current head. Retargeting imports alone leaves the
+  new shim subprocess uninstrumented. Keep the subprocess-local
+  cancellation and publication observations, plus a parent-independent
+  bare-remote check through the real alias. Existing launch-script tests
+  already isolate the generic retained-state teardown behavior.
+- The exact picked-slug check, shared interviewer resolver, draft creation
+  extraction and full-copy fork are coherent. Define the stage boundaries
+  so the old head keeps its finalizer and adapter imports until their
+  callers move, consistent with the requirement that every stage stays
+  green.
