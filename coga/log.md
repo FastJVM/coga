@@ -4570,3 +4570,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:09 v1 [decide-the-two-open-questions-left-by-the-checkout] [human:nicktoper] auto-bumped on merge of PR #1266 → done
 2026-11-20 12:09 v1 [decide-where-the-google-helper-skills-read-their-c] [human:nicktoper] auto-bumped on merge of PR #1270 → done
 2026-11-20 12:09 v1 [fix-the-readme-windows-walk-findings-left-unowned] [human:nicktoper] auto-bumped on merge of PR #1267 → done
+2026-11-20 12:09 v1 [maintain-ticket-blackboards] [human:nicktoper] auto-bumped on merge of PR #1271 → done
