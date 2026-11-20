@@ -49,3 +49,9 @@ the period blackboard and the period stays `in_progress`.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Oversized blackboards
+
+Threshold: 32.0 KiB of live notes (`coga validate` `large-blackboard`). Informational: no review or block follows; `coga/blackboard` owns the optional remedy.
+
+- `recurring/dream` — 39.5 KiB
