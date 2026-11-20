@@ -48,6 +48,54 @@ step: 1 (design)
 
 Follow-up to the plain-Git ticket. Make script and agent two executors of one step model, deterministic by default, and collapse launch's three step loops and mode flags into one loop with callers. Owner finds the current script/ticket model unsatisfying; this ticket redesigns it.
 
+Depends on `v1/use-git-like-everyone-remove-coga-s-publication-ab`: read
+its "Target model" and "Owner decisions" first. That ticket removes Git
+from the kernel; this one reshapes what remains of launch.
+
+### Settled (owner, 2026-11-19)
+
+- A ticket is a script, an agent, or text. Deterministic by default: an
+  agent is called only for judgment. Rationale: a script computes once; an
+  LLM recomputes the whole model per token, which is waste when it sits at
+  the core of routine work (crons, opening PRs).
+- The documented hybrid chaining in `coga/script-tickets` stays. A failure
+  is not escalated inside the ticket: it becomes another ticket.
+
+### Scope to design
+
+- **One executor shape.** Script and agent present the same interface to
+  the kernel: environment build (one isolation function instead of three
+  scrub copies), spawn, exit normalization. Four `ticket.py` spawn sites with
+  different primitives become one. Terminal/PTY and Windows specifics stay
+  inside the agent executor.
+- **One step loop.** Today there are three: `launch_script.run_script_chain`,
+  `launch._LaunchInvocation._supervise_steps`, megalaunch
+  `_launch_until_stop`. Megalaunch has no script phase at all (a ticket with
+  `ticket.py` gets an agent there). "Step unchanged" means "agent continues"
+  after a script and "failure" after an agent in megalaunch; pick one rule.
+- **Modes become callers, not flags.** `_launch` takes 16 mode parameters
+  (`prompt_report`, `recurring_authorized`, `direct_chat`,
+  `require_agent_target`, `before_recompose`...). Chat, recurring,
+  megalaunch, prompt-report and read-only dispatch call the loop instead.
+  Recurring delegation's double `_launch` with an exception-driven restart
+  goes.
+- **One `in_progress` writer** instead of four; operator derived once per
+  step instead of ~15 times per launch.
+- **Agent session end** (proposed, not confirmed): `mark done` / `bump` /
+  `block` finish their write, then signal; the supervisor watches only the
+  sentinel, idle and max-session. Drop the terminal-status probe, deferred
+  done marker and `.pending-<pid>`.
+- **Dead code**: `_prospective_assist_ticket` (no references), unreachable
+  returns, forwarders.
+
+### Open question
+
+- Owner is unsure whether Git helpers belong as workflow **steps** (they
+  then live in workflow markdown) or elsewhere; settle together with the
+  plain-Git ticket.
+
+The full launch audit is in the plain-Git ticket's Production notes.
+
 ## Context
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.

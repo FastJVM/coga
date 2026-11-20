@@ -138,6 +138,17 @@ terminal-status probe (pending confirmation), and `git.py`.
    canceled on 2026-11-19 as a trap that kept the two-destination model;
    03's goal is absorbed here as "delete `git.py`".
 
+### Documentation
+
+`coga-dev/principles` gained "Deterministic by default" and "Use tools
+plainly" and a stop-simply clause in "Fail loud" on 2026-11-19, ahead of
+implementation. Align the README with them in this ticket's implementation
+PR, not before, so first users never read about behavior that does not
+exist yet. Rewrite or delete the user topics that describe today's
+publication model (`coga/checkouts`, `coga/state-publication`, `coga/sync`,
+`coga/checkout-cleanup`, the base prompt's checkout and reconciliation
+sections) in the same PR.
+
 ### Proposed, not yet confirmed
 
 - Agent session end: `mark done` / `bump` / `block` publish synchronously,

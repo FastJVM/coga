@@ -18,9 +18,15 @@ to build.
   challenge assumptions, and build. Automate mechanical work to leave more
   attention for judgment. People and agents together do not outperform the
   stronger of the two by default; process makes the difference. Route each
-  step to whoever is stronger at it, and keep the whole problem in a form
-  people can see and restructure, so together they reach what neither reaches
-  alone.
+  step to whoever is stronger at it: a script for mechanical work, an agent
+  for judgment, a person for purpose and decisions. Keep the whole problem in
+  a form people can see and restructure, so together they reach what neither
+  reaches alone.
+- **Deterministic by default.** A script computes an answer once; an agent
+  recomputes a whole model for every token. Run routine and recurring work as
+  scripts and call an agent only where judgment is needed. An LLM at the core
+  of mechanical work wastes compute and makes unattended runs less
+  predictable.
 - **Text above code.** Readable text carries intent, knowledge, and decisions.
   Code implements that understanding and can be rewritten as we learn.
 - **Context is explicit.** People can find, question, correct, and choose the
@@ -37,10 +43,16 @@ to build.
 - **Amplify agents, don't duplicate them.** Use existing coding agents to
   plan, research, implement, and review. Coga organizes and carries their
   work across tasks and sessions instead of rebuilding their capabilities.
+- **Use tools plainly.** Coga runs tickets; it does not wrap the tools
+  people already know. People and agents use Git, `gh` and the shell as
+  anyone does. Helpers for those tools are workflow steps, not kernel
+  machinery; Coga would work without Git.
 - **Coga encoded in Coga.** Use the same tickets, contexts, and workflows to
   describe and evolve Coga itself.
 - **Fail loud.** Surface missing knowledge and failed operations so people
-  can correct them. Never present an unnoticed failure as success.
+  can correct them. Never present an unnoticed failure as success. Stop at
+  the first unclean state and say so. Recovery is a deliberate act by a
+  person or agent, not hidden machinery.
 - **The task outlives the session.** Give substantive work a durable record
   that people can direct and agents can resume.
 
