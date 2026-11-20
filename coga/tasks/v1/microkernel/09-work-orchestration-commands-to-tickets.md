@@ -545,7 +545,7 @@ duplicated activation/re-block/preparation path to remove here, or name its
 exact operation and owning sibling; do not count the launch sibling's readiness
 work twice. Each retained operation needs its invariant and real callers.
 
-`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable` owns the
+`v1/microkernel/12-make-packaged-behavior-discoverable-and-editable` owns the
 full local-fork mechanism: a copied shim alone is insufficient. Test the moved
 procedures through that mechanism once available. Lifecycle operations belong
 to sibling 10; recurring recipes to sibling 04; `recurring promote` to sibling

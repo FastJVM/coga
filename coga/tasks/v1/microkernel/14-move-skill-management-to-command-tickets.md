@@ -286,8 +286,8 @@ Package paths are relative to `src/coga/resources/templates/coga/`.
   nested alias machinery, and an environment signal for read-only dispatch.
 - A core `skill` adapter that keeps the old spelling.
 - `coga fork`/`fork-copy` implementation (owned by
-  `v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`), and
-  authoring (`v1/microkernel/move-ticket-authoring-to-a-command-ticket`).
+  `v1/microkernel/12-make-packaged-behavior-discoverable-and-editable`), and
+  authoring (`v1/microkernel/13-move-ticket-authoring-to-a-command-ticket`).
 - Compatibility heads for `skill status`.
 
 ## Context
@@ -298,7 +298,7 @@ Package paths are relative to `src/coga/resources/templates/coga/`.
   main) supplies `coga launch --read-only`. `skill-status` cannot ship before
   it merges. Start implementation from main after that merge, and check the
   landed contract in `coga/launch` "Read-only command dispatch".
-- `v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`
+- `v1/microkernel/12-make-packaged-behavior-discoverable-and-editable`
   (PR #1239) set the precedent of two aliases into one bootstrap directory.
   This ticket does not need it to merge, but if it lands first, check that
   `coga fork bootstrap/skill-manage` reports the full script as completely

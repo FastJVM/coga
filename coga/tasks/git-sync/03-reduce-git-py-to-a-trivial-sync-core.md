@@ -80,7 +80,7 @@ These apply to the whole `git-sync/` project (01 → 02 → 03):
   rebasing". Say so in the topics you rewrite.
 
 Origin: the problem surfaced while designing
-`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`. The
+`v1/microkernel/12-make-packaged-behavior-discoverable-and-editable`. The
 end-of-command sweep (`git.sync_coga_state`) publishes every dirty eligible
 file on control, including definition edits. A fork command would therefore
 publish a byte-identical override that silently stops following package

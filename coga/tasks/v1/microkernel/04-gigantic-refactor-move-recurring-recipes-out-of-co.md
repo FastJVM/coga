@@ -51,11 +51,11 @@ Siblings (all depend on this ticket's merge):
 
 - `v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the` —
   blocker-reminders and skill-update.
-- `v1/microkernel/04c-move-autoclose-to-the-edge` — autoclose, with the
+- `v1/microkernel/17-move-autoclose-to-the-edge` — autoclose, with the
   per-symbol shared-helper audit.
 - `v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker` —
   Dream's validate-drift and cleanup-orphan-markers workers.
-- `v1/microkernel/04e-second-pass-move-branch-sweep-and-autofix-repl`
+- `v1/microkernel/16-second-pass-move-branch-sweep-and-autofix-repl`
   — parked second pass over the branch-sweep and autofix-analyze adapters.
 
 Owner decisions (2026-11-16) that bind the siblings: edge modules live in

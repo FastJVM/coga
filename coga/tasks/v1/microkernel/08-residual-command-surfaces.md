@@ -74,9 +74,9 @@ The owner directed this step to ship promotion first under
 return 75 (previously a warning could exit zero). The remaining increments
 have separate draft execution tickets:
 
-- `v1/microkernel/move-ticket-authoring-to-a-command-ticket` owns authoring,
+- `v1/microkernel/13-move-ticket-authoring-to-a-command-ticket` owns authoring,
   including the migration of existing `bootstrap/ticket` overrides.
-- `v1/microkernel/move-skill-management-to-command-tickets` owns the full
+- `v1/microkernel/14-move-skill-management-to-command-tickets` owns the full
   skill family, including the status spelling and read-only dispatch decision.
 
 Both follow-ups depend on `v1/microkernel/03-launch-decomposition` as described
@@ -395,7 +395,7 @@ Dependencies by exact task ref:
 generic stateless read/retained-state execution;
 `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co` owns the
 recurring skill reporting job;
-`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable` owns source
+`v1/microkernel/12-make-packaged-behavior-discoverable-and-editable` owns source
 inspection and complete local copies;
 `v1/microkernel/06-read-report-commands-as-ticket-workflows` owns read/report
 heads and the sibling recurring-list spelling decision. Coordinate invocation

@@ -53,6 +53,52 @@ lives (kernel vs ticket); this ticket stops abstracting Git. It supersedes
 the parts of `v1/microkernel/` and `v1/why-is-the-code-so-big` that move or
 polish publication, checkout, sweep and claim machinery.
 
+### Target model: three orthogonal layers
+
+The new system separates three concerns that today's launch fuses. Each can
+change without touching the others.
+
+1. **The kernel runs tickets.** It reads the ticket once per step, picks the
+   step's executor, runs it, and records status and step in the ticket file.
+   That is all. It knows nothing about Git, branches, PRs, remotes or
+   publication, and it takes no locks: the ticket's owner is its single
+   writer.
+2. **Executors decide how a step is computed.** A step is a **script**
+   (`ticket.py`: deterministic, one computation, zero tokens), an **agent**
+   (an LLM session, for judgment), or **text** for a human. Deterministic by
+   default; call an agent only where judgment is needed. The documented
+   hybrid (`coga/script-tickets` "Chaining": a script that leaves its step
+   open hands it to the agent) stays. A failure is not repaired inside the
+   ticket: it becomes another ticket. Script and agent present the same
+   shape to the kernel (environment, spawn, exit status); Windows and
+   terminal specifics stay inside the agent executor.
+3. **Version control is plain Git, outside Coga.** Humans and agents use
+   `git` as in any repo. Coga's files are ordinary files in the checkout:
+   on a branch, the ticket's state travels with the code and reaches main
+   through the PR. Branch and PR helpers exist only as workflow script steps
+   (for example `open-branch` first, `push-and-open-pr` last); a workflow
+   without them, such as a recurring job, simply commits where it runs, or
+   not at all. Coga would work in a directory without Git. `coga/log.md` is
+   append-only, so its conflicts resolve by keeping both sides.
+
+Failure rule across all three layers: **stop simply**. When something is
+not clean (a Git conflict, a failed push, a script error), stop, keep local
+state, say what happened. Recovery is a human or agent act, never kernel
+machinery.
+
+Example workflow under this model:
+
+    1. script  open-branch        git switch -c <ticket>
+    2. agent   implement
+    3. agent   review
+    4. script  push-and-open-pr   git push; gh pr create
+
+What disappears: the control branch, automatic publication and the
+end-of-command sweep, `prepare-checkout`, per-step `checkout:` policy
+(pending confirmation), claims, generations and leases, byte-guarded
+publication and retraction, exit-75 threading, blocked re-parking, the
+terminal-status probe (pending confirmation), and `git.py`.
+
 ### Owner decisions (2026-11-19)
 
 1. **Git like everyone.** No control branch, no automatic publication, no
@@ -84,6 +130,13 @@ polish publication, checkout, sweep and claim machinery.
 8. **A ticket is a script, an agent, or text (MD).** The documented hybrid
    chaining (`coga/script-tickets` "Chaining") stays. A failure does not
    escalate inside the ticket: make another ticket.
+9. **Git is outside the kernel; `git.py` disappears.** Coga could in
+   principle run without Git at all. Git helpers that speed things up are
+   workflow steps (scripts), never kernel code. There is no `coga sync`
+   command: syncing is `git pull` / `git push`. The `git-sync/` group (01 add
+   `coga sync`, 02 automatic sync at session end, 03 shrink `git.py`) was
+   canceled on 2026-11-19 as a trap that kept the two-destination model;
+   03's goal is absorbed here as "delete `git.py`".
 
 ### Proposed, not yet confirmed
 
@@ -99,12 +152,6 @@ polish publication, checkout, sweep and claim machinery.
 - The current per-step `checkout:` field (`control`, `create-or-reuse`,
   `reuse-required`, `manual`) is hidden Git policy; it presumably goes away
   with decision 2.
-- Overlap with the existing `git-sync/` group (01 add `coga sync`, 02 remove
-  implicit publication and sync at session end, 03 reduce `git.py`). 01 and
-  02 assume an explicit `coga sync` that lands state on main and automatic
-  sync at session end; decisions 1 and 2 go further (no `coga sync`, state
-  rides the branch, branch/PR are workflow steps). Merge, supersede or
-  re-scope them.
 - A separate effort will rework the script/ticket model itself (owner finds
   it unsatisfying). Not in this ticket's scope.
 
@@ -197,7 +244,9 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-## Launch audit (2026-11-19, main at 470238016)
+## Production notes
+
+### Launch audit (2026-11-19, main at 470238016)
 
 Read-only audit of `launch.py` and its satellites, done in an orient chat.
 Line numbers are against that revision.
@@ -236,7 +285,7 @@ isolation → kept; (4) claim/admission/lease → dropped (owner is single
 writer); (5) blocked re-park → launch never touches blocked; (6) Windows →
 kept in the agent executor.
 
-## Next
+### Next
 
 - Re-evaluate every `v1/microkernel/` ticket and `v1/why-is-the-code-so-big`
   against these decisions; drop what this ticket supersedes (owner request,

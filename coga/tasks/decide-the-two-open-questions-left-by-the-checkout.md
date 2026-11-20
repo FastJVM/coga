@@ -143,7 +143,7 @@ branch: coga/decide-checkout-open-questions
   generality) argues against adding one. Recorded in `coga/checkouts` next to
   the independence sentence.
 - **Q2 — the retirement is owned by a filed draft ticket:**
-  `coga/tasks/v1/microkernel/retire-the-legacy-checkout-policy-snapshot-fallbac.md`
+  `coga/tasks/v1/microkernel/18-retire-the-legacy-checkout-policy-snapshot-fallbac.md`
   (draft, `code/with-review`, owner nicktoper; published on main as 201999f62).
   "When" stays the existing `coga/checkouts` "Legacy snapshots" rule (no live
   code/docs snapshot without `checkout:` in supported repos, or a reviewed

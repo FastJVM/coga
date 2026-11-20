@@ -56,8 +56,8 @@ effects, or calling shared infrastructure does not settle their placement.
 
 | Command surface | Open decision | Cleanup ticket |
 | --- | --- | --- |
-| `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `move-ticket-authoring-to-a-command-ticket` |
-| `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `move-skill-management-to-command-tickets` |
+| `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `13-move-ticket-authoring-to-a-command-ticket` |
+| `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `14-move-skill-management-to-command-tickets` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
 
 These tickets live under `coga/tasks/v1/microkernel/`; the owner's
@@ -132,7 +132,7 @@ broader withheld-sweep flag) to 75 before CLI cleanup resets it, and refusing
 rather than scaffolding a picked ref that no longer resolves
 (`authoring.existing_target_only`). This is why the edge does not inspect a
 private CLI flag or copy an authoring executor.
-`move-ticket-authoring-to-a-command-ticket` still owns the authoring
+`13-move-ticket-authoring-to-a-command-ticket` still owns the authoring
 coordinator's eventual placement.
 
 Slack is settled by separating completion from notification (owner decision,

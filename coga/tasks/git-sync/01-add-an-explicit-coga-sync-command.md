@@ -63,7 +63,7 @@ until then. Nothing calls `coga sync` automatically in this ticket.
 Why: the implicit sweep (`git.sync_coga_state`) publishes whatever is dirty
 whenever a sweeping command exits. That includes definition edits, which
 breaks the fork/override workflow planned in
-`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`. Its
+`v1/microkernel/12-make-packaged-behavior-discoverable-and-editable`. Its
 eligibility, held-for-merge and plumbing-publish machinery also makes
 `src/coga/git.py` (about 3.8k lines) a steady source of sync bugs. One
 explicit, porcelain-shaped primitive lets 02 remove the implicit path and

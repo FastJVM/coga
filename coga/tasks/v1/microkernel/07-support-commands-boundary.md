@@ -162,7 +162,7 @@ and blanks: `commands/secret.py` 75, `commands/uninstall.py` 413,
 - `coga/tasks/v1/microkernel/03-launch-decomposition.md`, draft stateless
   invocation contract, owns `launch --read-only` (currently proposed, absent
   from `commands.launch.launch`).
-  `coga/tasks/v1/microkernel/05-make-packaged-behavior-discoverable-and-editable.md`
+  `coga/tasks/v1/microkernel/12-make-packaged-behavior-discoverable-and-editable.md`
   owns effective-source discovery and editable distribution.
 - User contract owners are under
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/`; development

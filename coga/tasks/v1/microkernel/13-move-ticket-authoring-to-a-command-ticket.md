@@ -389,7 +389,7 @@ Work in this order. Each stage leaves the suite green.
 - Any change to interview content, the `bootstrap/ticket` SKILL.md procedure
   (beyond the plumbing sentence), the kickoff tokens or the precedence chain.
 - Moving `coga create` out of core, and changing `create_task`.
-- Skill management (`v1/microkernel/move-skill-management-to-command-tickets`),
+- Skill management (`v1/microkernel/14-move-skill-management-to-command-tickets`),
   promotion (done under 08), and queue policy beyond the `_author_draft` call
   site.
 - A generic plugin or dispatch mechanism, nested aliases, or a public
@@ -556,7 +556,7 @@ fork rules), `coga/tickets/authoring` (the current contract),
 `coga/state-publication` and `coga-dev/packaging`. Source design:
 `coga/tasks/v1/microkernel/08-residual-command-surfaces.md` ("Authoring
 increment" and the evaluator review's finding 1). The sibling
-`move-skill-management-to-command-tickets` makes parallel choices for exits and
+`14-move-skill-management-to-command-tickets` makes parallel choices for exits and
 aliases. Keep the deliberate-difference wording consistent with it.
 
 <!-- coga:blackboard -->

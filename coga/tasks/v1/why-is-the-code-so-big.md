@@ -340,7 +340,7 @@ behavior changes:
 
 ### Coordination with `v1/microkernel`
 
-`v1/microkernel/04e-second-pass-move-branch-sweep-and-autofix-repl` (parked)
+`v1/microkernel/16-second-pass-move-branch-sweep-and-autofix-repl` (parked)
 plans to move the branch-sweep recipe to the edge. Simplify first, so 04e
 moves the smaller module. Moving ~1,700 lines only to cut most of them later
 is wasted work. Leave a note on 04e's blackboard pointing here.

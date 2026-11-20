@@ -510,7 +510,7 @@ These apply to the whole `git-sync/` project (01 → 02 → 03):
 Origin: the end-of-command sweep (`git.sync_coga_state`) publishes every
 dirty eligible file on control, including definition edits, so a fork command
 would publish a byte-identical override that silently stops following package
-updates (`v1/microkernel/05-make-packaged-behavior-discoverable-and-editable`).
+updates (`v1/microkernel/12-make-packaged-behavior-discoverable-and-editable`).
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
