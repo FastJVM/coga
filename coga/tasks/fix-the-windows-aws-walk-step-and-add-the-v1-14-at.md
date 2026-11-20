@@ -328,7 +328,8 @@ re-run `python -m pytest`, push with `--force-with-lease`, then
 
 ## Blockers
 
-- [ ] [2026-11-18 23:15] [agent:claude] id=20261118T231524 Ticket route says open this PR only after overlapping PRs land: #1256 and #1257 (same windows-aws skill) and #1267 (README, task fix-the-readme-windows-walk-findings-left-unowned) are still open. Merge them, or say to open now and accept rebasing later.
+- [x] [2026-11-18 23:15] [agent:claude] id=20261118T231524 Ticket route says open this PR only after overlapping PRs land: #1256 and #1257 (same windows-aws skill) and #1267 (README, task fix-the-readme-windows-walk-findings-left-unowned) are still open. Merge them, or say to open now and accept rebasing later.
+  resolved: [2026-11-19 16:22] [human:nicktoper] Resolved: overlapping PRs #1256, #1257 and #1267 all merged on 2026-11-19. Rebase the branch onto current main, reconcile the Restricted-policy overlap with #1256, then open the PR.
 
 ---
 
