@@ -1,6 +1,6 @@
 ---
 title: Classify residual command surfaces
-status: in_progress
+status: done
 owner: nicktoper
 agent: codex
 contexts:
@@ -57,7 +57,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 7 (review)
 ---
 
 ## Description
