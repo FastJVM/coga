@@ -4586,3 +4586,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 15:15 v1 [v1/03-use-git-like-everyone-remove-coga-s-publication-ab] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-20 15:15 v1 [v1/03-use-git-like-everyone-remove-coga-s-publication-ab] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-20 15:15 v1 [v1/03-use-git-like-everyone-remove-coga-s-publication-ab] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-20 15:24 v1 [v1/03-use-git-like-everyone-remove-coga-s-publication-ab] [agent:claude] advanced to step 2 (evaluate-design) → codex — Spec written: one-PR plan in 7 stages, run: steps for branch/PR; 7 open questions on the blackboard
