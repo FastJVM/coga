@@ -130,11 +130,10 @@ as `container.sh`:
    `python.exe` from `uv python dir --bin` reporting Python 3.11. **Only then** come
    `UV_PYTHON=3.11` and `UV_PYTHON_DOWNLOADS=never`, followed by
    `uv python find 3.11` and a 3.11 version check. `never` set earlier would
-   block the install; the macOS walk uses the same order. Server 2025
-   defaults to `RemoteSigned` and has no Store alias, so a green walk is not
-   evidence for the bare installer failing under a Windows 11 client's
-   `Restricted` policy, nor for the Store alias winning PATH precedence;
-   only a human Windows 11 walk checks those;
+   block the install; the macOS walk uses the same order. Beyond the
+   `Restricted` policy gap above, Server 2025 has no Store alias, so a green
+   walk is not evidence against the WindowsApps `python` winning PATH
+   precedence; only a human Windows 11 walk checks that;
 3. `uv tool install --python 3.11 coga` (from PyPI or the wheel);
 4. `coga --version`, then `uv tool list`;
 5. `git init -b main`, a local test identity, then
