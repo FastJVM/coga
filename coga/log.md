@@ -4580,3 +4580,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:11 v1 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
 2026-11-20 12:11 v1 [recurring/blocker-reminders] [system] task done
 2026-11-20 12:11 v1 [recurring/blocker-reminders] [system] script exited with code 0
+2026-11-20 12:24 v1 [v1/01-urgent-roll-out-the-04b-edge-shims-on-this-repo-s-blocker] [agent:claude] task done — Rolled over via a live sweep (owner-accepted). Control shim matches reviewed wheel ed51284…, 0 legacy callers, uv tool restored to editable

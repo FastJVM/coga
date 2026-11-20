@@ -1,6 +1,6 @@
 ---
 title: Roll out the 04b edge shims on this repo's blocker-reminders period
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: maintenance/with-approval
@@ -17,7 +17,6 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 3 (cleanup-and-verify)
 agent: claude
 ---
 
@@ -147,4 +146,12 @@ ordinary ticket.
 - Recheck at session start: control `14bbb4b1b6477904d15c8bddc9bf2f1a793919fd` = `origin/main`, contains `dcba1b1dc`. Period still `done`; `ticket.py` working and control blob `035f27cb0bcf7fb8372c78c44392f0d5922bbe35`. `.venv` and uv tool both still editable 0.4.1 of this checkout.
 - Built reviewed wheel from `git archive dcba1b1dcd4ffab1cb6573575b0b2660c2c8e384` via `.venv/bin/python -m pip wheel --no-deps --no-build-isolation`: `coga-0.4.1-py3-none-any.whl`, SHA-256 `d2550f8d46d9db8fcf7ec8be9fb8025772270013b9e67d11a5da229432f3a181`. Packaged blocker-reminders shim blob `e760d3b6992bd938f09c2c00723236748c55d27d` = source at `dcba1b1dc`.
 - Owner decision: the uv tool participates. Install the wheel in both `.venv` and the uv tool for the rollout. After the ticket closes, the owner restores the uv tool to an editable source install for testing (`uv tool install --editable .`). That later restore falls outside this ticket's receipt.
-- Pending: owner confirmation that scheduling is paused and runs have drained (how and when verified). No install yet.
+- No wheel was installed in any environment. The owner reported that the "ongoing recurring" was fixed.
+- What actually happened on control (`e630599faee37f27a430164e5ccbeafd3011ac8d`): sweeps were not quiesced. A sweep at 12:11 rolled the period over, which is disposition 4, not the approved retain disposition. `16423793d` (recurring create) replaced generation `7c8e61c5-…` with `f074ad63-a947-48bb-8cf9-3702b3689d4c`. `0535a9a9e` and `98252a130` ran it `in_progress` → `done` (script exit 0), and it sent blocker reminders (`18d74462a`, `88d2b107c`). The retained period's PR-827 shim never executed.
+- Frozen shim on control is blob `e760d3b6992bd938f09c2c00723236748c55d27d`, byte-identical (`cmp`) to the reviewed wheel's packaged shim (SHA-256 `d2550f8d…a181`) and to `dcba1b1dc`'s source.
+- Writer: the host process list shows the uv tool (`/home/n/.local/share/uv/tools/coga/bin/python`, editable install of this checkout) running `coga launch`/`coga chat` sessions, so it is a participating writer. The rollover ran from editable code at a main containing `dcba1b1dc`, not from an installed reviewed wheel. No wheel receipt exists for any writer. `.venv` was reported by the owner as not writing.
+- Final runbook `recipe-shim-callers` search over `coga/recurring` and `coga/tasks` (hidden and ignored included): no hits, exit 1. `coga/recurring/skill-update` remains a carrier, and no skill-update period exists.
+- Deviation for owner acceptance: the approved retain disposition and the wheel-install requirement were superseded by a live rollover from an editable writer. The end state meets the caller and shim-bytes criteria.
+- Owner accepted the deviation (option 2) and chose a wheel from current control instead of `dcba1b1dc`. The `dcba1b1dc` wheel would have downgraded 41 changed `src/` files under four live uv-tool sessions. Receipt: wheel built from control `e630599faee37f27a430164e5ccbeafd3011ac8d` (contains `dcba1b1dc`) via `git archive` + `.venv/bin/python -m pip wheel --no-deps --no-build-isolation`, `coga-0.4.1-py3-none-any.whl`, SHA-256 `ed51284706d7a6d93701a14a717003399215b362916c6a181e72dff54abaeead`. Installed with `uv tool install --force <wheel>` into the uv tool (`/home/n/.local/share/uv/tools/coga/bin/python`, Python 3.14). The uv receipt and `direct_url.json` named the wheel (`archive_info`, not editable). The runbook `JOB=blocker-reminders` lookup located `site-packages/coga_edge/blocker_reminders.py` and `site-packages/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py`. The installed shim (blob `e760d3b6`) matched both the wheel and control (`cmp`).
+- Per the owner's option 3, the uv tool was then restored with `uv tool install --force --editable /home/n/Code/coga`. `direct_url.json` shows editable again, `coga --help` works, and the live sessions survived. `.venv` was not touched (owner: not a writer).
+- Final state: legacy callers 0 (exit 1). Control's frozen shim equals the reviewed wheel's. Unresolved: none for this ticket. A stale `coga launch v1/01 --agent codex` process (pid 2392749) was still running at close and is flagged to the owner.
