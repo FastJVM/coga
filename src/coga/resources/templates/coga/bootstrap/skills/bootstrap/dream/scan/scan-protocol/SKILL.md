@@ -88,7 +88,7 @@ copies only scaffolds; shipped definitions resolve from the package, and a
 `coga/recurring/<name>/ticket.md` marked `<!-- coga:recurring-state -->` is
 the repo's own state carrier, never Coga prose): the shipped
 `coga/recurring/*/ticket.md` templates, the shipped `coga/workflows/*` files, `coga/skills/direct/body/`,
-any `coga/contexts/browser/*` contexts left from older installs, and — on installs from before
+and — on installs from before
 `bootstrap/` stopped being copied — `coga/contexts/coga/**`. Those files are
 Coga's explanation of itself, not the client's; every claim they make about
 `src/coga/*.py` is uncheckable in a checkout that has no `src/coga/`, and a
