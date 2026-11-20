@@ -2,14 +2,19 @@
 title: Roll out the 04b edge shims on this repo's blocker-reminders period
 status: draft
 owner: nicktoper
-workflow: null
+workflow: maintenance/with-approval
 ---
 
 ## Description
 
-Post-merge rollout for v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the (plan on its blackboard). After the 04b PR merges and every writer runs the new wheel (edge-code-upgrades runbook: quiesce first), check coga/tasks/recurring/blocker-reminders/ticket.py (stock PR-827 shim, blob 035f27cb). If that period will be resumed rather than replaced, run the runbook 'Recipe-backed recurring shims' compare/replace with JOB=blocker-reminders before the next sweep; otherwise it fails with 'unknown recipe'. Re-run the recipe-shim-callers inventory to confirm no other old skill-update or blocker-reminders shim remains.
+Finish the repo-local rollout of PR #1272 before the next affected sweep can execute a legacy blocker-reminders shim against the new wheel. Inventory the writers and old shim callers, then obtain the owner's decision on whether to resume the retained period or replace it through normal recurring rollover. Before applying the approved action, verify affected launches and sweeps were quiesced before wheel installation and that every participating writer now uses the reviewed wheel containing 04b. This is done when the approved disposition is verified on current control, the caller inventory shows no remaining executable legacy blocker-reminders or skill-update shim, and the blackboard records the rollout evidence.
 
 ## Context
+
+- PR #1272 merged as `dcba1b1dc`. The retired 04b ticket's blackboard recorded that both recurring parents are state-only carriers. Future periods get the packaged shims from the installed wheel. Recheck the configured roots and carrier state, including parked, hidden, and ignored candidates. The only caller observed during authoring is `coga/tasks/recurring/blocker-reminders/ticket.py`, still the stock PR-827 blob `035f27cb` in a `done` period.
+- Follow the `coga/edge-code` runbook at `src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md`, especially steps 1–4 and “Recipe-backed recurring shims.” Use the runbook's `recipe-shim-callers` inventory before and after the rollout. Record participating writers, quiescence evidence, and the reviewed wheel hash and installation evidence. Get owner evidence for writers outside the session's visibility. A CLI version or successful import alone cannot establish writer readiness.
+- Inventory is read-only. At the owner gate, record the approved disposition and action list. If any writer still needs upgrading, record who will quiesce and upgrade it and which reviewed wheel they will install. Hold the shim action until all writer receipts are available. Recheck quiescence, wheel readiness, period identity, and candidate bytes before acting. For a retained period, use the runbook's installed-wheel lookup with `JOB=blocker-reminders` and its byte-guarded compare/replace procedure. The old registry call fails with `unknown recipe` on the new wheel. For replacement, verify the selected package-backed parent and the upgraded wheel's packaged shim before allowing the approved rollover invocation, which can materialize and start the job in one call. Afterward, verify the new period generation and its frozen shim bytes on control. Keep sweeps quiesced while any eligible caller could still reach the old shim.
+- Apply any approved frozen-period edit as routine Coga state and verify the published bytes on control. Preserve the period ticket's lifecycle fields, generation, and blackboard during a shim edit. Preserve changed or unexpected callers for owner review. Record the selected shim source, result of the final inventory, and any unresolved prerequisites before advancing.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -99,3 +104,9 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+The draft gives a future agent a clear starting point and observable completion criteria. `maintenance/with-approval` fits the inventory, owner decision, and verification sequence. The runbook path and inventory command are correct, and the retained shim matches blob `035f27cb`. The runbook citation is sufficient without an attached context. The scope fits one maintenance ticket, and the largest composed layer is about 31% of the prompt.
+
+Clarify the rollover checkpoint. `coga recurring launch blocker-reminders --rerun` can materialize and immediately launch the job. Before the approved invocation, verify the selected package-backed parent and the shim in the upgraded wheel. Afterward, verify the new generation and frozen shim bytes on control. Also clarify what the owner must approve if any writer still needs upgrading.
