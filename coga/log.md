@@ -4572,3 +4572,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:09 v1 [fix-the-readme-windows-walk-findings-left-unowned] [human:nicktoper] auto-bumped on merge of PR #1267 → done
 2026-11-20 12:09 v1 [maintain-ticket-blackboards] [human:nicktoper] auto-bumped on merge of PR #1271 → done
 2026-11-20 12:09 v1 [name-clone-scoped-recurring-scripts-among-the-scru] [human:nicktoper] auto-bumped on merge of PR #1268 → done
+2026-11-20 12:10 v1 [stop-megalaunch-when-an-agent-fails-to-start] [human:nicktoper] auto-bumped on merge of PR #1253 → done
