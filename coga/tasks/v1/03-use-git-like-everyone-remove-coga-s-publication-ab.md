@@ -158,7 +158,11 @@ PR, not before, so first users never read about behavior that does not
 exist yet. Rewrite or delete the user topics that describe today's
 publication model (`coga/checkouts`, `coga/state-publication`, `coga/sync`,
 `coga/checkout-cleanup`, the base prompt's checkout and reconciliation
-sections) in the same PR.
+sections) in the same PR. Also fix the stale ticket ref in
+`src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md`:
+`v1/44-verify-the-macos-full-suite-procedure-on-the-ec` is now
+`v1/11-verify-the-macos-full-suite-procedure-on-the-ec` (renumbered
+2026-11-19).
 
 ### Open questions
 
