@@ -4576,3 +4576,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:10 v1 [update-the-testing-topic-known-failure-note-on-the] [human:nicktoper] auto-bumped on merge of PR #1269 → done
 2026-11-20 12:10 v1 [recurring/autoclose-merged] [system] task done
 2026-11-20 12:11 v1 [recurring/autoclose-merged] [system] script exited with code 0
+2026-11-20 12:11 v1 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
