@@ -4516,3 +4516,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 16:39 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-19 20:35 v1 [v1/use-git-like-everyone-remove-coga-s-publication-ab] [human:nicktoper] created (status=draft)
 2026-11-19 20:40 v1 [v1/microkernel/04b-move-blocker-reminders-and-skill-update-to-the] [human:nicktoper] task done — PR merged; closed during plain-Git re-evaluation.
+2026-11-19 20:40 v1 [v1/microkernel/04d-move-dream-s-validate-drift-and-orphan-marker] [human:nicktoper] task done — PR merged; closed during plain-Git re-evaluation.
