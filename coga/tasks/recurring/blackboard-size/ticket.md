@@ -1,6 +1,6 @@
 ---
 title: Blackboard size
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 1 (report)
 ---
 
 ## Description
