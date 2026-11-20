@@ -4522,3 +4522,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 20:40 v1 [v1/microkernel/move-slack-fyis-to-a-command-ticket] [human:nicktoper] task done — PR merged; closed during plain-Git re-evaluation.
 2026-11-19 20:41 v1 [v1/microkernel/preserve-supervised-environment-in-megalaunch-wind] [human:nicktoper] task done — PR merged; closed during plain-Git re-evaluation.
 2026-11-19 20:41 v1 [v1/microkernel/remove-dead-megalaunch-agent-lookup] [human:nicktoper] task done — PR merged; closed during plain-Git re-evaluation.
+2026-11-19 20:41 v1 [v1/microkernel/09-work-orchestration-commands-to-tickets] [human:nicktoper] task done — PR #1244 merged; its retained claim/admission core is superseded by plain-Git decision 3.
