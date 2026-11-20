@@ -17,7 +17,7 @@ workflow:
     skills: []
     assignee: agent
     checkout: manual
-step: 2 (approve)
+step: 3 (cleanup-and-verify)
 agent: claude
 ---
 
@@ -136,3 +136,8 @@ ordinary ticket.
 3. Approve one disposition. Recommend retaining the existing period because it changes only the shim and does not trigger a reminder run. Recheck current control, generation, quiescence and receipts. Locate the installed wheel shim per the runbook with `JOB=blocker-reminders`, extract the PR-827 baseline, and use its byte-guarded compare/replace on that one path. Publish it as routine Coga state. Preserve the period ticket bytes (including lifecycle, generation, frozen workflow and blackboard), parent carriers, and unrelated attachments. Leave unexpected or changed candidates for owner review.
 4. Alternatively, approve normal rollover. After the same readiness checks, verify the package-backed parent, installed shim and that scheduling sees the retained generation as prior-period. Use the approved `coga recurring launch blocker-reminders` from current control with the reviewed writer. It may start the live reminder job immediately. Preserve parent state and log history through normal Coga dispatch. Avoid force and manual deletion. Confirm the replacement generation differs and its frozen shim came from that wheel.
 5. Fetch control after the selected action. Compare its frozen shim bytes to the reviewed wheel and verify the selected generation and preservation rules. Repeat the runbook search over configured roots (exit 1 expected for zero callers), including ignored and parked paths. Record artifact and control identities, per-writer receipts, final inventory and any unresolved exceptions before resuming sweeps or advancing. No cleanup, installation or scheduler changes occurred during inventory.
+## Owner approval
+
+- The owner explicitly approved retaining the completed blocker-reminders period, replacing only its stock legacy `ticket.py` with the reviewed wheel's packaged shim, building from PR #1272 merge `dcba1b1dcd4ffab1cb6573575b0b2660c2c8e384`, and advancing to cleanup-and-verify. Preserve generation `7c8e61c5-0b9c-410d-9069-cab3b3da6d9e`, the period ticket bytes, both parent carriers, and unrelated attachments. Leave unexpected or changed callers for owner review.
+- The cleanup agent can build the approved wheel, record its SHA-256, and upgrade the repo `.venv` once the scheduler operator has paused affected scheduling and verified that active runs have drained. The owner still needs to identify the scheduler operator, confirm whether the PATH uv tool participates, and identify operators for any additional writers. Each participating operator must supply quiescence evidence and an installation receipt for the same wheel.
+- At approval, fetched control was `3dd1014ee1b99b29f42ac5bd0f813e0cfbb8f305`. The runbook search still found only the blocker-reminders registry call, with control blob `035f27cb0bcf7fb8372c78c44392f0d5922bbe35`. Hold the shim replacement until all writer receipts are available. Then recheck control, generation, and candidate bytes, perform the runbook's byte-guarded replacement, publish as routine Coga state, and verify the published bytes and zero legacy callers before resuming sweeps.
