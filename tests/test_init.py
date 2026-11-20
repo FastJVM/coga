@@ -1128,14 +1128,13 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     # File-form tasks are `<slug>.md`; dir-form (the `_template`) keep `ticket.md`.
     for ticket in tasks.glob("**/*.md"):
         assert "new-user" not in ticket.read_text(encoding="utf-8"), f"new-user survived in {ticket}"
-    assert not (tasks / "browser-automation.md").exists()
 
 
 def test_init_empty_repo_seeds_onboarding_and_points_at_build(
     tmp_path: Path, fake_vendor
 ) -> None:
     """An empty repo keeps the onboarding ticket and the next-steps coax
-    points the user at the onboarding command without inventing browser work."""
+    points the user at the onboarding command."""
     target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -1143,7 +1142,6 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
 
     tasks = target / "coga" / "tasks"
     assert (tasks / "coga-build.md").is_file()
-    assert not (tasks / "browser-automation.md").exists()
     cfg = load_config(target / "coga")
     # The human-owned workflows are bootstrap batteries too: Dream files
     # drafts with `--workflow brief-for-human`, so they must resolve from the
@@ -1155,7 +1153,6 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
         )
     assert not (target / "coga" / "workflows" / "autonomy").exists()
     assert not (target / "coga" / "contexts" / "autonomy").exists()
-    assert not (target / "coga" / ".agent-skills" / "browser").exists()
     assert "Run `coga build`" in result.output
     assert 'coga ticket "' not in result.output
     assert "Skipped the onboarding ticket" not in result.output
@@ -1165,8 +1162,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     tmp_path: Path, fake_vendor
 ) -> None:
     """A filled repo (any pre-existing user file) drops the onboarding ticket
-    and the next-steps coax points the user at `coga ticket` without seeding a
-    browser-automation draft."""
+    and the next-steps coax points the user at `coga ticket`."""
     target = _make_git_repo(tmp_path / "existing-repo")
     (target / "main.py").write_text("print(1)\n", encoding="utf-8", newline="\n")
 
@@ -1175,8 +1171,6 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
 
     tasks = target / "coga" / "tasks"
     assert not (tasks / "coga-build.md").exists()  # onboarding pruned
-    assert not (tasks / "browser-automation.md").exists()
-    assert not (target / "coga" / ".agent-skills" / "browser").exists()
     assert 'coga ticket "' in result.output
     assert "Skipped the onboarding ticket" in result.output
     assert "Run `coga build`" not in result.output
