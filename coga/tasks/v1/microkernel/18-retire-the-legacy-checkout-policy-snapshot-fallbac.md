@@ -1,6 +1,6 @@
 ---
 title: Retire the legacy checkout-policy snapshot fallback
-status: blocked
+status: canceled
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
 agent: claude
 ---
 
