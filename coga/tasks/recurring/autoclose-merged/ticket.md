@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -14,7 +14,6 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
     checkout: manual
-step: 1 (sweep)
 ---
 
 ## Description
@@ -87,3 +86,18 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-11-20T20:10:57+00:00
+Task: `recurring/autoclose-merged`
+
+7 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `decide-the-two-open-questions-left-by-the-checkout` "Decide the two open questions left by the checkout-policy declaration ticket": branch `coga/decide-checkout-open-questions`
+- `decide-where-the-google-helper-skills-read-their-c` "Decide where the Google helper skills read their credentials from": branch `google-helpers-read-env-credentials`
+- `fix-the-readme-windows-walk-findings-left-unowned` "Fix the README Windows walk findings left unowned by v1-33": branch `coga/fix-the-readme-windows-walk-findings-left-unowned`
+- `maintain-ticket-blackboards` "Maintain ticket blackboards": branch `coga/maintain-ticket-blackboards`
+- `name-clone-scoped-recurring-scripts-among-the-scru` "Name clone-scoped recurring scripts among the scrubbed children in coga secrets": branch `docs/secrets-clone-scrub`
+- `stop-megalaunch-when-an-agent-fails-to-start` "Stop megalaunch when an agent fails to start": branch `stop-megalaunch-when-an-agent-fails-to-start`
+- `update-the-testing-topic-known-failure-note-on-the` "Update the testing topic known-failure note on the control_relay_started leak": branch `docs/remove-control-relay-started-known-failure`

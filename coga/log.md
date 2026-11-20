@@ -4574,3 +4574,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:09 v1 [name-clone-scoped-recurring-scripts-among-the-scru] [human:nicktoper] auto-bumped on merge of PR #1268 → done
 2026-11-20 12:10 v1 [stop-megalaunch-when-an-agent-fails-to-start] [human:nicktoper] auto-bumped on merge of PR #1253 → done
 2026-11-20 12:10 v1 [update-the-testing-topic-known-failure-note-on-the] [human:nicktoper] auto-bumped on merge of PR #1269 → done
+2026-11-20 12:10 v1 [recurring/autoclose-merged] [system] task done
