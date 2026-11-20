@@ -4554,3 +4554,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:07 v1 [recurring/blocker-reminders] [system] created (status=active)
 2026-11-20 12:07 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-11-20
 2026-11-20 12:07 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-20
+2026-11-20 12:08 v1 [recurring/blackboard-size] [system] started (active → in_progress) via coga launch
