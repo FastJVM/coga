@@ -692,3 +692,9 @@ owner and all implementation requirements are under composed sections.
   so the old head keeps its finalizer and adapter imports until their
   callers move, consistent with the requirement that every stage stays
   green.
+
+## Superseded in part by plain-Git (2026-11-19)
+
+Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Still valid: moving coga ticket authoring to the edge. Superseded: guarded finalization, the single git.publish over an entry snapshot, and exit 75 on refusal (decisions 1, 3, 4).
+Do not implement the superseded part; re-scope after that design lands.

@@ -99,6 +99,12 @@ polish publication, checkout, sweep and claim machinery.
 - The current per-step `checkout:` field (`control`, `create-or-reuse`,
   `reuse-required`, `manual`) is hidden Git policy; it presumably goes away
   with decision 2.
+- Overlap with the existing `git-sync/` group (01 add `coga sync`, 02 remove
+  implicit publication and sync at session end, 03 reduce `git.py`). 01 and
+  02 assume an explicit `coga sync` that lands state on main and automatic
+  sync at session end; decisions 1 and 2 go further (no `coga sync`, state
+  rides the branch, branch/PR are workflow steps). Merge, supersede or
+  re-scope them.
 - A separate effort will rework the script/ticket model itself (owner finds
   it unsatisfying). Not in this ticket's scope.
 

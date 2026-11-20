@@ -43,8 +43,11 @@ The implemented boundary is owned by `coga-dev/microkernel`. It is the
 starting inventory, not a promise that every existing command, recipe, or
 caller-specific policy must remain in core. The linked objectives
 ask the refresh to propose the smallest useful executor and shared primitives,
-with behavior carried by tickets wherever possible. Preserve the current
-transaction, completion, and failure guarantees when proposing smaller heads
+with behavior carried by tickets wherever possible. Preserve completion and
+failure visibility, but not the current transaction, claim and publication
+guarantees: the plain-Git direction (owner, 2026-11-19,
+`v1/use-git-like-everyone-remove-coga-s-publication-ab`) removes them. Apply
+this when proposing smaller heads
 or moving policy. The owner reviews the concrete retained set before any
 child implementation resumes.
 

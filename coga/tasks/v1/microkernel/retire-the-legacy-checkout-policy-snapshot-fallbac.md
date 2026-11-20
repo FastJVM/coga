@@ -160,3 +160,9 @@ need the same migration before upgrading. Options:
 ## Blockers
 
 - [ ] [2026-11-19 11:14] [agent:claude] id=20261119T111458 Re-count on main 849061e43: 49 live code/docs tickets here still have frozen steps without checkout: (list on blackboard), and no topic names the supported adopting repos. Choose: (1) wait/park until the count is zero, or (2) approve a reviewed migration that rewrites those 49 frozen workflow snapshots (incl. in_progress tickets) to pin today's selected checkout, and name which adopting repos must be counted/migrated.
+
+## Superseded in part by plain-Git (2026-11-19)
+
+Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Likely moot: if the per-step checkout: field goes (decision 2, open question), checkout_policy.py goes entirely. Wait for that answer, then cancel or keep.
+Do not implement the superseded part; re-scope after that design lands.

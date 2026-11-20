@@ -58,8 +58,10 @@ registration is an inventory fact, not the architectural objective. The
 design review decides the retained primitives and their interfaces.
 
 Moving deterministic behavior into a ticket keeps it deterministic. The ticket
-model must carry the existing completion and failure guarantees while making
-the behavior accessible to its user.
+model must keep completion and failures visible while making the behavior
+accessible to its user. It does not carry today's claim, lock and publication
+transactions: Git is used plainly, the owner is a ticket's single writer, and
+an unclean Git operation stops rather than recovers (owner, 2026-11-19).
 
 ## A simpler program people can read
 

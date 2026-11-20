@@ -556,3 +556,9 @@ checks:
   detail: "Per-change Linux suite used the repository's Python 3.12.12 test environment. The floor receipt is required\
     \ at release."
 ```
+
+## Superseded in part by plain-Git (2026-11-19)
+
+Owner re-evaluation against `v1/use-git-like-everyone-remove-coga-s-publication-ab`.
+Still valid: close tickets whose PR merged. Superseded: checkout disposal, owned-branch sweep, worktree handling, the core growth of checkout_disposal.py and dev_links.py (decisions 1, 2). PR #1273 was closed unmerged on 2026-11-19 for this reason.
+Do not implement the superseded part; re-scope after that design lands.
