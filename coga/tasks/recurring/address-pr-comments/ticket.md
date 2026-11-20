@@ -1,12 +1,12 @@
 ---
 title: Address PR review comments
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
 delegate: bootstrap/address-pr-comments
-period_generation: 55e7cc4a-4e87-4e8f-83c8-cc9c4d98d701
+period_generation: 9f70e6e9-d15c-49dc-bb7b-ec138713eec8
 workflow:
   name: direct/body
   steps:
@@ -15,6 +15,7 @@ workflow:
     - direct/body
     assignee: agent
     checkout: manual
+step: 1 (execute)
 ---
 
 ## Description
@@ -39,9 +40,9 @@ the period ticket, so sweeps, named retries, and direct
 dispatch. The runner marks the period task `in_progress`, launches
 `bootstrap/address-pr-comments` in-process (honouring the sweep's `--agent`
 override and selected queue session conduct), and marks the period task
-`done` only after the delegated command's final `coga slack` roll-up emits
-its bootstrap done sentinel. Everything else about how a delegated period is
-preflighted, leased, published, timed out, and left retryable is the
+`done` after the delegated command emits its scoped completion sentinel.
+How a delegated period is preflighted, leased, published, timed out, and left
+retryable is part of the
 `delegate` contract in the `coga/recurring/delegation` context, shared with
 `recurring/resolve-conflicts`.
 
