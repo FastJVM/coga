@@ -48,6 +48,60 @@ step: 1 (design)
 
 Coga stops abstracting Git: no control branch, no automatic publication or sweep, no locks. Branch creation and PR become workflow script steps; the launch kernel no longer knows Git. Owner decisions from the 2026-11-19 chat are recorded below.
 
+This is not the microkernel group: the microkernel decides where behavior
+lives (kernel vs ticket); this ticket stops abstracting Git. It supersedes
+the parts of `v1/microkernel/` and `v1/why-is-the-code-so-big` that move or
+polish publication, checkout, sweep and claim machinery.
+
+### Owner decisions (2026-11-19)
+
+1. **Git like everyone.** No control branch, no automatic publication, no
+   end-of-command sweep, no `prepare-checkout`. Launching a ticket creates
+   (or reuses) its branch; work and ticket state live there; the end is a PR.
+   Forgetting to push is the human's (or agent's) problem, as with any Git
+   use. A `coga sync` command is probably unnecessary.
+2. **Branch and PR are workflow steps**, e.g. a script step that opens the
+   branch and a script step that pushes and opens the PR. The kernel does not
+   know Git. Workflows without such steps (recurring, script-only, text)
+   simply commit where they are, or not at all.
+3. **The owner is the ticket's single writer: no locks.** Drop the megalaunch
+   claim transaction (`pending/admitted/released` generations, held-child
+   admission, released-witness reconciliation, byte re-checks), the recurring
+   period lease, and `expect`-guarded ticket publication. A crash between
+   status write and spawn "is not supposed to happen": the human relaunches.
+4. **Fail-stop, no automatic recovery.** If a Git operation is not clean,
+   stop, keep local state, say so. No retraction, no uncertain-push
+   retention, no exit-75-plus-withheld-sweep threading.
+5. **`coga/log.md` is append-only**: resolve its conflicts by keeping both
+   sides (union). It is the one genuinely shared file.
+6. **Launch never touches `blocked`.** A launch on a blocked ticket starts
+   the session with the resolve preamble and leaves the status `blocked`;
+   `coga unblock --answer` moves it to `in_progress` while a session runs. A
+   session ending without an answer leaves it blocked: nothing to re-park.
+   No `ticket.py` runs on a blocked ticket.
+7. **One ticket read per step**, one environment-isolation function, Windows
+   specifics confined to the agent executor (kept from today).
+8. **A ticket is a script, an agent, or text (MD).** The documented hybrid
+   chaining (`coga/script-tickets` "Chaining") stays. A failure does not
+   escalate inside the ticket: make another ticket.
+
+### Proposed, not yet confirmed
+
+- Agent session end: `mark done` / `bump` / `block` publish synchronously,
+  then write the sentinel; the supervisor watches only sentinel, idle and
+  max-session. Drop the terminal-status probe, the deferred done marker and
+  `.pending-<pid>`.
+
+### Open questions
+
+- Branch/PR as a workflow **step** goes through the workflow markdown; is
+  that the right home versus ticket-level behavior? (Owner unsure.)
+- The current per-step `checkout:` field (`control`, `create-or-reuse`,
+  `reuse-required`, `manual`) is hidden Git policy; it presumably goes away
+  with decision 2.
+- A separate effort will rework the script/ticket model itself (owner finds
+  it unsatisfying). Not in this ticket's scope.
+
 ## Context
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
@@ -137,4 +191,47 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Launch audit (2026-11-19, main at 470238016)
+
+Read-only audit of `launch.py` and its satellites, done in an orient chat.
+Line numbers are against that revision.
+
+Size: launch machinery ~8,900 lines (`launch.py` 4,631; supervisors 1,730;
+`compose.py` 891; `launch_script.py` 702; `claimed_session.py` 654). Git /
+checkout modules ~10,900 (`git.py` 3,772; `autoclose.py` 1,842;
+`branchsweep.py` 1,730; `checkouts.py` 1,198; `branchcleanup.py` 1,175;
+`open_pr.py` 1,018).
+
+`launch.py` by concern (overlapping): agent ~31%, Git/sync ~24%,
+mode-specific (recurring, megalaunch, chat, prompt-report, read-only) ~17%,
+lifecycle ~11%, script ~6%.
+
+Findings:
+- Script is a pre-phase of an agent loop; the in-loop re-run drops args,
+  exit-75 handling, spawn refusal. Megalaunch has no script phase at all: a
+  ticket with `ticket.py` gets an agent there.
+- "Step unchanged" means "agent continues" after a script but "failure"
+  after an agent in megalaunch.
+- Three step loops (`run_script_chain`, `_supervise_steps`, megalaunch
+  `_launch_until_stop`); four `ticket.py` spawn sites with different
+  primitives; four `in_progress` flip implementations; three env-scrub copies.
+- Seven distinct sync points; exit 75 + withheld sweep at ~27 sites.
+- `_launch` has 16 mode parameters; `_manages_branch_checkout` is a 13-term
+  exclusion. Recurring delegation runs `_launch` twice with an
+  exception-driven restart. Private imports go both ways launch ↔
+  recurring_runner and launch ↔ claimed_session.
+- Ticket read ~12 times, operator derived ~15 times per launch.
+- Dead code: `_prospective_assist_ticket` (no references), ~8 unreachable
+  returns.
+
+Guarantee families and their fate: (1) byte-guarded publication → plain
+commit/push, fail-stop; (2) reload after sync → once per step; (3) env
+isolation → kept; (4) claim/admission/lease → dropped (owner is single
+writer); (5) blocked re-park → launch never touches blocked; (6) Windows →
+kept in the agent executor.
+
+## Next
+
+- Re-evaluate every `v1/microkernel/` ticket and `v1/why-is-the-code-so-big`
+  against these decisions; drop what this ticket supersedes (owner request,
+  2026-11-19).
