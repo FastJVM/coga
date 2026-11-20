@@ -4503,3 +4503,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 16:13 v1 [v1/microkernel/move-ticket-authoring-to-a-command-ticket] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-19 16:14 v1 [v1/microkernel/move-ticket-authoring-to-a-command-ticket] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-19 16:14 v1 [v1/microkernel/move-ticket-authoring-to-a-command-ticket] [megalaunch] launched via coga megalaunch
+2026-11-19 16:20 v1 [v1/microkernel/move-ticket-authoring-to-a-command-ticket] [agent:claude] advanced to step 2 (evaluate-design) → codex — Spec written; 5 open questions for review-design (placement, legacy-override refusal, launch --agent, existing-target env var, exit changes)
