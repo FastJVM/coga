@@ -1,6 +1,6 @@
 ---
 title: 'Simplify branchsweep (pilot: cut Coga''s code size)'
-status: blocked
+status: canceled
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -41,7 +41,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (design)
 agent: claude
 ---
 

@@ -4524,3 +4524,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-19 20:41 v1 [v1/microkernel/remove-dead-megalaunch-agent-lookup] [human:nicktoper] task done — PR merged; closed during plain-Git re-evaluation.
 2026-11-19 20:41 v1 [v1/microkernel/09-work-orchestration-commands-to-tickets] [human:nicktoper] task done — PR #1244 merged; its retained claim/admission core is superseded by plain-Git decision 3.
 2026-11-19 20:41 v1 [v1/microkernel/restore-sweep-policy-after-read-only-launch-api-ca] [human:nicktoper] canceled (in_progress → canceled): Superseded by plain-Git direction (2026-11-19): the end-of-command sweep it fixes is being removed. PR #1252 is merged; its code goes with the sweep.
+2026-11-19 20:41 v1 [v1/why-is-the-code-so-big] [human:nicktoper] canceled (blocked → canceled): Superseded by plain-Git direction (2026-11-19): branchsweep is to be deleted, not simplified. The module-by-module method may be reused on launch.py.
