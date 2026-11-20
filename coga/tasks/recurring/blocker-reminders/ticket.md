@@ -1,11 +1,11 @@
 ---
 title: Blocker reminders
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 7c8e61c5-0b9c-410d-9069-cab3b3da6d9e
+period_generation: f074ad63-a947-48bb-8cf9-3702b3689d4c
 workflow:
   name: blocker-reminders/run
   steps:
@@ -14,6 +14,7 @@ workflow:
     - coga/blockers/remind
     assignee: agent
     checkout: manual
+step: 1 (remind)
 ---
 
 ## Description
@@ -25,10 +26,13 @@ Agents stop through `coga block`, which appends an unresolved ask under
 handshake stays command-owned: run `coga unblock <slug> --answer "..."`, then
 launch or megalaunch can resume the task from the files.
 
-Once a day this recurring task's `ticket.py` runs
-`blocker_reminders.run_blocker_reminders_recipe`. It finds unresolved asks on
+Once a day this recurring task's `ticket.py` runs the installed
+`coga_edge.blocker_reminders` job (`main`; by hand,
+`python -m coga_edge.blocker_reminders`). It finds unresolved asks on
 blocked tasks and paused recurring periods, posts an owner reminder, and
-records a watermark on the affected task's blackboard before syncing it.
+records a watermark on the affected task's blackboard before syncing it. The
+job is wheel-owned edge code: a full local fork is that one module copied over
+`ticket.py` ([coga/edge-code](context:coga/edge-code)).
 
 The reminder does not launch or reactivate work. A paused period remains
 paused until its ask is answered; the next sweep then resumes a period the
