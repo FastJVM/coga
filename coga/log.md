@@ -4568,3 +4568,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:09 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-11-20 12:09 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-11-20 12:09 v1 [decide-the-two-open-questions-left-by-the-checkout] [human:nicktoper] auto-bumped on merge of PR #1266 → done
+2026-11-20 12:09 v1 [decide-where-the-google-helper-skills-read-their-c] [human:nicktoper] auto-bumped on merge of PR #1270 → done
