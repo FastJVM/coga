@@ -1,6 +1,6 @@
 ---
 title: Remove implicit publication and sync at session end
-status: in_progress
+status: canceled
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -43,7 +43,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (review-design)
 agent: claude
 ---
 
