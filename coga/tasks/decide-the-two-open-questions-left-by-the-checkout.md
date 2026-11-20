@@ -1,6 +1,6 @@
 ---
 title: Decide the two open questions left by the checkout-policy declaration ticket
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (review)
 agent: claude
 ---
 
