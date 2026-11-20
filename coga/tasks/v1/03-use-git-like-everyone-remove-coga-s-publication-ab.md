@@ -41,7 +41,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -767,3 +767,105 @@ Design step, 2026-11-20. Settled in chat: one PR, `run:` steps, delete control-d
 5. **`coga.toml` "Git sync" comment block.** Agents may not edit `coga.toml`, so the owner removes the block in the implementation PR (or allows the implementer to). `[git]` keeps loading with an `obsolete-key` warning.
 6. **Branch base for `open-branch`.** The spec branches from the current HEAD. Should the script instead fetch and branch from the remote default branch? That is faster to start fresh, but the script then fetches by itself.
 7. **`run:` step role.** A `run:` step must resolve to an agent role (owner steps are never launched). Should a `run:` step with no `assignee:` default to `agent` instead of inheriting, so workflows can omit it?
+
+## Evaluator review
+
+**Resolve before implementation.** The Description subsections and Context
+are in the composed body. The frozen workflow gives this review to the peer
+and the decision to the owner. The Git-free core and workflow-owned Git
+operations fit one PR and the microkernel boundary. The following contracts
+need to be settled in the ticket body for that PR to be implementable.
+
+1. **Keep the final state in the merged PR and preserve the reviewed-head
+   guarantee.** §3 commits ticket/log before pushing and writes the PR URL and
+   bumps only afterward. This leaves the remote ticket at the PR-opening step
+   until somebody commits and pushes the later changes. §6 addresses an owner
+   bump, but the packaged `code/agent-merge` workflow has no owner gate.
+   Its `code/merge-pr` skill currently checks the peer-reviewed head and
+   performs a pinned merge before its final bump. Under the proposed model
+   this either merges an unfinished ticket or advances locally and changes the
+   PR head after verification. Define who commits and pushes each handoff,
+   which reviewed-head evidence permits subsequent state-only commits, and
+   what happens when the final push or merge fails or queues after the bump.
+   Exercise both an owner-gated workflow and agent merge, including the ticket
+   blob at the merged revision and the checks on the actual merge head.
+2. **Make the legacy branch fallback safe on the current frozen step.**
+   §3 tells the live `code/implement` skill to invoke `git/open-branch`
+   when no branch is recorded. That script records the branch and bumps.
+   `commands/bump.py` checks the current step's `requires: branch` against
+   the blackboard, so the fallback would satisfy the gate and skip
+   implementation. Define a setup-only invocation or an explicit equivalent
+   with no transition. Also specify how an old frozen peer-review, open-pr
+   or review step reaches its recorded branch and handles any existing
+   branch-local ticket after automatic projection disappears. The current
+   ticket itself has the old snapshot. The workflows topic's “Frozen
+   snapshot, live content” contract means template edits alone cannot supply
+   these steps. Test an old snapshot from the default checkout and confirm
+   the implement step remains current after setup.
+3. **Define the PR helper's lookup and recovery contract.** §3 leaves the PR
+   base implicit, uses “upstream” as a remote, and says to create or view a
+   PR. Specify how push remote, target branch and PR identity are selected,
+   including a fork or differently named upstream branch, and how a draft,
+   closed, merged or wrong-base existing PR is handled. The current
+   `open_pr._open_pr_url` checks state, draft and base metadata, and
+   `open_pr.open_pr` readies drafts. Decide which behaviors carry forward.
+   Define the retry after a successful push or PR creation followed by a
+   local recording/bump failure. Explicitly scope the state commit to the
+   ticket/log even when unrelated files are staged, and say where pending
+   implementation changes are checked. Include failure and retry cases in
+   the stubbed-`gh` tests.
+4. **Specify where `run:` dispatch is supported.** §3 extends the normal
+   launch script chain, but §4 still sends megalaunch picks directly to
+   `spawn_agent_session` in `coga_edge/megalaunch._launch_until_stop`.
+   Newly created code tickets would reach an agent at the opening script
+   step unless megalaunch shares dispatch or refuses these picks explicitly.
+   Decide the same question for recurring delegation (see
+   `recurring_runner`'s `resolve_script_entry_point` call) and preserve
+   stateless bootstrap behavior. `paths.resolve_skill_path` resolves
+   `SKILL.md`, so define the validation and launch failure for a resolved
+   directory with missing/unusable `run.py`, including a local override.
+   Account for `validate._check_step_shape` and the workflows topic's
+   existing live-snapshot requirement for skill-less step instructions.
+   Test the selected dispatch and refusal rules through their entry points.
+5. **Resolve the launch scope conflict with v1/04.** The target model says the
+   sentinel and terminal probe disappear and promises one read per step and
+   one environment-isolation function. Out of scope retains the sentinel
+   and probe removal for v1/04, and §2 keeps the probe reading local state.
+   Today `launch._terminal_status_probe` polls and `launch_script` reads
+   again to classify a script handoff. State which reads count, and whether
+   executor unification, environment consolidation and session-ending
+   behavior are deliverables here or goals of v1/04.
+6. **Set the durability rule for log compaction and concurrent appends.**
+   One `O_APPEND` write protects an append relative to other appends.
+   `coga_edge.trim_log` still rewrites the log, and a writer can append to
+   the prior file during a replacement or after the compactor's snapshot.
+   The ticket calls the log append-only while retaining that rewrite and
+   removing its lock. Decide whether to drop compaction, require a quiescent
+   manual window, or preserve concurrent entries another way. State how
+   compaction interacts with the union merge rule and test the chosen
+   contract.
+7. **Define recorded-assist compatibility under the Git-free core rule.**
+   §5 suggests dropping the `autoclose.pr_view` dependency or deleting
+   `pr_assist.py`. The recorded-assist cases in
+   `tests/test_launch_script.py` exercise PR-backed verification, and
+   `pr_assist.verify_recorded_assist_pr_head` checks more than a handoff
+   field. Moving the dependency alone can still leave a core Git/gh
+   subprocess. Specify whether recorded assists survive, how their authority
+   and PR evidence are checked under the new boundary, or how old assists
+   fail safely. Name the surviving contract and the tests to retain.
+
+**Optional recommendations**
+
+- Make the green-commit staging order explicit or treat the sections as work
+  areas. §2 deletes `checkouts.py` before §3 moves `insert_branch_line`,
+  and §3 copies PR helpers before §5 deletes their current owner. Migrate
+  live callers and their dependent tests before each removal.
+- Attach `coga-dev/principles` before implementation, as the repo directs
+  for design and README changes. Correct the docs index and package resource
+  checks alongside each definition removal. The seeded workflow at
+  `tests/fixtures/seeded-repo/coga/workflows/code/with-review.md` already
+  provides a concrete fixture to update for the new workflow shape.
+- Clarify that the no-Git smoke test uses a non-Git script fixture, since the
+  two shipped Git workflow scripts intentionally require Git. Let launch
+  perform the script's bump, then test a separate local transition where the
+  workflow still has a step to advance.
