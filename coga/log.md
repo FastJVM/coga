@@ -4562,3 +4562,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 12:08 v1 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
 2026-11-20 12:08 v1 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
 2026-11-20 12:09 v1 [bootstrap/address-pr-comments] [agent:claude] slack: address-pr-comments: 0 open PRs — nothing to address
+2026-11-20 12:09 v1 [bootstrap/address-pr-comments] [agent:claude] done (stateless command)
