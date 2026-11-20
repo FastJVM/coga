@@ -1,8 +1,24 @@
 ---
 title: Roll out the 04b edge shims on this repo's blocker-reminders period
-status: draft
+status: in_progress
 owner: nicktoper
-workflow: maintenance/with-approval
+workflow:
+  name: maintenance/with-approval
+  steps:
+  - name: inventory
+    skills: []
+    assignee: agent
+    checkout: manual
+  - name: approve
+    skills: []
+    assignee: owner
+    checkout: manual
+  - name: cleanup-and-verify
+    skills: []
+    assignee: agent
+    checkout: manual
+step: 1 (inventory)
+agent: claude
 ---
 
 ## Description
