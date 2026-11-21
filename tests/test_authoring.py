@@ -124,12 +124,12 @@ def test_validate_authored_task_reports_schema_errors(repo: Path) -> None:
 def test_ticket_finalize_skill_is_documentation_only() -> None:
     skill = (FINALIZE_SKILL / "SKILL.md").read_text(encoding="utf-8")
     assert "name: coga/ticket/finalize" in skill
-    assert "coga/state-publication/SKILL.md#when-coga-publishes" in skill
+    assert "contexts/coga/git/SKILL.md" in skill
     assert not (FINALIZE_SKILL / "run.py").exists()
 
 
 @pytest.mark.parametrize("edit_again", [False, True])
-def test_finalize_authored_selects_changed_files_not_entire_ticket_directories(
+def test_finalize_authored_preserves_local_changes(
     git_repo, edit_again,
 ):
     repo = git_repo.coga_os
@@ -161,18 +161,17 @@ def test_finalize_authored_selects_changed_files_not_entire_ticket_directories(
     def remote(path):
         return git_repo.git("show", f"main:{path.relative_to(git_repo.root).as_posix()}", cwd=git_repo.origin)
 
-    assert "Authored sibling handoff." in remote(sibling.ticket_path)
+    assert "Authored sibling handoff." not in remote(sibling.ticket_path)
+    assert "Authored sibling handoff." in sibling.ticket_path.read_text(encoding="utf-8")
     assert "Pre-existing target dirt." not in remote(target.ticket_path)
     assert "Pre-existing target dirt." in target.ticket_path.read_text(encoding="utf-8")
-    assert remote(attachment) == (
-        "pre-existing dirt\nauthored addition\n" if edit_again else "committed\n"
-    )
+    assert remote(attachment) == "committed\n"
     assert "pre-existing dirt" in attachment.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("bootstrap", [False, True])
 @pytest.mark.parametrize("change", ["promotion", "deletion", "attachment_deletion"])
-def test_finalize_authored_publishes_sibling_moves_and_removals(git_repo, bootstrap, change):
+def test_finalize_authored_keeps_sibling_moves_and_removals_local(git_repo, bootstrap, change):
     import shutil
 
     cfg = load_config(git_repo.coga_os)
@@ -205,13 +204,14 @@ def test_finalize_authored_publishes_sibling_moves_and_removals(git_repo, bootst
         ref=resolve_bootstrap(cfg, "ticket") if bootstrap else target,
     )
 
-    assert git_repo.git("rev-list", "--count", f"{tip}..main", cwd=git_repo.origin).strip() == "1"
-    for path in (target.ticket_path, sibling.path, directory / "ticket.md", attachment, support):
-        rel = path.relative_to(git_repo.root).as_posix()
-        assert git_repo.origin_tracks(rel) == path.is_file()
-        if path.is_file():
-            assert git_repo.git("show", f"main:{rel}", cwd=git_repo.origin) == path.read_text(encoding="utf-8")
-    assert git_repo.git("status", "--porcelain") == ""
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip() == tip
+    assert support.is_file()
+    if change == "promotion":
+        assert (directory / "ticket.md").is_file() and attachment.is_file()
+    elif change == "deletion":
+        assert not directory.exists()
+    else:
+        assert (directory / "ticket.md").is_file() and not attachment.exists()
 
 
 def test_public_authoring_invocation_keeps_cli_argv_and_isolates_outer_session(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -227,7 +227,7 @@ def test_public_authoring_invocation_keeps_cli_argv_and_isolates_outer_session(r
     monkeypatch.setenv("COGA_SUPERVISED", "1")
     monkeypatch.setenv("COGA_DONE_SENTINEL", "outer")
     def run(argv, *, cwd, env, defer_interrupt):
-        assert argv == [sys.executable, "-c", "from coga.cli import main; main(retained_state_exit=True, existing_target_only=True)", "ticket", ref.id_slug, "--agent", "claude"]
+        assert argv == [sys.executable, "-c", "from coga.cli import main; main(existing_target_only=True)", "ticket", ref.id_slug, "--agent", "claude"]
         assert cwd == repo.parent and defer_interrupt
         assert not any(key in env for key in TASK_ENV_KEYS)
         assert "COGA_SUPERVISED" not in env and "COGA_DONE_SENTINEL" not in env

@@ -10,7 +10,7 @@ This skill documents the skill-update run behind the
 job `coga_edge.skill_update` (its `main`, through `coga.runner.run_entry`) —
 no agent, no composed prompt. The reporting job is edge code; the updater it
 calls (`coga skill update`) stays in core. The run performs
-`coga skill update --all --pr`: each installed
+`python -m coga_edge.skill_update_pr`: each installed
 GitHub-backed skill (one whose `SKILL.md` frontmatter carries `gh skill`'s
 `metadata.github-repo`) is handed to `gh skill update` one at a time and
 reports what `gh` did to it, while URL-backed skills use Coga's digest and
@@ -100,7 +100,7 @@ into a packaged `bootstrap/<name>/ticket.md`. Every run publishes eligible Coga
 state under its `--cwd` target on exit. Only the launched period script
 completes its step (`coga bump`); a hand run never does.
 
-The skill runs `coga skill update --all --pr --json`, then groups the results
+The skill runs `python -m coga_edge.skill_update_pr`, then groups the results
 by their raw update status so each status (e.g. `updated`, GitHub-backed
 `unchanged` / `fetch-failed` / `skipped-pinned`, URL-backed
 `skipped-local-adaptation` / `conflict`, or `failed`) is reported in its own

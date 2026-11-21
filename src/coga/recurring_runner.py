@@ -760,7 +760,7 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
     )
 
 
-def _publish_scan_notes(cfg: Config, scan: DueScan) -> None:
+def _report_scan_notes(cfg: Config, scan: DueScan) -> None:
     for task in scan.tasks:
         if task.ref is not None and task.replaced_done:
             typer.echo(f"Replaced completed {task.ref.id_slug}")
@@ -800,7 +800,7 @@ def run_recurring_scan(
                 agent_unavailable_reason=agent_refusal,
                 agent_unavailable_label=_AGENT_NEEDS_TTY_LABEL,
             )
-            _publish_scan_notes(cfg, scan)
+            _report_scan_notes(cfg, scan)
             _print_table(scan, force=force)
             record.scan_lines.extend(scan_lines_for_record(scan, force=force))
             record.scan_errors.extend(scan.errors)
