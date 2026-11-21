@@ -1065,13 +1065,8 @@ def test_shipped_workflow_refs_resolve_without_a_seeded_copy(
         )
 
 
-# `/resolved/<ref>/<file>` stands for a skill attachment's resolved path (local
-# override, else the packaged skill). Only a final segment with an extension is
-# a file; the bare `/resolved/<ref>/` directory form and `.../<file>` shorthand
-# lines do not match.
-RESOLVED_PLACEHOLDER = re.compile(
-    r"/resolved/((?:[A-Za-z0-9_-]+/)+)([A-Za-z0-9_-][A-Za-z0-9_.-]*\.[A-Za-z0-9]+)"
-)
+# Capture the full path, including a directory placeholder's trailing slash.
+RESOLVED_PLACEHOLDER = re.compile(r"/resolved/([A-Za-z0-9_./-]+)")
 
 
 def _resolved_placeholder_refs(resources: Path) -> dict[str, list[str]]:
@@ -1084,8 +1079,10 @@ def _resolved_placeholder_refs(resources: Path) -> dict[str, list[str]]:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        for ref, name in RESOLVED_PLACEHOLDER.findall(text):
-            refs.setdefault(f"{ref}{name}", []).append(
+        for target in RESOLVED_PLACEHOLDER.findall(text):
+            if target.endswith("/") or "/" not in target:
+                continue
+            refs.setdefault(target, []).append(
                 path.relative_to(resources).as_posix()
             )
     return refs
@@ -1124,15 +1121,20 @@ def test_resolved_placeholder_check_reports_an_unshipped_file(tmp_path: Path) ->
     (skill / "SKILL.md").write_text(
         "python /resolved/coga/demo/tool.py\n"
         "python /resolved/coga/demo/gone.py\n"
+        "Run `/resolved/coga/demo/missing`.\n"
         "`/resolved/coga/demo/` is the resolved dir; python .../gone.py\n",
         encoding="utf-8",
     )
 
     problems = _resolved_placeholder_problems(tmp_path)
 
-    assert len(problems) == 1
-    assert "/resolved/coga/demo/gone.py" in problems[0]
-    assert "templates/coga/bootstrap/skills/coga/demo/SKILL.md" in problems[0]
+    assert len(problems) == 2
+    assert "/resolved/coga/demo/gone.py (" in problems[0]
+    assert "/resolved/coga/demo/missing (" in problems[1]
+    assert all(
+        "templates/coga/bootstrap/skills/coga/demo/SKILL.md" in problem
+        for problem in problems
+    )
 
 
 def test_no_launch_entrypoint_run_py_files_remain() -> None:

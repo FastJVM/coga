@@ -34,16 +34,8 @@ Exit codes are the contract: `0` ok · `1` config/auth/API error (stderr) · `3`
 message/attachment not found.
 
 `/resolved/coga/gmail/` stands for this skill's resolved directory. Resolve it
-as `coga/google-calendar` ("Resolving the helper directory") describes. Use
-`gmail` as the skill name and `gmail.py` as the file to check:
-
-```bash
-dir="${COGA_COGA_OS_ROOT:-$(git rev-parse --show-toplevel)/coga}/skills/coga/gmail"
-[ -f "$dir/gmail.py" ] || dir="$(python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "coga", "gmail"))')"
-```
-
-That section also covers which interpreter runs each line and the `cmd.exe`
-quoting.
+with the commands in `coga/google-calendar` ("Resolving the helper directory"),
+using `skill=gmail` and `helper=gmail.py`.
 
 ## Auth — OAuth user credentials
 
