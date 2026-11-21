@@ -785,7 +785,7 @@ def run_recurring_scan(
     today = datetime.now().date()
     activity = RepoActivity() if force else check_activity(cfg, today)
     if activity.error:
-        typer.echo(f"Recurring activity unavailable: {activity.error}", err=True)
+        typer.echo(f"Recurring activity unknown ({activity.error}); treating repo as active.", err=True)
     record = RunRecord(
         started=datetime.now(), repo=cfg.repo_root.name, force=force,
         interactive=interactive, agent_override=agent_override,
@@ -805,7 +805,31 @@ def run_recurring_scan(
             record.scan_lines.extend(scan_lines_for_record(scan, force=force))
             record.scan_errors.extend(scan.errors)
             record.scan_problems.extend(scan.sync_problems)
+            for task in scan.tasks:
+                if not task.watchdog_paused or task.ref is None or (force and not task.launch_refusal):
+                    continue
+                detail = "Watchdog timeout left the period paused."
+                if task.launch_refusal:
+                    detail += f" Recovery refused: {task.launch_refusal}"
+                else:
+                    detail += " This sweep retries it."
+                paused_ticket = read_ticket(task.ref)
+                record.scan_problems.append((task.ref.id_slug, detail))
+                notify(
+                    cfg, f"⚠️ *{task.ref.id_slug}*: {detail}",
+                    kind="recurring-error", important=True, fatal=False,
+                    owner=paused_ticket.owner or cfg.current_user, task_path=task.ref.path,
+                )
             due = scan.forced if force else scan.due
+            if not due:
+                if force:
+                    typer.echo("No recurring templates to launch.")
+                elif scan.agent_refusals:
+                    typer.echo("No due recurring tasks could be launched.")
+                elif scan.errors:
+                    typer.echo("No recurring tasks launched; see template errors.")
+                else:
+                    typer.echo("No recurring tasks due.")
             for task in due:
                 if task.ref is None:
                     continue
@@ -839,7 +863,9 @@ def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
     if ref is None:
         return
     ticket = read_ticket(ref)
-    if ticket.status in {"blocked", "canceled"}:
+    if ticket.status == "canceled":
+        raise RecurringError(f"{ref.id_slug}: task is canceled and cannot be reactivated")
+    if ticket.status == "blocked":
         raise RecurringError(f"Cannot force-run {ref.id_slug} while it is {ticket.status}")
     if ticket.status not in {"active", "in_progress"}:
         mark_active(
@@ -934,7 +960,7 @@ def _launch_created(
 ) -> int:
     ticket = read_ticket(ref)
     if ticket.status not in {"active", "in_progress"}:
-        typer.echo(f"{ref.id_slug}: {ticket.status}; not launching")
+        typer.echo(f"{ref.id_slug} is {ticket.status}; not launching")
         return 2 if ticket.status == "canceled" else 0
     before = _template_description(cfg, template)
     idle_timeout = resolve_idle_timeout(cfg, default=None if interactive else _RECURRING_IDLE_TIMEOUT_SECONDS)
