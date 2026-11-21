@@ -228,9 +228,11 @@ checks:
 
 ## Blockers
 
-- [ ] [2026-11-18 21:38] [agent:codex] id=20261118T213802 Before opening this PR, wait for #1244 (v1/microkernel/09-work-orchestration-commands-to-tickets) and #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) to land or be rebased, as required by the ticket. Then unblock and refresh the peer-review handoff against current main.
+- [x] [2026-11-18 21:38] [agent:codex] id=20261118T213802 Before opening this PR, wait for #1244 (v1/microkernel/09-work-orchestration-commands-to-tickets) and #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) to land or be rebased, as required by the ticket. Then unblock and refresh the peer-review handoff against current main.
+  resolved: [2026-11-20 16:13] [human:nicktoper] GitHub confirms #1244 and #1247 both merged on November 19, 2026, at 20:32:56 UTC and 20:33:18 UTC respectively. Both publication prerequisites are satisfied. Refresh the peer review and handoff against current main.
 
-- [ ] [2026-11-19 11:20] [agent:codex] id=20261119T112015 Wait for both overlapping PRs #1244 (v1/microkernel/09-work-orchestration-commands-to-tickets) and #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) to land or be rebased, or explicitly waive that publication condition. Both PRs remain open with no new commits since the original blocker. Then unblock and refresh the peer-review handoff against current main.
+- [x] [2026-11-19 11:20] [agent:codex] id=20261119T112015 Wait for both overlapping PRs #1244 (v1/microkernel/09-work-orchestration-commands-to-tickets) and #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) to land or be rebased, or explicitly waive that publication condition. Both PRs remain open with no new commits since the original blocker. Then unblock and refresh the peer-review handoff against current main.
+  resolved: [2026-11-20 16:13] [human:nicktoper] GitHub confirms #1244 and #1247 both merged on November 19, 2026, at 20:32:56 UTC and 20:33:18 UTC respectively. Both publication prerequisites are satisfied. Refresh the peer review and handoff against current main.
 
 
 ---
