@@ -1,6 +1,6 @@
 ---
 title: Refresh the v1 microkernel task READMEs after the W47 Retro deletions
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,9 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
 agent: claude
-launch_generation: 5dec5eac-497f-4d4f-bb15-3706fd07d0b0
 ---
 
 ## Description
@@ -144,6 +142,27 @@ Precondition met: #1255 merged as `dc7754b1`, #1259 as `347f8983`.
 - Evidence dir decision: **delete**. Only the 03 row cites it; it is dated PR
   verification for a done ticket (knowledge: dated evidence lives in the archive or in
   history). Re-point that row at a tree permalink of its last revision.
+
+## Already satisfied
+
+The README refresh was committed on the branch as `258ca14c7`. The identical
+change (the same 8 paths, +42/−3778) reached `main` as `2eefd573c` "Sync coga
+state" (2026-11-20 17:17), because `coga/tasks/**` is control-branch state. When
+the branch was rebased onto `origin/main` `0f36aaba5`, git skipped `258ca14c7`
+as already applied. Branch HEAD is now equal to the merge-base
+(`0f36aaba5d1fade5dbf2062e2666eebf745c1432`), so there is no diff for a PR.
+
+- README rows show the done state: `v1/microkernel/README.md` on main has a
+  Done table for 01, 02, 03-launch, 04, 04b, 04d, 06, 07, 08, 09 and Slack. Each
+  row has a merge-commit permalink and a permalink to the ticket's last
+  revision. A Remaining table covers 12–17, with 13 and 14 added. The stale
+  proposal-era status and execution-order prose is gone.
+- Deleted ticket paths are no longer linked: every permalink OID/path was
+  checked with `git cat-file -e` (all resolve).
+- Evidence directory: deleted from main. The 03 row in
+  `03-prompt-assembly/README.md` points to its tree permalink at `08b6e16f`.
+- Open items: none recorded, so no follow-up drafts are needed. Tests were not
+  run because this ticket adds no code or diff.
 
 ---
 
