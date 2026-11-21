@@ -52,14 +52,12 @@ The repo separates implementation from the OS it operates:
   table's allowlist and the [coga/configuration](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md)
   table in the same change. Only `_resolve_secret_value` runs `env:`
   indirection, for the two Slack webhook keys.
-- `git.py`: the whole Git sync layer (`publish`, `refresh`,
-  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
-- `review_conflict.py`: the human-review PR a lifecycle command opens for an
-  unrankable ticket status conflict, and its merged/closed/open return path;
-  shared by lifecycle commands through `commands/common.reconcile_lifecycle_ticket`
-  (`coga-dev/internals/git-regressions`).
+- The Git workflow scripts live in the packaged `git/open-branch`,
+  `git/push-and-open-pr` and `code/merge-pr` skills. The PR and merge scripts
+  share helpers in `coga_edge/git_workflow.py`. The user procedure is in
+  [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
-  (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
+  such as `delete_task.py`.
   It also owns the shared `## Recipe Failure` floor (`run_reported`, with an
   optional root resolver) and the edge entry sequence `run_entry`
   (report, then bump).
@@ -69,7 +67,7 @@ The repo separates implementation from the OS it operates:
   resolves workflow scripts and ticket scripts. `task_env.py` exports
   (`COGA_TASK_*`), `repl_supervisor.py` with its native Windows backend
   and command planner `repl_supervisor_nt.py` (imported only on Windows by
-  the shared entry), `claimed_session.py` (queue claim/release/admission),
+  the shared entry),
   `coga_edge/megalaunch.py` (editable queue policy) plus `service_order.py` (drain), `session_limits.py` (shared liveness parsing), `process_relay.py`
   (foreground command/relay waits), `recurring_runner.py`, `recurring_autofix.py`,
   `recurring_clone.py`. `recurring.py` also owns the effective recurring
@@ -80,8 +78,6 @@ The repo separates implementation from the OS it operates:
   resolution for other refs (`resolve_skill_path`, `local_definition_entry`)
   is in `paths.py`. Task-to-template promotion lives in the packaged
   `bootstrap/recurring-promote` command ticket.
-- `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
-  disposal order), `retire_worklist.py` (`retires.md`).
 - `dependencies.py` (supporting-tool install manifest, supported agent CLI
   scan order, and the shared missing-agent requirement).
 - `skill_manager.py` (`coga skill`; `gh_skill_repo` decides GitHub-backed

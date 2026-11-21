@@ -43,7 +43,7 @@ Launch detects this before ordinary configuration and session setup. Help
 works without a user, agent or repository; a valid workspace resolves local
 overrides first, while missing or invalid configuration uses the package.
 The child runs from the host repo root, or the invocation cwd outside a repo.
-Help resolves no secrets and performs no refresh, audit, publication or sweep.
+Help resolves no secrets and performs no refresh or audit write.
 Its inherited environment loses task and supervision identity and gains
 `COGA_SCRIPT_HELP=1`. Each command script must check this at its command body
 and exit 2 before effects: a value-taking option can consume `--help` as its
@@ -54,9 +54,8 @@ While a stateless child runs, the parent installs no-op Python SIGINT and
 uses inherited ignore dispositions. Console interrupts reach the foreground
 child directly; the parent waits without killing it. Parent SIGTERM forwards
 once, including when received during spawn. Handlers are restored after wait.
-Negative signal return codes map to `128 - code`; other statuses pass through,
-including exit 75's retained-state boundary. Native Windows/macOS verification
-is performed at release.
+Negative signal return codes map to `128 - code`. Other statuses pass through.
+Native Windows/macOS verification is performed at release.
 
 ## Chaining
 
@@ -83,9 +82,8 @@ does not enable Python UTF-8 mode or change locale-default file decoding.
 `coga bump` and `coga mark done` credit `system` when `COGA_SCRIPT_TASK`
 names the target they act on; a marker naming another target has no effect.
 The marker grants no owner-gate, assist, launch, or rewind authority and
-bypasses no completion gate, validation, or publication. A script inside a
-verified recorded assist still credits `system`, using the assist's
-publication checks ([human assist](../human-assist/SKILL.md)).
+bypasses no completion gate or validation. A script inside a recorded assist
+still credits `system` ([human assist](../human-assist/SKILL.md)).
 An assist agent keeps its verified identity; a supervised agent completion
 uses the derived agent only when `COGA_EXPECTED_TASK` matches. Otherwise the
 local human is credited. Ticket metadata and configured agents never prove an
@@ -102,7 +100,7 @@ FYI script never completes anything.
 The namespace is exactly `COGA_TASK_SLUG`,
 `COGA_TASK_DIR`, `COGA_TASK_TICKET`, `COGA_TASK_BLACKBOARD`,
 `COGA_TASK_STEP`, `COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`, `COGA_SCRIPT_TASK`,
-`COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, `COGA_ASSIST_PR`, and the
+`COGA_ASSIST_AGENT`, and the
 parser-only `COGA_SCRIPT_HELP`. There is no
 `COGA_TASK_LOG`. Each launch clears every key, then sets the slug, task directory, ticket path, Coga root, and host repo root,
 plus, for tasks under `tasks/` only, `COGA_TASK_BLACKBOARD` and, when a step
