@@ -148,12 +148,9 @@ trimmed by hand either: the next run overwrites the edit, and
 Route it to its owner as a decision (attachment, exemption, or accepted
 warning).
 
-## Publishing cleanup
+## Sharing cleanup
 
-Draft synthesis and live-ticket size cleanup publish as Coga state through
-[state publication](../state-publication/SKILL.md). The owner can edit directly
-on control or track the cleanup in a workflow without branch or PR gates.
-Ticket bodies, blackboards, and sibling attachments stay out of code PRs.
+Edit the local ticket. Follow [coga/git](../git/SKILL.md) to share it.
 
 ## What later passes do to content
 
@@ -168,11 +165,7 @@ Ticket bodies, blackboards, and sibling attachments stay out of code PRs.
 
 ## Concurrent writers
 
-There is no ownership mutex; divergent workers are visible and recoverable in
-git ([coga/launch](../launch/SKILL.md)). A `ticket.py` or other program that
-writes a blackboard uses `blackboard.update_blackboard_under_barrier`, which
-refuses rather than overwrite an intervening edit. Read the region
-immediately before writing, prefer section appends to whole-region rewrites,
-and keep writes as small as the change. Parser and race details are in
-[blackboard IO](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/blackboard-io/SKILL.md);
-cross-checkout reconciliation is in [coga/sync](../sync/SKILL.md).
+The ticket owner coordinates writes. A script can use
+`blackboard.update_blackboard` for a local read and atomic replacement.
+Concurrent writers can overwrite one another. Keep edits scoped to the
+sections the current step owns.

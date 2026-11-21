@@ -30,11 +30,11 @@ is `coga status` and the ticket bodies; stage posture is
 
 - **Two linked-worktree exceptions (2026-10-14).** Ticket work creates no
   linked worktrees, except the recurring runner's temporary control worktree
-  for a parked checkout ([recurring temp worktrees](../internals/recurring-temp-worktrees/SKILL.md))
+  for a parked checkout ([recurring temp worktrees](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md))
   and Retro's isolated checkout, created and removed for one Retro pass so
   Retro runs while the operator keeps working in the main tree. Revisit if
   those worktrees leak or become operator-visible noise. Contract:
-  [`coga/checkouts`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md).
+  [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
 - **V1 ships for first users and ships hackable (2026-10-27, amended 2026-11-12).**
   The owner requires easy installation and working first-task paths on macOS
   and native Windows, a finished README with matching user documentation, and

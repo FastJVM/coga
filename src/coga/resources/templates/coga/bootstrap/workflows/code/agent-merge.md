@@ -52,3 +52,6 @@ On a frozen snapshot without a step skill, follow `code/implement`.
 ## peer-review
 
 On a frozen snapshot without a step skill, follow `code/peer-review`.
+
+In the review receipt, record the actual reviewer and disclose any overlap with
+the implementation session.

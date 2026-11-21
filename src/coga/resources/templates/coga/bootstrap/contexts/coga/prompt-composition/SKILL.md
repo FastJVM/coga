@@ -185,7 +185,7 @@ authoring, was **disqualified**:
 Reopening needs a materially revised candidate with a new owner-approved
 protocol and a new paired comparison; this evidence does not carry over. A
 revision should keep authoring free of execution-loop text without weakening
-the owner-assist and [reconciliation](../checkouts/reconciliation/SKILL.md)
+the owner-assist and [coga/git](../git/SKILL.md)
 guidance that keeps a read-only assist from merging into a prepared branch.
 Evidence: the
 [trial report](https://github.com/FastJVM/coga/blob/7a40b520f248e715fb78c03e9124e48d11b5e098/coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/report.md)

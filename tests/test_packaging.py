@@ -1307,7 +1307,7 @@ subprocess.run(["git","config","user.name","Test"],check=True)
 subprocess.run(["git","config","user.email","test@example.test"],check=True)
 def forbidden(*args, **kwargs):
     raise AssertionError("production transport/worker invoked")
-with patch("coga.commands.init._require_init_tools"), patch("coga.commands.init._offer_optional_tools"):
+with patch("coga.commands.init._offer_optional_tools"):
     result=CliRunner().invoke(app,["init",".","--user","tester"])
 assert result.exit_code == 0, result.output
 for gone in ("recurring/phone-home", "recurring/dream", "workflows/direct", "skills/direct"):

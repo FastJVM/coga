@@ -122,7 +122,7 @@ Agent sessions also stop on process failure or a liveness limit.
   gate, and an unreconciled released megalaunch admission exit 75, which
   skips the end-of-command sweep; a non-zero agent or `ticket.py` exit
   propagates. A successful direct chat whose checkout return fails also
-  exits 75; [chat checkouts](../checkouts/chat/SKILL.md) owns that contract.
+  exits 75; [coga/git](../git/SKILL.md) owns that contract.
 
 The Python launch API, its internal phases, and the shared spawn path are in
 [coga-dev/internals/agent-spawn](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/agent-spawn/SKILL.md).

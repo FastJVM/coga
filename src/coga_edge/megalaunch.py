@@ -1281,6 +1281,15 @@ def _launch_until_stop(
             return _result(ref, "failed", str(exc), launch_agent, launched=launched)
 
         launched = True
+        if getattr(session, "exec_failed", False):
+            return replace(
+                _result(
+                    ref, "failed",
+                    f"agent failed to start (exited with code {session.exit_code})",
+                    launch_agent, launched=True,
+                ),
+                stops_run=True,
+            )
         if not ref.ticket_path.exists():
             return _result(ref, "completed", "task removed by agent", launch_agent, launched=True)
         after = read_ticket(ref)

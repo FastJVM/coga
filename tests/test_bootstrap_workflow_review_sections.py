@@ -40,18 +40,11 @@ def _review_section(name: str) -> str:
 
 
 @pytest.mark.parametrize("name", CHECKOUT_BEARING_WORKFLOWS)
-def test_review_section_names_coga_retire_as_the_closing_act(name: str) -> None:
-    review = _review_section(name)
-
-    # Autoclose only closes the ticket; the owner-facing section must say the
-    # checkout outlives `done` and name the command that disposes of it.
-    assert "`autoclose-merged`" in review
-    assert "run `coga retire <slug>`" in review
-    assert "`done` is not the end of the ticket" in review
-    # A done retire deletes the ticket with no agent; the command ticket owns
-    # the procedure, so the summary points there instead of restating it.
-    assert "`bootstrap/retire/ticket.md`" in review
-    assert "`retro/done-ticket`" not in review
+def test_review_section_names_owner_completion_before_merge(name: str) -> None:
+    text = _review_section(name).split("\n## ", 1)[0]
+    assert "final bump" in text
+    assert "commit and push" in text
+    assert "before merging" in text
 
 
 @pytest.mark.parametrize("name", PEER_REVIEW_WORKFLOWS)
@@ -62,12 +55,12 @@ def test_peer_review_section_carries_the_authorship_caveat(name: str) -> None:
     # Only step-named sections are composed, so the caveat must live in the
     # step body itself, not in the workflow preamble the reviewer never sees.
     peer_review = " ".join(sections["peer-review"].split())
-    assert "does not prove independent authorship" in peer_review
+    assert "record the actual reviewer" in peer_review
 
 
 def test_peer_review_skill_carries_the_authorship_caveat() -> None:
     text = " ".join(PEER_REVIEW_SKILL.read_text(encoding="utf-8").split())
-    assert "does not prove independent authorship" in text
+    assert "record the actual reviewer" in text
     # A shared step skill refers to the next frozen step, never a step by name.
     assert "`open-pr` step" not in text
 
@@ -99,7 +92,7 @@ def test_every_workflow_has_other_agent_review_or_says_why_not(path: Path) -> No
         # Design evaluation alone is not code review: the peer must inspect
         # the implementation before publication.
         names = [step.name for step in workflow.steps]
-        assert names.index("implement") < reviews[0] < names.index("open-pr")
+        assert names.index("implement") < reviews[0] < names.index("push-and-open-pr")
         return
     # The rationale lives in a real H2 that names no step, so it is framing
     # only and never composes into a launched prompt.
@@ -112,33 +105,15 @@ def test_agent_merge_mirrors_with_review_except_the_final_step() -> None:
 
     assert merge.steps[:-1] == review.steps[:-1]
     final = merge.steps[-1]
-    assert (final.name, final.assignee, final.skills) == (
-        "merge", "agent", ("code/merge-pr",)
+    assert (final.name, final.assignee, final.run) == (
+        "merge", "agent", "code/merge-pr",
     )
     assert all(step.assignee != "owner" for step in merge.steps)
 
 
-def test_agent_merge_section_names_coga_retire_as_the_closing_act() -> None:
+def test_agent_merge_section_names_head_and_checks() -> None:
     text = AGENT_MERGE.read_text(encoding="utf-8")
-    merge = " ".join(text.split("\n## merge\n", 1)[1].split())
-
-    # A bump close disposes of nothing, so the branch outlives `done`.
-    assert "`done` is not the end of the ticket" in merge
-    assert "`coga retire <slug>`" in merge
-    assert "`bootstrap/retire/ticket.md`" in merge
-    assert "`autoclose-merged`" in merge
-
-
-def test_merge_pr_skill_refuses_instead_of_forcing() -> None:
-    text = " ".join(MERGE_PR_SKILL.read_text(encoding="utf-8").split())
-
-    # The merge is pinned to the reviewed, verified head and never bypasses
-    # protection or defers to a scheduled merge.
-    assert "--match-head-commit <verified-head>" in text
-    assert "never pass `--admin`" in text
-    assert "Do not pass `--auto` or `--delete-branch`" in text
-    assert "viewerDefaultMergeMethod" in text
-    assert "escalate per your launch mode" in text
-    assert "`coga bump <slug>" in text
-    # A shared step skill refers to the preceding steps by skill, not name.
-    assert "`peer-review` step" not in text
+    merge = _parse_inline_sections(text, {"merge"})["merge"]
+    assert "ticket and" in merge and "log commits" in merge
+    assert "waits for checks" in merge
+    assert "exact pushed head" in merge

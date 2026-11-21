@@ -2215,7 +2215,6 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
 
     monkeypatch.setattr(launch_script.subprocess, "run", fake_subprocess_run)
     monkeypatch.setattr(launch_script, "append_log", lambda *a, **k: None)
-    monkeypatch.setattr(launch_script.git, "sync_log", lambda *a, **k: None)
 
     deliveries: list[tuple[str, str]] = []
 
@@ -2562,8 +2561,7 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
             )
         )
         kwargs["before_spawn"]()
-        kwargs["revalidate_before_spawn"]()
-        return LaunchResult(launch_kind)
+        return LaunchResult(launch_kind, 124 if launch_kind == "timeout" else 0)
 
     monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
     monkeypatch.setattr(recurring_cmd, "mark_done", fake_mark_done)
@@ -2687,7 +2685,6 @@ def test_delegated_completion_reloads_post_session_config(
 
     def fake_launch(task: str, **kwargs) -> LaunchResult:  # type: ignore[no-untyped-def]
         kwargs["before_spawn"]()
-        kwargs["revalidate_before_spawn"]()
         config_path = repo / "coga.toml"
         config_path.write_text(
             config_path.read_text(encoding="utf-8").replace(
@@ -4389,7 +4386,7 @@ def test_recurring_launch_creates_dream_task(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
@@ -4454,7 +4451,7 @@ def test_recurring_launch_syncs_period_task_and_high_water(
 
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
@@ -4578,7 +4575,7 @@ def test_recurring_launch_lands_create_without_ff_noise(
 
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
@@ -4636,7 +4633,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     )
 
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
@@ -4894,7 +4891,7 @@ def test_recurring_launch_leaves_a_diverged_control_checkout_alone(
     )
 
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
@@ -4957,7 +4954,7 @@ def test_recurring_launch_keeps_the_create_dirty_when_control_is_unreachable(
     )
 
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
@@ -4988,7 +4985,7 @@ def test_recurring_launch_defaults_the_main_agent_to_the_configured_default(
     status, so they make the same choice activation would, and `direct/body`'s
     `assignee: agent` step then derives that agent."""
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
@@ -5005,7 +5002,7 @@ def test_recurring_launch_is_idempotent(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch, rerun: bool
 ) -> None:
     monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", lambda *a, **k: None
+        "coga.launch.launch_recurring_period", lambda *a, **k: LaunchResult(None)
     )
     runner = CliRunner()
     args = ["recurring", "launch", "dream", *(["--rerun"] if rerun else [])]

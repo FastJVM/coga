@@ -16,3 +16,6 @@ Record the review method, actual reviewer identity, conclusions and
 verification receipts in `## PR`. Record the approved full HEAD OID as
 `reviewed:` under `## Dev`, preserving the other fields. Stop when you
 cannot approve that head. Otherwise bump with the handoff ready.
+
+The step assigns a reviewer role. In the review receipt, record the actual reviewer
+identity and disclose any overlap with the implementation session.

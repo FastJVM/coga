@@ -18,9 +18,7 @@ no TTY on stdin or stdout, so a nested agent launch exits 2; faking a terminal
 (`script -qec …`) is not sanctioned. With `delegate:` the sweep itself launches
 the target in the operator's terminal — under the sweep's `--agent` override,
 queue session conduct and idle/max-session bounds — and keeps the period's
-lifecycle bookkeeping, with no wrapper session in between. The rejected
-alternatives are recorded in
-[recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md#why-delegation-rather-than-a-nested-launch).
+lifecycle bookkeeping, with no wrapper session in between.
 
 ## Rules
 

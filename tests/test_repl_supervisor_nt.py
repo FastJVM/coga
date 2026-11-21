@@ -349,10 +349,10 @@ class _FakeTree:
     behavior = staticmethod(lambda tree: 0)
     fail_release: BaseException | None = None
 
-    def __init__(self, argv, *, interactive, gate, new_process_group, shell, env) -> None:
+    def __init__(self, argv, *, interactive, new_process_group, shell, env) -> None:
         self.argv = argv
         self.kwargs = dict(
-            interactive=interactive, gate=gate, new_process_group=new_process_group,
+            interactive=interactive, new_process_group=new_process_group,
             shell=shell,
         )
         self.env = env
@@ -430,7 +430,7 @@ def test_fake_sentinel_interrupts_then_reports_done(fake_tree) -> None:
     assert (outcome.exit_code, outcome.kind, outcome.done_signalled) == (0, "done", True)
     assert "sentinel-file" in outcome.reason
     assert tree.events == ["interrupt", "close"]
-    assert tree.kwargs == dict(interactive=True, gate=False, new_process_group=True, shell=None)
+    assert tree.kwargs == dict(interactive=True, new_process_group=True, shell=None)
     assert tree.argv == [os.path.abspath(Path(fake_tree["env"]["PATH"]) / "agent.exe"), "--x"]
     assert signal.getsignal(signal.SIGINT) is previous
     assert fake_tree["modes"] == ["saved", "restored"]
@@ -569,48 +569,16 @@ def _recording_guard(events: list[str]):
         events.append("guard-exit")
 
 
-def _admission(events: list[str], **overrides):
-    callbacks = dict(
-        after_spawn=lambda: events.append("after_spawn"),
-        spawn_release_guard=lambda: _recording_guard(events),
-        after_spawn_release=lambda: events.append("after_release"),
-        on_spawn_admission_failure=lambda: events.append("compensate"),
-    )
-    callbacks.update(overrides)
-    return callbacks
 
 
-def test_fake_gate_releases_after_admission_inside_the_guard(fake_tree) -> None:
-    events: list[str] = []
-    _FakeTree.behavior = staticmethod(lambda tree: 0)
-    outcome = _run(fake_tree, **_admission(events))
-    tree = _FakeTree.instances[0]
-    assert outcome.kind == "natural"
-    assert tree.kwargs["gate"] is True
-    assert tree.events == ["release", "close"]
-    assert events == ["guard-enter", "after_spawn", "after_release", "guard-exit"]
 
 
 def _boom():
     raise RuntimeError("refused")
 
 
-def test_fake_failure_before_release_compensates_and_kills(fake_tree) -> None:
-    events: list[str] = []
-    with pytest.raises(RuntimeError, match="refused"):
-        _run(fake_tree, **_admission(events, after_spawn=_boom))
-    assert _FakeTree.instances[0].events == ["close"]
-    assert events == ["guard-enter", "compensate", "guard-exit"]
-    assert fake_tree["modes"] == ["saved", "restored"]
 
 
-def test_fake_failed_set_event_compensates_and_kills(fake_tree) -> None:
-    events: list[str] = []
-    _FakeTree.fail_release = OSError("SetEvent failed")
-    with pytest.raises(OSError, match="SetEvent"):
-        _run(fake_tree, **_admission(events))
-    assert _FakeTree.instances[0].events == ["release", "close"]
-    assert events == ["guard-enter", "after_spawn", "compensate", "guard-exit"]
 
 
 def test_dispatch_from_shared_entry_on_windows(monkeypatch) -> None:
@@ -734,22 +702,6 @@ def test_native_idle_timeout_warns(console, capfd) -> None:
     assert capfd.readouterr().err.count(nt.IDLE_TIMEOUT_WARNING) == 1
 
 
-@windows_only
-def test_native_gate_holds_the_child_until_release(console, tmp_path) -> None:
-    started = tmp_path / "started"
-    observed: list[bool] = []
-
-    def admit() -> None:
-        time.sleep(0.5)
-        observed.append(started.exists())
-
-    outcome = run_with_done_marker(
-        _python_child(f"open({str(started)!r}, 'w').close()"),
-        _native_env(),
-        after_spawn=admit,
-    )
-    assert outcome.exit_code == 0
-    assert observed == [False] and started.exists()
 
 
 @windows_only
