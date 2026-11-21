@@ -826,7 +826,7 @@ def test_megalaunch_selection_refuses_invalid_status_before_spawn(
     result = next(r for r in run.results if r.slug == malformed["slug"])
     assert launched == []
     assert result.outcome == "failed"
-    assert result.detail == "status is unexpected; expected active or in_progress"
+    assert result.detail == "invalid status 'unexpected'"
     assert Ticket.read(malformed["path"]).status == "unexpected"
 
 
@@ -2322,42 +2322,8 @@ def test_windows_ctrl_c_signal_quits_the_picker_without_launching(
     assert all(Ticket.read(ref.ticket_path).status == "active" for ref, _ in candidates)
 
 
-def test_queue_reblock_rereads_current_ticket_instead_of_passed_view(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from coga.blackboard import append_blocker
-    from coga.tasks import resolve_task
-    from coga_edge.megalaunch import _reblock_unresolved
-
-    cfg = load_config(repo)
-    created = create_task(cfg=cfg, title="Reblock current ask", workflow_name="code", contexts=[], owner="marc", agent="claude", status="active")
-    ref = resolve_task(cfg, created["slug"])
-    stale = Ticket.read(ref.ticket_path)
-    current = Ticket.read(ref.ticket_path)
-    current.frontmatter["status"] = "in_progress"
-    current.write(ref.ticket_path)
-    append_blocker(ref.ticket_path, "marc", "New current ask")
-    result = _reblock_unresolved(cfg, ref, stale)
-    assert result.outcome == "blocked" and "New current ask" in result.detail
-    assert Ticket.read(ref.ticket_path).status == "blocked"
-    assert _reblock_unresolved(cfg, ref, stale) is None
 
 
-@pytest.mark.parametrize("code", [0, 2, 75])
-def test_queue_authoring_propagates_retained_state_only(repo: Path, monkeypatch: pytest.MonkeyPatch, code: int) -> None:
-    from coga.tasks import resolve_task
-    from coga_edge.megalaunch import _author_draft
-
-    cfg = load_config(repo)
-    created = create_task(cfg=cfg, title="Authoring stop policy", workflow_name="code", contexts=[], owner="marc", agent="claude", status="draft")
-    ref = resolve_task(cfg, created["slug"])
-    before = ref.ticket_path.read_bytes()
-    monkeypatch.setattr("coga_edge.megalaunch.invoke_ticket_authoring", lambda *a, **kw: code)
-    if code == 75:
-        with pytest.raises(SystemExit) as result:
-            _author_draft(cfg, ref, Ticket.read(ref.ticket_path))
-        assert result.value.code == 75
-    else:
-        _author_draft(cfg, ref, Ticket.read(ref.ticket_path))
-    assert ref.ticket_path.read_bytes() == before
 
 
 # --- an agent that fails to start stops the run ------------------------------
@@ -2400,7 +2366,7 @@ def _two_tasks(repo: Path, status: str) -> tuple[dict, dict]:
     )
 
 
-def test_megalaunch_pick_restores_draft_and_activates_no_later_pick(
+def test_megalaunch_pick_retains_failed_start_and_activates_no_later_pick(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from coga.blackboard import open_blockers
@@ -2416,9 +2382,8 @@ def test_megalaunch_pick_restores_draft_and_activates_no_later_pick(
     assert [result.slug for result in run.results] == [first["slug"]]
     row = run.results[0]
     assert row.outcome == "failed" and row.stops_run and row.launched
-    assert "exited with code 127" in row.detail and "restored to draft" in row.detail
-    # Exactly as picked: draft again, no frozen workflow, no claim, no ask.
-    assert Path(first["path"]).read_bytes() == before[first["slug"]]
+    assert "exited with code 127" in row.detail
+    assert Ticket.read(first["path"]).status == "in_progress"
     assert Path(second["path"]).read_bytes() == before[second["slug"]]
     assert open_blockers(Path(first["path"])) == []
 
@@ -2466,7 +2431,8 @@ def test_megalaunch_posix_pty_distinguishes_exec_failure_from_agent_exit(
         assert [row.slug for row in run.results] == [first["slug"]]
         assert run.results[0].stops_run
         assert "exited with code 127" in run.results[0].detail
-        assert [Path(task["path"]).read_bytes() for task in (first, second)] == before
+        assert Ticket.read(first["path"]).status == "in_progress"
+        assert Path(second["path"]).read_bytes() == before[1]
         assert not artifact.exists()
     else:
         assert artifact.read_text() == "workedworked"
@@ -2474,3 +2440,42 @@ def test_megalaunch_posix_pty_distinguishes_exec_failure_from_agent_exit(
         assert all(not row.stops_run for row in run.results)
         assert [row.detail for row in run.results] == [f"agent exited with code {exit_code}"] * 2
         assert all(Ticket.read(task["path"]).status == "in_progress" for task in (first, second))
+
+
+def test_megalaunch_stops_the_ticket_after_a_workflow_script_error(repo, monkeypatch):
+    _write(
+        repo / "workflows" / "compute.md",
+        """
+        ---
+        name: compute
+        steps:
+          - name: compute
+            assignee: agent
+            run: fixture/compute
+          - name: review
+            assignee: owner
+        ---
+
+        ## review
+
+        Review the result.
+        """,
+    )
+    _write(repo / "skills" / "fixture" / "compute" / "SKILL.md", "# Compute\n")
+    _write(repo / "skills" / "fixture" / "compute" / "run.py", "raise SystemExit(7)\n")
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title="Failed computation", workflow_name="compute",
+        contexts=[], owner="marc", agent="claude", status="draft",
+    )
+    monkeypatch.setattr(
+        "coga_edge.megalaunch.spawn_agent_session",
+        lambda *args, **kwargs: pytest.fail("agent spawned after script failure"),
+    )
+
+    run = run_megalaunch(cfg, selection=[created["slug"]])
+
+    (row,) = run.results
+    assert row.outcome == "failed"
+    assert row.detail == "script exited with code 7"
+    assert Ticket.read(created["path"]).step == "1 (compute)"

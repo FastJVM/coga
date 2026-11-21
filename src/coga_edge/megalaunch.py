@@ -89,7 +89,7 @@ from coga.launch_script import run_script_phase, script_entry_point
 from coga.session_limits import resolve_idle_timeout, resolve_max_session
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log, first_activity_map
-from coga.lifecycle import TERMINAL_STATUSES
+from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
 from coga.mark import (
     PREPARE_ACTIVE_ERRORS as _PREPARE_ACTIVE_ERRORS,
     BlackboardNeedsSynthesis,
@@ -1187,6 +1187,8 @@ def _launch_until_stop(
             ticket = read_ticket(ref)
         except TicketError as exc:
             return _result(ref, "failed", f"unreadable ticket: {exc}", launched=launched)
+        if ticket.status not in VALID_STATUSES:
+            return _result(ref, "failed", f"invalid status {ticket.status!r}", launched=launched)
         if not explicit and not _owner_in_scope(ticket, owner_filter):
             return _result(
                 ref, "skipped-human-gate", "ticket is outside the owner filter",
