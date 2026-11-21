@@ -4627,3 +4627,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 17:18 v1 [v1/05-launch-on-a-stale-feature-branch-leaves-projected] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-20 17:18 v1 [v1/05-launch-on-a-stale-feature-branch-leaves-projected] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-20 17:18 v1 [v1/05-launch-on-a-stale-feature-branch-leaves-projected] [megalaunch] launched via coga megalaunch
+2026-11-20 17:20 v1 [v1/05-launch-on-a-stale-feature-branch-leaves-projected] [agent:claude] advanced to step 2 (evaluate-design) → codex — Specced against v1/03's plain-Git model; regression test + coga/git note; 3 open questions
