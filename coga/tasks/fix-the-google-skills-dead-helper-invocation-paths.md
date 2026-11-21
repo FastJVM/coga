@@ -2,14 +2,101 @@
 title: Fix the Google skills' dead helper invocation paths
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-Follow-up from decide-where-the-google-helper-skills-read-their-c (credential source moved to env/secrets). The packaged skills coga/google-calendar, coga/gmail and coga/calendar-reminder still tell callers to run `$COGA_COGA_OS_ROOT/skills/coga/<skill>/<script>.py` (or `<coga>/skills/coga/gmail/gmail.py`) and to `pip install` from the skill's directory. Those paths no longer exist after the package-definition cutover (definitions live under src/coga/resources/templates/coga/bootstrap/skills/). Dream findings ks-28/ks-29 in coga/tasks/recurring/dream/ticket.md (also: calendar-reminder's stopgap framing and legacy event table). Decide the supported invocation (e.g. resolve the attachment path via the skill resolver or ship an edge entry point) and update the three SKILL.md files together.
+Give the three packaged Google skills (`coga/google-calendar`, `coga/gmail`,
+`coga/calendar-reminder`) a working way to find their helper scripts, and lock
+it with a test. Commit `9c918e06c` (on main since 2026-11-18) already replaced
+the dead `$COGA_COGA_OS_ROOT/skills/coga/<skill>/...` paths with a
+`/resolved/coga/<skill>/...` placeholder. But the skills only say the
+placeholder resolves "as in `coga/checkouts/sandbox-clone`". None of them gives
+a command that turns it into a real path, so a caller still has to work it out.
+
+Done means two things. First, there is one concrete, copy-pasteable way to
+resolve the helper directory, written in one place. Check for the local
+override first (`<coga-dir>/skills/coga/<skill>/`, where `<coga-dir>` is
+`$COGA_COGA_OS_ROOT` inside a launch, or the checkout's `coga/` dir outside
+one). Fall back to the `coga.paths.packaged_template_path(...)` one-liner. The
+same text says where `pip install -r requirements.txt` runs. `coga/google-calendar`
+owns this text. `coga/gmail` either restates it in one line for its own skill
+or links to it. `coga/calendar-reminder` links to `coga/google-calendar` and
+keeps only its call shapes, including its pip line (currently "from the
+`coga/google-calendar` skill's dir"). This follows the one-owner rule in
+`coga/knowledge`. Second, a test in `tests/test_packaging.py` fails if any
+`/resolved/<ref>/<file>` placeholder in packaged resources points at a file the
+package does not ship.
 
 ## Context
+
+### Current state (verified 2026-11-20 against origin/main)
+
+- The packaged definitions live under
+  `src/coga/resources/templates/coga/bootstrap/skills/coga/{google-calendar,gmail,calendar-reminder}/`.
+  `google-calendar` ships `gcal.py` and `requirements.txt`. `gmail` ships
+  `gmail.py` and `requirements.txt`. `calendar-reminder` is SKILL.md only; it
+  shells to `google-calendar`'s `gcal.py`.
+- Every call shape already uses the `/resolved/coga/<skill>/<script>.py`
+  placeholder, followed by a paragraph defining it as local override else
+  installed bundled skill. `google-calendar` also notes that
+  `$COGA_COGA_OS_ROOT/skills/coga/google-calendar/` exists only for a local
+  override. That note is accurate: `task_env` sets `COGA_COGA_OS_ROOT` to the
+  workspace `coga/` dir, and bundled skills are not copied there. Keep it or
+  fold it into the new resolution text.
+- The stopgap framing and legacy event table that Dream flagged in
+  calendar-reminder were already removed by `9c918e06c`. Do not redo them.
+- The credential source (env/`secrets:`) was settled by
+  `decide-where-the-google-helper-skills-read-their-c` (done). It is out of
+  scope here.
+
+### The resolution recipe to reuse (cited, not attached)
+
+`coga/checkouts/sandbox-clone`
+(`src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/sandbox-clone/SKILL.md`,
+section "What a fresh checkout lacks") is cited, not attached. Its
+`seed_local_config.py` example is the existing pattern: resolve the attachment
+from the repo's local skills, else the package, via
+`python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "code", "implement"))'`
+under an interpreter that imports `coga`. Mirror that shape for
+`("bootstrap", "skills", "coga", "google-calendar")` and `(..., "gmail")`.
+`coga.paths.packaged_template_path` joins package-resource parts. Use it in
+the one-liner. Don't use `paths.bootstrap_skill_dir`: it takes a `Config`
+argument it ignores, which makes it awkward in a `-c` one-liner.
+
+The examples may stay POSIX-shaped: Windows checks happen only at release.
+Still, add a short note that `python -c '...'` with single quotes fails in
+cmd.exe and needs double quotes there.
+
+Caveat the text must handle: the interpreter that imports `coga` (for example
+a `uv tool` venv) may not be the one that has the Google client libs. The
+helpers are self-contained scripts, so state which Python runs them and which
+one `pip install -r requirements.txt` targets: the same Python that runs the
+script, as the files already say.
+
+### Test
+
+Add the check to `tests/test_packaging.py`, which owns "packaged references
+point at shipped files" (`tests/test_google_helpers.py` covers credentials
+only). Scan every text file under `src/coga/resources/` for
+`/resolved/<ref>/<file>`. Today these appear in the three Google SKILL.md
+files, the `gcal.py`/`gmail.py` docstrings, `code/implement/SKILL.md`, the
+`coga/checkouts/sandbox-clone` context and `workflows/docs/with-review.md`.
+Assert that each `<file>` exists under the packaged
+`bootstrap/skills/<ref>/` dir. The `.../<file>` shorthand lines need no
+check, because their full form appears earlier in the same file. Run
+`python -m pytest`.
+
+### Out of scope
+
+- Shipping `gcal`/`gmail` as `coga_edge` entry points (considered and declined
+  for this ticket; it would change the package layout and optional deps).
+- Dream findings ks-28/ks-29 in `coga/tasks/recurring/dream/ticket.md` are
+  partly stale (they predate `9c918e06c`). Don't edit the Dream ticket. Mention
+  in the PR body that this change resolves them.
+- If behavior docs change, update the owning topic in the same PR
+  (AGENTS.md). Here the SKILL.md files are the owners.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
