@@ -4600,3 +4600,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 16:13 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-20 16:13 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] launched via coga megalaunch
 2026-11-20 16:13 v1 [correct-script-tickets-on-which-supervisor-variabl] [human:nicktoper] unblocked (asks resolved, still in_progress): GitHub confirms #1244 and #1247 both merged on November 19, 2026, at 20:32:56 UTC and 20:33:18 UTC respectively. Both publication prerequisites are satisfied. Refresh the peer review and handoff against current main.
+2026-11-20 16:32 v1 [correct-script-tickets-on-which-supervisor-variabl] [agent:codex] advanced to step 3 (open-pr) → claude
