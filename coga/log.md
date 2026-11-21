@@ -4598,3 +4598,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 16:13 v1 [add-the-megalaunch-dependency-resolution-append-lo] [system] blocked: unresolved blocker still open after resumed megalaunch pick exited
 2026-11-20 16:13 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-20 16:13 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-11-20 16:13 v1 [correct-script-tickets-on-which-supervisor-variabl] [megalaunch] launched via coga megalaunch
