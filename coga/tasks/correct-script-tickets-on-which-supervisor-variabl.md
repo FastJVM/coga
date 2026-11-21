@@ -138,6 +138,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1275
 branch: coga/correct-script-tickets-on-which-supervisor-variabl
 
 ## Handoff (implement)
