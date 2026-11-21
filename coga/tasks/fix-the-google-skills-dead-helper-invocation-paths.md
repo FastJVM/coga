@@ -212,4 +212,13 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: fix-google-skills-helper-paths
+
+## Plan (implement)
+
+- `coga/google-calendar` owns the copy-pasteable resolution recipe (local override, else `packaged_template_path` one-liner; cmd.exe quoting note; which Python runs the script and takes `pip install`).
+- `coga/gmail` restates it in one line for its own dir and links the owner; `coga/calendar-reminder` links the owner and keeps call shapes + pip line.
+- New `tests/test_packaging.py` check: every `/resolved/<ref>/<file>` in packaged text resources names a file shipped under `bootstrap/skills/<ref>/`.
+
