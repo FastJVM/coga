@@ -14,12 +14,8 @@ from rich.table import Table
 
 from coga.blackboard import Blocker, open_blockers
 from coga.config import Config, ConfigError, load_config
-from coga.git import (
-    FeatureSyncPlan, feature_sync_plan, stale_coga_task_rels, stale_index_lock,
-)
 from coga.logfile import first_activity_map
 from coga.lifecycle import STATUS_DISPLAY_ORDER, TERMINAL_STATUSES
-from coga.oscompat import shell_chain
 from coga.recurring import TemplateStatus, list_templates
 from coga.service_order import service_order
 from coga.taskfile import TaskFileError
@@ -89,9 +85,6 @@ def render_status(
     Raises `ViewError` for a bad `--order-by` and `UnknownDirectoryError` for an
     unknown directory; the caller translates both to `sys.exit(2)`.
     """
-    _warn_if_control_ahead(cfg)
-    _warn_if_index_locked(cfg)
-    _hint_feature_sync(cfg)
 
     if dirs:
         _list_dirs(cfg, directory, no_recurse=no_recurse)
@@ -279,91 +272,6 @@ def _print_recurring_templates(
 
 def _count_noun(count: int, noun: str) -> str:
     return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
-
-
-def _warn_if_control_ahead(cfg: Config) -> None:
-    """One yellow stderr line when the fetched control ref has newer task state.
-
-    `status` is strictly read-only and no-network (principle 6), so this leans
-    on `stale_coga_task_rels`: a comparison against the local remote-tracking
-    `origin/<control>` ref only — it can say "your view is stale as of the last
-    fetch", never fetch to find out more, and it fails open to silence. Stderr,
-    not the table's stdout, so piped output stays parseable.
-    """
-    stale = stale_coga_task_rels(cfg)
-    if not stale:
-        return
-    noun = "task" if len(stale) == 1 else "tasks"
-    Console(stderr=True).print(
-        f"[yellow]Warning: {cfg.git_remote}/{cfg.git_control_branch} has newer "
-        f"state for {len(stale)} {noun} than this checkout — this view may be "
-        f"stale. A finished `coga launch` from here refreshes it.[/yellow]"
-    )
-
-
-def _warn(message: str) -> None:
-    # Plain text, unwrapped: paths and commands must stay copyable, and a
-    # `[` in a path is not Rich markup.
-    Console(stderr=True, soft_wrap=True).print(
-        message, style="yellow", markup=False, highlight=False,
-    )
-
-
-def _warn_if_index_locked(cfg: Config) -> None:
-    """One stderr warning when this checkout's `index.lock` exists.
-
-    Every Git write here fails while it does. Coga never removes the lock:
-    a live Git process may own it.
-    """
-    lock = stale_index_lock(cfg)
-    if lock is None:
-        return
-    _warn(
-        f"Warning: {lock} exists, so Git writes in this checkout will fail. "
-        "Confirm no git process is using this checkout, then remove it."
-    )
-
-
-def _hint_feature_sync(cfg: Config) -> None:
-    """How to merge control into a feature checkout holding published Coga state.
-
-    Coga keeps published tickets and log dirty on a feature branch by design;
-    those copies block `git merge` of control until dropped. Local refs only,
-    no network, silent on a control checkout or any Git failure.
-    """
-    plan = feature_sync_plan(cfg)
-    if plan is None:
-        return
-    _warn(feature_sync_message(plan))
-
-
-def feature_sync_message(plan: FeatureSyncPlan, *, windows: bool | None = None) -> str:
-    if plan.manual:
-        listed = "\n".join(f"  - {rel} ({reason})" for rel, reason in plan.manual)
-        return (
-            f"Note: this feature checkout has Coga state that is not on {plan.target} "
-            f"as it stands here:\n{listed}\n"
-            "Publish it first (`coga run publish-state`) or reconcile it per "
-            f"{SYNC_SECTION} before merging {plan.target}."
-        )
-    root = str(plan.root)
-    commands: list[list[str]] = []
-    if plan.tracked:
-        commands.append(["git", "--literal-pathspecs", "-C", root, "checkout", "--", *plan.tracked])
-    if plan.untracked:
-        absolute = [str(plan.root.joinpath(*rel.split("/"))) for rel in plan.untracked]
-        windows = windows if windows is not None else os.name == "nt"
-        if windows:
-            commands.extend(["Remove-Item", "-LiteralPath", path] for path in absolute)
-        else:
-            commands.append(["rm", "--", *absolute])
-    commands.append(["git", "-C", root, "merge", "--no-edit", plan.target])
-    return (
-        f"Note: this feature checkout's dirty Coga state is already on {plan.target}; "
-        "Coga keeps published copies dirty here by design. To sync this branch "
-        f"with {plan.target}, run:\n  {shell_chain(commands, windows=windows)}\n"
-        f"See {SYNC_SECTION}."
-    )
 
 
 def _list_dirs(cfg: Config, directory: str | None, *, no_recurse: bool) -> None:

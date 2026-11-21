@@ -13,7 +13,6 @@ from types import SimpleNamespace
 import pytest
 
 from coga import oscompat
-from coga.git import state_lock
 
 
 def test_nonblocking_lock_reports_contention_and_unlocks(tmp_path: Path) -> None:
@@ -30,38 +29,6 @@ def test_nonblocking_lock_reports_contention_and_unlocks(tmp_path: Path) -> None
     finally:
         os.close(second)
         os.close(first)
-
-
-def test_state_lock_blocks_another_process_until_release(tmp_path: Path) -> None:
-    script = """
-import sys
-from pathlib import Path
-from types import SimpleNamespace
-from coga.git import state_lock
-print('waiting', flush=True)
-with state_lock(SimpleNamespace(repo_root=Path(sys.argv[1]))):
-    print('acquired', flush=True)
-"""
-    cfg = SimpleNamespace(repo_root=tmp_path)
-    child = None
-    with ThreadPoolExecutor(max_workers=1) as reader:
-        try:
-            with state_lock(cfg):
-                with state_lock(cfg):  # same-thread reentrancy
-                    child = subprocess.Popen(
-                        [sys.executable, "-c", script, str(tmp_path)],
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
-                    )
-                    assert child.stdout.readline() == "waiting\n"
-                    acquired = reader.submit(child.stdout.readline)
-                    with pytest.raises(TimeoutError):
-                        acquired.result(timeout=0.2)
-            assert acquired.result(timeout=10) == "acquired\n"
-            assert child.wait(timeout=10) == 0
-        finally:
-            if child is not None and child.poll() is None:
-                child.kill()
-                child.wait()
 
 
 def test_process_probe_does_not_terminate_a_live_owner() -> None:

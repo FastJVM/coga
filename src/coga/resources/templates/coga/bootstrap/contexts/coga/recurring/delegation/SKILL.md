@@ -24,37 +24,9 @@ alternatives are recorded in
 
 ## Rules
 
-- **Agent-backed on both ends.** A delegating template is in the agent
-  admission class: a headless sweep refuses it before creating the period, and
-  skips an already materialized one. The target must itself be agent-backed; a
-  bootstrap target with `ticket.py` is rejected before creation — move that
-  work into the template's own `ticket.py`.
-- **Frozen dispatch.** Creation copies the target into the period ticket. Sweep
-  retries, named retries and direct `coga launch recurring/<name>` route only
-  from that frozen field, re-read after launch reconciliation, never from the
-  mutable template. A period that later acquires `ticket.py` is refused as
-  ambiguous. Direct launch activates a paused/draft delegated period inline;
-  scheduled and named scans resume only a sweep or watchdog pause
-  ([scheduling](../scheduling/SKILL.md#admission-and-unfinished-runs)) and leave
-  a human pause parked.
-- **One agent step.** The resolved workflow must have exactly one step that
-  explicitly declares `assignee: agent` and no `requires:` gate (even one that
-  currently passes). `direct/body` qualifies. Delegation completes the whole
-  period on the target's done signal without advancing the workflow, so any
-  further step, owner gate, peer role or completion gate would be skipped. The
-  bound is checked on the template before materialization and on the frozen
-  period before every retry, direct launch and sentinel completion; a refusal
-  spawns and completes nothing. `coga validate` reports
-  `unbounded-delegated-workflow`. Multi-step, reviewed or gated jobs use
-  ordinary recurring execution; role-aware delegation is out of scope.
-- **Completion is the target's sentinel.** The period reaches `done` only when
-  the bootstrap target signals completion with
-  [`coga mark done bootstrap/<name>`](../../cli/SKILL.md#stateless-command-completion).
-  A natural or crashed exit leaves the period
-  retryable. A watchdog timeout in a multi-task sweep is paused and the sweep
-  continues only once that pause is verified on control; a named launch leaves
-  it `in_progress` for retry.
-- **Generation guards.** A stale or replaced period child can never mutate a
-  later period or strand a cursor update locally; completion also publishes
-  the parent template's state with `done`. The checks are in
-  [recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md).
+A materialized period freezes a stateless agent-backed `bootstrap/<name>`
+target. Deterministic phases belong in a workflow script or `ticket.py`.
+The delegated workflow has one agent-held step and no completion gate.
+After preflight the runner records the period start locally and executes the
+bootstrap agent. Its done signal completes the local period. An unexpected
+exit reports failure and retains the ticket.

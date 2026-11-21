@@ -14,14 +14,12 @@ import pytest
 from rich.console import Console
 
 from coga.config import load_config
-from coga.git import FeatureSyncPlan
 from coga.recurring import TemplateStatus
 from coga.tasks import TaskNotFoundError, TaskRef, UnknownDirectoryError
 from report_helpers import report_module
 
 status_report = report_module("status")
 render_show = report_module("show").render_show
-feature_sync_message = status_report.feature_sync_message
 ViewError = status_report.ViewError
 _print_recurring_templates = status_report._print_recurring_templates
 render_status = status_report.render_status
@@ -121,35 +119,6 @@ def test_render_status_lists_tasks(repo: Path) -> None:
     assert "ship-it" in out
 
 
-def test_render_status_warns_when_control_ref_ahead(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    """When the fetched control ref has newer task state, the table gets a
-    stderr staleness warning (stdout stays parseable)."""
-    _task(repo, "fix-retry-logic")
-    monkeypatch.setattr(
-        "coga_report_status.stale_coga_task_rels",
-        lambda cfg: ["coga/tasks/fix-retry-logic/ticket.md"],
-    )
-    console = _recording_console()
-
-    render_status(
-        load_config(repo),
-        directory=None,
-        no_recurse=False,
-        order_by="updated",
-        reverse=False,
-        show_all=False,
-        dirs=False,
-        blocked=False,
-        console=console,
-    )
-
-    err = capsys.readouterr().err
-    assert "newer" in err and "1 task" in err
-    assert "newer" not in console.file.getvalue()
-
-
 def _render(repo: Path) -> Console:
     console = _recording_console()
     render_status(
@@ -235,38 +204,6 @@ def test_render_status_is_silent_without_a_feature_sync_plan(
 ) -> None:
     _render(repo)
     assert capsys.readouterr().err == ""
-
-
-def test_feature_sync_message_renders_powershell() -> None:
-    plan = _plan(
-        Path("C:/work/my repo"),
-        tracked=("coga/log.md",),
-        untracked=("coga/tasks/it's.md", "coga/tasks/b.md"),
-    )
-    message = feature_sync_message(plan, windows=True)
-    root = str(Path("C:/work/my repo"))
-    quoted_root = "'" + root + "'"
-    first = str(Path("C:/work/my repo").joinpath("coga", "tasks", "it's.md")).replace("'", "''")
-    second = str(Path("C:/work/my repo").joinpath("coga", "tasks", "b.md"))
-    assert (
-        f"git --literal-pathspecs -C {quoted_root} checkout -- coga/log.md; if ($?) {{ "
-        f"Remove-Item -LiteralPath '{first}'; if ($?) {{ "
-        f"Remove-Item -LiteralPath '{second}'; if ($?) {{ "
-        f"git -C {quoted_root} merge --no-edit origin/main }} }} }}"
-    ) in message
-
-
-def test_render_status_warns_about_an_index_lock(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    lock = Path("/w/.git/index.lock")
-    monkeypatch.setattr("coga_report_status.stale_index_lock", lambda cfg: lock)
-
-    _render(repo)
-
-    err = capsys.readouterr().err
-    assert str(lock) in err
-    assert "Confirm no git process is using this checkout, then remove it." in err
 
 
 def test_render_status_bad_order_by_raises(repo: Path) -> None:

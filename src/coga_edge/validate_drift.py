@@ -818,7 +818,7 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
                 cwd=args.cwd or Path.cwd(),
                 fixes=fixes,
                 message=args.commit_message,
-                remote=worker_cfg.git_remote,
+                remote="origin",
                 allow_main_push=args.allow_main_push,
             )
         report = render_blackboard_report(

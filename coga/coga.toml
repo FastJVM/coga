@@ -137,29 +137,6 @@ block = [
 nicktoper = "U0AG1BASFJ7"
 zach = "U0AG5LKCK8E"
 
-# --- Git sync ---
-# The git analogue of Slack: every command that mutates ticket state commits
-# the resolved task directory under `coga/tasks/` and pushes it to the
-# control branch, so the git-backed repo never drifts from the team's live state.
-# Always-on — these defaults apply even with no `[git]` table below.
-#
-# When HEAD is the control branch the task files are committed and pushed; on
-# a feature branch (or detached HEAD) the same files are landed on the control
-# branch via a working-tree-free plumbing path. A failed commit/push is
-# non-fatal: it is surfaced to stderr + the task's log.md, but never aborts the
-# local state transition (the on-disk markdown is the source of truth; git is
-# only the sync layer, so a push that can't reach a protected/remote control
-# branch must not block a `bump` / `mark` / launch).
-#
-# Defaults: enabled = true, remote = "origin", control_branch = "main".
-# To opt out (a repo with no remote: dev/test, CI, solo branches), set
-# `enabled = false` here or in coga.local.toml (local overrides shared,
-# like [notification.slack]).
-#   [git]
-#   enabled = true
-#   remote = "origin"
-#   control_branch = "main"
-
 # --- Aliases ---
 # Thin sugar over often-used commands (typically bootstrap-ticket launches).
 # Aliases forward positional args after the alias name to the expanded form.

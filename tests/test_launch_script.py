@@ -12,7 +12,7 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import windows_skip, derived_operator, hold_by_agent, hold_by_owner, seed_direct_body_workflow
-from coga import compose as compose_module, git
+from coga import compose as compose_module
 from coga.blackboard import append_blocker
 from coga.cli import app
 from coga import launch as launch_module
@@ -31,8 +31,6 @@ from coga.ticket import Ticket
 
 
 _SOURCE_ROOT = Path(__file__).resolve().parents[1]
-
-
 
 
 def _write(path: Path, text: str) -> None:
@@ -251,11 +249,6 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
         launch_module,
         "_refresh_agent_skills_for_launch",
         _fail("agent skills refreshed"),
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_preflight_push_auth",
-        _fail("agent push auth checked"),
     )
     monkeypatch.setattr(launch_module.shutil, "which", _fail("agent CLI resolved"))
     monkeypatch.setattr(Config, "agent_type", _fail("agent type resolved"))
@@ -658,178 +651,6 @@ def test_script_does_not_run_after_sync_changes_lifecycle_or_owner(
     assert (outcome.ticket.current_step() or {}).get("assignee") == expected_role
 
 
-def test_recorded_assist_script_receives_capability_and_publishes_result(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    observed_path = script_repo.parent / "assist-env.json"
-    ref = _create_script_task(
-        script_repo,
-        f"""
-        import json
-        import os
-        from pathlib import Path
-
-        Path({str(observed_path)!r}).write_text(json.dumps({{
-            key: os.environ.get(key)
-            for key in (
-                "COGA_SUPERVISED",
-                "COGA_EXPECTED_TASK",
-                "COGA_EXPECTED_STEP",
-                "COGA_ASSIST_AGENT",
-                "COGA_ASSIST_BRANCH",
-                "COGA_ASSIST_PR",
-            )
-        }}))
-        """,
-    )
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    hold_by_owner(ticket)
-    ticket.write(ref.ticket_path)
-
-    sync_log_calls: list[dict[str, object]] = []
-    sync_state_calls: list[dict[str, object]] = []
-
-    def sync_log(*args, **kwargs):  # type: ignore[no-untyped-def]
-        sync_log_calls.append(dict(kwargs))
-        return True
-
-    def sync_state(*args, **kwargs):  # type: ignore[no-untyped-def]
-        sync_state_calls.append(dict(kwargs))
-
-    monkeypatch.setattr("coga.launch_script.git.sync_log", sync_log)
-    monkeypatch.setattr("coga.launch_script.git.sync_task_state", sync_state)
-
-    result = run_script_phase(
-        load_config(script_repo),
-        ref,
-        ticket,
-        stateless=False,
-        assist_branch="feature/review",
-        assist_agent="claude",
-        assist_pr_url="https://github.com/example/repo/pull/1",
-    )
-
-    assert result.exit_code == 0
-    observed = json.loads(observed_path.read_text(encoding="utf-8"))
-    assert observed == {
-        "COGA_SUPERVISED": None,
-        "COGA_EXPECTED_TASK": str(ref.path.resolve()),
-        "COGA_EXPECTED_STEP": "1 (execute)",
-        "COGA_ASSIST_AGENT": "claude",
-        "COGA_ASSIST_BRANCH": "feature/review",
-        "COGA_ASSIST_PR": "https://github.com/example/repo/pull/1",
-    }
-    assert sync_log_calls == [{"message": f"Log: {ref.id_slug}"}]
-    # The assist's script result is published to control right after exit.
-    assert sync_state_calls == [{"message": f"Ticket: {ref.id_slug} — script result"}]
-
-
-@pytest.mark.parametrize("script_exit", [0, 17], ids=["success", "failure"])
-def test_recorded_assist_aligns_before_running_ticket_script(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    script_exit: int,
-) -> None:
-    ref = _create_script_task(script_repo, "raise AssertionError('not run')\n")
-    ticket = Ticket.read(ref.ticket_path)
-    hold_by_owner(ticket)
-    ticket.write(ref.ticket_path)
-    replace_blackboard(
-        ref.ticket_path,
-        dedent(
-            """
-            ## Dev
-            branch: feature/review
-            worktree: /tmp/recorded-review
-            pr: https://github.com/example/repo/pull/1
-            """
-        ),
-    )
-
-    events: list[str] = []
-    alignment_calls = 0
-
-    def fake_align(cfg, alignment_ticket):  # type: ignore[no-untyped-def]
-        nonlocal alignment_calls
-        alignment_calls += 1
-        events.append(f"align-{alignment_calls}")
-        if alignment_calls == 1:
-            fresh = Ticket.read(ref.ticket_path)
-            fresh.frontmatter["title"] = "Fresh recorded ticket"
-            fresh.write(ref.ticket_path)
-            return True, "remote-oid"
-        return False, "remote-oid"
-
-    def fake_start(cfg, target, current, *, launch_agent):  # type: ignore[no-untyped-def]
-        events.append("publish")
-        assert launch_agent == "claude"
-        current.frontmatter["status"] = "in_progress"
-        current.write(target.ticket_path)
-
-    def fake_script_chain(  # type: ignore[no-untyped-def]
-        cfg, target, current, ran_steps, **kwargs
-    ):
-        events.append("script")
-        assert current.title == "Fresh recorded ticket"
-        assert current.status == "in_progress"
-        assert kwargs["assist_branch"] == "feature/review"
-        assert kwargs["assist_agent"] == "claude"
-        return ScriptChainResult(script_exit, current, False, "script complete")
-
-    monkeypatch.setattr(
-        launch_module,
-        "_recorded_single_checkout_assist_branch",
-        lambda cfg, current: "feature/review",
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_verify_recorded_assist_pr_head",
-        lambda *args, **kwargs: "remote-oid",
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_align_recorded_assist_checkout",
-        fake_align,
-    )
-    monkeypatch.setattr(launch_module, "_start_session", fake_start)
-    monkeypatch.setattr(
-        launch_module,
-        "_preflight_push_auth",
-        lambda *args, **kwargs: None,
-    )
-    monkeypatch.setattr(launch_module, "run_script_chain", fake_script_chain)
-    monkeypatch.setattr(
-        launch_module,
-        "interactive_stdio_has_tty",
-        lambda: True,
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_refresh_launch_checkout",
-        lambda *args, **kwargs: True,
-    )
-
-    def launch() -> None:
-        launch_module.launch(
-            ref.id_slug,
-            args=[],
-            agent_override="claude",
-            prompt_report=False,
-            idle_timeout=None,
-            max_session=None,
-            return_timeout=False,
-        )
-
-    if script_exit:
-        with pytest.raises(launch_module.LaunchBail) as exc_info:
-            launch()
-        assert exc_info.value.code == script_exit
-    else:
-        launch()
-
-    assert events == ["align-1", "align-2", "publish", "script"]
 
 
 @pytest.mark.parametrize(
@@ -915,11 +736,6 @@ def test_blocked_script_termination_reblocks_unresolved_ask(
         launch_module,
         "compose_prompt",
         _fail("prompt composed before script"),
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_preflight_push_auth",
-        _fail("agent push auth checked before script"),
     )
     monkeypatch.setattr(
         Config,
@@ -1155,36 +971,6 @@ def test_human_assist_override_expires_at_agent_owned_step(
     assert "assignee" not in ticket.frontmatter
 
 
-def test_reblock_restores_the_original_position_not_an_assignment(
-    script_repo: Path,
-) -> None:
-    """Restoring an unanswered resume restores the *routing inputs*.
-
-    A terminal deterministic transition can clear `step:`. Putting the original
-    position back is enough: the operator is derived from the frozen role at that
-    position, so an unresolved ask can no longer be attributed to whichever agent
-    a later step would have used.
-    """
-    ref = _create_script_task(script_repo, "pass\n")
-    append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "done"
-    ticket.frontmatter["step"] = None
-    ticket.write(ref.ticket_path)
-
-    reblocked = launch_module._park_unanswered_resume(
-        load_config(script_repo),
-        ref,
-        "claude",
-        resume_step="1 (execute)",
-    )
-
-    assert reblocked is True
-    restored = Ticket.read(ref.ticket_path)
-    assert restored.status == "blocked"
-    assert restored.step == "1 (execute)"
-    assert "assignee" not in restored.frontmatter
-    assert derived_operator(script_repo, ref.id_slug) == "claude"
 
 
 def test_agent_handoff_uses_configuration_reloaded_after_script(
@@ -1225,11 +1011,6 @@ def test_agent_handoff_uses_configuration_reloaded_after_script(
         launch_module,
         "_refresh_agent_skills_for_launch",
         lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_preflight_push_auth",
-        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
         launch_module.shutil,
@@ -1455,11 +1236,6 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
             _fail("agent skills refreshed"),
         )
         monkeypatch.setattr(
-            launch_module,
-            "_preflight_push_auth",
-            _fail("agent push auth checked"),
-        )
-        monkeypatch.setattr(
             launch_module.shutil,
             "which",
             _fail("agent CLI resolved"),
@@ -1663,144 +1439,6 @@ def test_bootstrap_script_runs_without_configured_agents(
     assert json.loads(observed_path.read_text(encoding="utf-8"))[1:] == ["a"]
 
 
-def test_bootstrap_script_retained_state_exit_skips_refresh_and_sweep(
-    script_repo: Path,
-) -> None:
-    bootstrap = script_repo / "bootstrap" / "retains"
-    _write(bootstrap / "ticket.md", "---\ntitle: Retains state\n---\n")
-    _write(bootstrap / "ticket.py", "raise SystemExit(75)\n")
-    env = os.environ.copy()
-    source_path = str(_SOURCE_ROOT / "src")
-    existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = (
-        source_path if not existing else source_path + os.pathsep + existing
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-m", "coga.cli", "launch", "bootstrap/retains"],
-        cwd=script_repo,
-        env=env,
-        check=False,
-        capture_output=True,
-        text=True, encoding="utf-8",
-    )
-
-    assert result.returncode == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.stderr
-    assert "Script exited with 75." in result.stderr
-    # `cli.main` skips the end-of-command sweep for this exit code itself.
-    assert "script ran successfully" not in result.stderr
-
-
-@pytest.mark.parametrize("switch_to_older_branch", [False, True])
-def test_task_script_retained_state_exit_names_its_unpublished_log_line(
-    git_repo, monkeypatch: pytest.MonkeyPatch,
-    switch_to_older_branch: bool,
-) -> None:
-    """Without a remote no checkout boundary settles the phase, so the exit
-    line was left dirty with no report; the CLI boundary now names it."""
-    monkeypatch.chdir(git_repo.coga_os)
-    script = "raise SystemExit(75)\n"
-    if switch_to_older_branch:
-        script = (
-            "import subprocess\n"
-            "subprocess.run(['git', 'switch', 'older'], check=True)\n"
-            + script
-        )
-    ref = _create_script_task(git_repo.coga_os, script)
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "seed retaining script task")
-    if switch_to_older_branch:
-        from coga.logfile import append_log
-
-        git_repo.git("branch", "older")
-        cfg = load_config(git_repo.coga_os)
-        for index in range(20):
-            append_log(cfg, "peer", "system", f"Later control event {index}")
-        git_repo.git("add", "coga/log.md")
-        git_repo.git("commit", "-m", "advance control log beyond the older branch")
-    git_repo.git("remote", "remove", "origin")
-    env = os.environ.copy()
-    source_path = str(_SOURCE_ROOT / "src")
-    existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = (
-        source_path if not existing else source_path + os.pathsep + existing
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-m", "coga.cli", "launch", ref.id_slug],
-        cwd=git_repo.coga_os,
-        env=env,
-        check=False,
-        capture_output=True,
-        text=True, encoding="utf-8",
-    )
-
-    assert result.returncode == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.stderr
-    assert "1 log line(s) are not on control" in result.stderr
-    assert (
-        f"[{ref.id_slug}] [system] script exited with code 75" in result.stderr
-    )
-    # The lines launch published itself are on control and are not named.
-    assert "launched as a script" not in result.stderr
-    assert git_repo.git("status", "--porcelain") == " M coga/log.md\n"
-
-
-def test_bootstrap_script_retained_state_exit_does_not_refresh_the_checkout(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bootstrap = script_repo / "bootstrap" / "retains"
-    _write(bootstrap / "ticket.md", "---\ntitle: Retains state\n---\n")
-    _write(bootstrap / "ticket.py", "raise SystemExit(75)\n")
-    refreshes: list[object] = []
-    monkeypatch.setattr(
-        launch_module, "_refresh_launch_checkout", lambda cfg: refreshes.append(cfg)
-    )
-
-    result = CliRunner().invoke(app, ["launch", "bootstrap/retains"])
-
-    assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-    assert refreshes == []
-
-
-def test_bootstrap_script_retained_state_exit_skips_between_phase_settlement(
-    script_repo: Path,
-) -> None:
-    bootstrap = script_repo / "bootstrap" / "retains"
-    _write(bootstrap / "ticket.md", "---\ntitle: Retains state\n---\n")
-    _write(bootstrap / "ticket.py", "raise SystemExit(75)\n")
-    cfg = load_config(script_repo)
-    ref = resolve_bootstrap(cfg, "retains")
-    settled: list[object] = []
-
-    def between_phases(phase_cfg, phase_ref):
-        settled.append(phase_ref)
-        return phase_cfg, phase_ref
-
-    outcome = run_script_chain(
-        cfg, ref, Ticket.read(ref.ticket_path), set(), between_phases=between_phases,
-    )
-
-    assert outcome.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-    assert settled == []
-
-
-def test_bootstrap_script_ordinary_failure_still_refreshes_the_checkout(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bootstrap = script_repo / "bootstrap" / "fails"
-    _write(bootstrap / "ticket.md", "---\ntitle: Fails\n---\n")
-    _write(bootstrap / "ticket.py", "raise SystemExit(3)\n")
-    refreshes: list[object] = []
-    monkeypatch.setattr(
-        launch_module, "_refresh_launch_checkout", lambda cfg: refreshes.append(cfg)
-    )
-
-    result = CliRunner().invoke(app, ["launch", "bootstrap/fails"])
-
-    assert result.exit_code == 3
-    assert len(refreshes) == 1
 
 
 @pytest.mark.parametrize("status", ["active", "draft", "paused", "assist"])
@@ -1854,154 +1492,10 @@ def test_stateful_script_phase_rejects_args_from_a_caller(script_repo: Path) -> 
         )
 
 
-@pytest.mark.parametrize("admission", ["enter", "admit"])
-def test_script_chain_preserves_the_pre_phase_contexts_root(git_repo, monkeypatch, admission):
-    monkeypatch.chdir(git_repo.coga_os)
-    (git_repo.coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n',
-        encoding="utf-8", newline="\n",
-    )
-    seed_direct_body_workflow(git_repo.coga_os)
-    ref = _create_script_task(
-        git_repo.coga_os,
-        """
-        from pathlib import Path
-        config = Path('coga/coga.toml')
-        config.write_text(config.read_text().replace('docs/contexts', 'docs/topics'))
-        Path('docs/contexts').rename('docs/topics')
-        """,
-    )
-    old_root = git_repo.root / "docs" / "contexts"
-    _write(old_root / "team" / "SKILL.md", "---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
-    config = git_repo.coga_os / "coga.toml"
-    config.write_text(config.read_text(encoding="utf-8") + '\n[layout]\ncontexts = "docs/contexts"\n', encoding="utf-8", newline="\n")
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "seed script relocation")
-    git_repo.git("push", "origin", "main")
-    cfg = load_config(git_repo.coga_os)
-    boundary = launch_module._CheckoutBoundary()
-    if admission == "enter":
-        cfg = boundary.enter(cfg, ref.id_slug)
-    else:
-        boundary.admit(cfg)
-    destination = git_repo.root / "docs" / "topics"
-
-    def between_phases(phase_cfg, phase_ref):
-        # Exercise the real script runner's early configuration reload.
-        assert phase_cfg.contexts_root == destination
-        assert boundary.settle(phase_cfg, subject="script relocation")
-        return boundary.reload(phase_cfg, phase_ref)
-
-    outcome = run_script_chain(
-        cfg, ref, Ticket.read(ref.ticket_path), set(), between_phases=between_phases,
-    )
-
-    assert outcome.exit_code == 0
-    assert not boundary.stopped
-    assert not git_repo.origin_tracks("docs/contexts/team/SKILL.md")
-    assert git_repo.origin_tracks("docs/topics/team/SKILL.md")
-    assert git_repo.git("status", "--porcelain").strip() == ""
-    assert load_config(git_repo.coga_os).contexts_root == destination
-    assert boundary._contexts_root == destination
 
 
-def test_script_chain_returns_the_checkout_between_real_git_phases(
-    git_repo, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str]
-) -> None:
-    """Each chained ticket.py phase starts from a clean, fresh control checkout."""
-    monkeypatch.chdir(git_repo.coga_os)
-    (git_repo.coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n',
-        encoding="utf-8", newline="\n",
-    )
-    ref = _create_two_step_script_task(
-        git_repo.coga_os,
-        """
-        import os
-        import subprocess
-        import sys
-
-        def git(*args):
-            return subprocess.run(
-                ["git", *args], capture_output=True, text=True, check=True
-            ).stdout.strip()
-
-        step = os.environ["COGA_TASK_STEP"]
-        sys.stderr.write(f"PHASE {step} ON {git('rev-parse', '--abbrev-ref', 'HEAD')}\\n")
-        if step.startswith("1"):
-            git("switch", "-c", "feature/script")
-        raise SystemExit(subprocess.run([
-            sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"],
-        ]).returncode)
-        """,
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "Seed two-step script task")
-    git_repo.git("push", "origin", "main")
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == 0, result.output
-    phases = [line for line in capfd.readouterr().err.splitlines() if line.startswith("PHASE")]
-    assert phases == ["PHASE 1 (prepare) ON main", "PHASE 2 (finish) ON main"]
-    assert Ticket.read(ref.ticket_path).status == "done"
-    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
-    assert git_repo.git("status", "--porcelain", "--untracked-files=all") == ""
-    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
-        "rev-parse", "main", cwd=git_repo.origin
-    ).strip()
 
 
-@pytest.mark.parametrize("crash", [False, True])
-def test_stateful_audit_mutation_survives_child_exit_and_next_command(git_repo, crash):
-    """Real script/CLI boundaries cannot sweep an interrupted deletion."""
-    from coga import log_transaction
-    from coga.logfile import append_log
-    cfg = load_config(git_repo.coga_os)
-    append_log(cfg, "retired", "system", "archived before mutation")
-    script = '''
-from coga import git, log_transaction
-from coga.config import load_config
-from coga.logfile import LogMutation, replace_log
-from coga.paths import log_path
-cfg=load_config()
-root=git.toplevel(cfg.repo_root)
-path=log_path(cfg)
-git.publish(cfg,[path],"Log: archive before test mutation",require_paths=[path])
-raw=path.read_bytes()
-base=git.known_control_revision(cfg,root)
-mutation=LogMutation(raw,(0,))
-log_transaction.begin(cfg,base,mutation,{},"Log: recurring/trim-log — crash fixture")
-replace_log(cfg,mutation)
-'''
-    script += "import os\nos._exit(1)\n" if crash else "raise SystemExit(75)\n"
-    ref = _create_script_task(git_repo.coga_os, script)
-    git_repo.git("add", "--all")
-    git_repo.git("commit", "-m", "seed audit mutation script")
-    git_repo.git("push", "origin", "main")
-    env = {**os.environ, "PYTHONPATH": str(_SOURCE_ROOT / "src")}
-    result = subprocess.run([sys.executable, "-m", "coga.cli", "launch", ref.id_slug],
-                            cwd=git_repo.coga_os, env=env, capture_output=True, text=True, timeout=30)
-    assert result.returncode != 0, result.stdout + result.stderr
-    assert log_transaction.pending(cfg)
-    assert b"archived before mutation" in git.tree_bytes(git_repo.root, "origin/main", "coga/log.md")
-    after = subprocess.run([sys.executable, "-m", "coga.cli", "run", "publish-state"],
-                           cwd=git_repo.coga_os, env=env, capture_output=True, text=True, timeout=30)
-    assert after.returncode != 0
-    assert "pending audit mutation" in after.stdout + after.stderr
-    assert b"archived before mutation" in git.tree_bytes(git_repo.root, "origin/main", "coga/log.md")
-    assert log_transaction.recover(cfg) == "restored"
-    assert b"archived before mutation" in (cfg.repo_root / "log.md").read_bytes()
-
-
-def test_stateful_pending_audit_exit_75_skips_between_phase_settlement(script_repo, monkeypatch):
-    from coga import log_transaction
-    ref = _create_script_task(script_repo, "raise SystemExit(75)\n")
-    cfg = load_config(script_repo)
-    monkeypatch.setattr(log_transaction, "pending", lambda cfg: True)
-    outcome = run_script_chain(cfg, ref, Ticket.read(ref.ticket_path), set(),
-                               between_phases=lambda *args: pytest.fail("settled pending deletion"))
-    assert outcome.exit_code == 75
 
 
 @pytest.fixture
@@ -2193,36 +1687,6 @@ def test_read_only_python_api_reuses_script_executor_without_launch_effects(
     assert argv[2:] == ["two words", ""]
     assert kwargs["cwd"] == read_only_repo.parent
     assert not {"capture_output", "stdin", "stdout", "stderr"} & kwargs.keys()
-
-
-@pytest.mark.parametrize("caller_withheld", [False, True])
-@pytest.mark.parametrize("outcome", ["returns", "option-bail", "target-bail"])
-def test_read_only_python_api_restores_caller_sweep_policy(
-    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch,
-    caller_withheld: bool, outcome: str,
-) -> None:
-    from types import SimpleNamespace
-    _write(read_only_repo / "bootstrap" / "inspect" / "ticket.py", "pass\n")
-    during = []
-    def script_spawn(argv, **kwargs):
-        during.append(git.state_sweep_withheld.get())
-        return SimpleNamespace(returncode=0)
-    monkeypatch.setattr("coga.launch_script.subprocess.run", script_spawn)
-    token = git.state_sweep_withheld.set(caller_withheld)
-    try:
-        if outcome == "returns":
-            assert launch_module.launch("bootstrap/inspect", read_only=True).exit_code == 0
-            assert during == [True]
-        else:
-            target = "bootstrap/inspect" if outcome == "option-bail" else "bootstrap/missing"
-            options = {"prompt_report": True} if outcome == "option-bail" else {}
-            with pytest.raises(launch_module.LaunchBail) as exc:
-                launch_module.launch(target, read_only=True, **options)
-            assert exc.value.code == 2
-            assert during == []
-        assert git.state_sweep_withheld.get() is caller_withheld
-    finally:
-        git.state_sweep_withheld.reset(token)
 
 
 def test_writer_command_sweeps_after_in_process_read_only_call(
@@ -2458,7 +1922,7 @@ def test_queue_alias_preserves_local_script_argv_streams_and_status(script_repo:
 def test_classified_bootstrap_script_vanishes_without_agent_fallback(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = load_config(script_repo)
     ref = resolve_bootstrap(cfg, "retire")
-    monkeypatch.setattr("coga.launch_script.script_entry_point", lambda ref: None)
+    monkeypatch.setattr("coga.launch_script.script_entry_point", lambda *args, **kwargs: None)
     with pytest.raises(FileNotFoundError, match="Classified bootstrap script disappeared"):
         run_script_phase(cfg, ref, Ticket.read(ref.ticket_path), stateless=True)
 
@@ -2483,81 +1947,6 @@ def test_foreground_script_wait_restores_handlers_and_forwards_once(monkeypatch:
     assert result == expected and terminated
     assert forwarded == [signal.SIGTERM]
     assert (signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)) == before
-
-
-@windows_skip("POSIX foreground-group SIGINT delivery; native Windows picker quit mocks remain in test_megalaunch")
-@pytest.mark.parametrize("claim_window", [False, True], ids=["between-picks", "pending-claim"])
-def test_queue_alias_interrupt_waits_for_cleanup_and_retains_claim(git_repo, claim_window: bool) -> None:
-    import signal
-
-    cfg = load_config(git_repo.coga_os)
-    ref = _create_script_task(git_repo.coga_os, "raise AssertionError('queue must never run task script')")
-    # A local queue command stands in for the pause between picks, or pauses
-    # the actual queue immediately after its strict pending-claim publication.
-    command = git_repo.coga_os / "bootstrap/megalaunch"
-    _write(command / "ticket.md", '---\ntitle: Interrupt queue\n---\n')
-    prefix = '''
-import signal, sys
-assert signal.getsignal(signal.SIGINT) == signal.default_int_handler
-def wait_for_interrupt():
-    print("READY", flush=True)
-    try:
-        signal.pause()
-    except KeyboardInterrupt:
-        print("SETTLING", flush=True)
-        # Parent must keep waiting, including while cleanup needs more time.
-        assert sys.stdin.readline().strip() == "finish"
-        print("SETTLED", flush=True)
-        raise SystemExit(130)
-'''
-    if claim_window:
-        prefix += '''
-import shutil
-from coga import claimed_session as claims
-from coga_edge.megalaunch import main
-import coga_edge.megalaunch as queue
-queue.interactive_stdio_has_tty = lambda: True
-real_which = shutil.which
-shutil.which = lambda name, **kwargs: sys.executable if name == "claude" else real_which(name, **kwargs)
-original = claims.mark_in_progress
-def claim(*args, **kwargs):
-    original(*args, **kwargs)
-    wait_for_interrupt()
-claims.mark_in_progress = claim
-raise SystemExit(main([]))
-'''
-    else:
-        prefix += "wait_for_interrupt()\n"
-    _write(command / "ticket.py", prefix)
-    process = subprocess.Popen(
-        [sys.executable, "-m", "coga.cli", "megalaunch"], cwd=git_repo.root,
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, encoding="utf-8", start_new_session=True,
-    )
-    try:
-        output = []
-        for _ in range(50):
-            line = process.stdout.readline()
-            output.append(line)
-            if line.strip() == "READY" or not line:
-                break
-        assert output[-1].strip() == "READY", "".join(output) + process.stderr.read()
-        if claim_window:
-            assert Ticket.read(ref.ticket_path).launch_generation.startswith("pending:")
-        os.killpg(process.pid, signal.SIGINT)
-        assert process.stdout.readline().strip() == "SETTLING"
-        stdout, stderr = process.communicate("finish\n", timeout=20)
-        assert process.returncode == 130, stderr
-        assert "SETTLED" in stdout
-        if claim_window:
-            assert Ticket.read(ref.ticket_path).launch_generation.startswith("pending:")
-            rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
-            remote = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
-            assert remote.launch_generation.startswith("pending:")
-    finally:
-        if process.poll() is None:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.communicate(timeout=10)
 
 
 # --- `coga slack` through its default alias and real script phase -------------
@@ -2635,3 +2024,161 @@ def test_slack_alias_works_from_inside_a_running_script_phase(script_repo: Path)
     assert "posted" in result.stdout
     assert f"[{ref.id_slug}]" in (script_repo / "log.md").read_text(encoding="utf-8")
     assert "slack: nested fyi" in (script_repo / "log.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("entry", ["launch", "megalaunch", "recurring"])
+def test_workflow_run_step_hands_off_to_owner(script_repo: Path, monkeypatch, entry) -> None:
+    _write(
+        script_repo / "workflows" / "deterministic" / "run-step.md",
+        """
+        ---
+        name: deterministic/run-step
+        steps:
+          - name: compute
+            run: fixture/compute
+            assignee: agent
+          - name: inspect
+            assignee: owner
+        ---
+        ## inspect
+
+        Inspect the result.
+        """,
+    )
+    skill = script_repo / "skills" / "fixture" / "compute"
+    _write(skill / "SKILL.md", "# Compute\n")
+    _write(
+        skill / "run.py",
+        """
+        import os
+        import subprocess
+        import sys
+
+        subprocess.run(
+            [sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"]],
+            check=True,
+        )
+        """,
+    )
+    cfg = load_config(script_repo)
+    created = create_task(
+        cfg=cfg,
+        title="Run workflow script",
+        workflow_name="deterministic/run-step",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    slug = created["slug"]
+    ref = resolve_task(cfg, slug)
+    assert ref.task_dir is None
+    assert not (script_repo.parent / ".git").exists()
+
+    if entry == "launch":
+        result = CliRunner().invoke(app, ["launch", slug])
+        assert result.exit_code == 0, result.output
+    elif entry == "megalaunch":
+        from coga_edge import megalaunch
+
+        monkeypatch.setattr(megalaunch, "interactive_stdio_has_tty", lambda: True)
+        run = megalaunch.run_megalaunch(cfg, selection=[slug])
+        assert run.counts["completed"] == 1
+    else:
+        _write(
+            script_repo / "recurring" / "script-check" / "ticket.md",
+            """
+            ---
+            title: Workflow script check
+            schedule: "0 0 * * *"
+            workflow: deterministic/run-step
+            ---
+            ## Description
+
+            Run the deterministic check.
+
+            <!-- coga:blackboard -->
+            """,
+        )
+        result = CliRunner().invoke(app, ["recurring", "launch", "script-check"])
+        assert result.exit_code == 0, result.output
+        ref = resolve_task(cfg, "recurring/script-check")
+    assert Ticket.read(ref.ticket_path).step == "2 (inspect)"
+    assert "[system] advanced" in (script_repo / "log.md").read_text(encoding="utf-8")
+
+
+def test_cli_lifecycle_in_a_directory_without_git(tmp_path, monkeypatch):
+    runner = CliRunner()
+
+    def cli(*args):
+        result = runner.invoke(app, list(args))
+        assert result.exit_code == 0, result.output
+
+    monkeypatch.chdir(tmp_path)
+    cli("init", "--user", "marc")
+    root = tmp_path / "coga"
+    _write(
+        root / "workflows" / "local.md",
+        """
+        ---
+        name: local
+        steps:
+          - name: compute
+            assignee: agent
+            run: fixture/compute
+          - name: inspect
+            assignee: owner
+          - name: finish
+            assignee: owner
+        ---
+        ## inspect
+
+        Inspect the result.
+
+        ## finish
+
+        Finish the result.
+        """,
+    )
+    skill = root / "skills" / "fixture" / "compute"
+    _write(skill / "SKILL.md", "# Compute\n")
+    _write(
+        skill / "run.py",
+        """
+        import os
+        import subprocess
+        import sys
+
+        subprocess.run(
+            [sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"]],
+            check=True,
+        )
+        """,
+    )
+    slug = "local-check"
+    cli("create", "Local check", "--description", "Exercise the local lifecycle.", "--workflow", "local")
+    cli("mark", "active", slug)
+    cli("launch", slug)
+    path = root / "tasks" / f"{slug}.md"
+    assert Ticket.read(path).step == "2 (inspect)"
+    cli("bump", slug)
+    assert Ticket.read(path).step == "3 (finish)"
+    cli("block", "--task", slug, "--reason", "Choose a timeout")
+    assert Ticket.read(path).status == "blocked"
+    cli("unblock", slug, "--answer", "Five minutes")
+    assert Ticket.read(path).status == "active"
+    assert not (tmp_path / ".git").exists()
+
+
+@pytest.mark.parametrize("in_session,target", [(False, "active"), (True, "in_progress")])
+def test_local_unblock_uses_the_launched_ticket_environment(script_repo, monkeypatch, in_session, target):
+    ref = _create_script_task(script_repo, "# no-op")
+    runner = CliRunner()
+    blocked = runner.invoke(app, ["block", "--task", ref.id_slug, "--reason", "Choose a timeout"])
+    assert blocked.exit_code == 0, blocked.output
+    if in_session:
+        monkeypatch.setenv("COGA_TASK_TICKET", str(ref.ticket_path))
+    answered = runner.invoke(app, ["unblock", ref.id_slug, "--answer", "Five minutes"])
+    assert answered.exit_code == 0, answered.output
+    assert Ticket.read(ref.ticket_path).status == target
+    assert "Five minutes" in read_blackboard(ref.ticket_path)

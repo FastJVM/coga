@@ -10,11 +10,9 @@ from typing import Callable
 
 import typer
 
-from coga import git
 from coga.authoring import (
     AUTHORING_AGENT_ENV,
     AuthoringError,
-    authored_state_retained,
     existing_target_only,
     finalize_authored,
     resolve_authoring_agent,
@@ -412,19 +410,7 @@ def _run_authoring_session(
     try:
         finalize_authored(cfg, before_snapshot=before_authoring, ref=ref)
     except (AuthoringError, TaskValidationError) as exc:
-        # A retry sweep would separate an authored ticket from knowledge its
-        # guarded transaction refused, potentially publishing broken refs.
-        git.state_sweep_withheld.set(True)
-        authored_state_retained.set(True)
-        _bail(
-            f"{exc}\n[ticket] Authoring edits are retained under {cfg.repo_root} "
-            f"and the configured contexts root ({cfg.contexts_root}); the state "
-            "sweep is withheld. Resolve the reported validation or publication "
-            "problem, then retry the interview or review the retained changes "
-            f"and run `coga run publish-state` from {cfg.repo_root}. "
-            "That recovery publishes all eligible Coga state without another "
-            "lifecycle transition; do not repeat cancellation or bump."
-        )
+        _bail(f"{exc}\nAuthoring edits are retained on disk for inspection.")
 
 
 def _bail(msg: str) -> None:

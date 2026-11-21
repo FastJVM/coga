@@ -52,27 +52,11 @@ owns refusal and retained-state recovery.
 - `--message` adds an FYI to active/paused/done notifications; for canceled
   it is the required audit reason, appended to `coga/log.md`. Cancellation
   leaves the body and blackboard (including open blocker text) untouched.
-- `done` and `canceled` are terminal: launch refuses them and nothing
-  reactivates a canceled ticket. The one exception is `coga recurring
-  --force`, which reactivates a `done` recurring period task
-  ([coga/recurring/scheduling](../recurring/scheduling/SKILL.md#variants)). A terminal transition deletes no branch or
-  checkout. The ticket's owned branches are cleaned up later by `coga retire`
-  and each clone's daily branch sweep, so nothing disappears beneath the
-  session that finished it. `coga retire` then removes the ticket: a done one
-  is deleted with no retro agent, because its positive learning landed in its
-  merged PR; a canceled one goes through Retro first, which extracts the
-  cancellation reason and any other negative learning
-  ([coga/checkout-cleanup/terminal-owners](../checkout-cleanup/terminal-owners/SKILL.md)).
-  `mark done --force` / final-step `bump --force` finish a `direct/body`
-  ticket while acknowledging product code stranded off the control branch.
-- **Convention: `done` means the work landed; `canceled` means it did not.**
-  Mark a ticket `done` only when the change its `## Description` scoped
-  reached the control branch; work that is abandoned, superseded, or left
-  stranded off the control branch ends `canceled`, with the reason. The CLI
-  does not verify this, and `mark done --force` / final-step `bump --force`
-  override its stranded-code guard, so the operator upholds the convention.
-  `coga retire` relies on it: a done ticket is deleted with no Retro pass,
-  so a ticket whose work did not land must be canceled to keep its learning.
+- Completion writes the local ticket and audit log. Follow [Git](../git/SKILL.md)
+  to carry branch state through a PR.
+- Mark abandoned or superseded work `canceled` with the reason. A final bump
+  for a PR-backed ticket records `done` on the branch so the merge carries
+  that status to the base. See [coga/git](../git/SKILL.md).
 - A terminal transition is a verdict about the ticket, never a repair of
   validator output. "Clears a validate error" is not a cancellation reason:
   cancelling parked drafts is the cheapest route to a green gate and trades
@@ -85,29 +69,15 @@ owns refusal and retained-state recovery.
 
 ## Blocking and resume
 
-`coga block` appends the ask under `## Blockers`, sets `blocked`, logs and
-syncs, notifies the owner live, and ends a launched session. The reason
-should be answerable from `coga status --blocked` alone.
+`coga block --task <id> --reason "<ask>"` records an ask and sets the ticket
+to `blocked`. On an attended agent launch the preamble shows the open asks.
+Launch leaves the ticket blocked, including when the session exits without
+an answer. A blocked script requires an answer before launch.
 
-`coga unblock <ref> --answer "..."` marks each open ask `- [x]` with a
-`resolved:` line and returns the task to `active` at the same step; without
-`--answer` it prompts after showing the asks. On an `in_progress` ticket with
-open asks it only resolves them. On a `paused` recurring period with open asks
-it also only resolves them: the period stays `paused`, and the next sweep or
-named launch resumes it with the answer on its blackboard
-([recurring scheduling](../recurring/scheduling/SKILL.md#admission-and-unfinished-runs)).
-Any other paused ticket is refused. `coga unblock --all` walks every blocked task,
-prompting per task (blank skips; `--answer` is rejected) and ends with an
-`Unblocked N, skipped M` summary.
-
-An **interactive** (TTY) launch resumes a blocked ticket inline
-(`blocked → active → in_progress`, step preserved) and composes the
-resolve-or-re-block preamble ([coga/prompt-composition](../prompt-composition/SKILL.md)).
-If any resumed phase, including a `ticket.py` that fails, pauses, closes or
-advances, exits before an answer is recorded, launch returns the ticket to
-`blocked`, restoring the original step and routing inputs if a terminal
-transition cleared them; an invalid baseline fails closed. TTY-less launches
-refuse a blocked ticket until `coga unblock` records an answer.
+`coga unblock <id> --answer "<answer>"` records the answer and returns a
+blocked ticket to `active`. In a launched session for that ticket, it moves
+to `in_progress`. A paused recurring period's existing pause is preserved
+when its asks are resolved.
 
 ## Step: where in the workflow
 
@@ -122,7 +92,7 @@ refuse a blocked ticket until `coga unblock` records an answer.
   workflow-less ticket is refused with a pointer to `coga mark done`. `--message` rides the transition notification. A forward
   bump from a step with a usable `## Dev` `branch:` warns on stderr (never
   blocks) about stranded ticket writes; see
-  [coga/checkouts](../checkouts/SKILL.md).
+  [Git](../git/SKILL.md).
 - `--to` / `--backward` is a **human** rewind; agents inside a supervised
   launch are refused (`COGA_SUPERVISED`). It is recovery when a step went
   wrong but the ticket's premise still holds: because status and blackboard

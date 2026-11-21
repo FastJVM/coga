@@ -6,14 +6,9 @@ import sys
 
 import typer
 
-from coga import git
 from coga import pr_assist
 from coga.blackboard import append_blocker_text
-from coga.commands.common import (
-    bail_ticket_changed,
-    current_operator,
-    prepare_lifecycle_ticket,
-)
+from coga.commands.common import current_operator
 from coga.config import ConfigError, load_config
 from coga.mark import mark_blocked
 from coga.repl_supervisor import emit_done_marker
@@ -45,20 +40,14 @@ def block(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    if not ref.ticket_path.is_file():
-        read_ticket(ref)  # the ordinary missing-ticket error
-    prepared = prepare_lifecycle_ticket(cfg, ref)
-    ticket = prepared.ticket
+    ticket = read_ticket(ref)
     if ticket.status not in {"active", "in_progress", "blocked"}:
         _bail(
             f"Task {ref.id_slug} is {ticket.status!r}; block requires "
             "'active', 'in_progress', or 'blocked'."
         )
 
-    try:
-        assist = pr_assist.assist_session_from_env(cfg, ref)
-    except git.GitError as exc:
-        _bail(f"Could not rebuild {ref.id_slug}'s recorded assist session: {exc}")
+    assist = pr_assist.assist_session_from_env(cfg, ref)
     effective_agent = (
         assist.agent
         if assist is not None
@@ -73,7 +62,7 @@ def block(
     blocker = effective_agent or cfg.current_user
 
     try:
-        # The ask and the status change are one prepared write.
+        # Keep the ask and the status change in one write.
         region = split_body(ticket.body)[1] or ""
         ticket.body = with_blackboard(ticket.body, append_blocker_text(region, actor, reason)[0])
         mark_blocked(
@@ -88,10 +77,7 @@ def block(
             ),
             image_url=cfg.gif_for("block") or cfg.gif_for("panic"),
             echo=f"{ref.id_slug}: blocked (owner {owner} needs to answer)",
-            prepared=prepared,
         )
-    except git.TicketChangedError as exc:
-        bail_ticket_changed(exc)
     except (TaskFileError, TaskValidationError) as exc:
         _bail(str(exc))
 

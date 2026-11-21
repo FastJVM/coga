@@ -33,48 +33,10 @@ most recent past firing ([templates](../templates/SKILL.md#first-firing-is-retro
 
 ## Repo scope and clone scope
 
-A template is `scope: repo` (the default) or `scope: clone`. Repo scope is one
-shared period task per firing, serviced by whichever clone sweeps first and
-recorded in the ledger above. That is right for shared state and wrong for
-clone- or machine-local state, which no other clone can see.
-
-A `scope: clone` template is serviced once per period **in every clone that
-sweeps**. It requires a reserved `ticket.py` and rejects `delegate`,
-`state_keys` and `workflow`. The sweep runs the script directly, after the
-shared launches. No period task is created, the runner commits nothing, and no
-log line is written; a script's own state changes and publication belong to
-its template. The script gets the template's `secrets`, in the scrubbed
-environment [coga/secrets](../../secrets/SKILL.md#a-declaration-plus-an-env-scrub-not-a-sandbox)
-describes, and `COGA_RECURRING_SCOPE=clone`, `COGA_RECURRING_TEMPLATE` and
-`COGA_RECURRING_PERIOD`, but no `COGA_TASK_*` variables, so there is nothing to
-bump. Exit 0 records the period in `<primary checkout's coga
-dir>/.coga/recurring-clone/<name>.json`, with the output beside it in
-`<name>.log`; a run from a temporary control worktree counts for the clone that
-owns it. Any other exit is a sweep failure, recorded for autofix and retried by
-the next sweep. The owner, control-branch and inactivity gates apply as for
-repo scope. `--force` and `coga recurring launch <name>` ignore the clone
-ledger. `coga recurring list` shows only this clone's state.
-
-Clone scripts have bounded runtime and output. A timeout reports the failure,
-terminates the script's process tree and leaves the period retryable, so later
-templates still run. Truncated console output points to the local log for the
-final output; the run record also receives that tail. Implementation limits
-are in [recurring-clone](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-clone/SKILL.md).
-
-Clone-scoped runs leave no runner-owned git-visible record. Their evidence is
-the clone-local ledger and log, the console, and the autofix run record. The
-shipped `branch-sweep` template uses clone scope for local refs and worktrees;
-its [ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md)
-owns cleanup and worklist publication. `autoclose-merged` stays repo-scoped
-because ticket closure is shared state.
-
-A `scope: clone` template serviced as an ordinary shared period task, with a
-log line and no clone ledger, means the CLI predates clone scope and ignores
-the `scope` key: it lags the templates it sweeps, for example an editable
-install whose source checkout sits behind `main`. The shipped clone scripts
-tolerate it: with `COGA_TASK_SLUG` set they bump that task, so the period
-closes instead of stalling. Check `coga --version` and the editable source
-checkout, then upgrade.
+Repo-scoped jobs materialize a period task and use the checkout's local
+ledger. Clone-scoped jobs use a machine-local ledger and launch their
+template script directly. A configured recurring owner selects who runs the
+repo's jobs.
 
 ## What a sweep does per template
 
@@ -107,129 +69,18 @@ Launches are sequential. The sweep prints a scan table before launching.
 
 ## Variants
 
-This section owns the recurring command spellings' behavior; flags and syntax
-are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
-`recurring-scan` recipe through `coga run`.
-
-- `--force` runs every enabled template regardless of schedule and status
-  (it never enables a disabled, parked or unselected job), reactivating
-  `done` and `paused` periods — real Slack, sync and ledger advance. A `canceled`
-  period gets a controlled refusal; the sweep continues and exits non-zero.
-  Force does not bypass branch, owner or TTY gates.
-- `coga recurring launch <name>` (and default aliases such as `coga dream`)
-  creates or reuses one template's task ignoring schedule and dedup (an explicit
-  override when the period's task was reaped); a live run is resumed, a
-  prior-period `done` replaced, a non-human `paused` run resumed exactly as a
-  sweep would (an agent-backed one refuses without a TTY), and a
-  current-period `done` or a human-`paused` run left alone. It passes the sweep's
-  concrete idle/max-session limits unless `--interactive`.
-- `coga recurring launch <name> --rerun` also replaces a current-period `done`
-  task with a fresh run at step 1 from the current template. Each invocation is
-  a real run, with the ordinary notifications and state publication. The
-  default `coga autoclose` alias includes `--rerun`, so manual cleanup can run
-  repeatedly within a day or week. Other aliases and scheduled sweeps keep
-  their existing deduplication. Live runs resume; human-paused, blocked and
-  canceled runs stay parked. Branch, owner, TTY and concurrent-generation
-  checks still apply, as do the cleanup proofs.
-- `--interactive` needs an attended TTY, uses attended conduct and leaves the
-  liveness limits unarmed. Every other automatic launch composes the recurring
-  queue conduct (`prompt-queue.md`; see
-  [prompt composition](../../prompt-composition/SKILL.md#session-conduct)) and arms the idle timeout:
-  `COGA_REPL_IDLE_TIMEOUT` > `[launch].idle_timeout` > 900 s (`0` or non-finite
-  disarms); `COGA_REPL_MAX_SESSION` / `[launch].max_session` caps wall clock.
-- `--agent <type>` is an ephemeral override for every agent-backed period in the
-  sweep; `ticket.py` periods keep their deterministic path.
-- `--all <path>` discovers Coga workspaces below an explicit path (skipping
-  dependency/tool trees, `_` trees and Coga temp-control parents), omits
-  unconfigured checkouts by count, runs one checkout per remote workspace in a
-  fresh process, sequentially, and exits non-zero naming failed repos. Every
-  other checkout of the same remote workspace gets a `--clone-only` child,
-  which runs only clone-scoped templates. Owner mismatches are skipped and
-  named. Each child refreshes control before reading templates or periods;
-  stale or diverged control refuses service. Off-branch children use a
-  temporary control worktree without switching or stashing the operator's
-  checkout.
-- When catch-up fails on a behind control branch and the sole pending change
-  is an unstaged, complete-line append to the existing regular log, the reason
-  identifies a possible unpublished tail and offers
-  [publication recovery](../../state-publication/SKILL.md#a-stranded-log-tail-blocking-catch-up).
-  It preserves the tail and the refusal; no recovery runs automatically.
-- `coga recurring list` forwards to the editable
-  [bootstrap/recurring-list](../../../../recurring-list/ticket.md) report through
-  read-only launch. The fixed adapter preserves the two-word spelling;
-  selection and presentation live beside the ticket.
-  `coga promote-recurring` is in [templates](../templates/SKILL.md#promotion).
-
-Every launching entry point runs from the control branch and honors the
-committed `owner = "<name>"` gate: a policy gate against two operators racing,
-not a lock, with no override flag. `coga recurring list` and
-`coga promote-recurring` are ungated.
-
-A single-repo sweep or named launch started off control relays to an existing
-control worktree of the same repo. If none exists, it refuses and names the
-required control checkout. Direct `coga launch recurring/<name>` does not
-relay. `--force` never bypasses the control-branch gate. Repos with Git sync
-disabled or confirmed to be outside Git have no managed control checkout and
-are exempt; a Git inspection failure is a refusal. Optional
-[control implementation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-control/SKILL.md)
-and [temporary-worktree details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md)
-explain the machinery.
+`coga recurring` scans the current checkout. `--all <path>` discovers workspaces
+and scans each one in its own checkout. `--force` ignores the schedule and
+reruns eligible work. `coga recurring launch <name>` runs a named template.
+`--interactive` uses attended conduct for agent work.
 
 ## Admission and unfinished runs
 
-Agent-backed periods (including `delegate:`) need stdin and stdout TTYs; a
-headless sweep skips them with a warning, before creating a period or leaving a
-materialized one untouched, and continues. The skipped template keeps its scan
-row, `skip (agent needs a TTY)`, rather than a `## Template errors` entry; this
-headless skip is not counted in `problems:`. A current period that is not
-launchable (`canceled`, `blocked`, ...) is never refused: a durable checkout
-would not launch it either. A `ticket.py` period runs headless and is the shape
-for unattended schedulers.
-
-On native Windows an agent run cannot measure idleness: an armed idle
-timeout warns once and the session runs with its max-session limit only
-([coga/launch](../../launch/SKILL.md#options-and-exits)).
-
-A scheduled agent run must reach `done` in one launch. When an agent launch
-returns unfinished — including a human/unassigned handoff or a `coga block` —
-the sweep pauses it before continuing, under its own audit actor
-`system:recurring`. The next bare sweep or named launch resumes each paused
-period that a human did not pause, from its recorded step and blackboard, with
-no `--force` and no retry cap. Pause provenance is the latest `paused` or
-`created` audit line for the period:
-
-- **Sweep pause** (actor `system:recurring`, or a legacy `human:` pause carrying
-  the "Agent recurring launch exited unfinished" suffix; the legacy match is
-  text-only, so a human pause whose message ends with that suffix also
-  resumes) — resumed once it has
-  no open `## Blockers` asks. Until then it stays parked: resuming would only
-  block again. Answer with `coga unblock recurring/<name> --answer "..."`,
-  which resolves the asks and leaves the period `paused` for the next sweep to
-  resume with the answer on its blackboard. The blocker-reminder job keeps those
-  asks visible under its
-  [eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md).
-  Unreadable asks leave the period paused and report a template error; they
-  are never treated as an empty blocker list.
-- **Watchdog pause** (actor `system:watchdog`) — resumed on every sweep, and
-  still an unresolved failure: every sweep that admits the template through the
-  inactivity gate shows `needs attention (watchdog timeout; resuming)`, counts
-  it in `problems:`, notifies, and exits non-zero after other work, so a
-  timeout that keeps recurring stays loud while it is retried. This applies
-  to the bare sweep only. In a `--force` sweep, a forced recovery that
-  completes clears the problem. A named `coga recurring launch <name>` resumes
-  a watchdog pause without problem or notify reporting.
-- **Anything else** — a human `coga mark paused` (an assist session's logs
-  `agent:<name>`) or a pause whose origin is not positively identified — stays
-  parked. Resume it with `coga launch recurring/<name>` or
-  `coga mark active recurring/<name>`.
-
-A resume passes the same admission as any launch: the control-branch and
-`owner` gates, and the TTY gate for agent-backed periods. Headless, a sweep
-pause gets the ordinary `skip (agent needs a TTY)` row; a watchdog pause shows
-`needs attention (watchdog timeout; coga launch recurring/<name>)` with the
-refusal and stays a problem. Keep human gates and expected blockers out of
-scheduled workflows anyway: each one costs a session, a pause and a human
-answer before the period can finish.
+The scan reads local templates, tickets and the serviced-period ledger. It
+runs due tasks in sequence. Without a terminal, deterministic steps can run
+and agent phases are refused. A scheduled session that times out or returns
+with open work can be paused visibly for a later sweep. A ticket that records
+a blocker stays blocked until it is answered.
 
 ## Failures and exit code
 

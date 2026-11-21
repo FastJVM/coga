@@ -6,7 +6,6 @@ import os
 
 import typer
 
-from coga import git
 from coga import launch as launch_service
 from coga.oscompat import process_exit_status
 
@@ -81,13 +80,9 @@ def launch(
     ),
 ) -> None:
     """Compose context, start work on a task."""
-    if read_only:
-        # Withhold before config, resolution, or any refusing launch operation.
-        git.state_sweep_withheld.set(True)
     if idle_timeout is not None and _idle_timeout_unavailable():
         # Refuse before any state change, and keep the CLI's final sweep from
         # publishing pre-existing dirt on the way out (exit stays 2).
-        git.state_sweep_withheld.set(True)
         typer.secho(WINDOWS_IDLE_TIMEOUT_REFUSAL, fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
     try:

@@ -13,20 +13,18 @@ import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, NamedTuple, Sequence
+from typing import NamedTuple, Sequence
 
 import typer
 
-from coga import git
-from coga.bump import OperatorResolutionError, resolve_operator
+from coga.bump import OperatorResolutionError, effective_step_role, resolve_operator
 from coga.config import Config, ConfigError, build_launch_env, load_config, find_repo_root
 from coga.logfile import append_log
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.notification import post, preflight_post
+from coga.paths import bootstrap_skill_dir, resolve_workflow_path, skill_dir
+from coga.workflow import Workflow
+from coga.notification import post
 from coga.repl_supervisor import (
-    ASSIST_AGENT_ENV,
-    ASSIST_BRANCH_ENV,
-    ASSIST_PR_ENV,
     EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -70,18 +68,51 @@ class ScriptChainResult(NamedTuple):
     ref: TargetRef | None = None
 
 
-class ScriptPublicationError(RuntimeError):
-    """A recorded-assist script launch is missing part of its assist identity."""
+def resolve_step_script(cfg: Config, run: str) -> Path:
+    """Resolve and check the selected skill's script."""
+    if any(part in {"", ".", ".."} for part in run.split("/")) or "\\" in run or ":" in run:
+        raise ConfigError(f"Invalid workflow script ref {run!r}")
+    local = skill_dir(cfg, run)
+    directory = local if local.exists() or local.is_symlink() else bootstrap_skill_dir(cfg, run)
+    candidate = directory / "run.py"
+    try:
+        if not candidate.is_file():
+            raise FileNotFoundError(candidate)
+        with candidate.open("rb"):
+            pass
+    except OSError as exc:
+        raise FileNotFoundError(f"Cannot read workflow script {candidate}: {exc}") from exc
+    return candidate
 
 
-def script_entry_point(ref: TargetRef) -> Path | None:
-    """Return the target's fixed script entry point when it is a regular file.
-
-    File-form tasks have no companion directory and therefore cannot carry a
-    deterministic half.  Directory-form tasks and bootstrap tickets both use
-    the one reserved sibling name; executable bits and other filenames do not
-    participate in dispatch.
-    """
+def script_entry_point(
+    ref: TargetRef, ticket: Ticket | None = None, *, cfg: Config | None = None,
+) -> Path | None:
+    """Resolve the current workflow script, falling back to the ticket script."""
+    if ticket is not None and isinstance(ref, TaskRef):
+        step = ticket.current_step()
+        if cfg is None:
+            cfg = load_config(find_repo_root(ref.ticket_path.parent), require_user=False)
+        if step is None and ticket.status in {"draft", "paused"}:
+            workflow = ticket.workflow
+            if isinstance(workflow, str):
+                workflow = Workflow.load(resolve_workflow_path(cfg, workflow)).freeze()
+            if isinstance(workflow, dict) and workflow.get("steps"):
+                steps = workflow["steps"]
+                step = steps[0]
+                index = 1
+            else:
+                index = None
+        else:
+            workflow = ticket.workflow
+            index = ticket.step_index()
+        if isinstance(step, dict) and step.get("run") is not None:
+            run = step["run"]
+            if not isinstance(run, str) or not run.strip():
+                raise ConfigError(f"{ref.id_slug}: workflow run must be a skill ref")
+            if effective_step_role(workflow["steps"], index) == "owner":
+                raise ConfigError(f"{ref.id_slug}: an owner step cannot declare run")
+            return resolve_step_script(cfg, run)
 
     task_dir = ref.task_dir
     if task_dir is None:
@@ -93,8 +124,7 @@ def script_entry_point(ref: TargetRef) -> Path | None:
 def _normalize_exit_code(returncode: int) -> int:
     """Map a signal-killed child's POSIX ``-N`` to the shell's ``128 + N``.
 
-    Non-negative codes pass through unchanged: 75 keeps its retained-state
-    meaning, and Windows NTSTATUS values are never negative.
+    Non-negative codes pass through unchanged.
     """
 
     return 128 - returncode if returncode < 0 else returncode
@@ -108,37 +138,15 @@ def run_script_phase(
     stateless: bool,
     read_only: bool = False,
     args: Sequence[str] = (),
-    assist_branch: str | None = None,
-    assist_agent: str | None = None,
-    assist_pr_url: str | None = None,
     failure_important: bool = False,
 ) -> ScriptPhaseResult:
-    """Run one target-owned deterministic phase without composing a prompt.
+    """Execute one deterministic phase with the current ticket environment."""
+    if read_only and (not stateless or not isinstance(ref, BootstrapRef)):
+        raise ValueError("Read-only dispatch requires a stateless bootstrap script.")
+    if not stateless and ticket.status == "blocked":
+        raise ValueError(f"{ref.id_slug}: answer with `coga unblock --answer` before running a script")
 
-    Secrets and task identity are preflighted before the stateful
-    ``active -> in_progress`` transition.  The child runs from the host
-    repository root under Coga's current Python interpreter.  A stateless
-    (bootstrap) child receives ``args`` as its operands, one argv element
-    each; a stateful child receives none, because launch arguments would be
-    hidden mutable input to a ticket with lifecycle state.  The launcher, never this helper, decides whether an agent
-    phase follows.
-
-    A recorded human-step assist (`assist_branch` and friends) runs the same
-    phase; the child additionally inherits the assist identity so its
-    lifecycle commands name the assisting agent, and its ticket result is
-    published to control right after it exits.
-    """
-
-    if read_only and (not stateless or not isinstance(ref, BootstrapRef) or assist_branch is not None):
-        raise ValueError("Read-only dispatch requires a stateless bootstrap script without assist authority.")
-
-    strict_assist = assist_branch is not None
-    if strict_assist and (not assist_agent or not assist_pr_url):
-        raise ScriptPublicationError(
-            "recorded-assist script launch is missing its agent or PR"
-        )
-
-    entry = script_entry_point(ref)
+    entry = script_entry_point(ref, ticket, cfg=cfg)
     if entry is None:
         if read_only:
             raise FileNotFoundError(f"Read-only script entry disappeared: {ref.id_slug}/ticket.py")
@@ -156,16 +164,7 @@ def run_script_phase(
             ref=ref,
         )
 
-    # Resolve every declared secret before publishing a started lifecycle.
     env = build_launch_env(cfg, ticket.secrets)
-    if strict_assist:
-        try:
-            preflight_post(cfg)
-        except typer.Exit as exc:
-            raise ScriptPublicationError(
-                "the recorded assist cannot run ticket.py until its live "
-                "notification configuration is valid"
-            ) from exc
 
     if not stateless and not isinstance(ref, TaskRef):
         raise ValueError(
@@ -175,11 +174,6 @@ def run_script_phase(
         # Launch refuses this before any effect; reaching here is a caller bug.
         raise ValueError(
             f"Stateful script phase for {ref.id_slug} takes no launch arguments."
-        )
-
-    if strict_assist and ticket.status != "in_progress":
-        raise ScriptPublicationError(
-            "recorded-assist lifecycle was not published before ticket.py"
         )
 
     if not stateless and ticket.status == "active":
@@ -207,88 +201,16 @@ def run_script_phase(
         )
 
     if not stateless:
-        append_log(cfg, ref.id_slug, "system", "launched as a script (ticket.py)")
-        # Publish the launch line before user code runs.
-        git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+        append_log(cfg, ref.id_slug, "system", f"launched as a script ({entry.name})")
 
-    pre_sync_identity = _routing_identity(ticket)
-
-    # The lifecycle and launch-log syncs above may fetch/rebase a control
-    # checkout. Re-derive every input after that last moving boundary: a peer
-    # may have replaced or removed ticket.py, changed coga.toml, edited the
-    # ticket, or changed its secret declarations. A vanished entry point is a
-    # fresh agent-only classification, not a failed execution of a stale path.
-    if not read_only:
-        cfg = load_config(cfg.repo_root)
-        try:
-            refreshed_ref = resolve_target(cfg, ref.id_slug)
-        except TaskNotFoundError:
-            return ScriptPhaseResult(
-                exit_code=0,
-                ticket=None,
-                ran=False,
-                cfg=cfg,
-                ref=ref,
-            )
-        if refreshed_ref.id_slug != ref.id_slug:
-            raise FileNotFoundError(
-                f"Selected task {ref.id_slug!r} disappeared while preparing "
-                "ticket.py."
-            )
-        ref = refreshed_ref
-        ticket = read_ticket(ref)
-        entry = script_entry_point(ref)
-        if entry is None:
-            if stateless:
-                raise FileNotFoundError(f"Classified bootstrap script disappeared: {ref.id_slug}/ticket.py")
-            return ScriptPhaseResult(
-                exit_code=0,
-                ticket=ticket,
-                ran=False,
-                cfg=cfg,
-                ref=ref,
-            )
-
-        if not stateless and (
-            ticket.status != "in_progress"
-            or _routing_identity(ticket) != pre_sync_identity
-        ):
-            # The moving sync above is authoritative. A peer may have closed or
-            # parked the task, advanced it to a configured agent after a human
-            # assist, handed it to a human, changed its owner, or changed its
-            # main-agent choice — any of which reroutes the next phase. Do not
-            # execute code selected from the stale pre-sync lifecycle; let the chain
-            # classify the fresh state.
-            return ScriptPhaseResult(
-                exit_code=0,
-                ticket=ticket,
-                ran=False,
-                cfg=cfg,
-                ref=ref,
-            )
-
-        env = build_launch_env(cfg, ticket.secrets)
     env.pop("COGA_SCRIPT_HELP", None)
     env = apply_task_env(env, cfg, ref, ticket)
-    # A normal ticket script must not inherit ownership witnesses from an outer
-    # agent session. A strict human assist re-mints only the narrow task and PR
-    # capability needed by in-script lifecycle operations. Clear the sentinel
-    # itself too: lifecycle writers signal it even outside supervised sessions.
-    # Its empty value says no supervisor polls here, so a strict assist's
-    # re-minted task witness does not trigger a lost-signal warning.
-    # Script attribution is separate from both ownership and publication.
     env.pop("COGA_SUPERVISED", None)
     env[SENTINEL_ENV] = ""
     env.pop(EXPECTED_TASK_ENV, None)
     env.pop(EXPECTED_STEP_ENV, None)
     env.pop(EXPECTED_AGENT_ENV, None)
     env[SCRIPT_TASK_ENV] = str(ref.path.resolve())
-    if strict_assist:
-        env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
-        env[EXPECTED_STEP_ENV] = ticket.step or ""
-        env[ASSIST_AGENT_ENV] = assist_agent or ""
-        env[ASSIST_BRANCH_ENV] = assist_branch or ""
-        env[ASSIST_PR_ENV] = assist_pr_url or ""
 
     if stateless and not read_only:
         exit_code, _ = run_foreground_child(
@@ -326,12 +248,6 @@ def run_script_phase(
             "system",
             f"script exited with code {exit_code}",
         )
-        if strict_assist:
-            # The assist session ends with this phase's result, so publish it
-            # now rather than waiting for the end-of-command sweep.
-            git.sync_task_state(
-                cfg, ref.path, message=f"Ticket: {ref.id_slug} — script result"
-            )
 
     if exit_code != 0 and not stateless:
         observed = after or ticket
@@ -341,29 +257,22 @@ def run_script_phase(
             if current is not None
             else ""
         )
-        try:
-            post(
-                cfg,
-                f"💥 script failed on *{ref.id_slug}* "
-                f"\"{observed.title}\": exit {exit_code}{where}",
-                task_path=ref.path,
-                owner=observed.owner or cfg.current_user,
-                important=failure_important,
-                # The deterministic failure and its exit code are already
-                # durable; a notification outage must not replace that result.
-                fatal=False,
-            )
-        except typer.Exit:
-            if not strict_assist:
-                raise
-            # Configuration was preflighted before user code. If it changed
-            # while ticket.py ran, keep the durable child exit authoritative.
+        post(
+            cfg,
+            f"💥 script failed on *{ref.id_slug}* "
+            f"\"{observed.title}\": exit {exit_code}{where}",
+            task_path=ref.path,
+            owner=observed.owner or cfg.current_user,
+            important=failure_important,
+            # The deterministic failure and its exit code are already
+            # durable; a notification outage must not replace that result.
+            fatal=False,
+        )
 
     if exit_code == 0:
         if ticket_read_error is not None:
             raise ticket_read_error
-        # User code and nested lifecycle syncs may change coga.toml or move the
-        # checkout across a freshly integrated control tip. The caller uses
+        # User code may change project configuration or select another branch. The caller uses
         # this result for handoff classification and agent setup, so return a
         # config, target, and ticket derived after the child boundary rather
         # than the objects captured before execution.
@@ -393,27 +302,11 @@ def run_script_chain(
     ran_steps: set[str | None],
     *,
     args: Sequence[str] = (),
-    assist_branch: str | None = None,
-    assist_agent: str | None = None,
-    assist_pr_url: str | None = None,
     failure_important: bool = False,
-    between_phases: Callable[
-        [Config, TargetRef], tuple[Config, TargetRef | None] | None
-    ] | None = None,
 ) -> ScriptChainResult:
-    """Run ``ticket.py`` once per consecutive step until agent work remains.
-
-    ``between_phases`` is launch's checkout boundary: called after every
-    phase that ran, it returns the checkout and hands back fresh config and
-    the exact target (``None`` when the target is gone), or ``None`` to stop
-    the chain after reporting a refusal. Routing and exit semantics are
-    otherwise unchanged. ``args`` reaches a stateless script's argv; a
-    stateless target runs exactly one phase.
-    """
-
+    """Run consecutive deterministic steps until a human or agent takes over."""
     stateless = isinstance(ref, BootstrapRef)
     current = ticket
-    phase_assist_agent = assist_agent
     while current.step not in ran_steps:
         step_key = current.step
         ran_steps.add(step_key)
@@ -426,9 +319,6 @@ def run_script_chain(
             before,
             stateless=stateless,
             args=args,
-            assist_branch=assist_branch,
-            assist_agent=phase_assist_agent,
-            assist_pr_url=assist_pr_url,
             failure_important=failure_important,
         )
         cfg = phase.cfg or cfg
@@ -440,39 +330,7 @@ def run_script_chain(
                 ref,
                 phase.ticket,
                 stateless=stateless,
-                strict_assist=assist_branch is not None,
-            )
-        from coga.log_transaction import pending
-        if phase.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE and (stateless or pending(cfg)):
-            # The command script deliberately retained local state; settling
-            # the checkout would publish or move exactly what it preserved.
-            return ScriptChainResult(
-                phase.exit_code, phase.ticket, False, None, cfg, ref,
-            )
-        if between_phases is not None:
-            settled = between_phases(cfg, ref)
-            if settled is None:
-                return ScriptChainResult(
-                    phase.exit_code,
-                    phase.ticket,
-                    False,
-                    f"{ref.id_slug}: checkout return did not complete; stopping",
-                    cfg,
-                    ref,
                 )
-            cfg, settled_ref = settled
-            if phase.exit_code == 0:
-                phase = ScriptPhaseResult(
-                    exit_code=0,
-                    ticket=(
-                        read_ticket(settled_ref)
-                        if settled_ref is not None
-                        else None
-                    ),
-                    cfg=cfg,
-                    ref=settled_ref or ref,
-                )
-            ref = settled_ref or ref
         if phase.exit_code != 0:
             return ScriptChainResult(
                 phase.exit_code,
@@ -530,12 +388,6 @@ def run_script_chain(
                 cfg,
                 ref,
             )
-        if assist_branch is not None:
-            # The override authorizes the human-held phase only. Once a
-            # deterministic bump hands control to an agent step, each chained
-            # script uses that step's derived agent for its assist publication
-            # capability. Deterministic completion still credits system.
-            phase_assist_agent = operator.name
         current = after
 
     return ScriptChainResult(0, current, True, None, cfg, ref)
@@ -547,7 +399,6 @@ def _classify_script_handoff(
     ticket: Ticket | None,
     *,
     stateless: bool,
-    strict_assist: bool,
 ) -> ScriptChainResult:
     """Classify fresh state after a formerly-scripted phase no longer runs."""
     if stateless:
@@ -584,9 +435,7 @@ def _classify_script_handoff(
             cfg,
             ref,
         )
-    # A strict assist is already authorized to run one session on an
-    # owner-held step, so it does not stop here.
-    if operator.is_human and not strict_assist:
+    if operator.is_human:
         return ScriptChainResult(
             0,
             ticket,
@@ -597,21 +446,6 @@ def _classify_script_handoff(
             ref,
         )
     return ScriptChainResult(0, ticket, True, None, cfg, ref)
-
-
-def _routing_identity(ticket: Ticket) -> tuple[object, ...]:
-    """The persisted inputs that decide who holds a ticket, plus its status.
-
-    Compared across the moving syncs above: a peer edit to any of them
-    reroutes the next phase, so the pre-sync classification must not run.
-    """
-    workflow = ticket.workflow
-    steps = workflow.get("steps") if isinstance(workflow, dict) else None
-    roles = tuple(
-        (step.get("assignee") if isinstance(step, dict) else step)
-        for step in (steps if isinstance(steps, list) else [])
-    )
-    return (ticket.status, ticket.step, ticket.owner, ticket.agent, roles)
 
 
 def _echo_script_iteration(
@@ -648,7 +482,6 @@ __all__ = [
     "SCRIPT_ENTRY_POINT",
     "ScriptChainResult",
     "ScriptPhaseResult",
-    "ScriptPublicationError",
     "run_script_chain",
     "run_script_phase",
     "script_entry_point",

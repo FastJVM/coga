@@ -5,7 +5,6 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 3899f853-297e-4d54-a3f1-93f9b6b5e861
 workflow:
   name: blackboard-size/run
   steps:

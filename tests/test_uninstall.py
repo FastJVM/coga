@@ -619,51 +619,6 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
     assert where == pipx_venv.absolute()
 
 
-@pytest.mark.parametrize(
-    "broken", ["shared", "local", "shared-bytes", "local-bytes", "alias", "absent"],
-)
-def test_main_uninstall_recovers_without_launch_or_publication(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str], broken: str,
-) -> None:
-    target = _seed_footprint(tmp_path, monkeypatch)
-    coga_os = target / "coga"
-    # This fixture has no definitions, configured user or agent.
-    if broken == "shared":
-        (coga_os / "coga.toml").write_text("bad = [", encoding="utf-8")
-    elif broken == "local":
-        (coga_os / "coga.local.toml").write_text("bad = [", encoding="utf-8")
-    elif broken == "shared-bytes":
-        (coga_os / "coga.toml").write_bytes(b"version = 1\n# caf\xe9\n")
-    elif broken == "local-bytes":
-        (coga_os / "coga.local.toml").write_bytes(b'user = "caf\xe9"\n')
-    elif broken == "alias":
-        (coga_os / "coga.toml").write_text(
-            'version = 1\n[aliases]\nbad = "nonexistent-command"\n', encoding="utf-8",
-        )
-    monkeypatch.setattr(sys, "argv", ["coga", "uninstall", "--yes"])
-    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-
-    def forbidden(*args, **kwargs):
-        raise AssertionError("uninstall crossed recovery admission/teardown boundary")
-
-    for seam in (
-        "coga.cli._validate_aliases", "coga.cli._sweep_coga_state",
-        "coga.git.publish", "coga.git.refresh", "coga.logfile.append_log",
-        "coga.notification.post", "coga.notification.notify",
-        "coga.compose.compose_prompt", "coga.usage.append_record",
-    ):
-        monkeypatch.setattr(seam, forbidden)
-    with pytest.raises(SystemExit) as exc:
-        coga_cli.main()
-    assert exc.value.code == 0
-    captured = capsys.readouterr()
-    assert "Uninstalling Coga from" in captured.out
-    assert "Coga uninstalled" in captured.out
-    assert not coga_os.exists()
-
-
 def test_uninstall_confirmation_defaults_to_no(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

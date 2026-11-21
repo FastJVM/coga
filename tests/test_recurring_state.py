@@ -34,7 +34,6 @@ from coga.recurring_state import (
     parent_state_path,
     render_carrier,
 )
-from coga.retire_worklist import worklist_for_period_task
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import TaskNotFoundError, resolve_bootstrap
 from coga.validate import _check_recurring_templates
@@ -391,32 +390,6 @@ def test_first_package_period_publishes_carrier_and_ledger_together(git_repo, fe
     assert phone_home._state(read_blackboard(git_repo.coga_os / "recurring/phone-home/ticket.md"))[0]["run"] == 1
 
 
-def test_package_create_adopts_a_racing_parent_without_resetting_state(git_repo, monkeypatch):
-    from coga import git
-    from coga.recurring_runner import _sync_recurring_create
-
-    _jobs(git_repo.coga_os, "[jobs]\nphone-home = true\n")
-    git_repo.git("add", "coga/recurring/jobs.toml")
-    git_repo.git("commit", "-m", "select packaged phone-home")
-    git_repo.git("push", "origin", "main")
-    cfg = load_config(git_repo.coga_os)
-    outcome = create_named(cfg, "phone-home", now=NOW)
-    parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
-    peer = parent.read_text(encoding="utf-8").replace('"run":0', '"run":9') + "\nother: peer\n"
-    original = git._push
-    raced = False
-    def create_parent(root, remote, refspec):
-        nonlocal raced
-        if not raced:
-            raced = True
-            git_repo.push_competing_commit("coga/recurring/phone-home/ticket.md", peer)
-        return original(root, remote, refspec)
-    monkeypatch.setattr(git, "_push", create_parent)
-    failures = []
-    assert _sync_recurring_create(cfg, "phone-home", outcome.ref, sync_failures=failures)
-    assert raced and not failures
-    assert parent.read_text(encoding="utf-8") == peer
-    assert git_repo.git("show", "main:coga/recurring/phone-home/ticket.md", cwd=git_repo.origin) == peer
 
 
 def test_stale_package_create_adopts_the_existing_period_and_carrier(git_repo):

@@ -11,7 +11,6 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from coga import git as git_module
 from coga.blackboard import append_blocker
 from coga.bump import (
     OperatorResolutionError,
@@ -857,44 +856,6 @@ def test_bump_gate_accepts_an_annotated_pr_line(repo: Path) -> None:
     assert Ticket.read(task_path).step == "2 (pr)"
 
 
-@pytest.mark.parametrize("script_identity", [False, True])
-def test_bump_final_step_requires_artifact_before_marking_done(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, script_identity: bool
-) -> None:
-    slug, task_path = _make_task(repo)
-    if script_identity:
-        monkeypatch.setenv("COGA_SCRIPT_TASK", str(task_path))
-    _set_step_requires(task_path, 2, "pr")
-    runner = CliRunner()
-    runner.invoke(app, ["bump", slug])
-    runner.invoke(app, ["bump", slug])
-    published: list[str] = []
-
-    def capture_publish(cfg, paths, message, **_kwargs):  # type: ignore[no-untyped-def]
-        published.append(message)
-
-    monkeypatch.setattr("coga.git.publish", capture_publish)
-
-    blocked = runner.invoke(app, ["bump", slug])
-
-    assert blocked.exit_code == 2, blocked.output
-    assert "requires a recorded `pr`" in blocked.output
-    ticket = Ticket.read(task_path)
-    assert ticket.status == "in_progress"
-    assert ticket.step == "3 (merge)"
-    assert published == []
-
-    _record_pr(task_path, "https://github.com/acme/repo/pull/6")
-    allowed = runner.invoke(app, ["bump", slug])
-
-    assert allowed.exit_code == 0, allowed.output
-    ticket = Ticket.read(task_path)
-    assert ticket.status == "done"
-    assert ticket.step is None
-    # Control only: a satisfied `pr` gate publishes nowhere else.
-    assert published == [f"Ticket: {slug} — done"]
-
-
 def test_bump_rewind_ignores_requires_gate(repo: Path) -> None:
     """A human rewind is never gated — only forward advancement is."""
     slug, task_path = _make_task(repo)
@@ -955,32 +916,6 @@ def test_bump_branch_gate_accepts_recorded_sandbox_clone(repo: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert Ticket.read(task_path).step == "2 (pr)"
-
-
-def test_bump_branch_gate_accepts_single_checkout_layout(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The primary checkout *is* the recorded worktree — still bumps cleanly.
-
-    The single-checkout assist layout has one copy of the ticket, so the write
-    and the read can never diverge. The gate must not add a second checkout as
-    a precondition.
-    """
-    slug, task_path = _make_task(repo)
-    _set_step_requires(task_path, 0, "branch")
-    _record_dev(task_path, f"branch: feat/x\nworktree: {repo}")
-    published: list[str] = []
-
-    def capture_sync_task_state(cfg, task_path, *, message, **_kwargs):  # type: ignore[no-untyped-def]
-        published.append(message)
-
-    monkeypatch.setattr("coga.git.sync_task_state", capture_sync_task_state)
-
-    result = CliRunner().invoke(app, ["bump", slug])
-
-    assert result.exit_code == 0, result.output
-    assert Ticket.read(task_path).step == "2 (pr)"
-    assert published == [f"Ticket: {slug} — step 2 (pr)"]
 
 
 # --- bump advisory: stranded ticket write on the recorded branch ---------------
@@ -1151,24 +1086,6 @@ def test_bump_gate_fails_loud_on_non_string_requires(repo: Path) -> None:
 
 
 # --- block / unblock ----------------------------------------------------------
-
-
-def test_block_writes_blocker_and_status(repo: Path) -> None:
-    slug, task_path = _make_task(repo)
-    claimed = Ticket.read(task_path)
-    claimed.frontmatter["launch_generation"] = "finished-session"
-    claimed.write(task_path)
-    runner = CliRunner()
-    result = runner.invoke(app, ["block", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
-    assert result.exit_code == 0, result.output
-    blackboard = read_blackboard(task_path)
-    assert "unclear ceiling for 429 backoff" in blackboard
-    assert "## Blockers" in blackboard
-    ticket = Ticket.read(task_path)
-    assert ticket.status == "blocked"
-    assert ticket.step == "1 (implement)"
-    assert ticket.launch_generation is None
-    assert "blocked:" in _log_text(repo, slug)
 
 
 def test_unblock_records_answer_and_reactivates(repo: Path) -> None:
@@ -1359,18 +1276,6 @@ def test_delete_resolves_prefix(repo: Path) -> None:
     assert not task_path.exists()
 
 
-def test_delete_keep_control_checkout_refuses_primary(repo: Path) -> None:
-    slug, task_path = _make_task(repo, force_directory=True)
-
-    result = CliRunner().invoke(
-        app, ["delete", slug, "--keep-control-checkout"]
-    )
-
-    assert result.exit_code == 2
-    assert task_path.is_dir()
-    assert "requires a linked git worktree" in result.output
-
-
 def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
     # Unknown slug fails at resolution, before anything is removed.
     runner = CliRunner()
@@ -1389,95 +1294,6 @@ def test_delete_task_recipe_removes_the_task(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     assert not task_path.exists()
     assert result.stdout == f"{slug}: deleted {task_path}\n"
-
-
-def test_task_deletion_waits_until_held_child_release(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Removing a ticket cannot land between final validation and release."""
-    slug, task_path = _make_task(repo, force_directory=True)
-    cfg = replace(load_config(repo), git_enabled=False)
-    ref = resolve_task(cfg, slug)
-    attempted = threading.Event()
-    finished = threading.Event()
-    errors: list[BaseException] = []
-    real_barrier = git_module.state_lock
-
-    @contextmanager
-    def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
-        attempted.set()
-        with real_barrier(cfg_):
-            yield
-
-    monkeypatch.setattr(git_module, "state_lock", observed_barrier)
-
-    def delete_task() -> None:
-        try:
-            run_delete_task(cfg, ref)
-        except BaseException as exc:
-            errors.append(exc)
-        finally:
-            finished.set()
-
-    worker = threading.Thread(target=delete_task)
-    with real_barrier(cfg):
-        worker.start()
-        assert attempted.wait(timeout=5)
-        assert not finished.wait(timeout=0.1)
-        assert task_path.is_dir()
-
-    worker.join(timeout=5)
-    assert not worker.is_alive()
-    assert errors == []
-    assert not task_path.exists()
-
-
-def test_task_creation_waits_until_held_child_release(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A replacement ticket cannot appear after final validation but pre-exec."""
-    cfg = replace(load_config(repo), git_enabled=False)
-    ticket_path = repo / "tasks" / "guarded-creation.md"
-    attempted = threading.Event()
-    finished = threading.Event()
-    errors: list[BaseException] = []
-    real_barrier = git_module.state_lock
-
-    @contextmanager
-    def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
-        attempted.set()
-        with real_barrier(cfg_):
-            yield
-
-    monkeypatch.setattr(git_module, "state_lock", observed_barrier)
-
-    def create_guarded_task() -> None:
-        try:
-            create_task(
-                cfg=cfg,
-                title="Guarded creation",
-                workflow_name="code",
-                contexts=[],
-                owner="marc",
-                agent="claude",
-                status="active",
-            )
-        except BaseException as exc:
-            errors.append(exc)
-        finally:
-            finished.set()
-
-    worker = threading.Thread(target=create_guarded_task)
-    with real_barrier(cfg):
-        worker.start()
-        assert attempted.wait(timeout=5)
-        assert not finished.wait(timeout=0.1)
-        assert not ticket_path.exists()
-
-    worker.join(timeout=5)
-    assert not worker.is_alive()
-    assert errors == []
-    assert Ticket.read(ticket_path).status == "active"
 
 
 def test_delete_task_recipe_unknown_task_exits_nonzero(repo: Path) -> None:

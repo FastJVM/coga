@@ -20,14 +20,9 @@ from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 
 
 EXPECTED_RECIPES = (
-    "autoclose",
-    "branch-sweep",
     "recurring-scan",
     "autofix-analyze",
-    "open-pr",
     "delete-task",
-    "publish-state",
-    "prepare-checkout",
 )
 
 
@@ -59,16 +54,6 @@ def test_run_recipe_forwards_argv_boundaries_and_spelling(monkeypatch) -> None:
     assert run_recipe(cfg, "autofix-analyze", argv) == 9
     assert received == [(cfg, argv)]
     assert received[0][1] is not argv
-
-
-def test_no_arg_recipes_reject_unexpected_tokens() -> None:
-    cfg = cast(Config, object())
-
-    for name in (
-        "autoclose",
-        "branch-sweep",
-    ):
-        assert run_recipe(cfg, name, ["unexpected"]) == 2
 
 
 def test_run_command_passes_trailing_tokens_as_ordinary_argv(monkeypatch) -> None:
@@ -571,14 +556,10 @@ def _as_script_task(monkeypatch: pytest.MonkeyPatch, ticket: Path, slug: str) ->
 
 @pytest.fixture
 def entry(repo: Path, monkeypatch: pytest.MonkeyPatch):
-    """Record each sweep's root and each bump, in order, with the stub git."""
+    """Record each bump, in order."""
     from coga import runner
 
     events: list[tuple[str, object]] = []
-    monkeypatch.setattr(
-        "coga.git.sync_coga_state",
-        lambda cfg, **kwargs: events.append(("publish", cfg.repo_root)),
-    )
 
     def bump(slug: str) -> int:
         events.append(("bump", slug))
@@ -588,7 +569,7 @@ def entry(repo: Path, monkeypatch: pytest.MonkeyPatch):
     return events
 
 
-def test_entry_reports_publishes_then_bumps_its_script_task(
+def test_entry_reports_then_bumps_its_script_task(
     repo: Path, monkeypatch: pytest.MonkeyPatch, entry
 ) -> None:
     from coga.runner import run_entry
@@ -601,7 +582,7 @@ def test_entry_reports_publishes_then_bumps_its_script_task(
         return 0
 
     assert run_entry("job", work, ["--x"], scheduled=True) == 0
-    assert entry == [("work", ["--x"]), ("publish", repo), ("bump", "recurring/job")]
+    assert entry == [("work", ["--x"]), ("bump", "recurring/job")]
 
 
 @pytest.mark.parametrize("script_task", [None, "other"])
@@ -622,7 +603,6 @@ def test_entry_never_completes_an_inherited_task(
     code = run_entry("job", lambda cfg, argv: 0, [], scheduled=True)
 
     assert ("bump", "recurring/job") not in entry
-    assert ("publish", repo) in entry
     if script_task is None:
         assert code == 0
     else:
@@ -630,7 +610,7 @@ def test_entry_never_completes_an_inherited_task(
         assert "refusing to advance an inherited task" in capsys.readouterr().err
 
 
-def test_manual_worker_publishes_but_never_bumps(
+def test_manual_worker_never_bumps(
     repo: Path, monkeypatch: pytest.MonkeyPatch, entry
 ) -> None:
     from coga.runner import run_entry
@@ -639,7 +619,7 @@ def test_manual_worker_publishes_but_never_bumps(
     _as_script_task(monkeypatch, ticket, "recurring/job")
 
     assert run_entry("job", lambda cfg, argv: 0, []) == 0
-    assert entry == [("publish", repo)]
+    assert entry == []
 
 
 def test_entry_bump_failure_is_the_result(
@@ -654,30 +634,7 @@ def test_entry_bump_failure_is_the_result(
     assert runner.run_entry("job", lambda cfg, argv: 0, [], scheduled=True) == 3
 
 
-def test_entry_failure_reports_publishes_and_skips_the_bump(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, entry
-) -> None:
-    from coga.runner import run_entry
-
-    ticket = _period_ticket(repo)
-    _as_script_task(monkeypatch, ticket, "recurring/job")
-    seen: list[str] = []
-    monkeypatch.setattr(
-        "coga.git.sync_coga_state",
-        lambda cfg, **kwargs: seen.append(read_blackboard(ticket)),
-    )
-
-    def fail(cfg: Config, argv: list[str]) -> int:
-        sys.stderr.write("job broke\n")
-        return 2
-
-    assert run_entry("job", fail, [], scheduled=True) == 2
-    # The report was on disk before publication ran.
-    assert len(seen) == 1 and "Recipe: `job`" in seen[0] and "job broke" in seen[0]
-    assert not [event for event in entry if event[0] == "bump"]
-
-
-def test_entry_escaping_exception_is_reported_published_and_raised(
+def test_entry_escaping_exception_is_reported_and_raised(
     repo: Path, monkeypatch: pytest.MonkeyPatch, entry
 ) -> None:
     from coga.runner import run_entry
@@ -693,7 +650,7 @@ def test_entry_escaping_exception_is_reported_published_and_raised(
         run_entry("job", explode, [], scheduled=True)
     assert caught.value is original
     assert "RuntimeError: worker exploded" in read_blackboard(ticket)
-    assert entry == [("publish", repo)]
+    assert entry == []
 
 
 @pytest.mark.parametrize(
@@ -723,20 +680,7 @@ def test_entry_keeps_the_help_and_retry_exclusions(
     assert not [event for event in entry if event[0] == "publish"]
 
 
-def test_entry_respects_a_withheld_sweep(repo: Path, entry, capsys) -> None:
-    from coga import git
-    from coga.runner import run_entry
-
-    def work(cfg: Config, argv: list[str]) -> int:
-        git.state_sweep_withheld.set(True)
-        return 0
-
-    assert run_entry("job", work, []) == 0
-    assert entry == []
-    assert "state sweep withheld" in capsys.readouterr().err
-
-
-def test_entry_publishes_the_resolved_target_root_only(
+def test_entry_reports_in_the_resolved_target_root_only(
     repo: Path, monkeypatch: pytest.MonkeyPatch, entry
 ) -> None:
     from coga.runner import run_entry
@@ -753,7 +697,7 @@ def test_entry_publishes_the_resolved_target_root_only(
     code = run_entry("job", fail, [], root=lambda cfg, argv: target)
 
     assert code == 2
-    assert entry == [("publish", target)]
+    assert entry == []
     assert "## Recipe Failure" in read_blackboard(ticket)
 
 
@@ -775,7 +719,6 @@ def test_entry_unknown_target_never_falls_back_to_the_invoking_repo(
     assert run_entry("job", lambda cfg, argv: 2, [], root=resolve) == 2
     assert entry == []
     assert ticket.read_bytes() == before
-    assert "state sweep skipped" in capsys.readouterr().err
 
 
 def test_entry_parser_refusal_writes_and_publishes_nothing(
@@ -825,29 +768,3 @@ def test_cwd_option_root_uses_the_workers_parser(
     argv = [spelling + str(target)] if spelling.endswith("=") else [spelling, str(target)]
     resolve = cwd_option_root(parser)
     assert resolve(load_config(repo), [*argv, "--unknown"]) == target
-
-
-def test_entry_publication_failure_keeps_the_workers_result(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, entry, capsys
-) -> None:
-    from coga.runner import run_entry
-
-    def broken(cfg, **kwargs):
-        raise OSError("disk gone")
-
-    monkeypatch.setattr("coga.git.sync_coga_state", broken)
-    assert run_entry("job", lambda cfg, argv: 4, []) == 4
-    assert "could not publish job state" in capsys.readouterr().err
-
-
-def test_direct_worker_reaches_control_without_a_lifecycle_command(git_repo) -> None:
-    """A manual or Dream worker never bumps; its own exit publishes its work."""
-    from coga.runner import run_entry
-
-    def work(cfg: Config, argv: list[str]) -> int:
-        _write(cfg.repo_root / "tasks" / "notes" / "report.md", "found drift\n")
-        return 0
-
-    assert run_entry("job", work, []) == 0
-    assert git_repo.origin_tracks("coga/tasks/notes/report.md")
-    assert "?? " not in git_repo.git("status", "--porcelain")
