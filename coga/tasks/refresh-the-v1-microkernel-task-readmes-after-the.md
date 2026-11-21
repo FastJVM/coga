@@ -1,6 +1,6 @@
 ---
 title: Refresh the v1 microkernel task READMEs after the W47 Retro deletions
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
