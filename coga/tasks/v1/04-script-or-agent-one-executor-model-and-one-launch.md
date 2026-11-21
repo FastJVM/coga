@@ -1,6 +1,6 @@
 ---
 title: 'Script or agent: one executor model and one launch loop'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -42,6 +42,7 @@ workflow:
     assignee: owner
     checkout: reuse-required
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
