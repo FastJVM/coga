@@ -1,6 +1,6 @@
 ---
 title: Wire agent skills on Windows without symlink privilege
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,7 +36,6 @@ workflow:
     assignee: owner
 step: 2 (evaluate-design)
 agent: claude
-launch_generation: 1ae6d63e-8956-4d61-aae3-d29c474409bd
 ---
 
 ## Description
@@ -428,3 +427,9 @@ ordinary ticket.
    mention running elevated? I left that out on purpose. Running elevated is
    a heavier ask than Developer Mode, and it would have to be repeated for
    every init and launch, but the owner may want it listed.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-20 17:25] [agent:codex] id=20261120T172513 Relaunch evaluate-design from a clean, current main checkout. The supplied checkout is on refresh-v1-microkernel-readmes-after-retro, holding unmerged commit 258ca14c7 for refresh-the-v1-microkernel-task-readmes-after-the (in progress, no linked PR). All four unstaged ticket and log files matched fetched origin/main before blocking. Preserve the implementation branch and its commit when returning to main.
