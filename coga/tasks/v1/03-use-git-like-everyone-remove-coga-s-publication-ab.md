@@ -41,475 +41,475 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
+contexts:
+- coga-dev/principles
 ---
 
 ## Description
 
-Coga stops abstracting Git: no control branch, no automatic publication or sweep, no locks. Branch creation and PR become workflow script steps; the launch kernel no longer knows Git. Owner decisions from the 2026-11-19 chat are recorded below.
+Coga stops abstracting Git. There is no control branch, no automatic
+publication or end-of-command sweep, and no locks. Branch creation and the
+PR become workflow `run:` steps, and the launch kernel no longer knows Git.
+This ticket supersedes the parts of `v1/microkernel/` and
+`v1/why-is-the-code-so-big` that move or polish publication, checkout,
+sweep and claim machinery. The microkernel decides where behavior lives;
+this ticket stops abstracting Git.
 
-This is not the microkernel group: the microkernel decides where behavior
-lives (kernel vs ticket); this ticket stops abstracting Git. It supersedes
-the parts of `v1/microkernel/` and `v1/why-is-the-code-so-big` that move or
-polish publication, checkout, sweep and claim machinery.
+### Target model (owner, 2026-11-19)
 
-### Target model: three orthogonal layers
+Three orthogonal layers. Each can change without touching the others.
 
-The new system separates three concerns that today's launch fuses. Each can
-change without touching the others.
+1. **The kernel runs tickets.** It picks the step's executor, runs it, and
+   records status and step in the ticket file. It knows nothing about Git,
+   branches, PRs, remotes or publication. It takes no locks: the ticket's
+   owner is its single writer. There is no claim transaction, period lease
+   or `expect`-guarded write. If a crash lands between the status write and
+   the spawn, the human relaunches.
+2. **Executors compute a step.** A step is a **script** (deterministic,
+   zero tokens), an **agent** (judgment), or **text** for a human.
+   Deterministic is the default. The hybrid in `coga/script-tickets`
+   "Chaining" stays: a script that leaves its step open hands it to the
+   agent. A failure is not repaired inside the ticket; it becomes another
+   ticket. Windows and terminal specifics stay inside the agent executor.
+3. **Version control is plain Git, outside Coga.** Coga's files are
+   ordinary files in the checkout. On a branch, the ticket's state travels
+   with the code and reaches main through the PR. Branch and PR helpers
+   exist only as workflow script steps. A workflow without them (recurring,
+   script-only, text) commits where it runs, or not at all. Coga works in a
+   directory without Git. Syncing is `git pull`/`git push`; there is no
+   `coga sync` (the `git-sync/` group was canceled 2026-11-19). `git.py`
+   disappears.
 
-1. **The kernel runs tickets.** It reads the ticket once per step, picks the
-   step's executor, runs it, and records status and step in the ticket file.
-   That is all. It knows nothing about Git, branches, PRs, remotes or
-   publication, and it takes no locks: the ticket's owner is its single
-   writer.
-2. **Executors decide how a step is computed.** A step is a **script**
-   (`ticket.py`: deterministic, one computation, zero tokens), an **agent**
-   (an LLM session, for judgment), or **text** for a human. Deterministic by
-   default; call an agent only where judgment is needed. The documented
-   hybrid (`coga/script-tickets` "Chaining": a script that leaves its step
-   open hands it to the agent) stays. A failure is not repaired inside the
-   ticket: it becomes another ticket. Script and agent present the same
-   shape to the kernel (environment, spawn, exit status); Windows and
-   terminal specifics stay inside the agent executor.
-3. **Version control is plain Git, outside Coga.** Humans and agents use
-   `git` as in any repo. Coga's files are ordinary files in the checkout:
-   on a branch, the ticket's state travels with the code and reaches main
-   through the PR. Branch and PR helpers exist only as workflow script steps
-   (for example `open-branch` first, `push-and-open-pr` last); a workflow
-   without them, such as a recurring job, simply commits where it runs, or
-   not at all. Coga would work in a directory without Git. `coga/log.md` is
-   append-only, so its conflicts resolve by keeping both sides.
+**Stop simply** across all layers. When something is not clean (a Git
+conflict, a failed push, a script error), stop, keep local state, and say
+what happened. Recovery is a human or agent act: no retraction, no
+uncertain-push retention, no exit-75 threading.
 
-Failure rule across all three layers: **stop simply**. When something is
-not clean (a Git conflict, a failed push, a script error), stop, keep local
-state, say what happened. Recovery is a human or agent act, never kernel
-machinery.
+Other owner decisions:
 
-Example workflow under this model:
+- **`coga/log.md` is append-only.** Its conflicts resolve by keeping both
+  sides (`merge=union`). It is the one genuinely shared file.
+- **Launch never touches `blocked`.** On a blocked ticket, launch starts
+  the session with the resolve preamble and leaves the status `blocked`.
+  `coga unblock --answer` inside a launched session for the ticket moves it
+  to `in_progress`; outside one it moves it to `active`. A session that ends
+  without an answer leaves the ticket blocked. No script runs on a blocked
+  ticket.
+- **The per-step `checkout:` field goes**, with `checkout_policy.py`,
+  `checkouts.py` and `_prepare_step_checkout`. Opening a branch is a script
+  a workflow may use, never an obligation of the model.
+- **No one-session-per-checkout guard.** Two sessions in one checkout are
+  the human's business, like two editors on one repo.
+- **One implementation PR.** The frozen `implement` step delivers the whole
+  change. Docs and README land in the same PR.
+- **Delete control-dependent branch hygiene**: branch sweep, branch
+  cleanup, checkout disposal, the retire worklist and autoclose. Cleaning
+  branches is plain `git branch -d`/`gh`. This makes `v1/microkernel/16`
+  and `17` moot; canceling them is the owner's call.
+- **The final bump on the branch marks the ticket done.** The commit
+  carrying `status: done` reaches main with the PR merge. Nothing closes
+  tickets in the background.
+- **No lock of any kind.** `state_lock` goes, with no process-local mutex.
+  Two local commands racing on one ticket can lose an update, and that is
+  accepted.
+- The owner allows the implementer to delete the commented "Git sync"
+  `[git]` block in `coga/coga.toml`. Nothing else in that file may change.
 
-    1. script  open-branch        git switch -c <ticket>
-    2. agent   implement
-    3. agent   review
-    4. script  push-and-open-pr   git push; gh pr create
+`coga-dev/principles` already has "Deterministic by default", "Use tools
+plainly" and a stop-simply clause in "Fail loud" (2026-11-19). Align the
+README with them in this PR, not before, so users never read about
+behavior that does not exist yet.
 
-What disappears: the control branch, automatic publication and the
-end-of-command sweep, `prepare-checkout`, per-step `checkout:` policy, claims, generations and leases, byte-guarded
-publication and retraction, exit-75 threading, blocked re-parking, the
-terminal-status probe and done sentinel (session ends itself), the
-one-session-per-checkout guard, and `git.py`.
+### Contracts (owner, 2026-11-20 review-design)
 
-### Owner decisions (2026-11-19)
+**C1. `## Dev` is the ticket's Git record.** This is a general mechanism.
+Steps hand Git facts to each other through `## Dev` lines in the ticket
+file. One shared reader/writer in `blackboard.py` handles them. Move
+`insert_branch_line` (`checkouts.py`), `set_dev_pr` (`open_pr.py`), and
+`parse_branch_name`/`parse_pr_url` (`autoclose.py`) there. The
+`requires: branch|pr` gates use it too. Fields, one per line:
 
-1. **Git like everyone.** No control branch, no automatic publication, no
-   end-of-command sweep, no `prepare-checkout`. Launching a ticket creates
-   (or reuses) its branch; work and ticket state live there; the end is a PR.
-   Forgetting to push is the human's (or agent's) problem, as with any Git
-   use. A `coga sync` command is probably unnecessary.
-2. **Branch and PR are workflow steps**, e.g. a script step that opens the
-   branch and a script step that pushes and opens the PR. The kernel does not
-   know Git. Workflows without such steps (recurring, script-only, text)
-   simply commit where they are, or not at all.
-3. **The owner is the ticket's single writer: no locks.** Drop the megalaunch
-   claim transaction (`pending/admitted/released` generations, held-child
-   admission, released-witness reconciliation, byte re-checks), the recurring
-   period lease, and `expect`-guarded ticket publication. A crash between
-   status write and spawn "is not supposed to happen": the human relaunches.
-4. **Fail-stop, no automatic recovery.** If a Git operation is not clean,
-   stop, keep local state, say so. No retraction, no uncertain-push
-   retention, no exit-75-plus-withheld-sweep threading.
-5. **`coga/log.md` is append-only**: resolve its conflicts by keeping both
-   sides (union). It is the one genuinely shared file.
-6. **Launch never touches `blocked`.** A launch on a blocked ticket starts
-   the session with the resolve preamble and leaves the status `blocked`;
-   `coga unblock --answer` moves it to `in_progress` while a session runs. A
-   session ending without an answer leaves it blocked: nothing to re-park.
-   No `ticket.py` runs on a blocked ticket.
-7. **One ticket read per step**, one environment-isolation function, Windows
-   specifics confined to the agent executor (kept from today).
-8. **A ticket is a script, an agent, or text (MD).** The documented hybrid
-   chaining (`coga/script-tickets` "Chaining") stays. A failure does not
-   escalate inside the ticket: make another ticket.
-9. **Git is outside the kernel; `git.py` disappears.** Coga could in
-   principle run without Git at all. Git helpers that speed things up are
-   workflow steps (scripts), never kernel code. There is no `coga sync`
-   command: syncing is `git pull` / `git push`. The `git-sync/` group (01 add
-   `coga sync`, 02 automatic sync at session end, 03 shrink `git.py`) was
-   canceled on 2026-11-19 as a trap that kept the two-destination model;
-   03's goal is absorbed here as "delete `git.py`".
-10. **The per-step `checkout:` field goes**, with `checkout_policy.py`,
-    `checkouts.py` and launch's `_prepare_step_checkout`. Opening a branch
-    is a command or script a workflow may use, never an obligation of the
-    model. `v1/microkernel/18-retire-the-legacy-checkout-policy…` was
-    canceled as moot.
-11. **No one-session-per-checkout guard.** Drop the chat guard (the
-    toplevel-keyed `flock`, chat receipt, `checkout_guard_scope`,
-    `_orientation_checkout_guard`) and launch's "occupied checkout" checks.
-    Two sessions in one checkout are the human's business, as with two
-    editors on one repo. Session end no longer needs a per-checkout channel
-    (see the script-or-agent ticket).
+    branch: <name>         # open-branch
+    base: <branch>         # open-branch
+    remote: <name>         # open-branch
+    reviewed: <oid>        # code/peer-review, on approval: its HEAD
+    pr: <full /pull/ URL>  # push-and-open-pr
 
-### Documentation
+Each writer sets only its own fields, and unknown lines are preserved.
+Readers take branch, remote, base and reviewed head from these lines
+instead of probing Git or `gh` for them. They stop with a message if a
+field they need is missing or disagrees with Git (for example, the current
+branch differs from `branch:`). The ticket template guide
+(`src/coga/resources/ticket.md`) and `coga/git` document the fields.
 
-`coga-dev/principles` gained "Deterministic by default" and "Use tools
-plainly" and a stop-simply clause in "Fail loud" on 2026-11-19, ahead of
-implementation. Align the README with them in this ticket's implementation
-PR, not before, so first users never read about behavior that does not
-exist yet. Rewrite or delete the user topics that describe today's
-publication model (`coga/checkouts`, `coga/state-publication`, `coga/sync`,
-`coga/checkout-cleanup`, the base prompt's checkout and reconciliation
-sections) in the same PR. Also fix the stale ticket ref in
-`src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md`:
-`v1/44-verify-the-macos-full-suite-procedure-on-the-ec` is now
-`v1/11-verify-the-macos-full-suite-procedure-on-the-ec` (renumbered
-2026-11-19).
+**C2. `git/open-branch/run.py`** (edge; imports only shared core infra).
+- If `branch:` is recorded, run `git switch <branch>`. Otherwise derive the
+  name from the ticket slug (move `checkouts._fresh_branch_name` here, with
+  a fixed prefix now that `[git]` config is gone), then
+  `git switch -c <branch>` from the current HEAD. Never fetch.
+- Record the missing fields. `base:` is the branch HEAD was on at creation;
+  on reuse, or when HEAD is detached, it is the remote's default branch
+  (`gh repo view --json defaultBranchRef`), or `--base <name>`. `remote:` is
+  the base's upstream remote, else `origin`. This backfill lets live tickets
+  that recorded only `branch:` reach the PR step.
+- Then `coga bump`. With `--no-bump` it does the setup only.
+- Any non-zero `git` exit: print Git's message and exit non-zero without
+  bumping. Uncommitted changes travel under Git's own rules.
 
-### Design decisions (owner, 2026-11-20 design chat)
+**C3. `git/push-and-open-pr/run.py`.**
+- Refuse if anything other than the ticket file and `coga/log.md` is
+  uncommitted or staged ("commit your work first").
+- In order:
+  1. Commit the ticket and log if they changed (path-limited:
+     `git commit --only <ticket> coga/log.md`).
+  2. `git push -u <remote> HEAD`.
+  3. `gh pr view <branch> --json url,state,isDraft,baseRefName`. An open PR
+     on `base:` is reused; a draft gets `gh pr ready`; closed, merged or
+     wrong-base stops with a message. With no PR, run
+     `gh pr create --base <base>`, building the body from `## PR` evidence
+     (move `open_pr._pr_presentation`/`_receipt` here).
+  4. Record `pr:` and run `coga bump`.
+  5. Commit the ticket and log again, then push again.
+- Forks are out of scope: whatever `gh` cannot resolve stops the script.
+- A rerun after a partial success reuses the pushed branch and the existing
+  PR, then finishes.
+- Launch may append a `coga/log.md` line after the final push, so the
+  remote can lag one log line. That is accepted and documented in
+  `coga/git`.
+- Drop `open_pr`'s control gates (`_checkout_mode`,
+  `check_branch_contains_control`, the stale-branch checks).
 
-12. **One implementation PR.** The frozen workflow's single `implement`
-    step delivers the whole change; docs and README land in the same PR.
-13. **Branch and PR are `run:` steps.** A workflow step may declare
-    `run: <name>`; that step is executed by a script, not an agent (see
-    Proposed shape §3). This settles the earlier "workflow step vs
-    ticket-level" question in favor of the workflow. Ticket
-    `v1/04-script-or-agent…` may later fold `run:` into its single executor
-    model.
-14. **Delete control-dependent branch hygiene**: branch sweep, branch
-    cleanup, checkout disposal, the retire worklist and autoclose. Cleaning
-    branches is plain `git branch -d` / `gh`.
-15. **The owner's final bump on the branch marks the ticket done.** The
-    commit carrying `status: done` reaches main with the PR merge. Nothing
-    closes tickets in the background.
+**C4. State commits after the PR opens.** Whoever changes the ticket
+commits and pushes it on the branch: the agent per its skill, the owner by
+hand (`coga/git`). In owner-gated workflows, the owner's final done bump is
+committed and pushed before merging. In `code/agent-merge`, `code/merge-pr`
+does five things in order:
+1. Stops if `reviewed:` is absent.
+2. Bumps to done.
+3. Commits the ticket and log, and pushes.
+4. Waits for checks on that head.
+5. Merges pinned to that head.
+
+Before merging, it verifies that every commit after `reviewed:` touches
+only the ticket file and `coga/log.md`, and stops otherwise. If a push or
+merge fails after a local bump, it stops: nothing retracts the bump.
+
+**C5. Legacy frozen snapshots.**
+- `checkout:` keys are ignored.
+- `code/implement` runs `git/open-branch/run.py --no-bump` when `## Dev`
+  has no `branch:`, so `implement` stays the current step.
+- The agent skills for old steps (`peer-review`, `open-pr`, `review`,
+  `merge-pr`, `address-pr-comments`) start with `git switch <branch:>` when
+  not on it. A dirty or conflicting switch means stop.
+- Once the branch exists, the branch copy of the ticket is the live one.
+- `code/open-pr` stays as a thin agent skill that runs
+  `git/push-and-open-pr` (about 20 live tickets freeze it).
+- Test: an old snapshot launched from the default checkout at `implement`
+  ends on the branch with `step:` still at `implement`.
+
+**C6. `run:` steps and dispatch.**
+- `WorkflowStep.run: str | None`. `<name>` resolves like a skill (local
+  first, then package) to a directory holding `run.py`; a local override
+  wins.
+- `validate` errors on a resolved directory without a readable `run.py`,
+  and launch refuses it, naming the path. A `run:` step whose resolved role
+  is `owner` is a `bad-shape` error. The assignee inherits like any step,
+  and packaged workflows write `assignee: agent` explicitly.
+- `validate._check_step_shape` exempts `run:` steps from the "skill-less
+  step needs a `## <step>` section" rule.
+- One function, `launch_script.script_entry_point(ref, ticket)`, returns
+  the current step's `run.py`, else the ticket's `ticket.py`. `coga launch`
+  (`_run_initial_script`, `_supervise_steps`, `run_script_chain`'s
+  re-stat), megalaunch `_launch_until_stop` and recurring delegation all
+  use it.
+- Environment, `system` attribution, gates and Chaining are unchanged. A
+  script that bumps chains to the next step. One that leaves the step open
+  hands it to the agent.
+- Megalaunch gains this script phase as new behavior, in its own commit
+  and with its own test. Stateless `bootstrap/<name>` targets keep today's
+  `ticket.py` behavior.
+
+**C7. Scope against `v1/04`.** The target model is the end state across
+this ticket and `v1/04`. This ticket deletes the Git, publication, claim,
+lease, checkout and re-park paths. One ticket read per step, executor
+unification, environment-isolation consolidation, the done sentinel's and
+terminal probe's removal, and `coga exit` belong to `v1/04`. Here,
+`_terminal_status_probe` only switches to reading the local ticket file.
+
+**C8. Log compaction.** `coga_edge.trim_log` stays. It snapshots, trims,
+and just before the atomic replace re-reads and appends any bytes beyond
+the snapshot length. The remaining tiny race is accepted and documented in
+`coga/git`. Test: an append between snapshot and replace survives.
+
+**C9. Recorded assists.** `coga launch <task> --agent <name>` on an owner
+step keeps only audit attribution (`ASSIST_AGENT_ENV`, with
+`assist_session_from_env` reduced to the agent).
+`verify_recorded_assist_pr_head`, the assist branch/PR env and checkout
+alignment go; the human switches branches. In
+`tests/test_launch_script.py`, keep the attribution cases and delete the
+PR-head cases.
+
+**C10. Surviving Git/`gh` subprocesses in core.** Each one gets a fate:
+- `commands/update.py` work-tree probe: a `pathlib` check for `.git`.
+- `recurring_activity.py` `git log` inactivity scan:
+  `logfile.last_activity_map`.
+- `config.py` `ls-files` calls and the `git` call in `validate.py`: replace
+  them with `pathlib` walks or drop them with the features they serve.
+- `github_preflight.py`: delete the control-drift helpers
+  (`check_branch_contains_control`, `coga_root_prefix`,
+  `is_coga_state_path`, `stranded_task_state_paths`/`_remediation` and its
+  `validate` use). Move the remote/auth/`gh` checks that
+  `push-and-open-pr` needs into that script, and delete the module. With
+  it go `coga validate --check-github` (`validate._github_issues`) and
+  `commands/bump`'s stranded-ticket-state warning.
+- `dependencies.py` only names git as a dependency and stays.
 
 ### Acceptance criteria
 
 Kernel without Git:
-- [ ] `src/coga/git.py` is deleted, and so are `publish_state.py`,
-      `state_sweep.py`, `log_publication.py`, `log_transaction.py`,
-      `checkouts.py`, `checkout_policy.py`, `checkout_disposal.py`,
-      `claimed_session.py`, `review_conflict.py`, `branchsweep.py`,
-      `branchcleanup.py`, `retire_worklist.py`, `autoclose.py` and
-      `open_pr.py`. `rg -n "coga\.git\b|from coga import git|from \.git import" src tests`
+- [ ] Deleted: `git.py`, `publish_state.py`, `state_sweep.py`,
+      `log_publication.py`, `log_transaction.py`, `checkouts.py`,
+      `checkout_policy.py`, `checkout_disposal.py`, `claimed_session.py`,
+      `review_conflict.py`, `branchsweep.py`, `branchcleanup.py`,
+      `retire_worklist.py`, `autoclose.py`, `open_pr.py` and
+      `github_preflight.py`.
+      `rg -n "coga\.git\b|from coga import git|from \.git import" src tests`
       finds nothing.
-- [ ] No module under `src/coga/` (package core, not `resources/` or
-      `coga_edge/`) runs a `git` or `gh` subprocess, except
-      `skill_manager.py` installing a skill from a Git URL (Git used as a
-      download tool, single consumer, inlined there).
-- [ ] In a temporary directory with **no `.git`**, `coga init`, `coga
-      create`, `coga mark active`, `coga launch` of a `run:`-only workflow,
-      `coga bump`, `coga block` and `coga unblock --answer` all succeed. A
-      test covers this sequence.
+- [ ] No module under `src/coga/` (core, not `resources/` or `coga_edge/`)
+      runs a `git` or `gh` subprocess, except `skill_manager.py` installing
+      a skill from a Git URL (inlined there) (C10).
+- [ ] In a temporary directory with **no `.git`**, `coga init`, `create`,
+      `mark active`, `launch` of a `run:` fixture workflow, `bump`, `block`
+      and `unblock --answer` succeed. A test covers this. The fixture
+      script is non-Git and bumps (launch performs that bump). The next
+      step is owner-held, so no agent spawns. A later local `coga bump`
+      advances it.
 - [ ] No command commits, pushes, fetches or switches branches by itself.
-      The end-of-command sweep (`cli.main` → `_sweep_coga_state`) and
-      `runner._publish_after` are gone. A test asserts that `git status`
-      after `coga bump` shows the ticket and `coga/log.md` modified and
-      nothing committed.
+      `cli.main` → `_sweep_coga_state` and `runner._publish_after` are
+      gone. A test asserts that `git status` after `coga bump` shows the
+      ticket and `coga/log.md` modified and nothing committed.
 - [ ] Exit code 75 has no Coga meaning: `RETRY_WITHOUT_SWEEP_EXIT_CODE`,
       `STALE_CONTROL_EXIT_CODE`, `state_sweep_withheld` and
       `control_relay_started` no longer exist.
-- [ ] `runner.RECIPES` no longer lists `publish-state`, `prepare-checkout`,
-      `branch-sweep`, `autoclose` or `open-pr`, and gets no forwarding
-      entries.
+- [ ] `runner.RECIPES` no longer lists `publish-state`,
+      `prepare-checkout`, `branch-sweep`, `autoclose` or `open-pr`, with no
+      forwarding entries.
 
 Lifecycle writes:
 - [ ] `bump`, `mark`, `block`, `unblock`, `owner`, `create` and `delete`
-      read the local ticket, compute, and write it atomically
-      (`atomicio`). There is no three-way merge with a control copy
-      (`prepare_ticket`, `PreparedTicket`, `merge_ticket_bytes`,
+      read the local ticket, compute, and write atomically (`atomicio`).
+      Gone: `prepare_ticket`, `PreparedTicket`, `merge_ticket_bytes`,
       `lifecycle_winner`, `TicketConflictError`, `TicketChangedError` and
-      `expect=` guards are gone).
+      `expect=` guards.
 - [ ] `state_lock` is gone. `logfile.append_log` appends with one
       `O_APPEND` write.
-- [ ] The `launch_generation` and `period_generation` frontmatter fields
-      are no longer written, read or validated as known keys. `coga
-      validate` reports a leftover one as an `obsolete-key` warning, not an
-      error. This repo's tickets that carry them are cleaned in the same
-      PR.
+- [ ] `launch_generation` and `period_generation` are no longer written,
+      read or known. `coga validate` warns `obsolete-key` for a leftover
+      one. This repo's tickets that carry them are cleaned.
 
 Workflows:
-- [ ] The per-step `checkout:` key is no longer parsed, frozen or
-      validated as a policy. In a frozen snapshot it is ignored and `coga
-      validate` warns `obsolete-key`, so live tickets keep launching.
-      `Workflow.freeze` does not write it.
-- [ ] `WorkflowStep` has an optional `run:`. Launch executes the named
-      script for that step (§3). A `run:` step whose resolved role is
-      `owner` is a `bad-shape` validation error.
-- [ ] Packaged skills `git/open-branch` and `git/push-and-open-pr` exist,
-      each with a `run.py`, and are listed in
+- [ ] `checkout:` is not parsed, frozen or validated as a policy. In a
+      frozen snapshot it is ignored with an `obsolete-key` warning.
+- [ ] `run:` steps work as in C6.
+- [ ] Packaged skills `git/open-branch` and `git/push-and-open-pr` exist
+      with `run.py` (C1-C3) and are listed in
       `tests/required_package_resources.txt`.
 - [ ] Packaged `code/with-review`, `code/with-self-review`,
       `code/agent-merge`, `code/design-then-implement` and
-      `docs/with-review` start their branch work with an `open-branch` `run:`
-      step and open the PR with a `push-and-open-pr` `run:` step. None of
-      them declares `checkout:`.
-- [ ] `requires: branch|pr` gates still work unchanged. They read
-      `## Dev` text only.
+      `docs/with-review` open the branch with an `open-branch` `run:` step
+      and the PR with a `push-and-open-pr` `run:` step, and declare no
+      `checkout:`.
+- [ ] `requires: branch|pr` gates still work and read `## Dev` only.
 
 Launch:
-- [ ] Launch never changes branches or refuses because of checkout state:
-      `_prepare_step_checkout`, `_CheckoutBoundary`, `return_checkout`,
-      `_manages_branch_checkout`, `_checkout_exemption` and the checkout
-      refusal messages are gone. The composed prompt no longer has a
-      "Checkout (runtime)" layer.
-- [ ] There is no chat guard: `checkout_guard_scope`,
-      `_orientation_checkout_guard`, `_CHAT_SESSION` and the
-      chat-receipt/flock machinery are gone. Two `coga chat` sessions in one
-      checkout both start.
-- [ ] Megalaunch launches its picks in sequence without claims. The
-      pending/admitted/released transaction, the held-child gate in
-      `repl_supervisor.py`/`repl_supervisor_nt.py`
-      (`_admit_held_child`, the gate fd) and released-witness
-      reconciliation are gone.
-- [ ] Recurring has no period lease and no control relay: `PeriodLease`,
-      `_ParentStateLease`, `_verify_period_on_control`,
-      `_relay_to_control_worktree`, `_ControlWorktreeOwner` and its reaping
-      are gone. The due scan and ledger read local files in the current
-      checkout.
-- [ ] **Blocked:** `coga launch` on a `blocked` ticket with a TTY starts
-      the agent with the blocker-resolution preamble and leaves `status:
-      blocked`. Without a TTY it refuses as today. It never runs
-      `ticket.py` or a `run:` script on a blocked ticket; that case refuses
-      with "answer with `coga unblock --answer`". After the session ends,
-      nothing re-parks the ticket (`reblock_unresolved_resume`,
+- [ ] Launch never changes branches or refuses because of checkout state.
+      There is no "Checkout (runtime)" prompt layer.
+- [ ] No chat guard: two `coga chat` sessions in one checkout both start.
+- [ ] Megalaunch launches picks in sequence without claims, and runs
+      `run:` steps (C6). The held-child gate in
+      `repl_supervisor.py`/`repl_supervisor_nt.py` is gone.
+- [ ] Recurring has no period lease and no control relay. The due scan and
+      ledger read local files in the current checkout.
+- [ ] **Blocked:** launch on a `blocked` ticket with a TTY starts the agent
+      with the resolution preamble and leaves `status: blocked`. Without a
+      TTY it refuses as today. A script or `run:` step on a blocked ticket
+      refuses with "answer with `coga unblock --answer`". Nothing re-parks
+      after the session (`reblock_unresolved_resume`,
       `reblock_after_script`, `should_reblock_after_script`,
-      `_park_unanswered_resume` and megalaunch `_reblock_unresolved` are
-      gone).
-- [ ] `coga unblock --answer` on a `blocked` ticket moves it to
-      `in_progress` when run inside a launched session for that ticket
-      (the `COGA_TASK_*` environment names it), and to `active` otherwise.
-      Tests cover both.
+      `_park_unanswered_resume`, megalaunch `_reblock_unresolved` are gone).
+- [ ] `unblock --answer` → `in_progress` inside a launched session for the
+      ticket (`COGA_TASK_*`), → `active` otherwise. Tests cover both.
+
+Contracts:
+- [ ] C1-C9 hold, with these tests:
+      - `## Dev` writer round-trip, and a stop on a missing or mismatched
+        field.
+      - `open-branch`: create, reuse, backfill, `--no-bump`, and fail-stop
+        on a Git error.
+      - `push-and-open-pr` with `gh` stubbed: create, reuse, ready a draft,
+        closed or wrong-base refusal, retry after a partial success, and
+        the dirty-tree refusal.
+      - `merge-pr`'s commits-after-`reviewed:` check.
+      - The legacy snapshot at `implement`.
+      - `run:` dispatch through launch, megalaunch and recurring.
+      - The trim-log tail append.
+      - Assist attribution.
 
 Docs, README and packaging:
-- [ ] The user topics `coga/checkouts` (all children), `coga/state-publication`
-      (all children), `coga/sync`, `coga/checkout-cleanup` (all children)
-      and the coga-dev internals listed in Context are deleted. A new short
-      user topic `coga/git` owns the plain-Git conventions (§6).
+- [ ] Deleted: user topics `coga/checkouts`, `coga/state-publication`,
+      `coga/sync` and `coga/checkout-cleanup` (all children), plus the
+      coga-dev internals listed in Context. A new short user topic
+      `coga/git` owns the plain-Git conventions.
       `REQUIRED_BOOTSTRAP_CONTEXT_REFS` and
       `tests/required_package_resources.txt` match.
-- [ ] `src/coga/resources/prompt.md` replaces "Check the starting checkout"
-      and "Reconcile before publishing" with one short "Git" section that
-      points to `coga/git`. `prompt-ticket.md` loop step 3 and `AGENTS.md`'s
-      reconciliation line point to `coga/git`.
-- [ ] Every remaining topic, skill, workflow and the ticket template
-      (`src/coga/resources/ticket.md`) is free of control-branch,
-      publication, sweep, claim, lease and `checkout:` wording. A grep for
+- [ ] `src/coga/resources/prompt.md` replaces "Check the starting
+      checkout" and "Reconcile before publishing" with one short "Git"
+      section pointing to `coga/git`. `prompt-ticket.md` loop step 3 and
+      `AGENTS.md`'s reconciliation line point to `coga/git`.
+- [ ] A grep for
       `control branch|publish-state|prepare-checkout|state sweep|checkout:`
       over `src/coga/resources docs/contexts README.md AGENTS.md` finds
-      nothing stale.
+      nothing stale, including in `src/coga/resources/ticket.md`.
 - [ ] The README matches `coga-dev/principles` ("Use tools plainly",
       "Deterministic by default", "Fail loud").
-- [ ] The macOS clean-install skill refers to
-      `v1/11-verify-the-macos-full-suite-procedure-on-the-ec`.
+- [ ] The macOS clean-install skill
+      (`src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md`)
+      refers to `v1/11-verify-the-macos-full-suite-procedure-on-the-ec`
+      instead of `v1/44-…`.
 - [ ] `python -m pytest` passes and `coga validate --json` reports no
-      errors on this repo. The PR lists both commands with their results.
+      errors. The PR lists both commands with their results.
 
 ### Proposed shape
 
-Work in this order. Each stage leaves the suite green on the branch, so a
-reviewer can read the PR commit by commit.
+These are work areas in a suggested commit order, and each commit keeps the
+suite green. Where areas overlap, move a helper to its new home and migrate
+its callers and tests before deleting the old owner. The acceptance
+criteria list the deletions; this section names only what is not obvious.
 
-**§1 Stop publishing (lifecycle goes local).**
-- `cli.py`: delete `_sweep_coga_state`, `_should_sweep_coga_state`, and the
-  `deferred_done_marker` wrapper that waits for the sweep (the sentinel
-  itself stays for `v1/04`). `runner.py`: delete `_publish_after`. Delete
-  `state_sweep.py` and `publish_state.py`.
-- `bump.py`, `mark.py`, `commands/{bump,mark,block,unblock,owner,create,delete}.py`,
-  `commands/common.py`: replace `prepare_ticket`/`PreparedTicket`/
-  `sync_task_state`/`write_ticket(prepared=)` with "read the file, build the
-  new bytes, `atomicio.atomic_write_bytes`". Delete
-  `commands/common.prepare_lifecycle_ticket`'s conflict branch,
-  `bail_ticket_changed` and `_refuse_conflict`, and `review_conflict.py`.
-- `logfile.py`: drop `retract_log_append`, `retract_log_lines` and
-  `replace_log`'s publication receipt. Delete `log_publication.py` and
-  `log_transaction.py`. `coga_edge/trim_log.py` rewrites `log.md` locally
-  and stops publishing.
-- `.gitattributes`: in the package scaffold
-  (`src/coga/resources/templates/coga/.gitattributes`) and this repo's
-  `coga/.gitattributes`, replace `/log.md -merge` with `/log.md
-  merge=union` and drop the `retires.md` line. Keep the twin entry in
-  `INTENTIONALLY_DIVERGENT_TWINS` consistent.
-- Edge callers of `publish`/`sync_task_state` (`coga_edge/phone_home`,
-  `blocker_reminders`, `megalaunch`, `trim_log`; resources
-  `recurring-promote/ticket.py`, `retire/ticket.py`, `status/ticket.py`)
-  write locally and stop publishing.
+**§1 Stop publishing.**
+- Delete the sweep and `_publish_after`, keeping the done sentinel for
+  `v1/04`. Replace `prepare_ticket`/`sync_task_state`/
+  `write_ticket(prepared=)` in `bump.py`, `mark.py`, `commands/*` and
+  `commands/common.py` with read, build, `atomicio.atomic_write_bytes`.
+- `logfile.py` drops `retract_log_*` and `replace_log`'s publication
+  receipt.
+- Scaffold `src/coga/resources/templates/coga/.gitattributes` and this
+  repo's `coga/.gitattributes`: `/log.md merge=union`, and drop the
+  `retires.md` line. Keep `INTENTIONALLY_DIVERGENT_TWINS` consistent.
+- Edge callers of `publish`/`sync_task_state` write locally:
+  `coga_edge/{phone_home,blocker_reminders,megalaunch,trim_log}` and the
+  resource scripts `recurring-promote`, `retire` and `status`.
 
-**§2 Drop checkout policy and the chat guard.**
-- Delete `checkout_policy.py` and `checkouts.py`. In `workflow.py`,
-  `_parse_step` stops reading `checkout` (it ignores the key when present),
-  `Workflow.freeze` stops writing it, and `CHECKOUT_POLICIES` and
-  `DEFAULT_CHECKOUT` go. `validate.py`: the step-shape check warns
-  `obsolete-key` for a present `checkout:`.
-- `launch.py`: delete `_prepare_step_checkout`, `_CheckoutBoundary`,
-  `return_checkout`, `_manages_branch_checkout`, `_checkout_exemption`,
-  `_checkout_refusal_message`, `_orientation_checkout_guard`,
-  `checkout_guard_scope`, `_CHAT_SESSION` and `_CHECKOUT_GUARD_SCOPE`.
-  `compose.py`: delete the `checkout_notice` layer and
-  `UNSUPPLIED_CHECKOUT_NOTICE`. The `retire/ticket.py` caller of
-  `checkout_guard_scope` goes with it.
-- `_terminal_status_probe` (`launch.py`) reads the local ticket file
-  instead of the control ref's blob and stops matching
-  `period_generation`. Removing the probe itself is `v1/04`'s job.
+**§2 Drop checkout policy and the chat guard.** `workflow._parse_step`
+ignores `checkout`, `freeze` stops writing it, and `validate` warns. In
+`launch.py`, delete `_prepare_step_checkout`, `_CheckoutBoundary`,
+`return_checkout`, `_manages_branch_checkout`, `_checkout_exemption`,
+`_orientation_checkout_guard`, `checkout_guard_scope` and `_CHAT_SESSION`.
+Delete `compose.py`'s `checkout_notice` layer.
 
-**§3 `run:` steps, `git/open-branch` and `git/push-and-open-pr`.**
-- `workflow.py`: `WorkflowStep.run: str | None`. `_parse_step` accepts a
-  non-empty string, `freeze` writes it, and `validate.py` checks that it
-  resolves and that the step's resolved role is not `owner`. Resolution
-  follows skills: `<name>` is a skill directory resolved local-first then
-  package, and its `run.py` is the entry point. This keeps local override
-  and package fallback with no new resolver.
-- `launch_script.py`: generalize `script_entry_point(ref)` to
-  `script_entry_point(ref, ticket)`. If the current frozen step has `run:`,
-  return that skill's `run.py`; otherwise return the ticket's `ticket.py`
-  as today. Update its callers in `launch.py` (`_run_initial_script`,
-  `_supervise_steps`) and the re-stat in `run_script_chain`. Environment,
-  `system` attribution, gates and the "Chaining" rules are unchanged: a
-  `run:` script that bumps chains to the next step, and one that leaves the
-  step open hands it to the agent.
-- `git/open-branch/run.py` (edge, imports only shared core infra): if
-  `## Dev` already records `branch:`, run `git switch <branch>`. Otherwise
-  derive the name from the ticket slug (move `checkouts._fresh_branch_name`
-  logic here), run `git switch -c <branch>` from the current HEAD, and
-  record `branch:` with the existing `## Dev` writer
-  (`insert_branch_line`). Then `coga bump`. Any non-zero `git` exit:
-  print Git's message and exit non-zero without bumping (fail-stop).
-  Uncommitted changes travel under Git's own rules.
-- `git/push-and-open-pr/run.py`: require `## Dev` `branch:` to equal the
-  current branch. Commit the ticket and `coga/log.md` if modified, run
-  `git push -u <remote> HEAD`, and create the PR with `gh pr create` (or
-  `gh pr view` when one exists), building the body from `## PR` evidence by
-  moving `open_pr._pr_presentation`/`_receipt` here. Then record `pr:`
-  (`set_dev_pr`) and `coga bump`. Remote: the branch's upstream, else
-  `origin`. Drop open_pr's control gates (`_checkout_mode`,
-  `github_preflight.check_branch_contains_control`, the stale-branch checks).
-- Workflows: `code/with-review` becomes `open-branch` (run, agent) →
-  `implement` (agent, requires branch) → `peer-review` (other-agent) →
-  `push-and-open-pr` (run, agent, requires pr) → `review` (owner). Apply the
-  same shape to `code/with-self-review`, `code/agent-merge` (its `merge`
-  step stays an agent step), `code/design-then-implement` (design steps
-  first) and `docs/with-review`.
-- Skills: `code/implement` drops "launch prepared the branch" and
-  freshness against control. If `## Dev` has no branch (legacy frozen
-  snapshot), it runs `git/open-branch`'s script first. `code/open-pr` stays
-  as a thin agent skill that runs `git/push-and-open-pr`'s script, so live
-  tickets frozen with an agent `open-pr` step still work. `code/peer-review`,
-  `self-qa`, `merge-pr`, `address-pr-comments`, `bootstrap/orient/ticket.md`
-  and `docs/with-review`: drop the "Checkout (runtime)" references.
+**§3 `## Dev` record, `run:`, and the Git scripts (C1-C3, C5, C6).**
+Workflows: `code/with-review` becomes `open-branch` (run, agent) →
+`implement` (agent, requires branch) → `peer-review` (other-agent, writes
+`reviewed:`) → `push-and-open-pr` (run, agent, requires pr) → `review`
+(owner). Give `with-self-review` the same shape, as well as `agent-merge`
+(whose `merge` stays an agent step), `design-then-implement` (design steps
+first) and `docs/with-review`. Skills: drop "Checkout (runtime)" and
+control-freshness wording from `implement`, `peer-review`, `self-qa`,
+`merge-pr`, `address-pr-comments`, `open-pr`, `bootstrap/orient/ticket.md`
+and `docs/with-review`.
 
-**§4 Drop claims, leases and blocked re-parking.**
-- Delete `claimed_session.py`. `launch.py`: delete the
-  `run_claimed_agent_session` re-export, `_reconcile_released_launch_admission`,
-  the pending/released refusal in `_launch`, and the `after_spawn`/
-  `spawn_release_guard`/`after_spawn_release`/`on_spawn_admission_failure`
-  hooks that `spawn_agent_session` passes to `run_with_done_marker`.
-  `repl_supervisor.py`/`repl_supervisor_nt.py`: delete the held-child gate.
-  `ticket.py`: delete the `launch_generation` helpers and prefixes.
-  `mark.py`/`bump.py`/`commands/owner.py`: stop popping or checking it.
-- `coga_edge/megalaunch.py` `_launch_until_stop`: for each pick, read the
-  ticket, `resolve_operator`, activate or mark `in_progress`, then
-  `spawn_agent_session`. Delete `_restore_after_failed_start`, the `expect=`
-  in `_publish_partial_dependency_resolution` and `_drain_satisfied_blockers`,
-  and `_activate_for_launch`'s claim path. Keep selection, ordering, drain
-  and summary.
-- Recurring: delete the lease in `recurring.py` (`PeriodLease`,
-  `period_generation_from_ticket_bytes`, `local_period_lease`,
-  `same_period_lease`) and in `recurring_runner.py` (`_ParentStateLease`,
-  `_revision_period_lease`, `_local_parent_state_lease`,
-  `_revision_parent_state_lease`, `_verify_period_on_control`,
-  `_require_period_bytes`, `_restore_period_bytes`, `admitted_period_leases`,
-  `confirm_control_lease`), plus `launch.py`'s `capture_launched_period_lease`,
-  `_refresh_recurring_period_before_launch`, `_exact_recurring_period_for_launch`
-  and the `expected_period_lease` parameters. Delete the control relay
-  (`_relay_to_control_worktree`, `_ControlWorktreeOwner` and its read/write/
-  reap, `_control_already_has_period` → local ledger,
-  `_control_remote_present_at_admission`, `_sweep_stopping_exit`).
-  `recurring --all` runs each repo in its current checkout.
-  `workspace_discovery.py` drops the `CONTROL_WORKTREE_*` markers.
-  `period_state.py` (state-key snapshots) stays.
-- Blocked (decision 6): in `_launch`, a blocked ticket keeps
-  `blocked_resume` and composes the preamble (already keyed on open asks in
-  `compose._blocker_preamble`), but skips `_auto_activate` and the
-  `in_progress` flip. The script branch refuses on `blocked`.
-  `commands/unblock._apply_unblock`: `blocked` → `in_progress` when
-  `COGA_TASK_*` names this ticket, otherwise `mark_active`. Delete the
-  re-park functions listed in the acceptance criteria.
+**§4 Drop claims, leases and re-parking.**
+- Delete `claimed_session.py` and the `after_spawn*`/
+  `spawn_release_guard`/`on_spawn_admission_failure` hooks in
+  `spawn_agent_session`.
+- Remove the `launch_generation` helpers from `ticket.py`, `mark.py`,
+  `bump.py` and `commands/owner.py`.
+- Megalaunch per pick: read the ticket, `resolve_operator`, activate or set
+  `in_progress`, then run the script phase (C6) and `spawn_agent_session`.
+  Keep selection, ordering, drain and summary.
+- Recurring: delete `PeriodLease` and friends in `recurring.py`, and
+  `_ParentStateLease`, `_verify_period_on_control`, the control relay and
+  `_ControlWorktreeOwner` in `recurring_runner.py`. Delete the
+  period-lease parameters in `launch.py`.
+  `workspace_discovery.py` drops `CONTROL_WORKTREE_*`. `period_state.py`
+  stays.
+- Blocked: in `_launch`, keep `blocked_resume` and the preamble (already
+  keyed on open asks), but skip `_auto_activate` and the `in_progress`
+  flip.
 
-**§5 Delete git.py and control-dependent Git helpers.**
-- Replace the remaining non-publication uses: `toplevel`/`relative_to_root`
-  → `config.find_checkout_root`/`find_repo_root` or `pathlib`;
-  `symlink_component` → a `paths.py` helper; `is_linked_worktree` → its
-  callers go with the deleted modules; `views` drops the
-  `last_commit_times` fallback and uses `logfile.last_activity_map`; the
-  `status` bootstrap ticket drops `stale_coga_task_rels`,
-  `feature_sync_plan` and `stale_index_lock`; `skill_manager` inlines its
-  one `git ls-remote`-style call and `_git_env`.
-- `commands/init.py`: write the files and print "commit `coga/` when ready".
-  Drop the commit, the git-identity probe, `control_branch_present`/
-  `symbolic_head` and `_render_git_control_branch_table`. `init` works in a
-  non-Git directory.
-- `config.py`: delete `_parse_git`, `_resolve_git_enabled`,
-  `git_control_branch` and `worktrees_ticket_owned`. A `[git]` table in
-  `coga.toml`/`coga.local.toml` loads with an `obsolete-key` warning from
-  `coga validate`.
-- Delete `branchsweep.py`, `branchcleanup.py`, `checkout_disposal.py`,
-  `retire_worklist.py`, `autoclose.py`, `open_pr.py`, the
-  `branch-sweep` and `autoclose-merged` recurring templates, workflows
-  (`branch-sweep/sweep`, `autoclose-merged/sweep`) and skills, and
-  `github_preflight`'s control-drift helpers (`check_branch_contains_control`,
-  `coga_root_prefix`, `is_coga_state_path`). `retire/ticket.py` retires
-  ticket files only. `pr_assist.py`: drop `verify_recorded_assist_pr_head`'s
-  `autoclose.pr_view` dependency, or delete the module if nothing else
-  needs it. Then delete `git.py`.
-- `coga-dev/microkernel` "Open command placements" and
-  `runner.RECIPES` lose the deleted entries.
+**§5 Delete `git.py`.**
+- `toplevel`/`relative_to_root` → `config.find_checkout_root`/
+  `find_repo_root` or `pathlib`. `symlink_component` → `paths.py`.
+- `views` uses `logfile.last_activity_map`.
+- The `status` bootstrap ticket drops `stale_coga_task_rels`,
+  `feature_sync_plan` and `stale_index_lock`.
+- `commands/init.py` writes the files and prints "commit `coga/` when
+  ready". It drops the commit, the identity probe and the control-branch
+  table, and works without Git.
+- `config.py` drops `[git]` parsing; a `[git]` table loads with an
+  `obsolete-key` warning.
+- Apply C10.
+- Delete the `branch-sweep` and `autoclose-merged` recurring templates,
+  workflows and skills. Remove the deleted entries from `coga-dev/microkernel`
+  "Open command placements".
 
-**§6 Docs and README.**
-- New user topic `coga/git` (about 60 lines). Coga's files are ordinary
-  files. A code workflow opens a branch with `git/open-branch`, and the
-  ticket state travels on that branch. `push-and-open-pr` opens the PR. The
-  owner's final `coga bump` (done) is committed on the branch before the
-  merge. `coga/log.md` merges by union. Pushing, pulling and cleaning
-  branches are plain `git`/`gh`. When Git is not clean, stop and say so.
-  Fold the useful part of `coga/checkouts/reconciliation` (rebase on the
-  base branch, preserve unique work) into it.
-- Delete the topics listed in Context. Edit-pass the topics that mention
-  the model in passing (listed in Context). Update `coga/workflows` for
-  `run:` and `coga/script-tickets` for step scripts. Rewrite
-  `coga/pr-publication` around `push-and-open-pr`.
-- README: align with the principles. AGENTS.md: point the reconciliation
-  line at `coga/git`. Fix the macOS skill's stale ref.
+**§6 Docs.**
+- `coga/git` (about 60 lines) covers:
+  - the `## Dev` fields;
+  - the branch → PR flow and who commits state;
+  - the final bump on the branch;
+  - the union log merge and the trim race;
+  - plain `git`/`gh` for pushing, pulling and cleaning;
+  - stop when Git is not clean;
+  - from `coga/checkouts/reconciliation`: rebase on the base branch and
+    preserve unique work.
+- Update `coga/workflows` (`run:`) and `coga/script-tickets` (step
+  scripts). Rewrite `coga/pr-publication` around `push-and-open-pr`.
+  Edit-pass the topics listed in Context.
 
 **§7 Tests and fixtures.**
 - Delete `tests/test_git.py`, `test_checkouts.py`, `test_branchsweep.py`,
   `test_branchcleanup.py`, `test_publish_state.py`,
-  `test_autoclose_dispose.py`, and `test_autoclose_sweep.py` if it covers
-  the deleted autoclose. Cut the claim, lease, sweep and publication cases
-  from `test_megalaunch.py`, `test_recurring.py`, `test_launch.py`,
-  `conftest.py`, `test_cli.py`, `test_authoring.py`, `test_launch_script.py`,
-  `test_runner.py`, `test_trim_log.py`, `test_mark.py`, `test_retire*.py`
-  and `test_period_state.py`/`test_recurring_state.py` where they cover
-  leases.
-- New tests: the no-`.git` lifecycle sequence; `run:` parse/freeze/
-  validate/launch (script bumps → chains; script leaves the step open →
-  agent; owner-role `run:` rejected); `open-branch` creates or reuses and
-  fails stop on a Git error; `push-and-open-pr` with `gh` stubbed; blocked
-  launch keeps `blocked`; `unblock --answer` in-session vs out of session;
-  `obsolete-key` warnings for `checkout:`, `launch_generation`,
-  `period_generation` and `[git]`.
-- Seeded fixture `tests/fixtures/seeded-repo/coga/`: update its workflows
-  to the new shape. Keep `deterministic/check.md` working.
+  `test_autoclose_dispose.py`, and `test_autoclose_sweep.py`.
+- Cut the claim, lease, sweep and publication cases from `test_megalaunch`,
+  `test_recurring*`, `test_launch*`, `conftest.py`, `test_cli`,
+  `test_authoring`, `test_runner`, `test_trim_log`, `test_mark`,
+  `test_retire*` and `test_period_state`.
+- Update the seeded fixture `tests/fixtures/seeded-repo/coga/workflows/` to
+  the new shape, and keep `deterministic/check.md` working.
 
 ### Out of scope
 
-- Launch's single step loop, executor shape, mode flags, the done
-  sentinel, the terminal probe's removal and `coga exit`: all `v1/04`.
-- Reworking the script/ticket model beyond adding `run:`.
-- A `coga sync` command (decision 9: none).
-- Canceling or rescoping `v1/microkernel/*` and `v1/why-is-the-code-so-big`
-  tickets. The owner decides; the blackboard lists candidates.
-- Committing or pushing recurring-job output. Recurring workflows write
-  the working tree; adding a commit `run:` step to one is a later choice.
+- Everything C7 assigns to `v1/04`.
+- Reworking the script/ticket model beyond `run:`.
+- A `coga sync` command.
+- Canceling or rescoping `v1/microkernel/*` and
+  `v1/why-is-the-code-so-big`. The owner decides.
+- Committing or pushing recurring-job output; a commit `run:` step for
+  recurring is a later choice.
 - Branch cleanup automation of any kind.
+- Forks in `push-and-open-pr`.
+
+### This ticket runs on the old model until merge
+
+This ticket's frozen snapshot uses today's `checkout:` policies and an
+agent `open-pr` step. The editable install points at the main checkout's
+`src/`, so every launch of this ticket runs today's code until the PR
+merges. The owner chose to keep it that way:
+
+- `implement` gets its branch from today's `create-or-reuse`. Work and test
+  in that branch's checkout: pytest's `pythonpath = ["src"]` tests the
+  branch code. Do not reinstall the package from the branch, and do not
+  switch the main checkout.
+- `peer-review` and `open-pr` run today's skills and code. Today's sweep
+  keeps publishing this ticket's state to main.
+- Keep this ticket file and `coga/log.md` out of the PR diff, and make no
+  ticket-state commits on the branch. Contract C4 applies from the next
+  ticket on.
+- After merge, main runs the new code. The owner's final `review` bump is
+  then a local write on main that the owner commits.
 
 ## Context
 
@@ -598,81 +598,91 @@ template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
 
-### Codebase facts (design survey, 2026-11-20, main at 45aeecd86)
+### Codebase facts (survey 2026-11-20, main at 45aeecd86)
 
-These are symbols, not line numbers. Re-grep before relying on any of them.
+These are symbols, not line numbers, and the survey is dated. Re-grep
+before relying on any of them.
 
-- **git.py importers.** About 45 modules import `coga.git`: core modules,
-  `commands/*`, `coga_edge/{blocker_reminders,megalaunch,phone_home,trim_log}`,
-  and the resource scripts `recurring-promote/{ticket,promotion}.py`,
-  `retire/ticket.py` and `status/ticket.py`. Run `rg -l "coga.git import|from coga import git" src`
-  for the live list.
-- **Non-publication helpers in git.py with callers that survive.**
-  - `state_lock` is an OS file lock used by `logfile`, `blackboard`,
-    `validate`, `recurring_state`, `delete_task` and `commands/owner`. It
-    is deleted (§1).
-  - `write_ticket` is an atomic write plus a CAS. It is replaced by
-    `atomicio`.
-  - `toplevel`, `relative_to_root`, `symlink_component` and
-    `last_commit_times` (in `views`) are covered in §5.
-  - `union_merge_paths` is used by `open_pr` only.
-- **Sweep and publish call sites.** `cli.main` → `_sweep_coga_state` →
-  `state_sweep.sweep_root` → `git.sync_coga_state`. `runner.run_reported`/
-  `run_entry` → `_publish_after` does the same for recipes and every
-  `coga_edge` entry. In-command publishes go through `sync_task_state`/
-  `publish` in `bump`, `mark`, `commands/{create,owner,unblock,delete}`,
-  `launch` and `recurring_runner`. Exit 75 is threaded through about 75
-  references in 21 files, most of them in `launch.py`, `cli.py` and
-  `recurring_runner.py`.
-- **Lifecycle merge with control.** `git.prepare_ticket` returns a
-  `PreparedTicket` after a three-way merge against the control copy. Its
-  consumers are `bump`, `mark`, `commands/{common,bump,mark,unblock,block}`,
-  `autoclose` and `review_conflict`. Removing it is what makes lifecycle
-  writes local.
-- **Checkout policy.** `workflow._parse_step` validates `checkout` against
-  `checkout_policy.CHECKOUT_POLICIES`, and `Workflow.freeze` always writes
-  it. `launch._supervise_steps` → `_prepare_step_checkout` →
-  `checkouts.select_ticket_policy`/`plan_ticket_checkout`/
-  `enter_ticket_checkout`. Branch creation today is the private
-  `checkouts._reserve_and_create`/`_fresh_branch_name` plus
-  `insert_branch_line`.
-- **Gates.** `step_gate.STEP_GATES` holds `branch` → `_has_branch_linkage`
-  and `pr` → `_has_pr`. Both parse `## Dev` text through `autoclose`'s
-  `parse_branch_name`/`parse_pr_url`, so move those two parsers into
-  `step_gate.py` (or `blackboard.py`) before deleting `autoclose.py`.
-  Gates are enforced only for forward bumps in `commands/bump.py`.
-- **Script phase.** `launch_script.script_entry_point(ref)` looks only for
-  `<task_dir>/ticket.py`. `run_script_phase` spawns
+- **Importers of `coga.git`.** Run
+  `rg -l "coga.git import|from coga import git" src` (about 45 modules).
+  `state_lock` users: `logfile`, `blackboard`, `validate`,
+  `recurring_state`, `delete_task` and `commands/owner`. `write_ticket`
+  becomes `atomicio`. Only `open_pr` uses `union_merge_paths`.
+- **Publish call sites.** `cli.main` → `_sweep_coga_state` →
+  `state_sweep.sweep_root`. `runner.run_reported`/`run_entry` →
+  `_publish_after`. In-command `sync_task_state`/`publish` calls are in
+  `bump`, `mark`, `commands/{create,owner,unblock,delete}`, `launch` and
+  `recurring_runner`. Exit 75 appears in about 21 files.
+- **Gates.** `step_gate.STEP_GATES`: `branch` → `_has_branch_linkage`, and
+  `pr` → `_has_pr`, through autoclose's parsers (moved per C1). Gates
+  apply to forward bumps in `commands/bump.py` only.
+- **Script phase.** `launch_script.run_script_phase` spawns
   `[sys.executable, ticket.py]` with `COGA_TASK_*` and `COGA_SCRIPT_TASK`.
-  `_classify_script_handoff` implements Chaining and never runs a script on
-  an owner-held step. `bump`/`mark done` credit `system` when
-  `COGA_SCRIPT_TASK` matches. Valid assignee roles are `owner`, `agent` and
-  `other-agent`, so a `run:` step needs an agent role to be launchable.
+  `_classify_script_handoff` implements Chaining and never runs a script
+  on an owner-held step. `bump`/`mark done` credit `system` when
+  `COGA_SCRIPT_TASK` matches. Valid roles are `owner`, `agent` and
+  `other-agent`.
 - **Blocked today.** `_launch` sets `blocked_resume` on a TTY. The script
-  branch auto-activates `{"draft","paused","blocked"}` and then
-  re-blocks via `should_reblock_after_script`/`reblock_after_script`. The
-  preamble comes from `compose._open_asks` + `_blocker_preamble`
-  (`prompt-blocker-resolution.md`), keyed on open asks, not on status.
-  `commands/unblock._apply_unblock` sends `blocked` → `mark_active`; on
-  `in_progress` it resolves the asks only.
-- **Done sentinel entanglement.** `cli.py` wraps the sweep in
-  `deferred_done_marker`, `.pending-<pid>` protects a command that is still
-  publishing, and `_terminal_status_probe` reads the control ref through
-  `git._blob_oid`/`_blob_bytes`/`_parse_ticket` and matches
-  `period_generation`. §2 keeps the sentinel but rebases the probe on the
-  local file.
-- **Fields to clean in this repo.** `launch_generation:`/
-  `period_generation:` appear in `coga/tasks/recurring/*/ticket.md` and
+  branch auto-activates `{"draft","paused","blocked"}` and then re-blocks.
+  The preamble is built by `compose._open_asks` + `_blocker_preamble`
+  (`prompt-blocker-resolution.md`). `unblock._apply_unblock` sends
+  `blocked` → `mark_active`.
+- **Done sentinel.** `cli.py` wraps the sweep in `deferred_done_marker`.
+  `_terminal_status_probe` reads the control ref via `git._blob_*` and
+  matches `period_generation`.
+- **Named deletion targets (survey list; grep for them).**
+  - `launch.py`: `_checkout_refusal_message`, `_CHECKOUT_GUARD_SCOPE`,
+    `run_claimed_agent_session`, `_reconcile_released_launch_admission`,
+    `capture_launched_period_lease`,
+    `_refresh_recurring_period_before_launch`,
+    `_exact_recurring_period_for_launch` and `expected_period_lease`.
+  - Supervisors: `_admit_held_child` and the gate fd.
+  - Megalaunch: `_restore_after_failed_start`, `_activate_for_launch`'s
+    claim path, and `expect=` in `_publish_partial_dependency_resolution`
+    and `_drain_satisfied_blockers`.
+  - `recurring.py`: `period_generation_from_ticket_bytes`,
+    `local_period_lease` and `same_period_lease`.
+  - `recurring_runner.py`: `_revision_period_lease`,
+    `_local_parent_state_lease`, `_revision_parent_state_lease`,
+    `_require_period_bytes`, `_restore_period_bytes`,
+    `admitted_period_leases`, `confirm_control_lease`,
+    `_relay_to_control_worktree`, `_control_already_has_period` (becomes the
+    local ledger), `_control_remote_present_at_admission` and
+    `_sweep_stopping_exit`. `recurring --all` runs each repo in its current
+    checkout.
+  - `commands/common`: `prepare_lifecycle_ticket`'s conflict branch,
+    `bail_ticket_changed` and `_refuse_conflict`.
+  - `cli.py`: `_should_sweep_coga_state`.
+  - `workflow.py`: `CHECKOUT_POLICIES` and `DEFAULT_CHECKOUT`.
+  - `compose.py`: `UNSUPPLIED_CHECKOUT_NOTICE`.
+  - `config.py`: `_parse_git`, `_resolve_git_enabled`, `git_control_branch`
+    and `worktrees_ticket_owned`.
+  - `init`: `control_branch_present`, `symbolic_head` and
+    `_render_git_control_branch_table`.
+  - `skill_manager`: inline its `git ls-remote`-style call and `_git_env`.
+  - Delete the recurring-template workflows `branch-sweep/sweep` and
+    `autoclose-merged/sweep`.
+- **Fields to clean.** `launch_generation:`/`period_generation:` in
+  `coga/tasks/recurring/*/ticket.md` and
   `coga/tasks/fix-the-windows-aws-walk-step-and-add-the-v1-14-at.md`.
-  `coga/coga.toml` has a commented "Git sync" block documenting `[git]`.
+- **Packaging lists.** `tests/required_package_resources.txt` and
+  `tests/test_packaging.py` `REQUIRED_BOOTSTRAP_CONTEXT_REFS` list the
+  checkout, checkout-cleanup, pr-publication, state-publication and sync
+  topics and the branch-sweep skill/workflow/template. `coga/sync/SKILL.md`
+  is also a fixture in `test_packaging.py`.
+
+### Docs to change
+
 - **User topics to delete** (under
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/`):
-  `checkouts/` with `reconciliation`, `launch-boundary`, `chat`, `manual`
-  and `sandbox-clone`; `state-publication/` with `launch-boundaries`;
-  `sync/`; `checkout-cleanup/` with `branch-sweep` and `terminal-owners`.
-  If `sandbox-clone`'s seeding of `coga.local.toml`/`.coga/` is still
-  needed, move that part into `coga/sandboxes`.
-- **User topics to rewrite:** `pr-publication` (and `preparation`, lightly).
+  - `checkouts/`, with `reconciliation`, `launch-boundary`, `chat`,
+    `manual` and `sandbox-clone`. If `sandbox-clone`'s seeding of
+    `coga.local.toml`/`.coga/` is still needed, move it into
+    `coga/sandboxes`.
+  - `state-publication/`, with `launch-boundaries`.
+  - `sync/`.
+  - `checkout-cleanup/`, with `branch-sweep` and `terminal-owners`.
+- **User topics to rewrite:** `pr-publication` and, lightly, `preparation`.
 - **User topics to edit for passing mentions:** launch, workflows,
   lifecycle, megalaunch, tickets (+authoring), recurring (+scheduling,
   autofix, delegation, templates, inactivity), configuration,
@@ -680,32 +690,25 @@ These are symbols, not line numbers. Re-grep before relying on any of them.
   prompt-composition, sandboxes, important, usage, script-tickets,
   notifications/producers, context-layout, extension-model,
   skill-management and knowledge.
-- **coga-dev internals to delete** (under `docs/contexts/coga-dev/internals/`):
-  `state-publication` (+`publish`, `log-writers`), `git-regressions`,
-  `git-refresh`, `launch-claims`, `claim-recovery`, `branch-sweep`,
-  `recurring-control` and `recurring-temp-worktrees`.
-- **coga-dev internals to rewrite:** `assist-publication` and `spool-merge`.
+- **coga-dev internals to delete** (under
+  `docs/contexts/coga-dev/internals/`): `state-publication` (+`publish`,
+  `log-writers`), `git-regressions`, `git-refresh`, `launch-claims`,
+  `claim-recovery`, `branch-sweep`, `recurring-control` and
+  `recurring-temp-worktrees`.
+- **coga-dev internals to rewrite:** `assist-publication` and
+  `spool-merge`.
 - **coga-dev topics needing light edits:** `internals/`, `codebase/`
-  (+`gotchas`), `patterns/`, `packaging/`, `testing/`, `current-direction/`,
-  `microkernel/` (+`objectives`), `compose/`, `agent-spawn/`,
-  `notifications/`, `blackboard-io/`, `activity-capture/`,
+  (+`gotchas`), `patterns/`, `packaging/`, `testing/`,
+  `current-direction/`, `microkernel/` (+`objectives`), `compose/`,
+  `agent-spawn/`, `notifications/`, `blackboard-io/`, `activity-capture/`,
   `recurring-admission/` and `recurring-autofix/`.
 - **Prompt surfaces.**
-  - `src/coga/resources/prompt.md` has "Check the starting checkout" and
+  - `src/coga/resources/prompt.md`: "Check the starting checkout" and
     "Reconcile before publishing".
-  - `prompt-ticket.md` loop step 3.
-  - The "Checkout (runtime)" layer is generated in `compose.py`.
-  - These code skills cite it: `implement`, `peer-review`, `self-qa`,
-    `merge-pr`, `open-pr` and `address-pr-comments`.
-- **Packaging lists.** `tests/required_package_resources.txt` lists the
-  checkout, checkout-cleanup, pr-publication, state-publication and sync
-  topics, plus the branch-sweep skill, workflow and recurring template.
-  `tests/test_packaging.py` `REQUIRED_BOOTSTRAP_CONTEXT_REFS` lists those
-  topics, and `coga/sync/SKILL.md` is also used as a test fixture there.
-- **Size.** About 11k lines of source go with `git.py` and the deleted
-  modules, plus large cuts in `launch.py` (4.6k lines) and
-  `recurring_runner.py` (5.6k lines). Dedicated test files to delete total
-  about 13.7k lines.
+  - `prompt-ticket.md`: loop step 3.
+  - The `compose.py` "Checkout (runtime)" layer.
+  - The code skills that cite that layer: `implement`, `peer-review`,
+    `self-qa`, `merge-pr`, `open-pr` and `address-pr-comments`.
 
 <!-- coga:blackboard -->
 
@@ -755,117 +758,3 @@ kept in the agent executor.
 - Re-evaluate every `v1/microkernel/` ticket and `v1/why-is-the-code-so-big`
   against these decisions; drop what this ticket supersedes (owner request,
   2026-11-19).
-
-## Open Questions
-
-Design step, 2026-11-20. Settled in chat: one PR, `run:` steps, delete control-dependent hygiene, final bump on the branch (decisions 12-15).
-
-1. **`state_lock` removal.** The spec deletes the local file lock (decision 3: "no locks"). Ticket writes become atomic replaces, and log appends become a single `O_APPEND` write. Cost: two local commands racing on the same ticket can lose one update. Keep a process-local mutex instead?
-2. **Autoclose is deleted outright.** Decision 15 makes it redundant, which also makes `v1/microkernel/17` (move autoclose to the edge) and `16` (move branch-sweep) moot. Confirm, and cancel those two?
-3. **`code/open-pr` compatibility.** The spec keeps it as a thin agent skill that runs `git/push-and-open-pr`, so live tickets frozen with an agent `open-pr` step still finish. Alternative: delete it and accept that those tickets need `coga bump --to`.
-4. **`unblock --answer` target status.** Inside a launched session for the ticket (the `COGA_TASK_*` env names it) it goes to `in_progress`; elsewhere it goes to `active`. Is "elsewhere → active" right, or should an out-of-session answer also go to `in_progress`?
-5. **`coga.toml` "Git sync" comment block.** Agents may not edit `coga.toml`, so the owner removes the block in the implementation PR (or allows the implementer to). `[git]` keeps loading with an `obsolete-key` warning.
-6. **Branch base for `open-branch`.** The spec branches from the current HEAD. Should the script instead fetch and branch from the remote default branch? That is faster to start fresh, but the script then fetches by itself.
-7. **`run:` step role.** A `run:` step must resolve to an agent role (owner steps are never launched). Should a `run:` step with no `assignee:` default to `agent` instead of inheriting, so workflows can omit it?
-
-## Evaluator review
-
-**Resolve before implementation.** The Description subsections and Context
-are in the composed body. The frozen workflow gives this review to the peer
-and the decision to the owner. The Git-free core and workflow-owned Git
-operations fit one PR and the microkernel boundary. The following contracts
-need to be settled in the ticket body for that PR to be implementable.
-
-1. **Keep the final state in the merged PR and preserve the reviewed-head
-   guarantee.** §3 commits ticket/log before pushing and writes the PR URL and
-   bumps only afterward. This leaves the remote ticket at the PR-opening step
-   until somebody commits and pushes the later changes. §6 addresses an owner
-   bump, but the packaged `code/agent-merge` workflow has no owner gate.
-   Its `code/merge-pr` skill currently checks the peer-reviewed head and
-   performs a pinned merge before its final bump. Under the proposed model
-   this either merges an unfinished ticket or advances locally and changes the
-   PR head after verification. Define who commits and pushes each handoff,
-   which reviewed-head evidence permits subsequent state-only commits, and
-   what happens when the final push or merge fails or queues after the bump.
-   Exercise both an owner-gated workflow and agent merge, including the ticket
-   blob at the merged revision and the checks on the actual merge head.
-2. **Make the legacy branch fallback safe on the current frozen step.**
-   §3 tells the live `code/implement` skill to invoke `git/open-branch`
-   when no branch is recorded. That script records the branch and bumps.
-   `commands/bump.py` checks the current step's `requires: branch` against
-   the blackboard, so the fallback would satisfy the gate and skip
-   implementation. Define a setup-only invocation or an explicit equivalent
-   with no transition. Also specify how an old frozen peer-review, open-pr
-   or review step reaches its recorded branch and handles any existing
-   branch-local ticket after automatic projection disappears. The current
-   ticket itself has the old snapshot. The workflows topic's “Frozen
-   snapshot, live content” contract means template edits alone cannot supply
-   these steps. Test an old snapshot from the default checkout and confirm
-   the implement step remains current after setup.
-3. **Define the PR helper's lookup and recovery contract.** §3 leaves the PR
-   base implicit, uses “upstream” as a remote, and says to create or view a
-   PR. Specify how push remote, target branch and PR identity are selected,
-   including a fork or differently named upstream branch, and how a draft,
-   closed, merged or wrong-base existing PR is handled. The current
-   `open_pr._open_pr_url` checks state, draft and base metadata, and
-   `open_pr.open_pr` readies drafts. Decide which behaviors carry forward.
-   Define the retry after a successful push or PR creation followed by a
-   local recording/bump failure. Explicitly scope the state commit to the
-   ticket/log even when unrelated files are staged, and say where pending
-   implementation changes are checked. Include failure and retry cases in
-   the stubbed-`gh` tests.
-4. **Specify where `run:` dispatch is supported.** §3 extends the normal
-   launch script chain, but §4 still sends megalaunch picks directly to
-   `spawn_agent_session` in `coga_edge/megalaunch._launch_until_stop`.
-   Newly created code tickets would reach an agent at the opening script
-   step unless megalaunch shares dispatch or refuses these picks explicitly.
-   Decide the same question for recurring delegation (see
-   `recurring_runner`'s `resolve_script_entry_point` call) and preserve
-   stateless bootstrap behavior. `paths.resolve_skill_path` resolves
-   `SKILL.md`, so define the validation and launch failure for a resolved
-   directory with missing/unusable `run.py`, including a local override.
-   Account for `validate._check_step_shape` and the workflows topic's
-   existing live-snapshot requirement for skill-less step instructions.
-   Test the selected dispatch and refusal rules through their entry points.
-5. **Resolve the launch scope conflict with v1/04.** The target model says the
-   sentinel and terminal probe disappear and promises one read per step and
-   one environment-isolation function. Out of scope retains the sentinel
-   and probe removal for v1/04, and §2 keeps the probe reading local state.
-   Today `launch._terminal_status_probe` polls and `launch_script` reads
-   again to classify a script handoff. State which reads count, and whether
-   executor unification, environment consolidation and session-ending
-   behavior are deliverables here or goals of v1/04.
-6. **Set the durability rule for log compaction and concurrent appends.**
-   One `O_APPEND` write protects an append relative to other appends.
-   `coga_edge.trim_log` still rewrites the log, and a writer can append to
-   the prior file during a replacement or after the compactor's snapshot.
-   The ticket calls the log append-only while retaining that rewrite and
-   removing its lock. Decide whether to drop compaction, require a quiescent
-   manual window, or preserve concurrent entries another way. State how
-   compaction interacts with the union merge rule and test the chosen
-   contract.
-7. **Define recorded-assist compatibility under the Git-free core rule.**
-   §5 suggests dropping the `autoclose.pr_view` dependency or deleting
-   `pr_assist.py`. The recorded-assist cases in
-   `tests/test_launch_script.py` exercise PR-backed verification, and
-   `pr_assist.verify_recorded_assist_pr_head` checks more than a handoff
-   field. Moving the dependency alone can still leave a core Git/gh
-   subprocess. Specify whether recorded assists survive, how their authority
-   and PR evidence are checked under the new boundary, or how old assists
-   fail safely. Name the surviving contract and the tests to retain.
-
-**Optional recommendations**
-
-- Make the green-commit staging order explicit or treat the sections as work
-  areas. §2 deletes `checkouts.py` before §3 moves `insert_branch_line`,
-  and §3 copies PR helpers before §5 deletes their current owner. Migrate
-  live callers and their dependent tests before each removal.
-- Attach `coga-dev/principles` before implementation, as the repo directs
-  for design and README changes. Correct the docs index and package resource
-  checks alongside each definition removal. The seeded workflow at
-  `tests/fixtures/seeded-repo/coga/workflows/code/with-review.md` already
-  provides a concrete fixture to update for the new workflow shape.
-- Clarify that the no-Git smoke test uses a non-Git script fixture, since the
-  two shipped Git workflow scripts intentionally require Git. Let launch
-  perform the script's bump, then test a separate local transition where the
-  workflow still has a step to advance.
