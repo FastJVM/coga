@@ -1,6 +1,6 @@
 ---
 title: Correct script-tickets on which supervisor variables a ticket.py child loses
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
