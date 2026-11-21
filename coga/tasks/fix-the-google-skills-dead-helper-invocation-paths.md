@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: a02037ed-8c21-4138-9974-a325afdcd8e8
 ---
 
 ## Description
@@ -216,9 +215,77 @@ ordinary ticket.
 
 branch: fix-google-skills-helper-paths
 
-## Plan (implement)
+## Implement handoff
 
-- `coga/google-calendar` owns the copy-pasteable resolution recipe (local override, else `packaged_template_path` one-liner; cmd.exe quoting note; which Python runs the script and takes `pip install`).
-- `coga/gmail` restates it in one line for its own dir and links the owner; `coga/calendar-reminder` links the owner and keeps call shapes + pip line.
-- New `tests/test_packaging.py` check: every `/resolved/<ref>/<file>` in packaged text resources names a file shipped under `bootstrap/skills/<ref>/`.
+Commit `1c1a09136` on `fix-google-skills-helper-paths` (pushed; base `b9c94016e`, current origin/main).
 
+- `coga/google-calendar` has a new "Resolving the helper directory" section that owns the recipe. Line 1 sets `dir` to `${COGA_COGA_OS_ROOT:-$(git rev-parse --show-toplevel)/coga}/skills/coga/google-calendar`. Line 2 is the `packaged_template_path` one-liner if `gcal.py` is absent there. It is followed by `pip install -r "$dir/requirements.txt"` and a call. Bullets cover override vs fallback, which `python` imports coga (uv/pipx tool venv), the cmd.exe double-quote form, and that the helper never imports coga, so pip targets the Python that runs it, by absolute path, from any cwd. This replaces the old "as in sandbox-clone" paragraph and folds in the `$COGA_COGA_OS_ROOT` override-only note. The Dependencies section points at it.
+- `coga/gmail` restates the two resolution lines for `gmail` and links the owner for the interpreter/cmd.exe details. Its pip line uses `"$dir/requirements.txt"`.
+- `coga/calendar-reminder` links the owner and keeps its call shapes. Its pip line is now `pip install -r /resolved/coga/google-calendar/requirements.txt` with the same Python as `gcal.py`.
+- `tests/test_packaging.py` adds `RESOLVED_PLACEHOLDER`, `_resolved_placeholder_refs`/`_problems`, a real-tree test (asserting gcal/gmail/seed_local_config refs are found), and a tmp fixture test showing a dangling ref is reported while the dir form and `.../` shorthand are ignored.
+- The snippet was smoke-run with the repo .venv: it resolved the packaged google-calendar dir, `gcal.py --help` ran, and the gmail fallback worked with a bogus `COGA_COGA_OS_ROOT`.
+- The gcal.py/gmail.py docstrings were left unchanged. They already use the placeholder, and the test now guards them.
+- For the open-pr step, the PR body should say this resolves Dream findings ks-28/ks-29 (do not edit the Dream ticket).
+- Checkout note: this session started on the done ticket `refresh-v1-microkernel-readmes-after-retro` branch. It had no unique commits, and all dirt was already on origin/main (verified per path). I ran the manual return (restore + switch main) before branching.
+- Code review: not run yet. `peer-review` is next.
+
+## PR
+
+```yaml
+title: Give the Google skills a concrete helper-path resolution recipe
+author: claude
+author_evidence: >-
+  Implement session ran as Claude (claude-opus-5-5) under coga megalaunch
+  7300fd41-afa6-4de1-9acf-12b79f0b3049.
+head: 1c1a091364182bd6290cdf4589ff7581fd6c1774
+base: b9c94016e211bd261842edf614c6a97b18868913
+depth: skim
+rationale: >-
+  Docs-only change to three packaged SKILL.md files plus one self-contained
+  packaging test; read the google-calendar resolution section for the recipe
+  and interpreter wording.
+implementation: >-
+  coga/google-calendar owns a copy-pasteable local-override-then-package
+  resolution recipe with interpreter, pip-target and cmd.exe guidance;
+  coga/gmail restates it in two lines and links the owner;
+  coga/calendar-reminder links the owner. A packaging test fails when any
+  /resolved/<ref>/<file> placeholder in packaged resources names an unshipped
+  file.
+deviations: >-
+  gmail restates the two resolution lines (allowed by the ticket) rather than
+  a single sentence, so its own skill name stays copy-pasteable.
+limitations: >-
+  Examples remain POSIX-shaped; only a cmd.exe quoting note is given. No
+  Windows execution check (release-only tier).
+files:
+  src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/SKILL.md: >-
+    Owner of the helper-directory resolution recipe and pip/interpreter rules.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/SKILL.md: >-
+    Restates the recipe for gmail and links the owner; pip line by absolute path.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md: >-
+    Links the owner; keeps call shapes and a concrete pip line.
+  tests/test_packaging.py: >-
+    Locks every /resolved/<ref>/<file> placeholder to a shipped package file.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    Implement step; independent peer-review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 1c1a091364182bd6290cdf4589ff7581fd6c1774
+    base: b9c94016e211bd261842edf614c6a97b18868913
+    detail: >-
+      5181 passed, 33 skipped. Ran on the working tree that was then committed
+      unchanged (git diff --quiet HEAD verified).
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py -k resolved
+    status: passed
+    head: 1c1a091364182bd6290cdf4589ff7581fd6c1774
+    base: b9c94016e211bd261842edf614c6a97b18868913
+    detail: 2 passed.
+  - command: coga validate --json
+    status: not-run
+    detail: No validation, config, workflow or task-model behavior changed.
+```

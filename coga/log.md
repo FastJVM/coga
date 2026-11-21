@@ -4655,3 +4655,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 18:46 v1 [fix-the-google-skills-dead-helper-invocation-paths] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-20 18:46 v1 [fix-the-google-skills-dead-helper-invocation-paths] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-20 18:46 v1 [fix-the-google-skills-dead-helper-invocation-paths] [megalaunch] launched via coga megalaunch
+2026-11-20 19:04 v1 [fix-the-google-skills-dead-helper-invocation-paths] [agent:claude] advanced to step 2 (peer-review) → codex
