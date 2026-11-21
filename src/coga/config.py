@@ -488,6 +488,10 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
                     f"file exists for it. Checked: {checked}. Create one of those "
                     f"files or remove {ref!r} from [autofix].contexts."
                 )
+    if contexts_dir is not None:
+        checkout = find_checkout_root(root)
+        for artifact in contexts_dir.rglob("SKILL.md"):
+            require_context_artifact(contexts_dir, artifact, checkout=checkout)
     return cfg
 
 
@@ -1224,10 +1228,8 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
     The value is a relative path anchored at the git checkout root (see
     `find_checkout_root`), and must resolve to a reproducible child directory
     inside that checkout. Absolute/outside/checkout-root paths, symlinked path
-    components and Git pathspec metacharacters are rejected here. load_config
-    checks tree trackability after validating autofix refs so their failures
-    identify the configured default. Empty or ignored trees still fail load:
-    coga's state is git-backed, so the directory must survive a clone.
+    components and Git pathspec metacharacters are rejected here. Resolved
+    context artifacts are checked against that directory on load.
 
     An unset key skips all of it, so a repo that never touches `[layout]`
     behaves exactly as it did before the key existed.
@@ -1410,9 +1412,7 @@ def require_context_artifact(
 ) -> None:
     """Check local context paths before following links or treating them as absent.
 
-    Shared by configured-root admission and per-ref resolution. Non-Git
-    scaffolds retain ordinary-file resolution; in a checkout the file must be
-    tracked or eligible for the next state sweep. Attachments are not callers.
+    Shared by configured-root admission and per-ref resolution.
     """
     root = contexts_root.absolute()
     artifact = artifact.absolute()

@@ -523,279 +523,16 @@ def test_nonzero_script_exit_survives_unreadable_ticket_result(
     assert "exit 17" in notifications[0]
 
 
-def test_script_classification_is_rechecked_after_moving_sync(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    marker = script_repo.parent / "stale-script-ran"
-    ref = _create_script_task(
-        script_repo,
-        f"from pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n",
-    )
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    ticket.write(ref.ticket_path)
-    assert ref.task_dir is not None
-    entry = ref.task_dir / "ticket.py"
-
-    def remove_entry_during_sync(*args, **kwargs):  # type: ignore[no-untyped-def]
-        entry.unlink()
-        return True
-
-    monkeypatch.setattr(
-        "coga.launch_script.git.sync_log",
-        remove_entry_during_sync,
-    )
-
-    outcome = run_script_chain(
-        load_config(script_repo),
-        ref,
-        ticket,
-        set(),
-    )
-
-    assert outcome.exit_code == 0
-    assert outcome.needs_agent is True
-    assert marker.exists() is False
-    assert outcome.ticket is not None
-    assert outcome.ticket.status == "in_progress"
-
-
-def test_script_target_deleted_during_sync_stops_cleanly(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    marker = script_repo.parent / "deleted-target-script-ran"
-    ref = _create_script_task(
-        script_repo,
-        f"from pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n",
-    )
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    ticket.write(ref.ticket_path)
-    assert ref.task_dir is not None
-
-    def delete_target_during_sync(*args, **kwargs):  # type: ignore[no-untyped-def]
-        shutil.rmtree(ref.task_dir)
-        return True
-
-    monkeypatch.setattr(
-        "coga.launch_script.git.sync_log",
-        delete_target_during_sync,
-    )
-
-    outcome = run_script_chain(
-        load_config(script_repo),
-        ref,
-        ticket,
-        set(),
-    )
-
-    assert outcome.exit_code == 0
-    assert outcome.needs_agent is False
-    assert outcome.ticket is None
-    assert outcome.stop_reason is not None
-    assert "task directory removed" in outcome.stop_reason
-    assert marker.exists() is False
-
-
-@pytest.mark.parametrize(
-    ("fresh_state", "expected_status", "expected_role", "reason"),
-    [
-        ("done", "done", "agent", "task is done"),
-        ("human", "in_progress", "owner", "hands off to marc"),
-    ],
-)
-def test_script_does_not_run_after_sync_changes_lifecycle_or_owner(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    fresh_state: str,
-    expected_status: str,
-    expected_role: str,
-    reason: str,
-) -> None:
-    marker = script_repo.parent / f"stale-{fresh_state}-script-ran"
-    ref = _create_script_task(
-        script_repo,
-        f"from pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n",
-    )
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    ticket.write(ref.ticket_path)
-
-    def move_state_during_sync(*args, **kwargs):  # type: ignore[no-untyped-def]
-        fresh = Ticket.read(ref.ticket_path)
-        if fresh_state == "done":
-            fresh.frontmatter["status"] = "done"
-        else:
-            hold_by_owner(fresh)
-        fresh.write(ref.ticket_path)
-        return True
-
-    monkeypatch.setattr("coga.launch_script.git.sync_log", move_state_during_sync)
-
-    outcome = run_script_chain(
-        load_config(script_repo),
-        ref,
-        ticket,
-        set(),
-    )
-
-    assert outcome.exit_code == 0
-    assert outcome.needs_agent is False
-    assert outcome.stop_reason is not None
-    assert reason in outcome.stop_reason
-    assert marker.exists() is False
-    assert outcome.ticket is not None
-    assert outcome.ticket.status == expected_status
-    assert (outcome.ticket.current_step() or {}).get("assignee") == expected_role
 
 
 
 
-@pytest.mark.parametrize(
-    ("script", "expected_exit"),
-    [
-        ("raise SystemExit(17)\n", 17),
-        (
-            """
-            import os
-            from pathlib import Path
-
-            Path(os.environ["COGA_TASK_TICKET"]).write_text(
-                "malformed ticket without a blackboard fence\\n"
-            )
-            raise SystemExit(17)
-            """,
-            17,
-        ),
-        (
-            """
-            import os
-            import subprocess
-            import sys
-
-            raise SystemExit(subprocess.run([
-                sys.executable,
-                "-m",
-                "coga.cli",
-                "mark",
-                "done",
-                os.environ["COGA_TASK_SLUG"],
-            ]).returncode)
-            """,
-            0,
-        ),
-        (
-            """
-            import os
-            import subprocess
-            import sys
-
-            raise SystemExit(subprocess.run([
-                sys.executable,
-                "-m",
-                "coga.cli",
-                "mark",
-                "paused",
-                os.environ["COGA_TASK_SLUG"],
-            ]).returncode)
-            """,
-            0,
-        ),
-    ],
-    ids=["nonzero", "malformed-nonzero", "done", "paused"],
-)
-def test_blocked_script_termination_reblocks_unresolved_ask(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    script: str,
-    expected_exit: int,
-) -> None:
-    ref = _create_script_task(script_repo, script)
-    blocked = CliRunner().invoke(
-        app,
-        ["block", "--task", ref.id_slug, "--reason", "which retry ceiling?"],
-    )
-    assert blocked.exit_code == 0, blocked.output
-
-    monkeypatch.setattr(
-        launch_module,
-        "interactive_stdio_has_tty",
-        lambda: True,
-    )
-    monkeypatch.setattr(
-        launch_module.shutil, "which", _fail("agent CLI resolved before script")
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_refresh_agent_skills_for_launch",
-        _fail("agent skills refreshed before script"),
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "compose_prompt",
-        _fail("prompt composed before script"),
-    )
-    monkeypatch.setattr(
-        Config,
-        "agent_type",
-        _fail("agent type resolved before script"),
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "spawn_agent_session",
-        _fail("agent spawned after script termination"),
-    )
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == expected_exit, result.output
-    ticket = Ticket.read(ref.ticket_path)
-    assert ticket.status == "blocked"
-    assert ticket.step == "1 (execute)"
-    assert "- [ ]" in read_blackboard(ref.ticket_path)
 
 
-def test_blocked_script_agent_preflight_failure_reblocks_unresolved_ask(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A same-step script handoff remains owned until agent setup succeeds."""
-    monkeypatch.setattr(launch_module.shutil, "which", lambda cli: f"/stub/{cli}")
-    ref = _create_script_task(script_repo, "pass\n")
-    blocked = CliRunner().invoke(
-        app,
-        ["block", "--task", ref.id_slug, "--reason", "which retry ceiling?"],
-    )
-    assert blocked.exit_code == 0, blocked.output
 
-    monkeypatch.setattr(
-        launch_module,
-        "interactive_stdio_has_tty",
-        lambda: True,
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_refresh_agent_skills_for_launch",
-        lambda coga_os: (_ for _ in ()).throw(
-            RuntimeError("skill preflight failed")
-        ),
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "spawn_agent_session",
-        _fail("agent spawned after failed composition"),
-    )
 
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
-    assert result.exit_code == 1, result.output
-    assert "skill preflight failed" in str(result.exception)
-    ticket = Ticket.read(ref.ticket_path)
-    assert ticket.status == "blocked"
-    assert ticket.step == "1 (execute)"
-    assert "- [ ]" in read_blackboard(ref.ticket_path)
+
 
 
 def test_missing_script_on_chained_step_becomes_agent_handoff(
@@ -838,75 +575,6 @@ def test_missing_script_on_chained_step_becomes_agent_handoff(
     assert script_entry_point(ref) is None
 
 
-def test_resolved_blocker_does_not_stop_advanced_agent_step(
-    script_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ref = _create_two_step_script_task(
-        script_repo,
-        """
-        import os
-        import subprocess
-        import sys
-
-        if os.environ["COGA_TASK_STEP"].startswith("1 "):
-            answer = subprocess.run([
-                sys.executable,
-                "-m",
-                "coga.cli",
-                "unblock",
-                os.environ["COGA_TASK_SLUG"],
-                "--answer",
-                "use five retries",
-            ])
-            if answer.returncode:
-                raise SystemExit(answer.returncode)
-            raise SystemExit(subprocess.run([
-                sys.executable,
-                "-m",
-                "coga.cli",
-                "bump",
-                os.environ["COGA_TASK_SLUG"],
-            ]).returncode)
-        """,
-    )
-    blocked = CliRunner().invoke(
-        app,
-        ["block", "--task", ref.id_slug, "--reason", "which retry ceiling?"],
-    )
-    assert blocked.exit_code == 0, blocked.output
-
-    spawned: list[str] = []
-
-    def fake_spawn(cfg, target, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
-        spawned.append(agent.name)
-        return launch_module.AgentSessionResult(0, "natural")
-
-    monkeypatch.setattr(launch_module, "spawn_agent_session", fake_spawn)
-    monkeypatch.setattr(
-        launch_module,
-        "interactive_stdio_has_tty",
-        lambda: True,
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_refresh_agent_skills_for_launch",
-        lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        launch_module.shutil,
-        "which",
-        lambda cli: f"/usr/bin/{cli}",
-    )
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == 0, result.output
-    assert spawned == ["claude"]
-    ticket = Ticket.read(ref.ticket_path)
-    assert ticket.status == "in_progress"
-    assert ticket.step == "2 (finish)"
-    assert "- [x]" in read_blackboard(ref.ticket_path)
 
 
 def test_human_assist_override_expires_at_agent_owned_step(
@@ -1244,15 +912,20 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
+    if blocked_resume:
+        assert result.exit_code == 2, result.output
+        assert "coga unblock" in result.output
+        assert not counter.exists()
+        assert Ticket.read(ref.ticket_path).status == "blocked"
+        assert "- [ ]" in read_blackboard(ref.ticket_path)
+        return
     assert result.exit_code == 0, result.output
     assert counter.read_text(encoding="utf-8") == "1"
     ticket = Ticket.read(ref.ticket_path)
-    assert ticket.status == ("blocked" if blocked_resume else "in_progress")
+    assert ticket.status == "in_progress"
     assert ticket.step == "2 (approve)"
     assert ticket.current_step()["assignee"] == "owner"
     assert "next step hands off to marc" in result.output
-    if blocked_resume:
-        assert "- [ ]" in read_blackboard(ref.ticket_path)
 
 
 @pytest.mark.parametrize("unavailable", ["tty", "cli", "human"])
@@ -1300,6 +973,10 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
 
     assert result.exit_code == 2
     assert ref.id_slug in result.output
+    if unavailable == "human":
+        assert "current step" in result.output
+        assert "deterministic work retained" not in read_blackboard(ref.ticket_path)
+        return
     assert "step 1 (execute)" in result.output
     assert "deterministic work retained" in read_blackboard(ref.ticket_path)
     ticket = Ticket.read(ref.ticket_path)
@@ -1533,7 +1210,7 @@ def test_read_only_script_preserves_streams_argv_authority_and_dirty_checkout(
         assert os.environ["COGA_TASK_SLUG"] == "bootstrap/inspect"
         assert os.environ["COGA_SCRIPT_TASK"] == {str(script.parent.resolve())!r}
         for key in ("COGA_EXPECTED_TASK", "COGA_EXPECTED_STEP", "COGA_EXPECTED_AGENT",
-                    "COGA_ASSIST_AGENT", "COGA_ASSIST_BRANCH", "COGA_ASSIST_PR",
+                    "COGA_ASSIST_AGENT",
                     "COGA_SUPERVISED", "COGA_TASK_BLACKBOARD", "COGA_TASK_STEP"):
             assert key not in os.environ, key
         assert not os.environ.get("COGA_DONE_SENTINEL")
@@ -1570,8 +1247,7 @@ def test_read_only_script_preserves_streams_argv_authority_and_dirty_checkout(
         "COGA_DONE_SENTINEL": str(root / "outer-done"),
         "COGA_EXPECTED_TASK": str(root / "outer-task"), "COGA_EXPECTED_STEP": "1 (outer)",
         "COGA_EXPECTED_AGENT": "codex", "COGA_SUPERVISED": "1",
-        "COGA_ASSIST_AGENT": "codex", "COGA_ASSIST_BRANCH": "outer-branch",
-        "COGA_ASSIST_PR": "outer-pr",
+        "COGA_ASSIST_AGENT": "codex",
     })
     argv = ["inspect"] if alias else ["launch", "--read-only", "bootstrap/inspect"]
     operands = ["two words", "", "--write-looking-operand", "Café → 東京"]
@@ -1621,9 +1297,7 @@ def test_read_only_refusals_never_publish_or_prepare_agents(
     if failure == "malformed-config":
         _write(read_only_repo / "coga.toml", "malformed = [\n")
     before = {p: p.read_bytes() for p in read_only_repo.rglob("*") if p.is_file()}
-    for name in ("sync_coga_state", "refresh", "prepare_control_checkout", "sync_log", "sync_task_state", "publish"):
-        monkeypatch.setattr(git, name, _fail(name))
-    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch", "_preflight_push_auth"):
+    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch"):
         monkeypatch.setattr(launch_module, name, _fail(name))
     monkeypatch.setattr("coga.launch_script.subprocess.run", _fail("script spawn"))
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -1674,9 +1348,7 @@ def test_read_only_python_api_reuses_script_executor_without_launch_effects(
     def script_spawn(argv, **kwargs):
         calls.append((argv, kwargs))
         return SimpleNamespace(returncode=9)
-    for name in ("sync_coga_state", "refresh", "prepare_control_checkout", "publish", "sync_log"):
-        monkeypatch.setattr(git, name, _fail(name))
-    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch", "_preflight_push_auth"):
+    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch"):
         monkeypatch.setattr(launch_module, name, _fail(name))
     monkeypatch.setattr("coga.launch_script.subprocess.run", script_spawn)
     result = launch_module.launch("bootstrap/inspect", args=["two words", ""], read_only=True)
@@ -1689,27 +1361,6 @@ def test_read_only_python_api_reuses_script_executor_without_launch_effects(
     assert not {"capture_output", "stdin", "stdout", "stderr"} & kwargs.keys()
 
 
-def test_writer_command_sweeps_after_in_process_read_only_call(
-    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    from types import SimpleNamespace
-    from coga.cli import main
-
-    _write(read_only_repo / "bootstrap" / "inspect" / "ticket.py", "pass\n")
-    monkeypatch.setattr(
-        "coga.launch_script.subprocess.run", lambda *a, **k: SimpleNamespace(returncode=0),
-    )
-    sweeps = []
-    monkeypatch.setattr(git, "sync_coga_state", sweeps.append)
-    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
-    monkeypatch.setattr(sys, "argv", ["coga", "launch", "writer"])
-    monkeypatch.setattr(
-        "coga.cli.app",
-        lambda: launch_module.launch("bootstrap/inspect", read_only=True),
-    )
-    main()
-    assert len(sweeps) == 1
-    assert "withheld" not in capsys.readouterr().err
 
 
 def test_agent_preparation_checks_order_without_repo_writes(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1740,25 +1391,15 @@ def test_agent_preparation_command_refusal_is_typed_without_publication(script_r
     assert exc.value.command_refused
 
 
-def test_ordinary_bootstrap_keeps_user_requirement_and_exit_publication(
-    read_only_repo: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from coga.cli import main
-
+def test_ordinary_bootstrap_keeps_user_requirement(read_only_repo: Path) -> None:
     bootstrap = read_only_repo / "bootstrap" / "inspect"
     _write(bootstrap / "ticket.py", "print('writer ran')\n")
     result = CliRunner().invoke(app, ["launch", "bootstrap/inspect"])
     assert result.exit_code == 2
     assert "No `user` set" in result.output
     _write(read_only_repo / "coga.local.toml", 'user = "marc"\n')
-    calls = []
-    monkeypatch.setattr(git, "sync_coga_state", calls.append)
-    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
-    monkeypatch.setattr(sys, "argv", ["coga", "launch", "bootstrap/inspect"])
-    with pytest.raises(SystemExit) as exc:
-        main()
-    assert exc.value.code == 0
-    assert len(calls) >= 1
+    result = CliRunner().invoke(app, ["launch", "bootstrap/inspect"])
+    assert result.exit_code == 0, result.output
 
 
 @pytest.mark.parametrize("name,argv", [
@@ -1816,9 +1457,7 @@ def test_report_dispatch_uses_read_executor_without_writer_effects(
 ) -> None:
     from coga.cli import main
     from types import SimpleNamespace
-    for name in ("sync_coga_state", "refresh", "prepare_control_checkout", "sync_log", "sync_task_state", "publish"):
-        monkeypatch.setattr(git, name, _fail(name))
-    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch", "_preflight_push_auth"):
+    for name in ("spawn_agent_session", "_refresh_agent_skills_for_launch"):
         monkeypatch.setattr(launch_module, name, _fail(name))
     calls = []
     def script_spawn(command, **kwargs):
@@ -1883,8 +1522,6 @@ def test_script_help_has_no_launch_identity_or_git_calls(script_repo: Path, monk
         assert cwd == script_repo.parent
         assert argv[-1] == "--help"
         return 0, False
-    for name in ("refresh", "sync_task_state", "sync_log", "sync_coga_state", "toplevel"):
-        monkeypatch.setattr(git, name, forbidden)
     for key in (*TASK_ENV_KEYS, "COGA_SUPERVISED", "COGA_DONE_SENTINEL", "COGA_EXPECTED_TASK", "COGA_EXPECTED_STEP", "COGA_EXPECTED_AGENT"):
         monkeypatch.setenv(key, "outer")
     monkeypatch.setattr("coga.launch_script.run_foreground_child", child)

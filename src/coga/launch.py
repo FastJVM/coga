@@ -191,9 +191,11 @@ def launch(
     No command-line parser objects or process exits cross this boundary.
     """
     if read_only:
-        # Withhold publication only for this read-only call: the caller's
-        # policy comes back on return and on LaunchBail, so a writer command
-        # that makes an in-process read-only call still sweeps at exit.
+        if (
+            agent_override is not None or prompt_report or idle_timeout is not None
+            or max_session is not None or return_timeout or script_failure_important
+        ):
+            _bail("--read-only cannot be combined with agent, report or REPL options.")
         try:
             cfg = load_config(require_user=False)
             ref = resolve_target(cfg, task)

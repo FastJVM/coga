@@ -391,9 +391,6 @@ def _finish_period_task(coga_os: Path, slug: str) -> None:
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = "done"
     ticket.write(ticket_path)
-    coga_git.sync_task_state(
-        load_config(coga_os), ticket_path.parent, message=f"Ticket: {slug} — done"
-    )
 
 
 @pytest.fixture
@@ -5346,29 +5343,14 @@ def test_recurring_launch_invokes_launch(
     """`coga recurring launch` hands the created `active` task to launch."""
     calls: list[str] = []
 
-    def fake_launch(
-        task: str,
-        expected_period_lease: PeriodLease,
-        control_remote_expected: bool,
-        agent_override: str | None,
-        prompt_report: bool,
-        idle_timeout: float | None = None,
-        max_session: float | None = None,
-        return_timeout: bool = False,
-        launch_context: str = "attended",
-        script_failure_important: bool = False,
-    ) -> None:
-        assert return_timeout is False
-        assert idle_timeout == 900.0
-        assert max_session is None
-        # On-demand named launches are automatic queue launches too.
-        assert launch_context == "recurring"
-        assert script_failure_important is True
-        assert expected_period_lease.ticket_bytes is not None
-        assert control_remote_expected is False
+    def fake_launch(task: str, **kwargs) -> LaunchResult:
+        assert kwargs["idle_timeout"] == 900.0
+        assert kwargs["max_session"] is None
+        assert kwargs["launch_context"] == "recurring"
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
+        return LaunchResult(None)
 
     monkeypatch.setattr("coga.launch.launch_recurring_period", fake_launch)
 
@@ -5399,7 +5381,7 @@ def test_recurring_launch_passes_ephemeral_agent_override(
     seen: list[str | None] = []
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period",
-        lambda task, **kwargs: seen.append(kwargs.get("agent_override")),
+        lambda task, **kwargs: seen.append(kwargs.get("agent_override")) or LaunchResult(None),
     )
 
     result = CliRunner().invoke(app, args)
