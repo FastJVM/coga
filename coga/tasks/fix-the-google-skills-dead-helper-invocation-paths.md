@@ -1,6 +1,6 @@
 ---
 title: Fix the Google skills' dead helper invocation paths
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,6 +29,7 @@ workflow:
     checkout: reuse-required
 step: 1 (implement)
 agent: claude
+launch_generation: pending:a02037ed-8c21-4138-9974-a325afdcd8e8
 ---
 
 ## Description
