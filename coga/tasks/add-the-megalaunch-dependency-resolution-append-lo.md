@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -30,7 +30,6 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
-launch_generation: fc2ed509-1f8d-4658-9068-f228fb68775a
 ---
 
 ## Description
@@ -238,6 +237,8 @@ checks:
 - [ ] [2026-11-18 21:07] [agent:codex] id=20261118T210707 Reconcile this inventory after v1/microkernel/move-slack-fyis-to-a-command-ticket (PR #1247) and v1/microkernel/08-residual-command-surfaces (PR #1248) land, or provide a reconciled stacked base for both. Recount append_log calls after incorporating their changes before opening this PR.
 
 - [ ] [2026-11-19 11:18] [agent:codex] id=20261119T111841 PRs #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) and #1248 (v1/microkernel/08-residual-command-surfaces) are both still open. Resume after both land, or provide the intended reconciled stacked base. Recount append_log call sites on that base before publishing.
+
+- [ ] [2026-11-20 18:45] [agent:codex] id=20261120T184549 Both overlapping PRs (#1247 and #1248) merged and are on fetched origin/main, so that is the proposed base for resolving both prior asks. Confirm that resolution and resume peer review from a clean current main checkout. The supplied checkout is occupied by refresh-the-v1-microkernel-task-readmes-after-the on refresh-v1-microkernel-readmes-after-retro with unmerged commit 258ca14c7 and no linked PR. All six unstaged files matched fetched control before blocking. Preserve that branch and commit; rebase the inventory branch and recount writers before publication.
 
 
 ---
