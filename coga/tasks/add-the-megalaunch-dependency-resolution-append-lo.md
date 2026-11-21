@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -30,6 +30,7 @@ workflow:
     checkout: reuse-required
 step: 2 (peer-review)
 agent: claude
+launch_generation: pending:fc2ed509-1f8d-4658-9068-f228fb68775a
 ---
 
 ## Description
