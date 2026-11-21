@@ -1131,10 +1131,10 @@ def test_address_pr_comments_recurring_wrapper_delegates_to_command_ticket() -> 
 
     assert "gh pr list --state open --limit 10000" in command.body
     assert "usage: coga address-pr-comments [PR]" in command.body
-    # The sweep reuses the per-PR mechanics from the skill by citation and
-    # must say which parts of the skill do not apply to an unattended run.
+    # The unattended sweep shares the PR mechanics and owns its escalation.
     assert "coga/skills/code/address-pr-comments/SKILL.md" in command.body
-    assert "do not apply" in command.body
+    assert "sweep-specific worktree and escalation rules apply here" in command.body
+    assert "There is no attending human" in command.body
     # Re-run guard is the fixed marker, never the reply's author.
     assert "<!-- coga:address-pr-comments reply-to:" in command.body
     assert "resolveReviewThread" in command.body
