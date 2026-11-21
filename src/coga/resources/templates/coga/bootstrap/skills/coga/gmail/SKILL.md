@@ -33,10 +33,17 @@ python .../gmail.py authorize --client-secret /path/to/client_secret.json
 Exit codes are the contract: `0` ok · `1` config/auth/API error (stderr) · `3`
 message/attachment not found.
 
-`/resolved/coga/gmail/` stands for this skill's resolved directory: the repo's
-local `coga/skills/coga/gmail/` override if one exists, else the installed
-bundled skill (resolution as in `coga/checkouts/sandbox-clone`, "What a fresh
-checkout lacks"). Bundled skills are not copied into the repo.
+`/resolved/coga/gmail/` stands for this skill's resolved directory. Resolve it
+as `coga/google-calendar` ("Resolving the helper directory") describes. Use
+`gmail` as the skill name and `gmail.py` as the file to check:
+
+```bash
+dir="${COGA_COGA_OS_ROOT:-$(git rev-parse --show-toplevel)/coga}/skills/coga/gmail"
+[ -f "$dir/gmail.py" ] || dir="$(python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "coga", "gmail"))')"
+```
+
+That section also covers which interpreter runs each line and the `cmd.exe`
+quoting.
 
 ## Auth — OAuth user credentials
 
@@ -74,6 +81,6 @@ corresponding environment names above, then remove the retired table from
 ## Dependencies
 
 `google-api-python-client`, `google-auth`, `google-auth-oauthlib` (in
-`requirements.txt`). Coga installs nothing for a skill — run
-`python -m pip install -r requirements.txt` from this skill's resolved dir,
-using the same Python that runs `gmail.py`.
+`requirements.txt`). Coga installs nothing for a skill. Install them yourself
+with `python -m pip install -r "$dir/requirements.txt"`, using the same Python
+that runs `gmail.py`.

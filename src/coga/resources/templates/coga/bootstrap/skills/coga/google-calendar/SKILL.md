@@ -32,13 +32,35 @@ Exit codes are the contract:
 | 1 | config / auth / API error (message on stderr) |
 | 3 | event not found (caller can distinguish "gone" from "broken") |
 
+## Resolving the helper directory
+
 `/resolved/coga/google-calendar/` stands for this skill's resolved
-directory: the repo's local `coga/skills/coga/google-calendar/` override
-if one exists, else the installed bundled skill (resolution as in
-`coga/checkouts/sandbox-clone`, "What a fresh checkout lacks"). Bundled
-skills are not copied into the repo, so
-`$COGA_COGA_OS_ROOT/skills/coga/google-calendar/` exists only for a local
-override.
+directory. This section owns how to resolve it. Sibling Google skills
+(`coga/gmail`, `coga/calendar-reminder`) link here. Check for the repo's local
+override first, then fall back to the installed bundled skill:
+
+```bash
+dir="${COGA_COGA_OS_ROOT:-$(git rev-parse --show-toplevel)/coga}/skills/coga/google-calendar"
+[ -f "$dir/gcal.py" ] || dir="$(python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "coga", "google-calendar"))')"
+python -m pip install -r "$dir/requirements.txt"   # once per Python
+python "$dir/gcal.py" get --calendar-id <id> --event-id <id>
+```
+
+- **Override first.** The first line names `<coga-dir>/skills/coga/google-calendar/`,
+  where `<coga-dir>` is `$COGA_COGA_OS_ROOT` inside a launch and the checkout's
+  `coga/` directory outside one. Bundled skills are not copied into the repo,
+  so that directory exists only when the repo deliberately overrides the skill.
+- **Package fallback.** The second line needs a `python` that imports `coga`. For
+  a `uv tool` or `pipx` install, that is the tool environment's interpreter
+  (the `coga` launcher's shebang), not necessarily the shell's `python`. In
+  Windows `cmd.exe`, single quotes do not quote; swap them:
+  `python -c "from coga.paths import packaged_template_path; print(packaged_template_path('bootstrap', 'skills', 'coga', 'google-calendar'))"`.
+- **Which Python runs the helper.** `gcal.py` is self-contained and never
+  imports `coga`, so the Python that runs it need not be the one that
+  resolved the path. Install `requirements.txt` into the same Python
+  that runs `gcal.py`. Because the command gives the requirements file by
+  absolute path (`"$dir/requirements.txt"`), it works from any working
+  directory.
 
 ## Auth — service account
 
@@ -86,9 +108,9 @@ as a separate ticket.)
 ## Dependencies
 
 `requirements.txt` declares `google-api-python-client` and `google-auth`.
-Coga installs nothing for a skill — run `python -m pip install -r
-requirements.txt` from this skill's resolved dir, using the same Python
-that runs `gcal.py`.
+Coga installs nothing for a skill. Install them yourself with
+`python -m pip install -r "$dir/requirements.txt"`, using the same Python that
+runs `gcal.py` (see "Resolving the helper directory").
 
 ## Out of scope
 
