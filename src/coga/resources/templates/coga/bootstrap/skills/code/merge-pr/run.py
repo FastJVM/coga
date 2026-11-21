@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,22 +12,7 @@ from coga.repl_supervisor import SENTINEL_ENV, deferred_done_marker, emit_done_m
 from coga.blackboard import read_dev_fields
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.ticket import Ticket, TicketError
-from coga_edge.git_workflow import changed_paths, commit_state, git_output
-
-
-def verify_reviewed_tree(cwd: str, reviewed: str, head: str, paths: tuple[str, ...]) -> None:
-    if not re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", reviewed):
-        raise ValueError(f"reviewed: must be a full commit OID, got {reviewed!r}")
-    if subprocess.run(["git", "merge-base", "--is-ancestor", reviewed, head], cwd=cwd).returncode:
-        raise ValueError(f"Reviewed commit {reviewed} is not an ancestor of {head}")
-    for oid in git_output("rev-list", f"{reviewed}..{head}", cwd=cwd).splitlines():
-        changes = git_output(
-            "diff-tree", "-r", "-m", "--no-commit-id", "--name-only", "--no-renames", "-z",
-            oid, cwd=cwd,
-        )
-        unexpected = set(changes.split("\0")) - {"", *paths}
-        if unexpected:
-            raise ValueError(f"Commit {oid} after review changed {', '.join(sorted(unexpected))}")
+from coga_edge.git_workflow import changed_paths, commit_state, git_output, verify_reviewed_tree
 
 
 def pr_view(cwd: str, url: str) -> dict:

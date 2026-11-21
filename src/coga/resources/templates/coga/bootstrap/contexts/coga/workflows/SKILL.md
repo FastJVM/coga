@@ -97,7 +97,7 @@ verifies the recorded reviewed head and merges the approved change.
 Merge-triggered closure is unconditional: `autoclose-merged` marks a ticket
 `done` when it sits on its final step, is `active` or `in_progress`, and its
 recorded PR has merged. It never reads Done criteria, acceptance checklists,
-or a "still open" list on the blackboard. So, before `coga open-pr` runs, every obligation the
+or a "still open" list on the blackboard. So, before `git/push-and-open-pr` runs, every obligation the
 merge will not discharge — a release publication, an attended or
 post-release check, a proof on another platform — is filed as its own draft
 (`coga create`) and linked from the handoff, or the work is kept off a

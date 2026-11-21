@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from coga.blackboard import read_dev_fields, set_dev_fields
@@ -80,16 +81,40 @@ def test_open_branch_git_error_does_not_bump(git_ticket, monkeypatch):
     assert read_ticket(ref).step == "1 (execute)"
 
 
-@pytest.mark.parametrize("mode", ["create", "reuse", "draft", "closed", "wrong-base", "retry"])
+@pytest.mark.parametrize("mode", ["create", "reuse", "draft", "closed", "wrong-base", "retry", "retry-create", "stale"])
 def test_push_and_open_pr(git_ticket, monkeypatch, mode):
     repo, ref = git_ticket
     repo.git("switch", "-c", "work")
     _dev(ref, branch="work", base="main", remote="origin")
+    base = repo.git("rev-parse", "main").strip()
+    source = repo.root / "change.txt"
+    source.write_text("reviewed change", encoding="utf-8")
+    repo.git("add", "change.txt")
+    repo.git("commit", "-m", "Implement reviewed change")
+    head = repo.git("rev-parse", "HEAD").strip()
+    receipt = {"head": head, "base": base, "status": "passed", "detail": "Verified."}
+    preparation = {
+        "head": head, "base": base, "author": "codex", "author_evidence": "Implement session.",
+        "title": "Add a change", "depth": "skim", "rationale": "Bounded change.",
+        "implementation": "Add change.txt.", "deviations": "None.", "limitations": "None.",
+        "files": {"change.txt": "The implementation."},
+        "review": {**receipt, "kind": "independent", "reviewer": "claude"},
+        "checks": [{**receipt, "command": "pytest"}],
+    }
+    replace_blackboard(
+        ref.ticket_path, read_blackboard(ref.ticket_path).rstrip()
+        + "\n\n## PR\n\n```yaml\n" + yaml.safe_dump(preparation) + "```\n",
+    )
+    if mode == "stale":
+        source.write_text("unreviewed change", encoding="utf-8")
+        repo.git("commit", "-am", "Change reviewed file")
+        source.write_text("reviewed change", encoding="utf-8")
+        repo.git("commit", "-am", "Restore reviewed file")
     script = _script("git/push-and-open-pr")
     real_run = subprocess.run
     real_output = subprocess.check_output
     calls = []
-    exists = mode not in {"create", "retry"}
+    exists = mode not in {"create", "retry", "retry-create", "stale"}
     fail_push = mode == "retry"
     actual_pushes = 0
 
@@ -117,9 +142,19 @@ def test_push_and_open_pr(git_ticket, monkeypatch, mode):
         nonlocal exists
         if args[:3] == ["gh", "pr", "create"]:
             calls.append("create")
+            if mode == "retry-create" and calls.count("create") == 1:
+                raise subprocess.CalledProcessError(1, args)
             exists = True
             body = Path(args[args.index("--body-file") + 1]).read_text(encoding="utf-8")
             assert "## Checks" in body
+            assert ref.ticket_path.relative_to(repo.root).as_posix() in body
+            assert "Unexplained path:" not in body
+            if mode == "stale":
+                assert "Stale preparation:" in body
+                assert "**stale**" in body
+            else:
+                assert "Publication evidence gaps:" not in body
+                assert "**passed**" in body
             return _PR_URL + "\n"
         return real_output(args, *positional, **kwargs)
 
@@ -132,10 +167,13 @@ def test_push_and_open_pr(git_ticket, monkeypatch, mode):
     if mode == "retry":
         assert script.main() == 1
         assert read_ticket(ref).status == "done"
+    if mode == "retry-create":
+        assert script.main() == 1
+        assert read_ticket(ref).step == "1 (execute)"
     assert script.main() == 0
     assert read_dev_fields(read_blackboard(ref.ticket_path))["pr"] == _PR_URL
     assert read_ticket(ref).status == "done"
-    assert calls.count("create") == int(mode in {"create", "retry"})
+    assert calls.count("create") == (2 if mode == "retry-create" else int(mode in {"create", "retry", "stale"}))
     assert ("ready" in calls) == (mode == "draft")
     assert repo.git("rev-parse", "HEAD").strip() == repo.git("rev-parse", "work", cwd=repo.origin).strip()
 

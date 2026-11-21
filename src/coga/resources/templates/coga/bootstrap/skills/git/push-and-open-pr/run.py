@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-from coga_edge.git_workflow import changed_paths, commit_state, git_output
+from coga_edge.git_workflow import changed_paths, commit_state, git_output, verify_reviewed_tree
 from coga.repl_supervisor import SENTINEL_ENV, deferred_done_marker, emit_done_marker
 from coga.blackboard import read_dev_fields, set_dev_fields
 from coga.github_source import github_repository_identity
@@ -140,6 +140,7 @@ def _pr_body(ticket: Ticket, above: str, slug: str, content: str) -> str:
 def _pr_presentation(
     ticket: Ticket, blackboard: str, above: str, slug: str, *,
     head: str, base: str, changes: list[tuple[str, list[str]]],
+    state_paths: tuple[str, ...] = (),
 ) -> tuple[str, str]:
     data = _preparation(blackboard, above)
     issues: list[str] = []
@@ -221,7 +222,7 @@ def _pr_presentation(
     paths = {path for _, names in changes for path in names}
     for status, names in changes:
         for path in names:
-            if not files.get(path, "").strip():
+            if path not in state_paths and not files.get(path, "").strip():
                 issues.append(f"Unexplained path: {path}")
             file_rows.append(f"| <code>{_cell(path)}</code> | {status} |")
     extras = sorted(set(files) - paths)
@@ -323,13 +324,24 @@ def _lookup_pr(branch: str, cwd: str, gh_env: dict[str, str]) -> dict | None:
 
 
 def _create_pr(
-    cwd: str, base: str, remote: str, branch: str, slug: str, path: Path, checked_head: str,
+    cwd: str, base: str, remote: str, branch: str, slug: str, path: Path, state_paths: tuple[str, ...],
     gh_env: dict[str, str],
 ) -> str:
     ticket = Ticket.parse(path.read_text(encoding="utf-8"))
     above, region = split_body(ticket.body)
-    _, merge_base, changes = _publication_diff(cwd, "HEAD", f"refs/remotes/{remote}/{base}")
-    title, body = _pr_presentation(ticket, region, above, slug, head=checked_head, base=merge_base, changes=changes)
+    head, merge_base, changes = _publication_diff(cwd, "HEAD", f"refs/remotes/{remote}/{base}")
+    prepared_head = _preparation(region, above).get("head")
+    if isinstance(prepared_head, str) and prepared_head != head:
+        try:
+            verify_reviewed_tree(cwd, prepared_head, head, state_paths)
+        except ValueError:
+            pass  # Render the preparation as stale against the actual PR head.
+        else:
+            head = prepared_head
+    title, body = _pr_presentation(
+        ticket, region, above, slug, head=head, base=merge_base, changes=changes,
+        state_paths=state_paths,
+    )
     with tempfile.TemporaryDirectory(prefix="coga-pr-") as directory:
         body_path = Path(directory) / "body.md"
         body_path.write_text(body, encoding="utf-8", newline="\n")
@@ -370,7 +382,6 @@ def run() -> int:
         repository = github_repository_identity(push_urls[0])
         if repository is not None:
             gh_env["GH_REPO"] = "/".join(repository)
-        checked_head = git_output("rev-parse", "HEAD", cwd=cwd)
         commit_state(cwd, paths)
         push = ["git", "push", "-u", "--", remote, "HEAD"]
         subprocess.run(push, cwd=cwd, check=True)
@@ -378,7 +389,7 @@ def run() -> int:
         if existing is None:
             if fields.get("pr"):
                 raise OpenPrError("Recorded PR was not found for the current branch")
-            url = _create_pr(cwd, base, remote, branch, slug, path, checked_head, gh_env)
+            url = _create_pr(cwd, base, remote, branch, slug, path, paths, gh_env)
         else:
             url = existing["url"]
             if existing["state"] != "OPEN" or existing["baseRefName"] != base:

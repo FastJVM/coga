@@ -108,21 +108,17 @@ Agent sessions also stop on process failure or a liveness limit.
   runaway REPL; the launch then exits 124 and does not chain.
 - On native Windows the agent owns the console, so idleness cannot be
   measured: an explicit `--idle-timeout` exits 2 before any state change,
-  with the end-of-command sweep withheld, and names `--max-session`.
+  and names `--max-session`.
   Recurring and megalaunch sessions that arm it from defaults or config warn
   once and run with `max_session` only.
 - On native Windows, an agent command that no transport can represent exits
-  2 before activation, audit or spawn, with the sweep withheld. That means a
+  2 before activation, audit or spawn. That means a
   pointer-form command over CreateProcess's 32,767 UTF-16 units (or cmd.exe's
   8,191 for a `.cmd`/`.bat` CLI), or a raw CR/LF in a `.cmd`/`.bat` CLI's
   title, launch option, discussion token or kickoff. The message names the
   limit or argument role, never its value. A prompt too large for the command
   line always falls back to its file pointer instead.
-- Refusals exit 2; a checkout-boundary entry refusal, a stale recurring
-  gate, and an unreconciled released megalaunch admission exit 75, which
-  skips the end-of-command sweep; a non-zero agent or `ticket.py` exit
-  propagates. A successful direct chat whose checkout return fails also
-  exits 75; [coga/git](../git/SKILL.md) owns that contract.
+- Refusals exit 2. A nonzero agent or script exit propagates.
 
 The Python launch API, its internal phases, and the shared spawn path are in
 [coga-dev/internals/agent-spawn](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/agent-spawn/SKILL.md).

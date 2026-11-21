@@ -58,7 +58,7 @@ effects, or calling shared infrastructure does not settle their placement.
 | --- | --- | --- |
 | `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `13-move-ticket-authoring-to-a-command-ticket` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `14-move-skill-management-to-command-tickets` |
-| `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
+| `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped local write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
 
 These tickets live under `coga/tasks/v1/microkernel/`; the owner's
 2026-11-12 decision in [current direction](../current-direction/SKILL.md)
@@ -69,15 +69,8 @@ kernel boundary below rather than replacing it. Shared helpers and launch-time
 trust hooks retain their own kernel justification independently of the
 user-facing heads that call them.
 
-The `owner` head's claim to core is its package-private transaction: it holds
-`git.state_lock` across the read, prospective validation, local byte
-comparison, write, audit, and strict publication with the original ticket
-bytes as `expect`. A concurrent local edit is preserved. A definite
-publication failure restores only the command's own ticket bytes and retracts
-its audit; an uncertain push keeps the write for reconciliation. Both exit 75
-to suppress the generic sweep. With Git disabled or unavailable through a
-documented soft-skip, the local write remains the result
-([coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)).
+The `owner` command reads the local ticket, validates the proposed owner
+and writes the change atomically. Its placement remains open.
 
 ## Settled read/report placements
 
@@ -90,8 +83,8 @@ selection remains shared with status and scheduling.
 
 Validation stays in core: its public CLI and Dream's edge
 `coga_edge.validate_drift` worker consume the fix-capable module entry and
-JSON serialization. Both parsers call one core execution/rendering contract. Safe local fixes retain the state lock,
-concurrent-byte refusal and atomic write, without publication or user setup.
+JSON serialization. Both parsers call one core execution/rendering contract.
+Safe local fixes write atomically.
 
 The fixed `recurring list` adapter is a settled co-versioned exception: its
 forwarding agrees with launch's private read-only boundary while retaining the

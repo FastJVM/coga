@@ -1,6 +1,6 @@
 ---
 name: coga/pr-publication/preparation
-description: How a PR is presented — the advisory review-depth rubric and title format, the blackboard `## PR` preparation record and its receipts, and how `coga open-pr` formats the body and forces `deep` on missing or stale evidence.
+description: How a PR is presented — the advisory review-depth rubric and title format, the blackboard `## PR` preparation record and its receipts, and how `git/push-and-open-pr` formats the body and forces `deep` on missing or stale evidence.
 ---
 
 # PR presentation and preparation record
@@ -38,7 +38,7 @@ remain in force; publication adds no universal suite gate.
 The last judgment step reads this section and writes one fenced `yaml` mapping
 under `## PR` on the blackboard (ticket-body `## PR` is a legacy location).
 The section holds only that fence up to the next `##` heading; any prose,
-horizontal rule, or second block makes `coga open-pr` refuse with "use one
+horizontal rule, or second block makes `git/push-and-open-pr` refuse with "use one
 complete fenced yaml mapping under ## PR".
 Implement records actual authorship and checks; the final review step refreshes
 it after the final freshness/rebase pass, fixes, and required checks. Prepare
@@ -91,10 +91,10 @@ or none and explain why; do not turn an absent tool into a passed review.
 Write every free-text value (`rationale`, `implementation`, `deviations`,
 `limitations`, `author_evidence`, each `detail`, each `files` explanation) as
 a folded block scalar (`>-`) or a quoted string: a plain scalar containing
-`: ` or starting with `[` or `{` is invalid YAML, and `coga open-pr` refuses
+`: ` or starting with `[` or `{` is invalid YAML, and `git/push-and-open-pr` refuses
 it. `review` is always a nested mapping, never a string, and `depth` is exactly
 `merge`, `skim`, or `deep`. `author` is one compact identity (1–32 letters,
-digits, `.`, `_`, `-`, `/`), which `coga open-pr` refuses otherwise; put
+digits, `.`, `_`, `-`, `/`), which `git/push-and-open-pr` refuses otherwise; put
 multi-author or co-author detail in `author_evidence`.
 
 The formatter enumerates paths using Git's NUL-delimited rename-aware diff.
@@ -117,8 +117,12 @@ that, only the file table changes: it groups paths by parent directory with
 per-status counts and names the `git diff --name-status` command that lists
 every path. Preparation coverage is still checked per path, and the snapshot
 stays literal. If the grouped body still exceeds the limit, publication refuses
-before pushing; shorten the preparation prose or receipts.
+before creating the PR. Shorten the preparation prose or receipts.
 The closure marker remains machine-readable outside that snapshot.
+The file table includes the ticket and audit log. These workflow state paths
+need no per-file explanation. A prepared head remains the evidence head when
+it is an ancestor of the PR head and every intervening commit touches only
+those paths. The recorded diff base and each receipt must still match.
 
 Missing/unstructured preparation publishes a `deep` fallback with unknown
 identity and explicit missing implementation, file, test and review evidence.
