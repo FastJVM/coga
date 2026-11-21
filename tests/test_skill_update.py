@@ -444,7 +444,7 @@ def test_skill_update_skill_declares_contract() -> None:
     assert "- Action: `pr-required`" in text
     assert "python -m coga_edge.skill_update_pr" in text
     assert "`coga/skill-update` branch" in norm
-    assert "never the caller's branch" in norm
+    assert "The caller's branch stays checked out." in norm
     assert "Bundled (package-backed) skills are not updated here" in norm
     assert "`gh skill`'s own metadata for GitHub-backed installs" in norm
     assert "Coga `.coga-source.json` provenance for URL-backed installs" in norm

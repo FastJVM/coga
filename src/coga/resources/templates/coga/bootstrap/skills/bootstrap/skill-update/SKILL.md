@@ -46,14 +46,14 @@ maintenance contract above rather than masquerading as a reported no-op.
 - Inputs: the installed skills under `coga/skills/`; `gh skill`'s own metadata
   for GitHub-backed installs; Coga `.coga-source.json` provenance for
   URL-backed installs; `gh skill` `local-path` metadata for supported
-  `install-local` installs that neither updater consumes; and (for the PR) git
-  plus `gh` against the control-plane checkout. Hand-vendored and local-backed
+  `install-local` installs that neither updater consumes; and (for the PR) Git
+  plus `gh` in the repository. Hand-vendored and local-backed
   skills have no managed update source here. Bundled skills update only with
   the package.
 - May change: imported skill files under `coga/skills/` (rewritten in place
   by `coga skill update`), committed onto the dedicated `coga/skill-update`
-   branch. The clean updates are published as a
-  draft PR; nothing is merged.
+  branch. The caller's branch stays checked out. The clean updates open or
+  refresh a draft PR.
 - Action: `pr-required`
 - Idempotency: URL-backed updates overwrite only when the upstream digest
   changed and the local tree still matches its recorded installed digest.
