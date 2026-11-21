@@ -127,23 +127,23 @@ ordinary ticket.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Status (implement, 2026-11-18)
+## Dev
 
-Precondition unmet; no branch created, no edits made.
+- branch: `refresh-v1-microkernel-readmes-after-retro`
 
-- PR #1255 (`codex/retro-prompt-assembly-trials-knowledge`, "New context: paired
-  agent-behavior trial method for prompt changes") is OPEN. It deletes the
-  `03-prompt-assembly/01-…` ticket tree that `03-prompt-assembly/README.md` links.
-- PR #1259 (`codex/retro-v1-microkernel-06-read-report-commands-as-ticket-workflows-knowledge`)
-  is OPEN. It deletes/edits `06-read-report-commands-as-ticket-workflows.md`
-  and `docs/contexts/coga-dev/microkernel/SKILL.md`.
-- Doing the README refresh before they merge would conflict with both and
-  could not cite their merge-commit permalinks.
+## Plan (implement, 2026-11-20)
 
-Next: once both merge, relaunch; refresh `coga/tasks/v1/microkernel/README.md`
-rows for 01/02/03/06 and `03-prompt-assembly/README.md` using commit
-permalinks, then decide the fate of
-`03-prompt-assembly/03-implement-the-proven-prompt-assembly-evidence/`.
+Precondition met: #1255 merged as `dc7754b1`, #1259 as `347f8983`.
+#1255 already rewrote `03-prompt-assembly/README.md` with permalinks.
+
+- Every child linked from `v1/microkernel/README.md` except 12–17 is done and
+  deleted (01, 02, 03-launch, 04, 04b, 04d, 06, 07, 08, 09, slack). Split the
+  table into done rows (merge-commit permalinks plus the ticket's last-revision
+  blob permalink) and live rows (12–17; add the missing 13 and 14). Refresh the
+  stale Status and execution-order prose.
+- Evidence dir decision: **delete**. Only the 03 row cites it; it is dated PR
+  verification for a done ticket (knowledge: dated evidence lives in the archive or in
+  history). Re-point that row at a tree permalink of its last revision.
 
 ---
 
