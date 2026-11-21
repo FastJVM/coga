@@ -1,6 +1,6 @@
 ---
 title: 'Script or agent: one executor model and one launch loop'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -43,6 +43,7 @@ workflow:
     checkout: reuse-required
 step: 1 (design)
 agent: claude
+launch_generation: pending:7e4e485e-1e53-45a8-bc76-a163ad562205
 ---
 
 ## Description
