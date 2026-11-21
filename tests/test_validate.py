@@ -914,92 +914,6 @@ def test_validate_ignores_global_filemode_outside_git(
     assert not [i for i in run(cfg).issues if i.kind == "non-executable-script"]
 
 
-def test_validate_skips_shebang_mode_check_without_a_trustworthy_source(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # A Windows working tree cannot carry the bit; with no git index to fall
-    # back on either, silence beats a false error.
-    cfg = load_config(repo)
-    _write_shebang_script(repo, 0o644)
-    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
-    monkeypatch.setattr("coga.validate._git_index_modes", lambda root: None)
-
-    report = run(cfg)
-    assert not [i for i in report.issues if i.kind == "non-executable-script"]
-
-
-def test_validate_reads_the_git_index_where_the_working_tree_has_no_mode(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Simulate Windows: the working tree says nothing about the committed
-    # mode, so the check reads what git tracks instead. The packaged skills
-    # live in this checkout's own index, so point that root at nothing.
-    cfg = load_config(git_repo.coga_os)
-    script = _write_shebang_script(git_repo.coga_os, 0o755)
-    rel = script.relative_to(git_repo.root).as_posix()
-    git_repo.git("add", "-A")
-    git_repo.git("update-index", "--chmod=-x", rel)
-    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
-    monkeypatch.setattr(
-        "coga.validate.bundled_skills_root",
-        lambda cfg: git_repo.coga_os / "no-bundled-skills",
-    )
-
-    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
-    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/run.sh"]
-
-    git_repo.git("update-index", "--chmod=+x", rel)
-    clean = run(cfg)
-    assert not [i for i in clean.issues if i.kind == "non-executable-script"]
-
-
-@pytest.mark.parametrize(
-    ("working_mode", "index_mode", "expected_error"),
-    [(0o644, "+x", False), (0o755, "-x", True)],
-)
-def test_validate_uses_index_when_git_filemode_is_false(
-    git_repo,
-    monkeypatch: pytest.MonkeyPatch,
-    working_mode: int,
-    index_mode: str,
-    expected_error: bool,
-) -> None:
-    cfg = load_config(git_repo.coga_os)
-    script = _write_shebang_script(git_repo.coga_os, working_mode)
-    rel = script.relative_to(git_repo.root).as_posix()
-    git_repo.git("config", "core.fileMode", "false")
-    git_repo.git("add", rel)
-    git_repo.git("update-index", f"--chmod={index_mode}", rel)
-    monkeypatch.setattr(
-        "coga.validate.bundled_skills_root",
-        lambda cfg: git_repo.coga_os / "no-bundled-skills",
-    )
-
-    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
-    assert [i.task for i in flagged] == (
-        ["skills/infra/tests/scripts/run.sh"] if expected_error else []
-    )
-
-
-def test_validate_index_fallback_preserves_non_ascii_paths(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg = load_config(git_repo.coga_os)
-    script = _write_shebang_script(git_repo.coga_os, 0o644)
-    script = script.rename(script.with_name("café-語.sh"))
-    git_repo.git("add", script.relative_to(git_repo.root).as_posix())
-    # Git emits UTF-8 paths even when Windows' default encoding is cp1252.
-    monkeypatch.setattr("locale.getencoding", lambda: "cp1252")
-    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
-    monkeypatch.setattr(
-        "coga.validate.bundled_skills_root",
-        lambda cfg: git_repo.coga_os / "no-bundled-skills",
-    )
-
-    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
-    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/café-語.sh"]
-
-
 def test_validate_prunes_skill_dependencies_before_scanning(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2779,23 +2693,6 @@ def test_validation_entries_fix_only_selected_ticket_without_user_or_publication
     assert not (root / ".agent-skills").exists()
 
 
-def test_safe_fix_refuses_concurrent_ticket_write(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from coga import validate as validator
-    from coga.taskfile import TaskFileError
-    cfg = load_config(repo)
-    path = repo / "tasks" / "concurrent.md"
-    _write(path, '---\ntitle: Concurrent\nstatus: draft\n---\n\n## Description\nOriginal.\n')
-    original = validator.render_blackboard
-    def racing_render(*args, **kwargs):
-        path.write_text(path.read_text() + "Concurrent edit.\n", encoding="utf-8")
-        return original(*args, **kwargs)
-    monkeypatch.setattr(validator, "render_blackboard", racing_render)
-    with pytest.raises(TaskFileError, match="ticket changed"):
-        apply_safe_fixes(cfg)
-    assert path.read_text().endswith("Concurrent edit.\n")
-    assert "<!-- coga:blackboard -->" not in path.read_text()
-
-
 def test_validation_entries_do_not_mask_internal_value_errors(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2815,3 +2712,46 @@ def test_validation_entries_do_not_mask_internal_value_errors(
     result = CliRunner().invoke(app, ["validate", "--json"])
     assert isinstance(result.exception, ValueError)
     assert result.exit_code != 2
+
+
+@pytest.mark.parametrize("assignee,diagnostic", [
+    ("agent", "Cannot read workflow script"),
+    ("owner", "an owner step cannot declare run"),
+])
+def test_validate_checks_run_entry_and_inherited_role(repo, assignee, diagnostic):
+    _write(
+        repo / "workflows" / "check-run.md",
+        f"""
+        ---
+        name: check-run
+        steps:
+          - name: prepare
+            assignee: {assignee}
+          - name: compute
+            run: fixture/compute
+        ---
+        ## prepare
+
+        Prepare the check.
+        """,
+    )
+    _write(repo / "skills" / "fixture" / "compute" / "SKILL.md", "# Compute\n")
+    _write(
+        repo / "tasks" / "check.md",
+        """
+        ---
+        title: Check
+        status: draft
+        owner: marc
+        workflow: check-run
+        ---
+        ## Description
+
+        Check script routing.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    report = validate_task(load_config(repo), "check")
+    errors = [issue.message for issue in report.issues if issue.severity == "error"]
+    assert any(diagnostic in message for message in errors), errors

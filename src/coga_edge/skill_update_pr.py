@@ -40,6 +40,8 @@ def run_skill_update_pr_flow(
     verification_commands: Sequence[str],
     runner: Runner | None = None,
     branch: str = SKILL_UPDATE_BRANCH,
+    base: str | None = None,
+    remote: str = "origin",
     expected_remote_oid: str | None = None,
 ) -> SkillUpdateSummary:
     changed = [result for result in summary.results if result.changed]
@@ -52,11 +54,12 @@ def run_skill_update_pr_flow(
     run = runner or run_subprocess
     git_cwd = cfg.repo_root.parent
     original_branch = _current_git_branch(run, git_cwd)
+    base = base or original_branch
     try:
         committed = _commit_skill_updates(
             cfg,
             branch=branch,
-            base_branch=original_branch,
+            base_branch=base,
             runner=runner,
             cwd=git_cwd,
         )
@@ -80,7 +83,8 @@ def run_skill_update_pr_flow(
             title,
             body,
             branch=branch,
-            remote="origin",
+            remote=remote,
+            base=base,
             runner=runner,
             cwd=git_cwd,
             expected_remote_oid=expected_remote_oid,
@@ -98,6 +102,7 @@ def assert_skill_update_pr_preflight(
     *,
     runner: Runner | None = None,
     branch: str = SKILL_UPDATE_BRANCH,
+    base: str | None = None,
 ) -> None:
     """Refuse `--pr` before any update is applied if the branch trip would fail.
 
@@ -116,8 +121,8 @@ def assert_skill_update_pr_preflight(
     """
     run = runner or run_subprocess
     cwd = cfg.repo_root.parent
-    control = _current_git_branch(run, cwd)
     _assert_no_unmerged_paths(run, cwd)
+    control = base or _current_git_branch(run, cwd)
 
     # Compare both sides of the index separately: a staged edit followed by
     # restoring the working file to HEAD disappears from `git diff HEAD`, but
@@ -453,6 +458,8 @@ def assert_skill_update_branch_unclaimed(
     *,
     runner: Runner | None = None,
     branch: str = SKILL_UPDATE_BRANCH,
+    base: str | None = None,
+    remote: str = "origin",
 ) -> str | None:
     """Refuse to rebuild `branch` when its open PR carries hand-pushed commits.
 
@@ -471,7 +478,6 @@ def assert_skill_update_branch_unclaimed(
     """
     run = runner or run_subprocess
     cwd = cfg.repo_root.parent
-    remote = "origin"
     oid = _remote_branch_oid(run, remote, branch, cwd)
     if oid is None:
         return None
@@ -484,7 +490,7 @@ def assert_skill_update_branch_unclaimed(
 
     control_ref = f"{_GUARD_REF_PREFIX}/control"
     branch_ref = f"{_GUARD_REF_PREFIX}/branch"
-    control = _current_git_branch(run, cwd)
+    control = base or _current_git_branch(run, cwd)
     try:
         _git_checked(
             run,
@@ -579,6 +585,7 @@ def open_or_update_pr(
     *,
     branch: str | None = None,
     remote: str = "origin",
+    base: str | None = None,
     runner: Runner | None = None,
     cwd: Path | None = None,
     expected_remote_oid: str | None = None,
@@ -645,6 +652,7 @@ def open_or_update_pr(
                 "pr",
                 "create",
                 "--draft",
+                *(["--base", base] if base else []),
                 "--title",
                 title,
                 "--body-file",
@@ -661,14 +669,17 @@ def open_or_update_pr(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pr-title", default=SKILL_UPDATE_COMMIT_SUBJECT)
+    parser.add_argument("--base", help="Base branch, defaulting to the current branch")
+    parser.add_argument("--remote", default="origin")
     args = parser.parse_args()
     try:
         cfg = load_config()
-        assert_skill_update_pr_preflight(cfg)
-        expected_remote_oid = assert_skill_update_branch_unclaimed(cfg)
+        assert_skill_update_pr_preflight(cfg, base=args.base)
+        expected_remote_oid = assert_skill_update_branch_unclaimed(cfg, base=args.base, remote=args.remote)
         summary = update_skills(cfg, all_skills=True)
         run_skill_update_pr_flow(
             cfg, summary, title=args.pr_title, verification_commands=["coga validate --json"],
+            base=args.base, remote=args.remote,
             expected_remote_oid=expected_remote_oid,
         )
     except (SkillManagerError, OSError, ValueError) as exc:

@@ -99,7 +99,7 @@ def retire(
 
     if source.status == "done":
         try:
-            typer.echo(run_delete_task(cfg, ref), nl=False)
+            typer.echo("Retire: " + run_delete_task(cfg, ref), nl=False)
         except DeleteTaskError as exc:
             _bail(str(exc))
         return

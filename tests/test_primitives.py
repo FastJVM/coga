@@ -151,10 +151,10 @@ def test_workflow_step_assignee_role_token_round_trips(tmp_path: Path) -> None:
     assert wf.steps[0].assignee == "agent"
     frozen = wf.freeze()
     assert frozen["steps"][0] == {
-        "name": "implement", "skills": [], "assignee": "agent", "checkout": "manual"
+        "name": "implement", "skills": [], "assignee": "agent"
     }
     assert frozen["steps"][1] == {
-        "name": "review", "skills": [], "assignee": "owner", "checkout": "manual"
+        "name": "review", "skills": [], "assignee": "owner"
     }
 
 
@@ -195,7 +195,6 @@ def test_workflow_step_requires_gate_round_trips(tmp_path: Path) -> None:
     frozen = wf.freeze()
     assert frozen["steps"][0] == {
         "name": "open-pr", "skills": [], "assignee": "agent", "requires": "pr",
-        "checkout": "manual",
     }
     # A step without a gate carries no `requires` key at all.
     assert "requires" not in frozen["steps"][1]
