@@ -1065,6 +1065,78 @@ def test_shipped_workflow_refs_resolve_without_a_seeded_copy(
         )
 
 
+# Capture the full path, including a directory placeholder's trailing slash.
+RESOLVED_PLACEHOLDER = re.compile(r"/resolved/([A-Za-z0-9_./-]+)")
+
+
+def _resolved_placeholder_refs(resources: Path) -> dict[str, list[str]]:
+    """Map each `<ref>/<file>` placeholder target to the resources naming it."""
+    refs: dict[str, list[str]] = {}
+    for path in sorted(resources.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for target in RESOLVED_PLACEHOLDER.findall(text):
+            if target.endswith("/") or "/" not in target:
+                continue
+            refs.setdefault(target, []).append(
+                path.relative_to(resources).as_posix()
+            )
+    return refs
+
+
+def _resolved_placeholder_problems(resources: Path) -> list[str]:
+    skills = resources / "templates" / "coga" / "bootstrap" / "skills"
+    return [
+        f"/resolved/{target} (named in {', '.join(sorted(set(sources)))}) "
+        f"is not shipped at {(skills / target).relative_to(resources).as_posix()}"
+        for target, sources in sorted(_resolved_placeholder_refs(resources).items())
+        if not (skills / target).is_file()
+    ]
+
+
+def test_resolved_attachment_placeholders_name_shipped_files() -> None:
+    """Every `/resolved/<ref>/<file>` in packaged resources must ship.
+
+    A placeholder tells a caller to run a skill attachment from the skill's
+    resolved directory. If the package does not ship `<file>` beside that
+    skill, the instruction is dead in every repo without a local override,
+    as the Google skills' old `$COGA_COGA_OS_ROOT/skills/...` paths were.
+    """
+    resources = REPO_ROOT / "src" / "coga" / "resources"
+    refs = _resolved_placeholder_refs(resources)
+    assert "coga/google-calendar/gcal.py" in refs
+    assert "coga/gmail/gmail.py" in refs
+    assert "code/implement/seed_local_config.py" in refs
+    assert _resolved_placeholder_problems(resources) == []
+
+
+def test_resolved_placeholder_check_reports_an_unshipped_file(tmp_path: Path) -> None:
+    skill = tmp_path / "templates" / "coga" / "bootstrap" / "skills" / "coga" / "demo"
+    skill.mkdir(parents=True)
+    (skill / "tool.py").write_text("", encoding="utf-8")
+    (skill / "SKILL.md").write_text(
+        "python /resolved/coga/demo/tool.py\n"
+        "python /resolved/coga/demo/gone.py\n"
+        "Run `/resolved/coga/demo/missing`.\n"
+        "`/resolved/coga/demo/` is the resolved dir; python .../gone.py\n",
+        encoding="utf-8",
+    )
+
+    problems = _resolved_placeholder_problems(tmp_path)
+
+    assert len(problems) == 2
+    assert "/resolved/coga/demo/gone.py (" in problems[0]
+    assert "/resolved/coga/demo/missing (" in problems[1]
+    assert all(
+        "templates/coga/bootstrap/skills/coga/demo/SKILL.md" in problem
+        for problem in problems
+    )
+
+
 def test_no_launch_entrypoint_run_py_files_remain() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     packaged_root = repo_root / "src" / "coga" / "resources" / "templates" / "coga"
