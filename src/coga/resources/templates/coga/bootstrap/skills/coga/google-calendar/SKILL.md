@@ -35,7 +35,7 @@ Exit codes are the contract:
 `/resolved/coga/google-calendar/` stands for this skill's resolved
 directory: the repo's local `coga/skills/coga/google-calendar/` override
 if one exists, else the installed bundled skill (resolution as in
-`coga/checkouts/sandbox-clone`, "What a fresh checkout lacks"). Bundled
+`coga/sandboxes`). Bundled
 skills are not copied into the repo, so
 `$COGA_COGA_OS_ROOT/skills/coga/google-calendar/` exists only for a local
 override.

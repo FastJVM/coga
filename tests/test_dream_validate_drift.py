@@ -373,7 +373,6 @@ def test_classifies_operator_environment_drift_as_human_needed(kind: str) -> Non
 
 def test_classifier_explicitly_covers_every_emitted_validator_kind() -> None:
     kinds = _emitted_validator_kind_samples()
-    assert "github-dynamic-kind" in kinds
 
     unknown = [
         kind
@@ -740,7 +739,7 @@ def test_commit_and_push_main_passes_configured_remote(
 
     result = validate_drift.run_validate_drift_recipe(
         None,  # type: ignore[arg-type]
-        ["--cwd", str(tmp_path), "--commit-and-push"],
+        ["--cwd", str(tmp_path), "--commit-and-push", "--remote", "upstream"],
     )
 
     assert result == 0

@@ -91,7 +91,7 @@ def _completed(
 # the push destination resolves to. Named so the expected `--force-with-lease`
 # argv is built from the same value the stub answers with.
 _REMOTE_OID = "1" * 40
-_PUSH_URL = "https://github.com/FastJVM/coga.git"
+_PUSH_URL = "https://github.com/FastJVM/coga"
 
 
 def _lease_stub(command: list[str], remote: str, branch: str, oid: str | None):

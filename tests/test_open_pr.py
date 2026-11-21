@@ -220,3 +220,49 @@ def test_legacy_implement_dispatch_stays_on_its_step(git_ticket, monkeypatch):
     assert read_ticket(ref).step == "1 (implement)"
     branch = read_dev_fields(read_blackboard(ref.ticket_path))["branch"]
     assert repo.git("branch", "--show-current").strip() == branch
+
+
+def test_merge_script_pushes_done_state_and_merges_that_head(git_ticket, monkeypatch):
+    repo, ref = git_ticket
+    repo.git("switch", "-c", "work")
+    reviewed = repo.git("rev-parse", "HEAD").strip()
+    _dev(ref, branch="work", base="main", remote="origin", reviewed=reviewed, pr=_PR_URL)
+    script = _script("code/merge-pr")
+    run_command = subprocess.run
+    output_command = subprocess.check_output
+    calls = []
+
+    def output(argv, *args, **kwargs):
+        if argv[:3] == ["gh", "pr", "view"]:
+            calls.append("view")
+            head = repo.git("rev-parse", "work", cwd=repo.origin).strip()
+            remote_ticket = repo.git(
+                "show", f"work:{ref.ticket_path.relative_to(repo.root).as_posix()}", cwd=repo.origin,
+            )
+            assert "status: done" in remote_ticket
+            return json.dumps({
+                "state": "OPEN", "isDraft": False, "baseRefName": "main",
+                "headRefOid": head, "statusCheckRollup": [{}],
+            })
+        if argv[:3] == ["gh", "repo", "view"]:
+            calls.append("method")
+            return json.dumps({"viewerDefaultMergeMethod": "REBASE", "rebaseMergeAllowed": True})
+        return output_command(argv, *args, **kwargs)
+
+    def run(argv, *args, **kwargs):
+        if argv[:3] == ["gh", "pr", "checks"]:
+            calls.append("checks")
+            assert argv[3:] == [_PR_URL, "--watch", "--fail-fast"]
+            return subprocess.CompletedProcess(argv, 0)
+        if argv[:3] == ["gh", "pr", "merge"]:
+            calls.append("merge")
+            head = repo.git("rev-parse", "work", cwd=repo.origin).strip()
+            assert argv[3:] == [_PR_URL, "--rebase", "--match-head-commit", head]
+            return subprocess.CompletedProcess(argv, 0)
+        return run_command(argv, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "check_output", output)
+    monkeypatch.setattr(subprocess, "run", run)
+    assert script.main() == 0
+    assert calls == ["view", "checks", "method", "merge"]
+    assert read_ticket(ref).status == "done"

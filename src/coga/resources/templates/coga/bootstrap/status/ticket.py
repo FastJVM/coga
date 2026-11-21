@@ -43,7 +43,6 @@ ORDER_BY_CHOICES = (
 ORDER_BY_ALIASES = {"assignee": "operator"}
 
 
-SYNC_SECTION = 'coga/checkouts/reconciliation, "Sync a feature branch with control"'
 
 
 class ViewError(Exception):
@@ -98,8 +97,7 @@ def render_status(
 
     # `status` is strictly read-only: it never hits the network or mutates
     # ticket state as a side effect of rendering (principle 6, fail loud,
-    # names `status`/`show`/`validate` as forbidden mutators). Catching up
-    # merged PRs is the job of the `autoclose-merged` recurring sweep.
+    # names `status`/`show`/`validate` as forbidden mutators).
     refs = list_tasks(cfg)
     refs = filter_tasks_under(refs, directory, cfg, recurse=not no_recurse)
     if console is None:

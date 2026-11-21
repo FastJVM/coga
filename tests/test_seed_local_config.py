@@ -10,7 +10,7 @@ import pytest
 from conftest import windows_skip, write_executable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / 'src/coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py'
+SCRIPT = REPO_ROOT / 'src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/seed_local_config.py'
 SECRET = 'sentinel-credential-do-not-print'
 
 
@@ -148,13 +148,11 @@ def test_seed_refuses_unignored_or_tracked_config(checkouts: tuple[Path, Path], 
     assert run_seed(source, destination).returncode == 2
 
 
-def test_checkout_guidance_invokes_helper_for_creation_and_resume() -> None:
-    bootstrap = REPO_ROOT / 'src/coga/resources/templates/coga/bootstrap'
-    for relative in ['skills/code/implement/SKILL.md', 'workflows/docs/with-review.md']:
-        text = (bootstrap / relative).read_text(encoding="utf-8")
-        assert 'seed_local_config.py /primary/repo/coga /feature/repo' in text
-        assert 'sandbox clone fallback' in text
-        assert 'resume' in text
+def test_sandbox_guidance_documents_the_seed_helper() -> None:
+    text = SCRIPT.with_name("SKILL.md").read_text(encoding="utf-8")
+    assert "seed_local_config.py /primary/repo/coga /feature/repo" in text
+    assert "resumed clone" in text
+
 
 
 def _isolated_env(tmp_path: Path, *, with_console: bool) -> dict[str, str]:

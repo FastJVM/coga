@@ -1360,6 +1360,7 @@ def test_on_demand_launch_closes_the_same_loop(
     `ticket.py` there is exactly as worth ticketing as one in the sweep.
     """
     from coga import recurring_runner
+    from coga.launch import LaunchResult
 
     from coga.ticket import Ticket
 
@@ -1369,7 +1370,7 @@ def test_on_demand_launch_closes_the_same_loop(
         ticket = Ticket.read(ref.ticket_path)
         ticket.frontmatter["status"] = "done"
         ticket.write(ref.ticket_path)
-        return None
+        return LaunchResult(None)
 
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period", finishing_launch
@@ -1381,7 +1382,8 @@ def test_on_demand_launch_closes_the_same_loop(
         ref,
         record=record,
         template="nightly-check",
-        control_remote_expected=False,
+        interactive=False,
+        agent_override=None,
     )
 
     assert code == 0
@@ -1400,6 +1402,7 @@ def test_an_on_demand_firing_that_eats_its_template_warns_without_autofix(
     optional analyst — not the direct warning.
     """
     from coga import recurring_runner
+    from coga.launch import LaunchResult
 
     from coga.ticket import Ticket
 
@@ -1420,7 +1423,7 @@ def test_an_on_demand_firing_that_eats_its_template_warns_without_autofix(
         ticket = Ticket.read(ref.ticket_path)
         ticket.frontmatter["status"] = "done"
         ticket.write(ref.ticket_path)
-        return None
+        return LaunchResult(None)
 
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period", eats_its_template
@@ -1432,7 +1435,8 @@ def test_an_on_demand_firing_that_eats_its_template_warns_without_autofix(
         ref,
         record=record,
         template="sweeper",
-        control_remote_expected=False,
+        interactive=False,
+        agent_override=None,
     ) == 0
 
     assert [o.result for o in record.outcomes] == ["damaged-template"]
@@ -1448,6 +1452,7 @@ def test_an_on_demand_firing_that_leaves_its_template_alone_is_clean(
 ) -> None:
     """The guard must not turn every on-demand run into a reported problem."""
     from coga import recurring_runner
+    from coga.launch import LaunchResult
 
     from coga.ticket import Ticket
 
@@ -1460,7 +1465,7 @@ def test_an_on_demand_firing_that_leaves_its_template_alone_is_clean(
         ticket = Ticket.read(ref.ticket_path)
         ticket.frontmatter["status"] = "done"
         ticket.write(ref.ticket_path)
-        return None
+        return LaunchResult(None)
 
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period", finishing_launch
@@ -1472,7 +1477,8 @@ def test_an_on_demand_firing_that_leaves_its_template_alone_is_clean(
         ref,
         record=record,
         template="sweeper",
-        control_remote_expected=False,
+        interactive=False,
+        agent_override=None,
     ) == 0
 
     assert [o.result for o in record.outcomes] == ["completed"]
@@ -1484,6 +1490,7 @@ def test_a_refused_on_demand_launch_is_not_a_run(
 ) -> None:
     """A paused or closed template never launched, so there is nothing to analyze."""
     from coga import recurring_runner
+    from coga.launch import LaunchResult
 
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period",
@@ -1496,7 +1503,9 @@ def test_a_refused_on_demand_launch_is_not_a_run(
         cfg_repo,
         ref,
         record=record,
-        control_remote_expected=False,
+        template="nightly-check",
+        interactive=False,
+        agent_override=None,
     ) == 0
     assert record.outcomes == []
 

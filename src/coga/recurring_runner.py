@@ -704,7 +704,9 @@ def run_recurring_all_repos(
         except ConfigError:
             unconfigured += 1
             continue
-        if _refuse_non_owner(cfg):
+        refusal = recurring_owner_refusal(cfg)
+        if refusal is not None:
+            typer.echo(f"{label} — {refusal}", err=True)
             not_owner += 1
             continue
         typer.echo(f"\n[{index}/{len(repos)}] {label}")
@@ -786,6 +788,11 @@ def run_recurring_scan(
     activity = RepoActivity() if force else check_activity(cfg, today)
     if activity.error:
         typer.echo(f"Recurring activity unknown ({activity.error}); treating repo as active.", err=True)
+    if activity.inactive:
+        typer.echo(
+            f"Local ticket activity last recorded {activity.inactive_since} "
+            f"(window {cfg.recurring_idle_days} days)."
+        )
     record = RunRecord(
         started=datetime.now(), repo=cfg.repo_root.name, force=force,
         interactive=interactive, agent_override=agent_override,
@@ -857,7 +864,7 @@ def run_recurring_scan(
                 except (RecurringError, TicketError, TaskValidationError, OSError, *PREPARE_ACTIVE_ERRORS) as exc:
                     typer.echo(f"{task.ref.id_slug}: {exc}", err=True)
                     _record_outcome(
-                        record, _task_outcome(cfg, task.template, task.ref, result="failed", detail=str(exc)),
+                        record, _task_outcome(cfg, task.template, task.ref, result="refused", detail=str(exc)),
                     )
                     failure = failure or 2
             _record_unlaunched_creates(scan, record)

@@ -71,7 +71,7 @@ src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md
-src/coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py
+src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/seed_local_config.py
 src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md

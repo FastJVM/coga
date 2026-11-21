@@ -225,7 +225,7 @@ arguments into one remote shell line; quote each line as a single argument.
 
    ```sh
    ./scripts/clean-install/aws-mac.sh ssh mac1 \
-     'test -d coga-work || git clone https://github.com/FastJVM/coga.git coga-work'
+     'test -d coga-work || git clone https://github.com/FastJVM/coga coga-work'
    ./scripts/clean-install/aws-mac.sh ssh mac1 \
      'cd coga-work && test -z "$(git status --porcelain)" && git fetch origin <full-sha> && git checkout --detach <full-sha> && ~/.local/bin/uv sync --python 3.11 --extra test'
    ```

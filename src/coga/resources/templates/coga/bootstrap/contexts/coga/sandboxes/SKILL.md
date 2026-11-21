@@ -89,3 +89,17 @@ writable_roots = ["<git common dir>"]
   the checkout: Dream's Retro pass puts its linked checkout inside its
   temporary run directory for this reason.
 - The grant takes effect in a new codex session; relaunch after editing it.
+
+### Local configuration in a separate clone
+
+If the primary Git directory is read-only, a separate `git clone --no-hardlinks`
+can give Git writable storage. Use this topic's `seed_local_config.py`
+attachment when a fresh or resumed clone needs the primary workspace's local
+configuration.
+
+```sh
+python seed_local_config.py /primary/repo/coga /feature/repo
+```
+
+The helper verifies the path is ignored and refuses to overwrite another
+actor's configuration. Keep `coga.local.toml` out of Git.

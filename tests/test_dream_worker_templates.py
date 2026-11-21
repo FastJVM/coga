@@ -234,7 +234,7 @@ def test_dream_routes_blackboard_cleanup_to_owner_state_edits() -> None:
     assert "`large-blackboard` and `unsynthesized-draft-blackboard`" in norm
     assert "owner-directed state edits" in norm
     assert "`brief-for-human` draft with no branch or PR requirement" in norm
-    assert "`coga/state-publication`" in norm
+    assert "ordinary Git" in norm
     assert "done tickets follow Phase 4's Retro/retirement split" in norm
     assert "a recurring writer's own state goes to that writer's owner" in norm
     assert "even when an older recipe lists them in `PR Proposal`" in norm
@@ -546,7 +546,7 @@ def test_dream_preflights_agent_capabilities_before_phase_1() -> None:
     assert "then remove it" in section
     assert "A permission-bit check does not count" in section
     assert "never uses a Git lock name" in section
-    assert "`git ls-remote <configured-remote> <configured-control-branch>`" in section
+    assert "`git ls-remote <configured-remote> <base>`" in section
     assert "`gh auth status` succeeds" in section
     assert "the preflight fails before Phase 1" in section
     assert "do not start Phase 1 or any later phase" in section
@@ -642,8 +642,8 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
         .read_text(encoding="utf-8")
         .split()
     )
-    assert "`done` means the work landed; `canceled` means it did not." in lifecycle
-    assert "a ticket whose work did not land must be canceled" in lifecycle
+    assert "Mark abandoned or superseded work `canceled`" in lifecycle
+    assert "records `done` on the branch" in lifecycle
 
 
 def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:
@@ -662,9 +662,8 @@ def test_retro_defines_nothing_unlanded_for_the_caller() -> None:
     """Unpushed commits are unlanded; a landed direct delete's deletion is not."""
     retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
 
-    assert "`git log <remote>/<control-branch>..HEAD` prints nothing" in retro
-    assert "`git diff --name-only <remote>/<control-branch> -- <every listed path>` prints nothing" in retro
-    assert "that is landed, not dirty" in retro
+    assert "`git log <remote>/<base>..HEAD` prints nothing" in retro
+    assert "`git diff --name-only <remote>/<base> -- <every listed path>` prints nothing" in retro
     assert "Leave the isolated checkout clean" not in retro
 
 
