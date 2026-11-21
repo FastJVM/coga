@@ -54,10 +54,8 @@ def completion_identity(
 ) -> tuple[str, str]:
     """Audit actor and finisher for bump/mark done, without granting authority.
 
-    Pass an assist agent only after validating its publication capability.
-    A script may use that capability, but the deterministic work is still
-    credited to system. Task metadata or a configured operator alone says
-    nothing about whether an agent actually ran.
+    The assist identity comes from the launched session environment.
+    Deterministic work is credited to system.
     """
     from coga.bump import OperatorResolutionError, resolve_operator
 

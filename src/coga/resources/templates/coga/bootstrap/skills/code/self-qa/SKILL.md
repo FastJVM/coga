@@ -12,3 +12,4 @@ Record the review method, findings and final verification under
 `## Self-QA` and update the structured `## PR` receipts. Attribute the
 review as self-review and report any check you omitted. Bump once the
 handoff is ready.
+Raise unresolved findings through session conduct.

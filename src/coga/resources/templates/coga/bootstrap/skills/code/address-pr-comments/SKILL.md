@@ -8,3 +8,4 @@ needed and stop if Git refuses. Read the applicable PR comments and ask the
 owner about ambiguous or conflicting requests. Make the requested changes,
 run the applicable checks, and commit and push the fixes and ticket notes
 on the branch. Leave the final bump and merge to the owner.
+A pure prose edit does not require pytest. Run the relevant documentation checks.

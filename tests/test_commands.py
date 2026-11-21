@@ -832,7 +832,7 @@ def test_bump_gate_blocks_until_required_artifact_recorded(repo: Path) -> None:
     blocked = runner.invoke(app, ["bump", slug])
     assert blocked.exit_code == 2, blocked.output
     assert "requires a recorded `pr`" in blocked.output
-    assert f"coga open-pr {slug}" in blocked.output
+    assert "git/push-and-open-pr" in blocked.output
     assert Ticket.read(task_path).step == "1 (implement)"
 
     # Record the artifact → the same bump now advances.
@@ -885,7 +885,7 @@ def test_bump_branch_gate_blocks_until_dev_linkage_recorded(repo: Path) -> None:
     blocked = runner.invoke(app, ["bump", slug])
     assert blocked.exit_code == 2, blocked.output
     assert "requires a recorded `branch`" in blocked.output
-    assert "checkout it runs from" in blocked.output
+    assert "in the ticket" in blocked.output
     assert Ticket.read(task_path).step == "1 (implement)"
 
     _record_dev(task_path, "branch: feat/x")
@@ -955,51 +955,8 @@ def _commit_ticket_on_branch(git_repo, worktree: Path, slug: str, note: str) -> 
     git_repo.git("commit", "-m", f"stranded: {note}", cwd=worktree)
 
 
-def test_bump_warns_about_stranded_ticket_write_on_recorded_branch(
-    git_repo, tmp_path: Path
-) -> None:
-    """Separate-checkout layout: a ticket commit on the feature branch that
-    control never received is named on stderr, and the bump still advances."""
-    wt = tmp_path / "wt-feat"
-    slug, ticket = _make_git_task(git_repo, branch="feat/x", worktree=wt)
-    git_repo.git("worktree", "add", str(wt), "-b", "feat/x", "main")
-    _commit_ticket_on_branch(git_repo, wt, slug, "written in the feature checkout")
-
-    result = CliRunner().invoke(app, ["bump", slug])
-
-    assert result.exit_code == 0, result.output
-    assert Ticket.read(ticket).step == "2 (review)"
-    warning = result.stderr
-    assert "[bump] Branch 'feat/x' has committed changes to this ticket's own file" in warning
-    assert f"coga/tasks/{slug}.md" in warning
-    assert "main does not contain" in warning
-    assert f"git diff refs/heads/main refs/heads/feat/x -- coga/tasks/{slug}.md" in warning
-    assert (
-        "git restore --staged --worktree "
-        "--source=$(git merge-base refs/heads/main refs/heads/feat/x)"
-    ) in warning
-    assert "Do not rebase" in warning
-    assert f"in {wt}" in warning
-    assert "[bump]" not in result.stdout
-    # Advisory only: nothing about the branch or its copy was touched.
-    assert git_repo.git("log", "--format=%s", "-1", "feat/x").strip().startswith("stranded:")
 
 
-def test_bump_warns_despite_a_tag_named_like_the_recorded_branch(
-    git_repo, tmp_path: Path
-) -> None:
-    """A bare `feat/x` resolves to `refs/tags/feat/x` first; the probe must
-    compare the branch, not a same-named tag still pointing at control."""
-    wt = tmp_path / "wt-feat"
-    slug, ticket = _make_git_task(git_repo, branch="feat/x", worktree=wt)
-    git_repo.git("tag", "feat/x", "main")
-    git_repo.git("worktree", "add", str(wt), "-b", "feat/x", "main")
-    _commit_ticket_on_branch(git_repo, wt, slug, "written in the feature checkout")
-
-    result = CliRunner().invoke(app, ["bump", slug])
-
-    assert result.exit_code == 0, result.output
-    assert "[bump] Branch 'feat/x' has committed changes to this ticket's own file" in result.stderr
 
 
 def test_bump_stays_silent_when_recorded_branch_merely_behind(

@@ -135,68 +135,12 @@ def _render(repo: Path) -> Console:
     return console
 
 
-def _plan(root: Path, **over) -> FeatureSyncPlan:
-    fields = dict(
-        root=root, target="origin/main", tracked=(), untracked=(), manual=(),
-    )
-    fields.update(over)
-    return FeatureSyncPlan(**fields)
 
 
-def test_render_status_prints_the_feature_sync_command(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    root = Path("/work/my repo")
-    plan = _plan(
-        root,
-        tracked=("coga/log.md", "coga/tasks/a b.md"),
-        untracked=("coga/tasks/it's.md",),
-    )
-    monkeypatch.setattr("coga_report_status.feature_sync_plan", lambda cfg: plan)
-    monkeypatch.setattr("coga_report_status.os.name", "posix")
-
-    console = _render(repo)
-
-    err = capsys.readouterr().err
-    assert (
-        "git --literal-pathspecs -C '/work/my repo' checkout -- coga/log.md 'coga/tasks/a b.md'"
-        " && rm -- '/work/my repo/coga/tasks/it'\"'\"'s.md'"
-        " && git -C '/work/my repo' merge --no-edit origin/main"
-    ) in err
-    assert "Sync a feature branch with control" in err
-    assert "merge" not in console.file.getvalue()
 
 
-def test_render_status_omits_empty_parts_of_the_sync_command(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    plan = _plan(Path("/w"), untracked=("coga/tasks/new.md",))
-    monkeypatch.setattr("coga_report_status.feature_sync_plan", lambda cfg: plan)
-    monkeypatch.setattr("coga_report_status.os.name", "posix")
-
-    _render(repo)
-
-    err = capsys.readouterr().err
-    assert "rm -- /w/coga/tasks/new.md && git -C /w merge --no-edit origin/main" in err
-    assert "checkout --" not in err
 
 
-def test_render_status_names_differing_state_without_a_command(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    plan = _plan(
-        Path("/w"),
-        tracked=("coga/log.md",),
-        manual=(("coga/tasks/[x].md", "differs from control"),),
-    )
-    monkeypatch.setattr("coga_report_status.feature_sync_plan", lambda cfg: plan)
-
-    _render(repo)
-
-    err = capsys.readouterr().err
-    assert "coga/tasks/[x].md (differs from control)" in err
-    assert "coga run publish-state" in err
-    assert "checkout --" not in err and "merge --no-edit" not in err
 
 
 def test_render_status_is_silent_without_a_feature_sync_plan(

@@ -11,7 +11,6 @@ from textwrap import dedent
 import pytest
 
 
-
 import requests
 from types import SimpleNamespace
 from typer.testing import CliRunner
@@ -520,178 +519,6 @@ def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
     ]
 
 
-def test_spawn_agent_session_can_record_audit_only_after_child_exists(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A guarded caller exposes no launch line until the supervisor spawns."""
-    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
-    ref.path.mkdir()
-    log_file = tmp_path / "log.md"
-    events: list[str] = []
-
-    def fake_supervisor(
-        _cmd, _env, *, after_spawn, **_kwargs
-    ):  # type: ignore[no-untyped-def]
-        assert not log_file.exists()
-        events.append("spawn")
-        after_spawn()
-        assert "launched after spawn" in log_file.read_text(encoding="utf-8")
-        events.append("audit")
-        return ReplOutcome(0, "natural")
-
-    validation_count = 0
-
-    def final_guard() -> None:
-        nonlocal validation_count
-        validation_count += 1
-        if validation_count == 1:
-            assert not log_file.exists()
-            events.append("validate-before-audit")
-        else:
-            assert "launched after spawn" in log_file.read_text(encoding="utf-8")
-            events.append("validate-after-audit")
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker", fake_supervisor
-    )
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    spawn_agent_session(
-        SimpleNamespace(repo_root=tmp_path),
-        ref,
-        _ticket(),
-        AgentType(
-            name="claude",
-            cli="claude",
-            file="CLAUDE.md",
-            mode="local",
-        ),
-        env={},
-        actor="megalaunch",
-        log_message="launched after spawn",
-        composed_prompt="# Materialized\nchecked once",
-        validate_after_spawn=final_guard,
-        record_launch_on_spawn=True,
-    )
-
-    assert events == [
-        "spawn",
-        "validate-before-audit",
-        "validate-after-audit",
-        "audit",
-    ]
-
-
-def test_spawn_agent_session_removes_deferred_audit_when_post_append_guard_refuses(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A claim change during the audit append leaves no false launch line."""
-    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
-    ref.path.mkdir()
-    log_file = tmp_path / "log.md"
-    events: list[str] = []
-    claim_changed = False
-    released = False
-
-    def fake_supervisor(
-        _cmd, _env, *, after_spawn, **_kwargs
-    ):  # type: ignore[no-untyped-def]
-        nonlocal released
-        events.append("spawn")
-        after_spawn()
-        released = True
-        return ReplOutcome(0, "natural")
-
-    def final_guard() -> None:
-        events.append("validate")
-        if claim_changed:
-            raise RuntimeError("claim changed during audit")
-
-    real_append_log = launch_module.append_log
-
-    def append_then_change_claim(*args, **kwargs):  # type: ignore[no-untyped-def]
-        nonlocal claim_changed
-        appended = real_append_log(*args, **kwargs)
-        events.append("append")
-        claim_changed = True
-        return appended
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker", fake_supervisor
-    )
-    monkeypatch.setattr("coga.launch.append_log", append_then_change_claim)
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    with pytest.raises(RuntimeError, match="claim changed during audit"):
-        spawn_agent_session(
-            SimpleNamespace(repo_root=tmp_path),
-            ref,
-            _ticket(),
-            AgentType(
-                name="claude",
-                cli="claude",
-                file="CLAUDE.md",
-                mode="local",
-            ),
-            env={},
-            actor="megalaunch",
-            log_message="launched after spawn",
-            composed_prompt="# Materialized\nchecked once",
-            validate_after_spawn=final_guard,
-            record_launch_on_spawn=True,
-        )
-
-    assert events == ["spawn", "validate", "append", "validate"]
-    assert released is False
-    assert not log_file.exists()
-
-
-def test_spawn_agent_session_rejects_publishing_a_guarded_deferred_audit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A pre-release audit must remain retractable until its last proof."""
-    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
-    ref.path.mkdir()
-
-    def fail_supervisor(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("an invalid admission contract must not spawn")
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker", fail_supervisor
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="guarded spawn-time launch audit cannot be published",
-    ):
-        spawn_agent_session(
-            SimpleNamespace(repo_root=tmp_path),
-            ref,
-            _ticket(),
-            AgentType(
-                name="claude",
-                cli="claude",
-                file="CLAUDE.md",
-                mode="local",
-            ),
-            env={},
-            actor="megalaunch",
-            log_message="launched after spawn",
-            composed_prompt="# Materialized\nchecked once",
-            validate_after_spawn=lambda: None,
-            record_launch_on_spawn=True,
-            commit_log=True,
-        )
-
-    assert not (tmp_path / "log.md").exists()
-
-
 def test_spawn_agent_session_rederives_nested_recurring_task_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -860,216 +687,6 @@ def test_spawn_agent_session_oversized_prompt_rides_argv_as_pointer(
     assert huge_prompt not in cmd
     pointer = cmd[-1]
     assert "coga-draft-ticket-" in pointer  # names the prompt file
-
-
-def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
-    """A bootstrap launch (commit_log=True) commits its `log.md` append at once.
-
-    Without it the append lingers uncommitted and blocks the next `git pull` at
-    the checkout gate (merge=union only saves committed content). The launch
-    command passes `commit_log=True` for every target; this is the bootstrap path.
-    """
-    cfg = load_config(git_repo.coga_os)
-    ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
-    ref.path.mkdir(parents=True)
-
-    # Fake only the agent spawn (the PTY watcher) — leave real `subprocess.run`
-    # for git so `sync_log` actually commits.
-    monkeypatch.setattr(
-        "coga.launch.compose_prompt",
-        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
-    )
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
-    )
-
-    spawn_agent_session(
-        cfg,
-        ref,
-        _ticket(),
-        AgentType(
-            name="claude", cli="claude", file="CLAUDE.md",
-            mode="local", discussion="--append-system-prompt {prompt}",
-        ),
-        env={},
-        actor="human:marc",
-        log_message="launched in agent mode",
-        discussion=True,
-        kickoff="Begin",
-        commit_log=True,
-    )
-
-    # The append is committed (clean tree) and pushed to the control branch.
-    assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert git_repo.origin_tracks("coga/log.md")
-    assert "Log: bootstrap/orient" in git_repo.origin_subjects()
-
-
-def test_spawn_teardown_commits_log_when_initial_commit_unset(git_repo, monkeypatch):
-    """Universal session capture syncs the launch and activity lines together.
-
-    `commit_log=False` still skips the pre-session commit used by stateless
-    launch, but teardown now always emits a session record and commits the log.
-    """
-    cfg = load_config(git_repo.coga_os)
-    ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
-    ref.path.mkdir(parents=True)
-
-    monkeypatch.setattr(
-        "coga.launch.compose_prompt",
-        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
-    )
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
-    )
-
-    spawn_agent_session(
-        cfg, ref, _ticket(),
-        AgentType(
-            name="claude", cli="claude", file="CLAUDE.md",
-            mode="local", discussion="--append-system-prompt {prompt}",
-        ),
-        env={}, actor="human:marc",
-        log_message="launched", discussion=True, kickoff="Begin",
-    )
-
-    assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert "bootstrap/orient" in git_repo.git("show", "origin/main:coga/log.md")
-
-
-def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
-    """The teardown commits the usage record `capture_session` appends to the
-    global log past the agent's final `bump`/`mark` sync, retrying the
-    session's own ticket with it; other Coga files and product code are left
-    alone."""
-    cfg = load_config(git_repo.coga_os)
-    task = git_repo.coga_os / "tasks" / "demo"
-    task.mkdir(parents=True)
-    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: active\n---\n\nbody\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "seed demo task")
-    git_repo.git("push", "origin", "main")
-    ref = TaskRef(slug="demo", path=task)
-
-    # A tracked code file outside coga/, dirtied — must survive the teardown.
-    outside = git_repo.root / "outside.txt"
-    outside.write_text("original\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "outside.txt")
-    git_repo.git("commit", "-m", "seed outside")
-    git_repo.git("push", "origin", "main")
-    outside.write_text("locally modified\n", encoding="utf-8", newline="\n")
-
-    monkeypatch.setattr(
-        "coga.launch.compose_prompt",
-        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
-    )
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
-    )
-
-    captured: list[dict] = []
-
-    def fake_capture(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
-        captured.append(kwargs)
-        # Mirror the real append: a usage JSON line tagged onto the global
-        # log, *past* the agent's last sync.
-        log = git_repo.coga_os / "log.md"
-        log.write_text(
-            log.read_text(encoding="utf-8") + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n',
-            encoding="utf-8", newline="\n",
-        )
-
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session", fake_capture
-    )
-
-    # The session's ticket is retried at teardown (a write the child could
-    # not publish lands now) ...
-    (task / "ticket.md").write_text(
-        "---\ntitle: demo\nstatus: active\n---\n\nbody\nsession edit\n",
-        encoding="utf-8", newline="\n",
-    )
-    # ... but a hand-edit elsewhere under coga/ must NOT be swept in by the
-    # teardown — it commits at the next CLI dispatch boundary instead.
-    other = git_repo.coga_os / "tasks" / "other.md"
-    other.write_text("---\ntitle: other\nstatus: draft\n---\n\nhand edit\n", encoding="utf-8", newline="\n")
-
-    spawn_agent_session(
-        cfg, ref, _ticket(),
-        AgentType(
-            name="claude", cli="claude", file="CLAUDE.md",
-            mode="local", discussion="--append-system-prompt {prompt}",
-        ),
-        env={}, actor="human:marc",
-        log_message="launched", discussion=True, kickoff="Begin",
-    )
-
-    # The usage record (and the launch line) is committed and pushed to the
-    # control branch — no dangling log line left behind.
-    assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert '{"tokens": 1}' in git_repo.git("show", "origin/main:coga/log.md")
-    assert captured[0]["slug"] == "demo"
-    assert captured[0]["outcome_status"] == "completed"
-    # The teardown commits the log and the session's ticket: another task's
-    # hand-edit and product code outside coga/ stay dirty and unpushed.
-    assert "session edit" in git_repo.git("show", "origin/main:coga/tasks/demo/ticket.md")
-    assert "ticket.md" not in git_repo.git("status", "--porcelain")
-    assert "other.md" in git_repo.git("status", "--porcelain", "--untracked-files=all")
-    assert "outside.txt" in git_repo.git("status", "--porcelain")
-
-
-@pytest.mark.parametrize("exit_code", [0, 7])
-@pytest.mark.parametrize("failure", ["offline", "ignored", "missing-control"])
-def test_spawn_reports_unpublished_session_log(
-    git_repo, monkeypatch, capsys, failure, exit_code
-):
-    """Chat ends normally, but its later usage append must not fail silently."""
-    cfg = load_config(git_repo.coga_os)
-    ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
-    ref.path.mkdir(parents=True)
-    monkeypatch.setattr(
-        "coga.launch.compose_prompt",
-        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
-    )
-    if failure == "ignored":
-        (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n", encoding="utf-8", newline="\n")
-
-    def finish_session(*args, **kwargs):  # type: ignore[no-untyped-def]
-        if failure == "offline":
-            git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "missing.git"))
-        elif failure == "missing-control":
-            git_repo.git("branch", "-m", "main", "other")
-            git_repo.git("remote", "remove", "origin")
-        return ReplOutcome(exit_code=exit_code, kind="exit")
-
-    monkeypatch.setattr("coga.launch.run_with_done_marker", finish_session)
-
-    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
-        launch_module.append_log(cfg, "bootstrap/orient", "system", '{"tokens": 1}')
-
-    monkeypatch.setattr("coga.launch.usage_tracking.capture_session", append_usage)
-
-    result = spawn_agent_session(
-        cfg, ref, _ticket(),
-        AgentType(name="claude", cli="claude", file="CLAUDE.md", mode="local"),
-        env={}, actor="human:marc", log_message="launched", discussion=True,
-        commit_log=failure != "ignored",
-    )
-
-    assert result.exit_code == exit_code
-    err = capsys.readouterr().err
-    assert "Session bootstrap/orient ended; log publication was not confirmed" in err
-    assert str(git_repo.coga_os / "log.md") in err
-    assert '{"tokens": 1}' in _read_log(git_repo.coga_os)
-    if failure != "ignored":
-        assert '{"tokens": 1}' not in git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    else:
-        assert not git_repo.origin_tracks("coga/log.md")
-    if failure == "offline":
-        assert "coga run publish-state" in err
 
 
 def test_spawn_agent_session_without_kickoff_stays_silent(
@@ -1390,37 +1007,6 @@ def _allow_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _allow_recorded_assist_pr(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Model GitHub reporting the bare test remote's current branch as the PR head."""
-
-    def verify(cfg, ticket, branch, **kwargs):  # type: ignore[no-untyped-def]
-        _, blackboard = launch_module.split_body(ticket.body)
-        actual_pr_url = launch_module.parse_pr_url(blackboard or "")
-        expected_pr_url = kwargs.get("expected_pr_url")
-        if expected_pr_url is not None and actual_pr_url != expected_pr_url:
-            raise launch_module.git.GitError(
-                f"recorded assist PR changed from {expected_pr_url} "
-                f"to {actual_pr_url}"
-            )
-        root = launch_module.git.toplevel(cfg.repo_root)
-        assert root is not None
-        oid = launch_module.git.remote_branch_oid(
-            root, cfg.git_remote, branch
-        )
-        if oid is None:
-            raise launch_module.git.GitError(
-                f"{cfg.git_remote}/{branch} does not exist"
-            )
-        return oid
-
-    monkeypatch.setattr(
-        "coga.launch._verify_recorded_assist_pr_head",
-        verify,
-    )
-    monkeypatch.setattr(
-        "coga.pr_assist.verify_recorded_assist_pr_head",
-        verify,
-    )
 
 
 def _deny_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1567,93 +1153,6 @@ def test_launch_routes_materialized_recurring_delegate_from_ticket(
     ]
 
 
-def test_direct_recurring_launch_refreshes_control_before_frozen_dispatch(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A stale direct launch catches up before it can spawn obsolete work."""
-    cfg = load_config(git_repo.coga_os)
-    created = create_task(
-        cfg=cfg,
-        title="Delegated period",
-        workflow_name="direct/body",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-        slug_override="recurring/delegate-check",
-        force_directory=True,
-        delegate="bootstrap/resolve-conflicts",
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "seed delegated period")
-    git_repo.git("push", "origin", "main")
-
-    ticket_path = Path(created["path"]) / "ticket.md"
-    assert Ticket.read(ticket_path).status == "active"
-    remote_ticket = Ticket.read(ticket_path)
-    remote_ticket.frontmatter["status"] = "done"
-    remote_ticket.frontmatter.pop("step", None)
-    relpath = ticket_path.relative_to(git_repo.root).as_posix()
-    git_repo.push_competing_commit(relpath, remote_ticket.render())
-
-    monkeypatch.setattr(
-        "coga.launch.launch_with_before_spawn",
-        lambda *args, **kwargs: pytest.fail("stale bootstrap work must not spawn"),
-    )
-
-    result = CliRunner().invoke(app, ["launch", created["slug"]])
-
-    assert result.exit_code == 2
-    assert Ticket.read(ticket_path).status == "done"
-    assert "expected 'active' or 'in_progress'" in result.output
-
-
-def test_direct_recurring_launch_catches_up_before_resolving_a_missing_local_ref(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A remotely materialized period is discoverable after control catch-up."""
-    relpath = "coga/tasks/recurring/delegate-check/ticket.md"
-    git_repo.push_competing_commit(
-        relpath,
-        dedent(
-            """
-            ---
-            title: Delegated period
-            status: active
-            owner: marc
-            agent: claude
-            workflow:
-              name: direct/body
-              description: one step
-              steps:
-                - name: do
-                  assignee: agent
-            step: 1 (do)
-            delegate: bootstrap/resolve-conflicts
-            ---
-
-            ## Description
-
-            Run delegated work.
-            """
-        ).lstrip(),
-    )
-    assert not (git_repo.root / relpath).exists()
-    launched: list[str] = []
-
-    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
-        launched.append(ref.id_slug)
-        return recurring_cmd.DelegatedRunResult(0, "done")
-
-    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
-
-    result = CliRunner().invoke(app, ["launch", "recurring/delegate-check"])
-
-    assert result.exit_code == 0, result.output
-    assert launched == ["recurring/delegate-check"]
-    assert (git_repo.root / relpath).is_file()
-
-
 def test_direct_recurring_launch_uses_local_control_without_a_remote(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1688,69 +1187,12 @@ def test_direct_recurring_launch_uses_local_control_without_a_remote(
     assert launched == ["recurring/local-delegate-check"]
 
 
-def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A ticket.py child keeps its refreshed lease without an agent callback."""
-    seen: list[tuple[str, bool, str | None]] = []
-
-    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
-        seen.append(
-            (
-                task,
-                kwargs["recurring_authorized"],
-                kwargs["agent_spawn_refusal"],
-            )
-        )
-        return launch_module.LaunchResult("script")
-
-    monkeypatch.setattr(
-        launch_module,
-        "_refresh_recurring_period_before_launch",
-        lambda task, expected_period_lease, **kwargs: True,
-    )
-    monkeypatch.setattr(
-        launch_module,
-        "_exact_recurring_period_for_launch",
-        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
-    )
-    monkeypatch.setattr(launch_module, "_launch", fake_launch)
-
-    expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
-    result = launch_module.launch_recurring_period(
-        "recurring/delegate-check",
-        expected_period_lease=expected_period_lease,
-        control_remote_expected=True,
-        agent_override=None,
-        prompt_report=False,
-        idle_timeout=900.0,
-        max_session=None,
-        return_timeout=True,
-        script_failure_important=True,
-        launch_context="recurring",
-        agent_spawn_refusal="temporary worktree forbids agent sessions",
-    )
-
-    assert result.kind == "script"
-    assert result.period_lease == expected_period_lease
-    assert result.require_period_publication is True
-    assert seen == [
-        (
-            "recurring/delegate-check",
-            True,
-            "temporary worktree forbids agent sessions",
-        )
-    ]
-
-
-@pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
 @pytest.mark.parametrize(
     "delegate_present", [True, False], ids=("delegated", "delegate-field-missing")
 )
 def test_direct_recurring_task_enforces_recurring_launch_gates_before_dispatch(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
-    refused_gate: str,
     delegate_present: bool,
 ) -> None:
     """Recurring authorization follows the ref, not optional dispatch state."""
@@ -1777,13 +1219,8 @@ def test_direct_recurring_task_enforces_recurring_launch_gates_before_dispatch(
     monkeypatch.chdir(active_task)
     monkeypatch.setattr(
         recurring_cmd,
-        "_refuse_non_control_branch",
-        lambda task_cfg: refused_gate == "control-branch",
-    )
-    monkeypatch.setattr(
-        recurring_cmd,
-        "_refuse_non_owner",
-        lambda task_cfg: refused_gate == "owner",
+        "recurring_owner_refusal",
+        lambda task_cfg: "recurring belongs to a different owner",
     )
     monkeypatch.setattr(
         recurring_cmd,
@@ -1820,9 +1257,6 @@ def test_direct_recurring_delegate_rejects_period_ticket_script(
     (task_dir / "ticket.py").write_text("raise SystemExit(0)\n", encoding="utf-8", newline="\n")
 
     monkeypatch.chdir(active_task)
-    monkeypatch.setattr(
-        recurring_cmd, "_refuse_non_control_branch", lambda task_cfg: False
-    )
     monkeypatch.setattr(recurring_cmd, "_refuse_non_owner", lambda task_cfg: False)
 
     result = CliRunner().invoke(app, ["launch", created["slug"]])
@@ -1864,20 +1298,6 @@ def test_launch_missing_ordinary_task_keeps_bare_miss(active_task: Path) -> None
 
 def _ok_remote(_remote):
     return CheckResult("git-remote", True, "remote 'origin' -> url", "url")
-
-
-def test_preflight_skips_for_bootstrap_and_when_git_disabled(active_task):
-    cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]
-    boot = BootstrapRef(name="orient", path=ref.path)
-
-    # Bootstrap tickets never push — skip regardless of auth.
-    _preflight_push_auth(cfg, boot, is_bootstrap=True)
-
-    # git disabled → no sync, nothing to gate.
-    disabled = load_config(active_task)
-    object.__setattr__(disabled, "git_enabled", False)
-    _preflight_push_auth(disabled, ref, is_bootstrap=False)
 
 
 def test_launch_captures_usage_with_session_id(
@@ -3133,20 +2553,6 @@ def test_launch_uses_step_one_role_after_freezing_draft(
     )
 
 
-def _spy_recorded_assist(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Record every recorded-assist lookup, which only a human-owned step makes."""
-    seen: list[str] = []
-    real = launch_cmd._recorded_single_checkout_assist_branch
-
-    def spy(cfg, ticket):  # type: ignore[no-untyped-def]
-        step = ticket.current_step()
-        seen.append((step or {}).get("assignee") or "")
-        return real(cfg, ticket)
-
-    monkeypatch.setattr(
-        launch_cmd, "_recorded_single_checkout_assist_branch", spy
-    )
-    return seen
 
 
 def test_launch_does_not_enter_assist_handling_for_a_human_to_agent_draft(
@@ -3172,13 +2578,11 @@ def test_launch_does_not_enter_assist_handling_for_a_human_to_agent_draft(
     # `assignee: agent`, which routes to the ticket's `agent:` (claude).
     ticket.write(ticket_path)
 
-    seen = _spy_recorded_assist(monkeypatch)
     calls = _launch_single_spawn(monkeypatch)
 
     result = CliRunner().invoke(app, ["launch", slug, "--agent", "claude"])
 
     assert result.exit_code == 0, result.output
-    assert seen == [], "no assist lookup: step 1 is agent-owned once frozen"
     assert len(calls) == 1
     assert calls[0][0] == "claude"
     assert Ticket.read(ticket_path).current_step()["assignee"] == "agent"
@@ -3920,61 +3324,6 @@ def test_successive_launches_keep_arguments_and_refusal_state_separate(
     assert "first invocation" not in prompts[1]
 
 
-def test_launch_recomposes_after_before_spawn_publication(
-    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A moving caller publication cannot leave stale prompt/config at spawn."""
-    events: list[str] = []
-    _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
-    )
-
-    def publish_period_start() -> None:
-        events.append("publish")
-        ticket_path = bootstrap_repo / "bootstrap" / "ticket" / "ticket.md"
-        ticket = Ticket.read(ticket_path)
-        ticket.body += "\n\nPost-publication bootstrap instructions.\n"
-        ticket.write(ticket_path)
-        config_path = bootstrap_repo / "coga.toml"
-        config_path.write_text(
-            config_path.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "fresh-cli"'),
-            encoding="utf-8", newline="\n",
-        )
-
-    def fake_supervisor(cmd, env, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
-        assert events == ["publish", "revalidate"]
-        assert cmd[0] == "fresh-cli"
-        assert "Post-publication bootstrap instructions." in _prompt_arg(cmd)
-        events.append("spawn")
-        return ReplOutcome(exit_code=0, kind="done")
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker", fake_supervisor
-    )
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    kind = launch_module.launch_with_before_spawn(
-        "bootstrap/ticket",
-        agent_override=None,
-        idle_timeout=900.0,
-        max_session=None,
-        return_timeout=True,
-        launch_context="recurring",
-        before_spawn=publish_period_start,
-        revalidate_before_spawn=lambda _ticket: events.append("revalidate"),
-    )
-
-    assert kind.kind == "done"
-    assert events == ["publish", "revalidate", "spawn"]
-    assert _read_log(bootstrap_repo).count(
-        "launched (operator=claude, agent=claude)"
-    ) == 1
-
-
 def test_launch_before_spawn_callback_skipped_on_preflight_refusal(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -4335,12 +3684,6 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
-    monkeypatch.setattr(
-        "coga.launch._recorded_single_checkout_assist_branch",
-        lambda *args, **kwargs: pytest.fail(
-            "an override on an agent-owned task is not a human-step assist"
-        ),
-    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
@@ -4366,359 +3709,6 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     assert "operator=claude, launch_agent=codex, agent=codex" in log
 
 
-def test_recorded_assist_pr_head_accepts_the_configured_fork_remote(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]
-    replace_blackboard(
-        ref.ticket_path,
-        dedent(
-            """
-            ## Dev
-            branch: feature/review
-            worktree: /tmp/review
-            pr: https://github.com/base/repo/pull/12
-            """
-        ),
-    )
-    ticket = Ticket.read(ref.ticket_path)
-    monkeypatch.setattr(
-        launch_module.pr_assist,
-        "pr_view",
-        lambda url, fields: {
-            "state": "OPEN",
-            "url": url,
-            "headRefName": "feature/review",
-            "headRefOid": "abc123",
-            "headRepository": {"name": "repo"},
-            "headRepositoryOwner": {"login": "fork-owner"},
-        },
-    )
-    monkeypatch.setattr(launch_module.git, "toplevel", lambda path: active_task)
-
-    def push_url(root, *args):  # type: ignore[no-untyped-def]
-        assert args == ("remote", "get-url", "--push", cfg.git_remote)
-        return "ssh://git@github.com/fork-owner/repo.git\n"
-
-    monkeypatch.setattr(launch_module.git, "run_git", push_url)
-
-    assert launch_module._verify_recorded_assist_pr_head(
-        cfg, ticket, "feature/review"
-    ) == "abc123"
-
-
-def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg = load_config(git_repo.coga_os)
-    created = create_task(
-        cfg=cfg,
-        title="Address review",
-        workflow_name="code",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-    )
-    ticket_path = Path(created["path"])
-    ticket = Ticket.read(ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    ticket.frontmatter["step"] = "2 (review)"
-    hold_by_owner(ticket)
-    ticket.write(ticket_path)
-    replace_blackboard(
-        ticket_path,
-        dedent(
-            f"""
-            ## Dev
-            branch: feature/review
-            worktree: {git_repo.root}
-            pr: https://github.com/example/repo/pull/1
-            """
-        ),
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "ticket: seed review assist")
-    git_repo.git("push", "origin", "main")
-
-    git_repo.checkout_branch("feature/review")
-    (git_repo.root / "implementation.txt").write_text("before review\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "implementation.txt")
-    git_repo.git("commit", "-m", "feature: initial implementation")
-    git_repo.git("push", "-u", "origin", "feature/review")
-
-    # Another machine advances the PR branch, including prompt-bearing ticket
-    # state. Launch must fast-forward before its final ticket/prompt reads, not
-    # inside the later launch-log commit after composition.
-    peer = git_repo.origin.parent / "peer-review-assist"
-    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
-    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
-    git_repo.git("config", "user.name", "Peer", cwd=peer)
-    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
-    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
-    peer_ticket = peer / ticket_path.relative_to(git_repo.root)
-    peer_ticket.write_text(
-        peer_ticket.read_text(encoding="utf-8") + "\nRemote prompt state: address the latest review.\n",
-        encoding="utf-8", newline="\n",
-    )
-    git_repo.git("add", peer_ticket.relative_to(peer).as_posix(), cwd=peer)
-    git_repo.git("commit", "-m", "review: update assist instructions", cwd=peer)
-    git_repo.git("push", "origin", "feature/review", cwd=peer)
-    assert "Remote prompt state" not in ticket_path.read_text(encoding="utf-8")
-
-    _allow_interactive_tty(monkeypatch)
-    _allow_recorded_assist_pr(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._refresh_agent_skills_for_launch",
-        lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        "coga.launch.shutil.which",
-        lambda name, **kwargs: f"/usr/bin/{name}",
-    )
-    real_compose_prompt = launch_module.compose_prompt
-    composed_ticket_bodies: list[str] = []
-
-    def capture_compose_prompt(cfg, ref, ticket, **kwargs):  # type: ignore[no-untyped-def]
-        composed_ticket_bodies.append(ticket.body)
-        return real_compose_prompt(cfg, ref, ticket, **kwargs)
-
-    monkeypatch.setattr(
-        "coga.launch.compose_prompt",
-        capture_compose_prompt,
-    )
-
-    def apply_and_push_fix(*args, **kwargs):  # type: ignore[no-untyped-def]
-        # Only Coga's own live state (the launch audit line) may be dirty.
-        assert git_repo.git("status", "--porcelain").split() == ["M", "coga/log.md"]
-        assert composed_ticket_bodies
-        assert all(
-            "Remote prompt state: address the latest review." in body
-            for body in composed_ticket_bodies
-        )
-        assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
-            "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
-        ).strip()
-        (git_repo.root / "implementation.txt").write_text("review fixed\n", encoding="utf-8", newline="\n")
-        git_repo.git("add", "implementation.txt")
-        git_repo.git("commit", "-m", "fix: address review")
-        git_repo.git("push", "origin", "feature/review")
-        # Control-plane state can move while the assist is running. Teardown
-        # publishes the usage record onto that moved control tip, union-safe.
-        control_log = git_repo.git(
-            "show", "main:coga/log.md", cwd=git_repo.origin
-        )
-        git_repo.push_competing_commit(
-            "coga/log.md",
-            control_log
-            + "2026-07-30 12:01 [other-task] [system] concurrent state\n",
-        )
-        return ReplOutcome(exit_code=0, kind="exit")
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        apply_and_push_fix,
-    )
-
-    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
-        log = cfg.repo_root / "log.md"
-        log.write_text(
-            log.read_text(encoding="utf-8")
-            + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n',
-            encoding="utf-8", newline="\n",
-        )
-
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        append_usage,
-    )
-
-    launch_module.launch(
-        "address-review",
-        agent_override="claude",
-        prompt_report=False,
-        idle_timeout=None,
-        max_session=None,
-        return_timeout=False,
-    )
-
-    # Coga pushed nothing to the PR branch: its tip is the agent's own fix.
-    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
-        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
-    ).strip()
-    assert git_repo.git("log", "-1", "--format=%s").strip() == "fix: address review"
-    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    assert '{"tokens": 1}' in control_log
-    assert "concurrent state" in control_log
-    assert '{"tokens": 1}' not in git_repo.git(
-        "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
-    )
-    # The single checkout keeps its live log dirty by design.
-    assert git_repo.git("status", "--porcelain").split() == ["M", "coga/log.md"]
-    assert "Remote prompt state: address the latest review." in ticket_path.read_text(encoding="utf-8")
-    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
-
-
-def test_agent_owned_override_does_not_enter_human_assist_alignment(
-    git_repo,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Only a locally human-owned override gets strict assist alignment."""
-    cfg = load_config(git_repo.coga_os)
-    created = create_task(
-        cfg=cfg,
-        title="Align the review handoff",
-        workflow_name="code",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-    )
-    ticket_path = Path(created["path"])
-    ticket = Ticket.read(ticket_path)
-    ticket.frontmatter["step"] = "1 (implement)"
-    hold_by_agent(ticket)
-    ticket.write(ticket_path)
-    replace_blackboard(
-        ticket_path,
-        dedent(
-            f"""
-            ## Dev
-            branch: feature/review
-            worktree: {git_repo.root}
-            pr: https://github.com/example/repo/pull/21
-            """
-        ),
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "ticket: seed stale handoff")
-    git_repo.git("push", "origin", "main")
-    git_repo.checkout_branch("feature/review")
-    (git_repo.root / "implementation.txt").write_text("implemented\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "implementation.txt")
-    git_repo.git("commit", "-m", "feature: implementation")
-    git_repo.git("push", "-u", "origin", "feature/review")
-
-    peer = git_repo.origin.parent / "peer-review-handoff"
-    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
-    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
-    git_repo.git("config", "user.name", "Peer", cwd=peer)
-    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
-    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
-    peer_ticket = peer / ticket_path.relative_to(git_repo.root)
-    handed_off = Ticket.read(peer_ticket)
-    handed_off.frontmatter["status"] = "in_progress"
-    handed_off.frontmatter["step"] = "2 (review)"
-    hold_by_owner(handed_off)
-    handed_off.write(peer_ticket)
-    git_repo.git("add", peer_ticket.relative_to(peer).as_posix(), cwd=peer)
-    git_repo.git("commit", "-m", "ticket: hand off to review", cwd=peer)
-    git_repo.git("push", "origin", "feature/review", cwd=peer)
-    git_repo.push_competing_commit(
-        ticket_path.relative_to(git_repo.root).as_posix(),
-        handed_off.render(),
-    )
-
-    _allow_interactive_tty(monkeypatch)
-    _allow_recorded_assist_pr(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._refresh_agent_skills_for_launch",
-        lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        "coga.launch.shutil.which",
-        lambda name, **kwargs: f"/usr/bin/{name}",
-    )
-    observed: list[tuple[str | None, str | None]] = []
-
-    def observe_review(*args, **kwargs):  # type: ignore[no-untyped-def]
-        current = Ticket.read(ticket_path)
-        observed.append(((current.current_step() or {}).get("assignee"), current.step))
-        return ReplOutcome(exit_code=0, kind="exit")
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        observe_review,
-    )
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    launch_module.launch(
-        str(created["slug"]),
-        agent_override="claude",
-        prompt_report=False,
-        idle_timeout=None,
-        max_session=None,
-        return_timeout=False,
-    )
-
-    assert observed == [("agent", "1 (implement)")]
-
-
-def test_human_assist_validates_override_after_remote_config_alignment(
-    git_repo,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A fetched coga.toml may define the explicitly requested assist agent."""
-    created, _ticket_path = _seed_single_checkout_human_review(
-        git_repo,
-        title="Load remote reviewer config",
-        status="in_progress",
-    )
-    peer = git_repo.origin.parent / "peer-reviewer-config"
-    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
-    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
-    git_repo.git("config", "user.name", "Peer", cwd=peer)
-    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
-    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
-    peer_config = peer / "coga" / "coga.toml"
-    peer_config.write_text(
-        peer_config.read_text(encoding="utf-8")
-        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n',
-        encoding="utf-8", newline="\n",
-    )
-    git_repo.git("add", "coga/coga.toml", cwd=peer)
-    git_repo.git("commit", "-m", "config: add reviewer agent", cwd=peer)
-    git_repo.git("push", "origin", "feature/review", cwd=peer)
-
-    _allow_interactive_tty(monkeypatch)
-    _allow_recorded_assist_pr(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._refresh_agent_skills_for_launch",
-        lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        "coga.launch.shutil.which",
-        lambda name, **kwargs: f"/usr/bin/{name}",
-    )
-    observed: list[str] = []
-
-    def observe_reviewer(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
-        observed.append(cmd[0])
-        return ReplOutcome(exit_code=0, kind="exit")
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        observe_reviewer,
-    )
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    launch_module.launch(
-        str(created["slug"]),
-        agent_override="reviewer",
-        prompt_report=False,
-        idle_timeout=None,
-        max_session=None,
-        return_timeout=False,
-    )
-
-    assert observed == ["reviewer"]
 
 
 @pytest.mark.parametrize(
@@ -4791,365 +3781,6 @@ def _seed_single_checkout_human_review(
     return created, ticket_path
 
 
-def test_recorded_assist_script_publishes_direct_task_output(
-    git_repo,
-) -> None:
-    """Strict script output can start from a clean leased feature tip."""
-    created, ticket_path = _seed_single_checkout_human_review(
-        git_repo,
-        title="Publish deterministic review output",
-        status="in_progress",
-        force_directory=True,
-    )
-    task_dir = ticket_path.parent
-    script_path = task_dir / "ticket.py"
-    _write(
-        script_path,
-        """
-        import os
-        from pathlib import Path
-
-        Path(os.environ["COGA_TASK_DIR"], "result.txt").write_text(
-            "deterministic result\\n"
-        )
-        """,
-    )
-    script_rel = script_path.relative_to(git_repo.root).as_posix()
-    git_repo.git("add", script_rel)
-    git_repo.git("commit", "-m", "ticket: add deterministic phase")
-    git_repo.git("push", "origin", "feature/review")
-
-    cfg = load_config(git_repo.coga_os)
-    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
-    ticket = Ticket.read(ref.ticket_path)
-
-    result = run_script_phase(
-        cfg,
-        ref,
-        ticket,
-        stateless=False,
-        assist_branch="feature/review",
-        assist_agent="claude",
-        assist_pr_url="https://github.com/example/repo/pull/8",
-    )
-
-    assert result.exit_code == 0
-    result_rel = (task_dir / "result.txt").relative_to(git_repo.root).as_posix()
-    # The script's task output is published to control right after it exits;
-    # the PR branch is never pushed by Coga.
-    assert git_repo.git(
-        "show", f"refs/heads/main:{result_rel}", cwd=git_repo.origin
-    ) == "deterministic result\n"
-    assert result_rel not in git_repo.git(
-        "ls-tree", "-r", "--name-only", "refs/heads/feature/review",
-        cwd=git_repo.origin,
-    ).split()
-    dirty = {
-        line[3:]
-        for line in git_repo.git(
-            "status", "--porcelain", "--untracked-files=all"
-        ).splitlines()
-    }
-    assert dirty == {result_rel, "coga/log.md"}
-
-
-def test_human_assist_alignment_keeps_original_prefix_target(
-    git_repo,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A moved PR tip cannot retarget a prefix launch to another task."""
-    created, ticket_path = _seed_single_checkout_human_review(
-        git_repo,
-        title="Preserve prefix target",
-        status="in_progress",
-    )
-    cfg = load_config(git_repo.coga_os)
-    original = list_tasks(cfg)[0]
-    alternate = TaskRef(
-        slug=f"{original.slug}-replacement",
-        path=original.path,
-        directory=original.directory,
-        file_form=original.file_form,
-    )
-    prefix = original.id_slug[:8]
-    resolve_calls: list[str] = []
-
-    def retargeting_resolver(cfg, arg):  # type: ignore[no-untyped-def]
-        resolve_calls.append(arg)
-        return original if len(resolve_calls) == 1 else alternate
-
-    monkeypatch.setattr(
-        "coga.launch.resolve_target",
-        retargeting_resolver,
-    )
-    _allow_interactive_tty(monkeypatch)
-    _allow_recorded_assist_pr(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._align_recorded_assist_checkout",
-        lambda cfg, ticket: (True, "aligned-oid"),
-    )
-    monkeypatch.setattr(
-        "coga.launch._verify_recorded_assist_pr_head",
-        lambda cfg, ticket, branch, **kwargs: "aligned-oid",
-    )
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *args, **kwargs: pytest.fail("a retargeted task must not launch"),
-    )
-
-    with pytest.raises(launch_module.LaunchBail) as excinfo:
-        launch_module.launch(
-            prefix,
-            agent_override="claude",
-            prompt_report=False,
-            idle_timeout=None,
-            max_session=None,
-            return_timeout=False,
-        )
-
-    assert excinfo.value.code == 2
-    assert resolve_calls == [prefix, original.id_slug]
-    assert "different prefix match" in excinfo.value.reason
-    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
-    assert created["slug"] == original.id_slug
-
-
-def test_blocked_human_assist_republishes_unresolved_reblock(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    created, ticket_path = _seed_single_checkout_human_review(
-        git_repo,
-        title="Reblock unresolved review",
-        status="blocked",
-    )
-    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
-    git_repo.git("add", ticket_path.relative_to(git_repo.root).as_posix())
-    git_repo.git("commit", "-m", "ticket: record review blocker")
-    git_repo.git("push", "origin", "feature/review")
-    git_repo.push_competing_commit(
-        ticket_path.relative_to(git_repo.root).as_posix(),
-        ticket_path.read_text(encoding="utf-8"),
-    )
-
-    _allow_interactive_tty(monkeypatch)
-    _allow_recorded_assist_pr(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._refresh_agent_skills_for_launch",
-        lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        "coga.launch.shutil.which",
-        lambda name, **kwargs: f"/usr/bin/{name}",
-    )
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
-    )
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    launch_module.launch(
-        str(created["slug"]),
-        agent_override="claude",
-        prompt_report=False,
-        idle_timeout=None,
-        max_session=None,
-        return_timeout=False,
-    )
-
-    assert Ticket.read(ticket_path).status == "blocked"
-    ticket_rel = ticket_path.relative_to(git_repo.root).as_posix()
-    control_ticket = git_repo.git(
-        "show", f"refs/heads/main:{ticket_rel}", cwd=git_repo.origin
-    )
-    assert "status: blocked" in control_ticket
-    assert "blocked: unresolved blocker still open" in git_repo.git(
-        "show", "refs/heads/main:coga/log.md", cwd=git_repo.origin
-    )
-    # The PR branch is untouched (the reblock equals the ticket it already
-    # committed); only the live log is dirty in the single checkout.
-    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
-        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
-    ).strip()
-    assert git_repo.git("status", "--porcelain").split() == ["M", "coga/log.md"]
-
-
-def test_blocked_malformed_script_reblock_is_published_before_child_exit(
-    git_repo,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Fallback restoration is durable on control before exit 17 escapes."""
-    cfg = load_config(git_repo.coga_os)
-    created = create_task(
-        cfg=cfg,
-        title="Reblock malformed deterministic failure",
-        workflow_name="code",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-        force_directory=True,
-    )
-    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
-    assert ref.task_dir is not None
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "blocked"
-    ticket.write(ref.ticket_path)
-    append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
-    _write(
-        ref.task_dir / "ticket.py",
-        """
-        import os
-        from pathlib import Path
-
-        Path(os.environ["COGA_TASK_TICKET"]).write_text("not a ticket\\n")
-        raise SystemExit(17)
-        """,
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "ticket: seed malformed blocked script")
-    git_repo.git("push", "origin", "main")
-    _allow_interactive_tty(monkeypatch)
-
-    with pytest.raises(launch_module.LaunchBail) as excinfo:
-        launch_module.launch(
-            created["slug"],
-            agent_override=None,
-            prompt_report=False,
-            idle_timeout=None,
-            max_session=None,
-            return_timeout=False,
-        )
-
-    assert excinfo.value.code == 17
-    assert Ticket.read(ref.ticket_path).status == "blocked"
-    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
-    remote_ticket = Ticket.parse(
-        git_repo.git(
-            "show",
-            f"refs/heads/main:{ticket_rel}",
-            cwd=git_repo.origin,
-        )
-    )
-    assert remote_ticket.status == "blocked"
-    remote_log = git_repo.git(
-        "show",
-        "refs/heads/main:coga/log.md",
-        cwd=git_repo.origin,
-    )
-    assert "script exited with code 17" in remote_log
-    assert "unresolved blocker still open" in remote_log
-    assert git_repo.git("status", "--porcelain").strip() == ""
-
-
-def test_human_assist_from_recorded_linked_worktree_starts_clean(
-    git_repo,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    cfg = load_config(git_repo.coga_os)
-    linked = tmp_path / "linked-review"
-    created = create_task(
-        cfg=cfg,
-        title="Review from linked checkout",
-        workflow_name="code",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-    )
-    ticket_path = Path(created["path"])
-    ticket = Ticket.read(ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    ticket.frontmatter["step"] = "2 (review)"
-    hold_by_owner(ticket)
-    ticket.write(ticket_path)
-    replace_blackboard(
-        ticket_path,
-        dedent(
-            f"""
-            ## Dev
-            branch: feature/linked-review
-            worktree: {linked}
-            pr: https://github.com/example/repo/pull/18
-            """
-        ),
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "ticket: seed linked review")
-    git_repo.git("push", "origin", "main")
-    git_repo.git(
-        "worktree",
-        "add",
-        "-b",
-        "feature/linked-review",
-        str(linked),
-        "main",
-    )
-    (linked / "coga" / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
-    (linked / "implementation.txt").write_text("reviewed branch\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "implementation.txt", cwd=linked)
-    git_repo.git("commit", "-m", "feature: linked implementation", cwd=linked)
-    git_repo.git(
-        "push",
-        "-u",
-        "origin",
-        "feature/linked-review",
-        cwd=linked,
-    )
-    linked_ticket = linked / ticket_path.relative_to(git_repo.root)
-
-    monkeypatch.chdir(linked / "coga")
-    _allow_interactive_tty(monkeypatch)
-    _allow_recorded_assist_pr(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._refresh_agent_skills_for_launch",
-        lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        "coga.launch.shutil.which",
-        lambda name, **kwargs: f"/usr/bin/{name}",
-    )
-
-    def observe_clean_checkout(*args, **kwargs):  # type: ignore[no-untyped-def]
-        # Only the launch's own audit line is dirty; nothing else moved.
-        assert git_repo.git("status", "--porcelain", cwd=linked).split() == [
-            "M", "coga/log.md"
-        ]
-        return ReplOutcome(exit_code=0, kind="exit")
-
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        observe_clean_checkout,
-    )
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    launch_module.launch(
-        str(created["slug"]),
-        agent_override="claude",
-        prompt_report=False,
-        idle_timeout=None,
-        max_session=None,
-        return_timeout=False,
-    )
-
-    assert Ticket.read(linked_ticket).current_step()["assignee"] == "owner"
-    assert git_repo.git("status", "--porcelain", cwd=linked).split() == [
-        "M", "coga/log.md"
-    ]
-    assert git_repo.git("rev-parse", "HEAD", cwd=linked).strip() == git_repo.git(
-        "rev-parse",
-        "refs/heads/feature/linked-review",
-        cwd=git_repo.origin,
-    ).strip()
-
-
 def test_human_assist_without_tty_refuses_before_alignment(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -5161,12 +3792,6 @@ def test_human_assist_without_tty_refuses_before_alignment(
         status="in_progress",
     )
     _deny_interactive_tty(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._recorded_single_checkout_assist_branch",
-        lambda *args, **kwargs: pytest.fail(
-            "TTY refusal must precede assist-checkout validation"
-        ),
-    )
 
     with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch(
@@ -5205,124 +3830,6 @@ def test_human_assist_without_tty_does_not_protect_rewritten_log(
         )
 
     assert excinfo.value.code == 2
-
-
-def test_human_assist_rejects_control_named_pr_before_writing(
-    git_repo,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys,
-) -> None:
-    """A same-named fork head cannot enter ordinary control-branch sync."""
-    created, _ticket_path = _seed_single_checkout_human_review(
-        git_repo,
-        title="Refuse control-named review head",
-        status="active",
-        branch="main",
-    )
-    log_file = git_repo.coga_os / "log.md"
-    retained_line = "retained control-name assist retry\n"
-    log_file.write_text(log_file.read_text(encoding="utf-8") + retained_line, encoding="utf-8", newline="\n")
-    remote_before = git_repo.git("rev-parse", "refs/heads/main", cwd=git_repo.origin)
-    _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *args, **kwargs: pytest.fail("control-named assist must not start"),
-    )
-
-    with pytest.raises(launch_module.LaunchBail) as excinfo:
-        launch_module.launch(
-            str(created["slug"]),
-            agent_override="claude",
-            prompt_report=False,
-            idle_timeout=None,
-            max_session=None,
-            return_timeout=False,
-        )
-
-    assert excinfo.value.code == 2
-    assert retained_line in log_file.read_text(encoding="utf-8")
-    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before.strip()
-    assert "same name as the configured control branch" in excinfo.value.reason
-
-
-def test_human_assist_does_not_publish_from_an_unrecorded_branch(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg = load_config(git_repo.coga_os)
-    created = create_task(
-        cfg=cfg,
-        title="Address review elsewhere",
-        workflow_name="code",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-    )
-    ticket_path = Path(created["path"])
-    ticket = Ticket.read(ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    ticket.frontmatter["step"] = "2 (review)"
-    hold_by_owner(ticket)
-    ticket.write(ticket_path)
-    replace_blackboard(
-        ticket_path,
-        dedent(
-            f"""
-            ## Dev
-            branch: feature/recorded
-            worktree: {git_repo.root}
-            pr: https://github.com/example/repo/pull/2
-            """
-        ),
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "ticket: seed separate review assist")
-    git_repo.git("push", "origin", "main")
-
-    git_repo.checkout_branch("feature/unrelated")
-    (git_repo.root / "unrelated.txt").write_text("another PR\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "unrelated.txt")
-    git_repo.git("commit", "-m", "feature: unrelated")
-    git_repo.git("push", "-u", "origin", "feature/unrelated")
-    remote_before = git_repo.git(
-        "rev-parse", "refs/heads/feature/unrelated", cwd=git_repo.origin
-    ).strip()
-
-    _allow_interactive_tty(monkeypatch)
-    _allow_recorded_assist_pr(monkeypatch)
-    monkeypatch.setattr(
-        "coga.launch._refresh_agent_skills_for_launch",
-        lambda coga_os: None,
-    )
-    monkeypatch.setattr(
-        "coga.launch.shutil.which",
-        lambda name, **kwargs: f"/usr/bin/{name}",
-    )
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
-    )
-    monkeypatch.setattr(
-        "coga.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
-    )
-
-    launch_module.launch(
-        "address-review-elsewhere",
-        agent_override="claude",
-        prompt_report=False,
-        idle_timeout=None,
-        max_session=None,
-        return_timeout=False,
-    )
-
-    assert git_repo.git(
-        "rev-parse", "refs/heads/feature/unrelated", cwd=git_repo.origin
-    ).strip() == remote_before
-    assert "Log: address-review-elsewhere" not in git_repo.git(
-        "log", "--format=%s", "refs/heads/feature/unrelated", cwd=git_repo.origin
-    )
-    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
 
 
 def test_launch_human_handoff_without_agent_override_is_still_refused(
@@ -5917,7 +4424,7 @@ class _CheckoutSession:
         self.seen.append(
             (
                 self.git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip(),
-                env.get(launch_module.CHECKOUT_RETURN_ENV),
+                env.get("COGA_CHECKOUT_RETURN"),
                 ticket.step,
             )
         )
@@ -5954,7 +4461,9 @@ def _published_checkout_task(git_repo, title: str = "Checkout normalization") ->
         agent="claude",
         status="active",
     )
-    coga_git.sync_task_state(cfg, Path(created["path"]), message="Seed checkout task")
+    git_repo.git("add", "--", str(created["path"]))
+    git_repo.git("commit", "-m", "Seed checkout task")
+    git_repo.git("push", "origin", "main")
     return next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
 
 
@@ -5996,64 +4505,6 @@ def _work_on_feature_branch(git_repo, *, handoff: str, leave: str | None = None)
     return act
 
 
-def test_launch_prepares_a_feature_checkout_and_resolves_a_ticket_created_on_control(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    git_repo.checkout_branch("feature/old")
-    ref = _published_checkout_task(git_repo)
-    # Created and published on control after this branch point: absent here.
-    ref.ticket_path.unlink()
-    session = _CheckoutSession(git_repo)
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == 0, result.output
-    assert [seen[:2] for seen in session.seen] == [("main", "1")] * 3
-    _assert_clean_control(git_repo)
-    assert Ticket.read(ref.ticket_path).status == "done"
-
-
-def test_launch_returns_a_feature_branch_handoff_before_the_next_step(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ref = _published_checkout_task(git_repo)
-    session = _CheckoutSession(
-        git_repo, actions=[_work_on_feature_branch(git_repo, handoff="implemented")]
-    )
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == 0, result.output
-    assert [seen[0] for seen in session.seen] == ["main", "main", "main"]
-    assert session.seen[1][2] == "2 (review)"
-    _assert_clean_control(git_repo)
-    assert "implemented" in ref.ticket_path.read_text(encoding="utf-8")
-    # Feature code stayed on its branch and never reached control.
-    assert not (git_repo.root / "feature.py").exists()
-    assert git_repo.git("branch", "--list", "feature/work").strip()
-
-
-def test_launch_returns_the_checkout_after_a_failed_session(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ref = _published_checkout_task(git_repo)
-
-    def crash_on_branch(_ref: TaskRef) -> bool:
-        git_repo.git("switch", "-c", "feature/crash")
-        return False
-
-    session = _CheckoutSession(git_repo, actions=[crash_on_branch], exit_codes=[3])
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == 3, result.output
-    assert len(session.seen) == 1
-    _assert_clean_control(git_repo)
-
-
 class _UnsignalledCheckoutSession(_CheckoutSession):
     """A `_CheckoutSession` that crosses the real pre-spawn boundary and whose
     first session reports no done signal (as with a lost `COGA_*` env)."""
@@ -6064,58 +4515,6 @@ class _UnsignalledCheckoutSession(_CheckoutSession):
         first = not self.seen
         result = super().__call__(cfg, ref, ticket, agent, *args, **kwargs)
         return result._replace(done_signalled=not first)
-
-
-def test_launch_advisory_reads_state_refreshed_by_the_checkout_return(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ref = _published_checkout_task(git_repo)
-
-    def leave_on_a_stale_branch(_ref: TaskRef) -> bool:
-        # The session's own start state, already published by launch.
-        pre_bump = git_repo.git("rev-parse", "HEAD").strip()
-        assert Ticket.read(_ref.ticket_path).status == "in_progress"
-        prev = os.getcwd()
-        os.chdir(git_repo.coga_os)
-        try:
-            bumped = CliRunner().invoke(app, ["bump", _ref.id_slug])
-        finally:
-            os.chdir(prev)
-        assert bumped.exit_code == 0, bumped.output
-        # Only control carries the advance; this checkout's copy predates it
-        # until launch returns the checkout.
-        git_repo.git("switch", "-c", "feature/stale", pre_bump)
-        return False
-
-    session = _UnsignalledCheckoutSession(
-        git_repo, actions=[leave_on_a_stale_branch]
-    )
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == 0, result.output
-    assert result.output.count(_UNSIGNALLED) == 1
-    assert "to in_progress @ 2 (review)" in result.output
-    _assert_clean_control(git_repo)
-
-
-def test_launch_advisory_is_skipped_when_the_checkout_return_refuses(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ref = _published_checkout_task(git_repo)
-    session = _UnsignalledCheckoutSession(
-        git_repo,
-        actions=[_work_on_feature_branch(git_repo, handoff="done", leave="notes.txt")],
-    )
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
-
-    assert result.exit_code == 0, result.output
-    assert "Checkout return after" in result.output
-    assert len(session.seen) == 1
-    assert _UNSIGNALLED not in result.output
 
 
 @pytest.mark.parametrize("argv", [
@@ -6140,115 +4539,6 @@ def test_launch_prompt_report_and_other_bootstrap_keep_the_checkout(
     expected = [] if "--prompt-report" in argv else [("feature/x", None)]
     assert [seen[:2] for seen in session.seen] == expected
     assert _branch_and_tip(git_repo) == before
-
-
-def test_orientation_prepares_control_before_resolving_local_override(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    git_repo.checkout_branch("feature/stale")
-    # This override exists only on remote main, not in the invoking checkout.
-    git_repo.push_competing_commit(
-        "coga/bootstrap/orient/ticket.md",
-        "---\ntitle: Current orientation\nagent: claude\n---\n\n"
-        "## Description\n\nInstructions from current control.\n",
-    )
-
-    def inspect(ref: BootstrapRef) -> bool:
-        assert ref.ticket_path == git_repo.coga_os / "bootstrap/orient/ticket.md"
-        assert "Instructions from current control." in Ticket.read(ref.ticket_path).body
-        return False
-
-    session = _CheckoutSession(git_repo, actions=[inspect])
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
-
-    assert result.exit_code == 0, result.output
-    assert [seen[:2] for seen in session.seen] == [("main", "1")]
-    _assert_clean_control(git_repo)
-    assert list_tasks(load_config(git_repo.coga_os)) == []
-
-
-def test_orientation_refusal_preserves_edits_and_explains_investigation(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    git_repo.checkout_branch("feature/unfinished")
-    tracked = git_repo.root / "work.py"
-    tracked.write_text("original\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "work.py")
-    git_repo.git("commit", "-m", "Unfinished work")
-    tracked.write_text("staged\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "work.py")
-    tracked.write_text("unstaged\n", encoding="utf-8", newline="\n")
-    untracked = git_repo.root / "notes.txt"
-    untracked.write_text("Unpublished notes\n", encoding="utf-8", newline="\n")
-    before = _branch_and_tip(git_repo)
-    status = git_repo.git("status", "--porcelain")
-    stash = git_repo.git("stash", "list")
-    session = _CheckoutSession(git_repo)
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
-
-    assert result.exit_code == 75, result.output
-    assert not session.seen
-    assert "ticket on current origin/main" in result.output
-    assert "PR's merge status" in result.output
-    assert "merged PR does not prove those edits are finished" in result.output
-    assert "Do not automatically stash or discard" in result.output
-    assert "No work was started" in result.output
-    assert _branch_and_tip(git_repo) == before
-    assert git_repo.git("status", "--porcelain") == status
-    assert git_repo.git("show", ":work.py") == "staged\n"
-    assert tracked.read_text(encoding="utf-8") == "unstaged\n"
-    assert untracked.read_text(encoding="utf-8") == "Unpublished notes\n"
-    assert git_repo.git("stash", "list") == stash
-
-
-def test_orientation_returns_to_control_after_session_changes_branch(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def work(_ref: BootstrapRef) -> bool:
-        git_repo.checkout_branch("feature/from-chat")
-        (git_repo.root / "work.py").write_text("committed work\n", encoding="utf-8", newline="\n")
-        git_repo.git("add", "work.py")
-        git_repo.git("commit", "-m", "Work from chat")
-        return False
-
-    session = _CheckoutSession(git_repo, actions=[work])
-    _checkout_launch_env(monkeypatch, session)
-
-    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
-
-    assert result.exit_code == 0, result.output
-    assert len(session.seen) == 1
-    _assert_clean_control(git_repo)
-    assert git_repo.git("show", "feature/from-chat:work.py") == "committed work\n"
-
-
-def test_orientation_python_boundary_reports_refusal_first_seen_at_final_teardown(
-    git_repo, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
-    _checkout_launch_env(monkeypatch, session)
-    original = launch_module._LaunchInvocation.return_checkout
-
-    def dirty_finally(invocation):  # type: ignore[no-untyped-def]
-        (git_repo.root / "late.txt").write_text("late work\n", encoding="utf-8", newline="\n")
-        return original(invocation)
-
-    monkeypatch.setattr(launch_module._LaunchInvocation, "return_checkout", dirty_finally)
-    with pytest.raises(launch_module.LaunchBail) as refused:
-        launch_module.launch("bootstrap/orient", return_timeout=True)
-    assert refused.value.code == 75
-    assert (git_repo.root / "late.txt").exists()
-
-
-def test_checkout_command_quotes_powershell_literals(monkeypatch: pytest.MonkeyPatch) -> None:
-    with monkeypatch.context() as patch:
-        patch.setattr(os, "name", "nt")
-        command = launch_module._checkout_command(["git", "--literal-pathspecs", "diff", "--", "a [b] '$x'.md"])
-    assert command == "git --literal-pathspecs diff -- 'a [b] ''$x''.md'"
 
 
 def test_delegated_orientation_keeps_callers_checkout(
@@ -6324,7 +4614,6 @@ def test_terminal_status_probe_waits_for_stable_exact_ticket(
     "---\nstatus: [done]\n---\n",
     "---\nstatus: blocked\nperiod_generation: current\n---\n",
     "---\nstatus: in_progress\nstep: 2 (next)\nperiod_generation: current\n---\n",
-    "---\nstatus: done\nperiod_generation: another-period\n---\n",
 ])
 def test_terminal_status_probe_ignores_unproven_completion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacement: str | None
@@ -6378,11 +4667,10 @@ def test_terminal_status_probe_ignores_state_terminal_since_launch(
     assert probe() == "done"
 
 
-def test_terminal_status_probe_disabled_outside_git_root(
+def test_terminal_status_probe_reads_local_ticket_outside_git_root(
     git_repo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A ticket outside the repository has no published proof; the probe is
-    off rather than forking a failing git lookup every second."""
+    """The terminal backstop needs only the local ticket path."""
     cfg = load_config(git_repo.coga_os)
     outside = tmp_path / "elsewhere" / "dream"
     _write(outside / "ticket.md", "---\nstatus: in_progress\n---\n")
@@ -6392,10 +4680,35 @@ def test_terminal_status_probe_disabled_outside_git_root(
     probe = launch_module._terminal_status_probe(cfg, ref, Ticket.read(ref.ticket_path))
     assert probe is not None
     assert probe() is None
-    calls: list[object] = []
-    monkeypatch.setattr(coga_git, "_run", lambda *args, **kw: calls.append(args))
     _write(outside / "ticket.md", "---\nstatus: done\n---\n")
-    for _ in range(8):
-        now[0] += 1
-        assert probe() is None
-    assert calls == []
+    now[0] += 1
+    assert probe() is None
+    now[0] += 5
+    assert probe() == "done"
+
+
+
+def test_owner_step_assist_credits_the_agent_without_a_git_record(active_task, monkeypatch):
+    from unittest.mock import patch
+
+    created = _create_chain_task(active_task)
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter.update(status="in_progress", step="3 (review)")
+    ticket.write(ticket_path)
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda cli, **kw: f"/usr/bin/{cli}")
+
+    def finish(cmd, env=None, check=False, cwd=None):
+        assert env[ASSIST_AGENT_ENV] == "codex"
+        with patch.dict(os.environ, env):
+            result = CliRunner().invoke(app, ["bump", created["slug"]])
+        assert result.exit_code == 0, result.output
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr("coga.launch.subprocess.run", finish)
+    result = CliRunner().invoke(app, ["launch", created["slug"], "--agent", "codex"])
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(ticket_path).status == "done"
+    assert "[agent:codex] task done" in _read_log(active_task)

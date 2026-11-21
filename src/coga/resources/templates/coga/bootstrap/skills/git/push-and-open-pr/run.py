@@ -17,6 +17,7 @@ import yaml
 from coga_edge.git_workflow import changed_paths, commit_state, git_output
 from coga.repl_supervisor import SENTINEL_ENV, deferred_done_marker, emit_done_marker
 from coga.blackboard import read_dev_fields, set_dev_fields
+from coga.github_source import github_repository_identity
 from coga.taskfile import TaskFileError, body_sections, read_blackboard, replace_blackboard, split_body
 from coga.ticket import Ticket, TicketError
 
@@ -299,10 +300,10 @@ def _digest(value: str) -> str:
     return hashlib.sha256(value.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
-def _lookup_pr(branch: str, cwd: str) -> dict | None:
+def _lookup_pr(branch: str, cwd: str, gh_env: dict[str, str]) -> dict | None:
     result = subprocess.run(
         ["gh", "pr", "view", branch, "--json", "url,state,isDraft,baseRefName"],
-        cwd=cwd, text=True, capture_output=True,
+        cwd=cwd, env=gh_env, text=True, capture_output=True,
     )
     if result.returncode == 1 and not result.stdout.strip() and re.fullmatch(
         r'no pull requests found for branch ".+"', result.stderr.strip(),
@@ -323,6 +324,7 @@ def _lookup_pr(branch: str, cwd: str) -> dict | None:
 
 def _create_pr(
     cwd: str, base: str, remote: str, branch: str, slug: str, path: Path, checked_head: str,
+    gh_env: dict[str, str],
 ) -> str:
     ticket = Ticket.parse(path.read_text(encoding="utf-8"))
     above, region = split_body(ticket.body)
@@ -333,7 +335,7 @@ def _create_pr(
         body_path.write_text(body, encoding="utf-8", newline="\n")
         return subprocess.check_output(
             ["gh", "pr", "create", "--head", branch, "--base", base, "--title", title, "--body-file", str(body_path)],
-            cwd=cwd, text=True,
+            cwd=cwd, env=gh_env, text=True,
         ).strip()
 
 
@@ -361,15 +363,22 @@ def run() -> int:
         dirty = sorted(set(changed_paths(cwd)) - set(paths))
         if dirty:
             raise OpenPrError("Commit your work first: " + ", ".join(dirty))
+        push_urls = git_output("remote", "get-url", "--push", "--all", remote, cwd=cwd).splitlines()
+        if len(push_urls) != 1:
+            raise OpenPrError(f"Expected one push URL for {remote!r}")
+        gh_env = dict(os.environ)
+        repository = github_repository_identity(push_urls[0])
+        if repository is not None:
+            gh_env["GH_REPO"] = "/".join(repository)
         checked_head = git_output("rev-parse", "HEAD", cwd=cwd)
         commit_state(cwd, paths)
         push = ["git", "push", "-u", "--", remote, "HEAD"]
         subprocess.run(push, cwd=cwd, check=True)
-        existing = _lookup_pr(branch, cwd)
+        existing = _lookup_pr(branch, cwd, gh_env)
         if existing is None:
             if fields.get("pr"):
                 raise OpenPrError("Recorded PR was not found for the current branch")
-            url = _create_pr(cwd, base, remote, branch, slug, path, checked_head)
+            url = _create_pr(cwd, base, remote, branch, slug, path, checked_head, gh_env)
         else:
             url = existing["url"]
             if existing["state"] != "OPEN" or existing["baseRefName"] != base:
@@ -380,7 +389,7 @@ def run() -> int:
         if read_dev_fields(updated).get("pr") != url:
             raise OpenPrError(f"Expected a full PR URL, got {url!r}")
         if existing and existing["isDraft"]:
-            subprocess.run(["gh", "pr", "ready", url], cwd=cwd, check=True)
+            subprocess.run(["gh", "pr", "ready", url], cwd=cwd, env=gh_env, check=True)
         replace_blackboard(path, updated)
         if Ticket.read(path).step == expected_step:
             subprocess.run(

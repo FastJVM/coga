@@ -23,7 +23,6 @@ from textwrap import dedent
 import pytest
 
 from coga.repl_supervisor import (
-    CHECKOUT_RETURN_ENV,
     EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -41,7 +40,6 @@ from coga.task_env import TASK_ENV_KEYS
 LAUNCH_OWNED_ENV = (
     SENTINEL_ENV,
     "COGA_SUPERVISED",
-    CHECKOUT_RETURN_ENV,
     EXPECTED_TASK_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_AGENT_ENV,

@@ -8,6 +8,8 @@ description: Implement and verify the change on the ticket branch.
    local or packaged `git/open-branch/run.py --no-bump` with the ticket
    environment. Keep the current `implement` step open. If a branch is
    already recorded, switch to it if needed and stop if Git refuses.
+   When adding codebase facts to `## Context`, cite the module and symbol
+   and describe how it affects the ticket.
 2. Implement the requested behavior and update its canonical documentation.
    Use repo-native tests and supporting fixtures. Run the repo's required
    checks and retain their actual commands and results.
