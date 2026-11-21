@@ -1,6 +1,6 @@
 ---
 title: Launch on a stale feature branch leaves projected ticket and log.md dirty
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,7 +36,6 @@ workflow:
     assignee: owner
 step: 2 (evaluate-design)
 agent: claude
-launch_generation: cb1c7f16-79cd-40e5-b5f7-243ac128be5c
 ---
 
 ## Description
@@ -275,3 +274,9 @@ ordinary ticket.
    05 can be canceled as superseded rather than adding a dedicated
    regression test. Recommended: keep it. The test is small and pins the
    exact field failure.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-20 17:21] [agent:codex] id=20261120T172106 Relaunch evaluate-design from a clean, current main checkout. The supplied checkout is on refresh-v1-microkernel-readmes-after-retro, holding unmerged commit 258ca14c7 for refresh-the-v1-microkernel-task-readmes-after-the (in progress, no linked PR). The unstaged ticket and log files matched fetched origin/main before blocking. Preserve the implementation branch and its commit when returning to main.
