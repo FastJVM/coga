@@ -127,76 +127,6 @@ def test_secret_argument_streams(
         assert "Usage:" in result.stderr
 
 
-@pytest.mark.parametrize("outcome", ["success", "failure", "missing"])
-def test_secret_main_preserves_parent_auth_without_side_effects(
-    repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    outcome: str,
-) -> None:
-    import os
-    from coga import cli, config
-
-    # No user, agent config or terminal; dirty task/log/report/usage files must
-    # remain byte-identical. All credentials and provider output are fake.
-    (repo / "coga.local.toml").unlink()
-    _write(repo / "coga.toml", "version = 1\n")
-    for name in ("tasks/dirty.md", "log.md", "report.md", "usage.jsonl"):
-        path = repo / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("unfinished operator edits\n", encoding="utf-8")
-    before = {p.relative_to(repo): p.read_bytes() for p in repo.rglob("*") if p.is_file()}
-    token = "FAKE_OPERATOR_AUTH_SUPPORT_07"
-    sentinel = "FAKE_RESOLVED_VALUE_SUPPORT_07"
-    auth = {
-        "OP_SERVICE_ACCOUNT_TOKEN": token,
-        "OP_CONNECT_TOKEN": token,
-        "OP_CONNECT_HOST": "https://fake.invalid",
-        "OP_SESSION_support07": token,
-    }
-    for name, value in auth.items():
-        monkeypatch.setenv(name, value)
-    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr(cli, "_register_alias_placeholder", lambda *_: None)
-    monkeypatch.setattr("sys.argv", ["coga", "secret", "get", "op://Fake/item/field"])
-
-    def forbidden(*args, **kwargs):
-        raise AssertionError("secret query crossed a launch/publication boundary")
-
-    for target in (
-        "coga.compose.compose_prompt", "coga.compose.compose_prompt_report",
-        "coga.logfile.append_log", "coga.notification.post", "coga.notification.notify",
-        "coga.usage.append_record", "coga.git.publish", "coga.git.refresh",
-        "coga.launch._report", "coga.agent_skills.refresh_agent_skill_view",
-    ):
-        monkeypatch.setattr(target, forbidden)
-
-    def fake_run(argv, **kwargs):
-        assert argv == ["op", "read", "op://Fake/item/field"]
-        effective = kwargs.get("env", os.environ)
-        assert all(effective.get(k) == v for k, v in auth.items())
-        if outcome == "missing":
-            raise FileNotFoundError("fake op absent")
-        return subprocess.CompletedProcess(
-            argv, 0 if outcome == "success" else 1,
-            stdout=sentinel + "\n", stderr="fake provider refused",
-        )
-
-    monkeypatch.setattr(config.subprocess, "run", fake_run)
-    with pytest.raises(SystemExit) as exc:
-        cli.main()
-    captured = capsys.readouterr()
-    assert exc.value.code == (0 if outcome == "success" else 2)
-    assert captured.out == (sentinel + "\n" if outcome == "success" else "")
-    assert sentinel not in captured.err
-    assert token not in captured.out + captured.err
-    assert {p.relative_to(repo): p.read_bytes() for p in repo.rglob("*") if p.is_file()} == before
-    # The same auth is deliberately absent from an ordinary task child.
-    child = config.build_launch_env(None, [])
-    assert all(k not in child for k in auth)
-
-
 @pytest.mark.parametrize("success", [False, True])
 def test_secret_subprocess_in_dirty_repo_keeps_auth_and_separate_streams(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, success: bool
@@ -328,13 +258,3 @@ def test_secret_main_names_non_utf8_shared_config_without_resolving(
     assert "Invalid TOML in" in captured.err
     assert "coga.toml" in captured.err
     assert "MUST_NOT_RESOLVE_SUPPORT07" not in captured.err
-
-
-@pytest.mark.parametrize(
-    "argv",
-    [["coga", "secret"], ["coga", "secret", "get", "env:X"], ["coga", "secret", "--help"]],
-)
-def test_secret_never_sweeps_coga_state(argv: list[str]) -> None:
-    from coga import cli
-
-    assert cli._should_sweep_coga_state(argv) is False

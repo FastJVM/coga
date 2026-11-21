@@ -8,7 +8,6 @@ from textwrap import dedent
 
 import pytest
 
-from coga import git as git_module
 from coga_edge.blocker_reminders import (
     record_reminder,
     remind_blocked_tasks,
@@ -233,57 +232,6 @@ def test_remind_blocked_tasks_posts_once_and_records_watermark(
 
     assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 11, 0)) == 0
     assert len(posts) == 1
-
-
-def test_reminder_watermark_waits_until_held_child_release(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A reminder cannot change prompt bytes inside final spawn admission."""
-    slug = _task_with_blocker(repo)
-    cfg = load_config(repo)
-    ref = resolve_task(cfg, slug)
-    reminder = scan_blocker_reminders(cfg)[0]
-    attempted = threading.Event()
-    finished = threading.Event()
-    results: list[bool] = []
-    errors: list[BaseException] = []
-    real_barrier = git_module.state_lock
-
-    @contextmanager
-    def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
-        attempted.set()
-        with real_barrier(cfg_):
-            yield
-
-    monkeypatch.setattr(git_module, "state_lock", observed_barrier)
-
-    def write_watermark() -> None:
-        try:
-            results.append(
-                record_reminder(
-                    cfg,
-                    ref.ticket_path,
-                    reminder.fingerprint,
-                    now=datetime(2026, 6, 30, 10, 0),
-                )
-            )
-        except BaseException as exc:
-            errors.append(exc)
-        finally:
-            finished.set()
-
-    worker = threading.Thread(target=write_watermark)
-    with real_barrier(cfg):
-        worker.start()
-        assert attempted.wait(timeout=5)
-        assert not finished.wait(timeout=0.1)
-        assert reminder.fingerprint not in read_blackboard(ref.ticket_path)
-
-    worker.join(timeout=5)
-    assert not worker.is_alive()
-    assert errors == []
-    assert results == [True]
-    assert reminder.fingerprint in read_blackboard(ref.ticket_path)
 
 
 def test_resolved_blockers_are_not_reminded(

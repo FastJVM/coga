@@ -5,7 +5,6 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: a33073f6-35fc-4cb0-9752-6bc7c62631f6
 workflow:
   name: direct/body
   steps:

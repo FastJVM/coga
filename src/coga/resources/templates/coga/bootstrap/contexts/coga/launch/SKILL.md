@@ -11,24 +11,13 @@ the attended path: a human typed it. Queue draining is `coga megalaunch`
 
 ## Targets
 
-- A task by any unique prefix of its ref. A nested task is its path under
-  `tasks/` (`marketing/coga-crm`), exactly as `coga status` prints it.
-- `bootstrap/<name>` — a stateless target: no lifecycle or chaining.
-  An agent launch log line publishes immediately; sessions in one checkout still
-  share its branch and files.
-  `coga chat` is the default alias for `launch bootstrap/orient`.
-- A `recurring/<name>` period is gated first (control branch, owner,
-  verified control catch-up, exit 75 when stale) and a frozen `delegate:`
-  period routes straight to its bootstrap target; see
-  [recurring delegation](../recurring/delegation/SKILL.md) and
-  [scheduling](../recurring/scheduling/SKILL.md).
+`coga launch <task>` opens the current step of a local ticket. A
+`bootstrap/<name>` target is a stateless command or discussion ticket.
+`recurring/<name>` is a period task with the repo's recurring owner policy.
+A frozen recurring delegate routes through its bootstrap target.
 
-Trailing positional arguments reach an agent prompt as an ordered JSON
-`## Launch arguments` block, and a bootstrap `ticket.py` as its argv. A
-stateful `ticket.py` target refuses them
-([script tickets](../script-tickets/SKILL.md)). That topic also owns stateless
-script help without repo/user setup, separator handling, no agent fallback
-after a script disappears, and foreground interrupt delivery.
+Launch works in the invoking checkout. A workflow can use an explicit Git
+script to switch branches. [Git](../git/SKILL.md) owns those steps.
 
 ## Read-only command dispatch
 
@@ -74,122 +63,46 @@ same valid repo configuration: outside a repository, or with a broken
 `coga.toml`, `coga status --help` refuses with exit 2 like any other read
 (owner decision, 2026-11-16, accepted over a package-only help fallback).
 
-## Checkout boundary
-
-Ordinary task launches and direct chats prepare current control before
-running ticket work and return there between phases and at teardown.
-Refreshed files supply subsequent routing and prompts; a target gone from
-control ends the chain. [coga/checkouts/launch-boundary](../checkouts/launch-boundary/SKILL.md)
-owns the preparation and return procedure, refusals, recovery, and exemptions;
-[coga/checkouts/chat](../checkouts/chat/SKILL.md) owns direct-chat occupancy.
-
-Each agent step then uses the [checkout policy](../checkouts/SKILL.md)
-before spawning; script phases precede that branch setup. The
-[runtime checkout notice](../prompt-composition/SKILL.md#layer-order)
-identifies the prepared checkout and who returns it.
-
 ## Status is the signal
 
-There is no task-ownership mutex: `status` says whether someone is working.
-Launch accepts `active` and `in_progress` directly (an `in_progress` resume
-does not flip status again). Launching `draft` or `paused` *is* the readiness
-decision: activation runs inline with the same refusals as `coga mark active`
-(no workflow, unfreezable `workflow:`, empty required extension field,
-unsynthesized authoring notes, unavailable main agent). On the agent path the
-activation is prepared in memory and its durable write is deferred until every
-refusing preflight passes. Ordinary managed startup publishes the final start
-with its linkage and audit; its [retained-state failure contract](../checkouts/launch-boundary/SKILL.md)
-distinguishes preparation refusal from unconfirmed publication. A
-`ticket.py` path activates just before the script runs, because running user
-code is already work starting. `done` and `canceled` are refused untouched.
+Draft and paused tickets activate after readiness checks. Active tickets
+move to `in_progress` as execution starts. Terminal tickets refuse launch.
 
-`blocked` resumes only from an interactive TTY and only when open asks exist;
-the prompt gains the resolve-or-re-block preamble (`coga/prompt-composition`).
-If the session, script, or any preflight ends with the ask still open, launch
-puts the ticket back to `blocked` (restoring the step a script transition
-cleared) so blocker queues keep reporting it. TTY-less launches of a blocked
-ticket are refused until `coga unblock`.
-
-After each started agent session exits — cleanly, by timeout, with an
-error, or by a handled interrupt — launch and megalaunch publish the ticket
-with the log from the invoking checkout, outside the child's sandbox, before
-rereading it to decide whether to chain. A lifecycle write the child could not
-publish lands then, or is confirmed as already landed
-([state publication](../state-publication/SKILL.md#when-coga-publishes)).
-
-Divergent workers are visible and recoverable in git; a lock's stale state
-is not. Megalaunch's claim and the local state lock are not ownership locks
-([launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md)).
+A blocked agent ticket can launch from an attended terminal with the
+blocker-resolution preamble. Its status stays `blocked` until an answer is
+recorded. A blocked script requires an answer before launching. See
+[lifecycle](../lifecycle/SKILL.md).
 
 ## Phases and routing
 
-A directory ticket with the exact sibling `ticket.py` runs it headlessly
-first ([script tickets](../script-tickets/SKILL.md)). Only an agent phase
-composes a prompt and requires stdin and stdout to both be TTYs.
-
-The operator is derived, never stored per step, from `owner`, the frozen
-main-agent choice, and the step's `assignee:` role
-([coga/workflows](../workflows/SKILL.md)). An owner-held step is a hard
-handoff and launch refuses it. `--agent <type>` selects a configured agent
-for this launch only and never rewrites the ticket. On an owner step it is
-the human assist ([human assist](../human-assist/SKILL.md)); on an agent step
-it is an ordinary override that continues only while the first and each
-directly following step *explicitly* declare `assignee: agent`. An omitted
-role, `owner`, or `other-agent` ends it for the rest of the launch. An
-override cannot repair invalid routing inputs. On an override of an
-agent-held step, a supervised lifecycle line's `[agent:<name>]` credits the
-CLI the supervisor actually spawned, override included, not the configured
-operator. An assist's attribution is owned by
-[coga/human-assist](../human-assist/SKILL.md).
+First, launch resolves the current step and any deterministic phase. A step
+with `run:` selects that script. Other steps use the ticket's `ticket.py`
+when present. The script can advance the step or leave agent work open.
+If the step routes to the owner, launch stops at that handoff. An explicit
+`--agent` can start a human-step assist, with audit attribution to the
+selected agent. [Script tickets](../script-tickets/SKILL.md) and
+[human assist](../human-assist/SKILL.md) own the details.
 
 ## Agent preflight order
 
-Agent type and CLI lookup, prompt-layer resolution (every context, skill,
-step, and resource the spawn will compose is resolved and read; a missing or
-unreadable layer refuses), declared secrets, the native Windows command-line
-check (below), push auth (`git push --dry-run`; skipped for
-bootstrap targets, `[git].enabled = false`, or no resolvable remote).
-Resolution assembles no prompt: the first step composes exactly once, around
-the layers already read, from the ticket it actually starts on and its
-checkout notice, re-resolving only if that ticket selects different contexts,
-skills, or step. Ordinary managed agent-only launches compose after planning
-checkout policy and reserving/creating or validating the branch, from the
-prospective final ticket and checkout notice; other launches compose at
-spawn. Source-ticket, policy, branch occupancy, ignored-path, and
-stranded-ticket checks precede every startup write. Activation/start, linkage,
-and audit publish together; fetched control must confirm the ticket contract
-before checkout entry and execution. Compatible owner notes are recomposed;
-changed lifecycle, routing, policy, or branch identity refuses. The successful
-start notification (`▶️`) follows confirmed publication and checkout entry,
-so a reported delivery failure does not invalidate the clean-control proof.
-Other paths retain their existing startup sequence, as classified in
-[publication boundaries](../state-publication/launch-boundaries/SKILL.md).
-Launch never probes `gh` for PR state
-(`coga autoclose` handles merged PRs). Git runs non-interactively, so a
-credential-less remote fails fast; this entry gate is fatal, while a later
-mid-session sync miss is reported and non-fatal.
+For an agent phase, launch resolves the operator, checks the terminal and
+agent CLI, resolves secrets, and prepares the prompt before starting the
+session. Windows command packaging and terminal support belong to the
+agent executor. Launch and usage audit lines append to the local log.
 
 ## The step chain
 
-Each step spawns a fresh agent process. After a clean exit the supervisor
-rereads the ticket and continues only when the task is still `in_progress`,
-the step advanced, and the next operator is an agent (`agent` and
-`other-agent` rotate CLIs). It stops at owner handoffs, terminal, paused, or
-blocked status, a workflow-less ticket, no progress, an unresolvable
-operator, a missing CLI, a deleted task directory, a timeout, or a non-zero
-exit. A bootstrap target never chains; an agent-backed one ends its session
-with `coga mark done bootstrap/<name>`
-([coga/cli](../cli/SKILL.md#stateless-command-completion)). Sessions not run under a live
-`coga launch` do not chain: after `coga bump`, stop and relaunch. Every exit
-path of an exempt launch refreshes a control checkout from control; a
-prepared launch returns its checkout instead.
+An advancing script or agent hands the next step back to the supervisor.
+It resolves the next executor from the current ticket file. Owner-held
+steps, terminal states, blocked states and paused states stop the chain.
+Agent sessions also stop on process failure or a liveness limit.
 
 ## Options and exits
 
 - `--prompt-report` prints each composed layer, exact refs, bytes, and
   `characters / 4` token estimates without spawning. It refuses a `ticket.py`
   target and never executes ticket code. It refreshes the agent-skill view
-  but skips the end-of-command state sweep, so measuring a prompt never
+  and selects the read-only prompt path, so measuring a prompt never
   publishes the edits being measured.
 - `--idle-timeout` / `--max-session` (off by default) tear down a stalled or
   runaway REPL; the launch then exits 124 and does not chain.

@@ -6,8 +6,7 @@ finishes.
 
 ## The loop
 
-1. **Start from the blackboard.** It is composed into this prompt below, not
-   a file to go open: the working memory carried across stateless sessions,
+1. **Start from the blackboard.** It is composed into this prompt below. It is the working memory carried across stateless sessions,
    holding prior plans, findings, decisions, and open blockers. Read it as
    current state before planning anything.
    While reading it, whether the ticket is new to you or resumed, delete notes
@@ -24,8 +23,7 @@ finishes.
 2. **Do the current step.** Follow the ticket, contexts, and step skill. Record
    useful findings and decisions, with reasons, on the blackboard as you go.
    Keep it concise enough to compose into the next launch.
-3. **Reconcile before publishing or handing off edits**, as the base prompt
-   directs.
+3. **Reconcile before handing off branch work** as described in `coga/git`.
 4. **Run `bump` as the *last* thing in the current step, then stop.**
    `coga bump <id>` is the only command that advances a workflow. Run it after
    the work is complete and the blackboard is current.

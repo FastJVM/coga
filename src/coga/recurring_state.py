@@ -201,19 +201,9 @@ def ensure_parent_state(
     an exclusive create rather than overwritten. A pending audit-log mutation
     receipt blocks initialization.
     """
-    from coga.git import state_lock
-
-    with state_lock(cfg):
-        return _ensure_parent_state(cfg, name, seed_ticket=seed_ticket)
-
-
-def _ensure_parent_state(cfg: Config, name: str, *, seed_ticket: Path | None) -> Path:
     path = parent_state_path(cfg, name)
     if path.exists() or path.is_symlink() or seed_ticket is None:
         return path
-    from coga.log_transaction import ensure_clear
-
-    ensure_clear(cfg)
     try:
         region = read_blackboard(seed_ticket)
     except (OSError, UnicodeError, TaskFileError) as exc:

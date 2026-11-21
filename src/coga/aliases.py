@@ -49,11 +49,7 @@ ONBOARDING_TASK = "coga-build"
 # ``launch coga-build``. ``skill-update`` and ``autoclose`` launch ordinary
 # recurring tasks on demand; ``autoclose`` also reruns a completed period.
 # ``pick`` is the short spelling for the interactive megalaunch picker.
-# ``open-pr`` is the short spelling for the
-# registered ``open-pr`` recipe — the argv rewrite hands the task ref to the
-# generic runner as ordinary argv (``coga open-pr <slug>`` → ``run open-pr
-# <slug>``). ``resolve-conflicts`` and ``address-pr-comments`` each front an
-# agent-backed command ticket; their optional PR selector reaches the appended
+# PR discussion aliases accept a short launch-argument block.
 # launch-argument prompt block through the same argv rewrite. ``retire`` fronts
 # the script command ticket ``bootstrap/retire``; its trailing ``--`` keeps
 # ``--agent`` and ``--no-launch`` away from launch's own parser, so they reach
@@ -67,10 +63,8 @@ DEFAULT_ALIASES: dict[str, str] = {
     "dream": "recurring launch dream",
     "build": f"launch {ONBOARDING_TASK}",
     "skill-update": "recurring launch skill-update",
-    "autoclose": "recurring launch autoclose-merged --rerun",
     "megalaunch": "launch bootstrap/megalaunch --",
     "pick": "launch bootstrap/megalaunch -- --pick",
-    "open-pr": "run open-pr",
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",
     "address-pr-comments": "launch bootstrap/address-pr-comments",
     "retire": "launch bootstrap/retire --",

@@ -53,7 +53,7 @@ require attachments you would remove. Drain those periods or defer the job;
 never rewrite a frozen workflow or discard a period to finish migration.
 Retained custom attachments need a documented full local override.
 
-## 3. Publish selection first
+## 3. Record the selection first
 
 Write `coga/recurring/jobs.toml` with `true` for stock jobs currently active,
 `false` for explicitly disabled jobs. Keep parked jobs parked, and add no entry
@@ -62,17 +62,15 @@ definitions still present, this does not change activation:
 
 ```sh
 coga recurring list
-coga run publish-state coga/recurring/jobs.toml
+git add coga/recurring/jobs.toml
 ```
 
-Require a successful receipt and verify selection on control before removing
-any dependent definition.
+Review and commit this selection before removing any dependent definition.
 
 ## 4. Convert reviewed parents
 
 For each approved stock parent, preserve its whole current blackboard
-byte-for-byte in a carrier and remove its reviewed definition siblings in one
-guarded change. Keep runtime state such as `retires.md`. Reconcile freshly and
+byte-for-byte in a carrier and remove its reviewed definition siblings in the same change. Reconcile freshly and
 compare the planned preimages with the verified backup before this example.
 Run the entire block as a standalone command; its subshell stops on failure
 without exiting your interactive shell:
@@ -85,28 +83,24 @@ name=phone-home   # example: both named siblings have been reviewed as stock
 python - "$name" ticket.py operations.md <<'PY'
 import sys
 from coga.config import load_config
-from coga.git import state_lock
-from coga.log_transaction import ensure_clear
+from coga.atomicio import atomic_write_bytes
 from coga.paths import recurring_dir
 from coga.recurring_state import CARRIER, CARRIER_PREFIX, inspect_parent_dir
 cfg = load_config()
 parent = recurring_dir(cfg) / sys.argv[1]
 ticket = parent / "ticket.md"
-with state_lock(cfg):
-    ensure_clear(cfg)
-    original = ticket.read_bytes()
-    fence = b"<!-- coga:blackboard -->"
-    assert original.count(fence) == 1
-    saved = original.split(fence, 1)[1]
-    siblings = [parent / name for name in sys.argv[2:]]
-    assert all(path.parent == parent and path.is_file() for path in siblings)
-    ticket.write_bytes(CARRIER_PREFIX.encode("utf-8") + saved)
-    for path in siblings:
-        path.unlink()
-    assert inspect_parent_dir(parent).kind == CARRIER
-    assert ticket.read_bytes().split(fence, 1)[1] == saved
+original = ticket.read_bytes()
+fence = b"<!-- coga:blackboard -->"
+assert original.count(fence) == 1
+saved = original.split(fence, 1)[1]
+siblings = [parent / name for name in sys.argv[2:]]
+assert all(path.parent == parent and path.is_file() for path in siblings)
+atomic_write_bytes(ticket, CARRIER_PREFIX.encode("utf-8") + saved)
+for path in siblings:
+    path.unlink()
+assert inspect_parent_dir(parent).kind == CARRIER
+assert ticket.read_bytes().split(fence, 1)[1] == saved
 PY
-coga run publish-state   # no path operands: include reviewed deletions
 coga recurring list
 coga validate --json
 )

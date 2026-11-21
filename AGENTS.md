@@ -44,7 +44,7 @@ Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or
 There is no hosted test CI. Follow [coga-dev/testing](docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts) for per-change Linux verification, release-only Windows and macOS checks, and the required receipts.
 
 ## Commit & Pull Request Guidelines
-Before publishing or handing off edits, follow [coga/checkouts/reconciliation](src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md), including in sessions outside `coga launch`.
+Before publishing or handing off edits, follow [coga/git](src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#branch-to-merge), including in sessions outside `coga launch`.
 
 Recent commits use short, factual subjects, for example `Route recurring jobs through registered recipes` or `Drop redundant \`dream\` alias from coga.toml`. Use a ticket prefix only when one exists for the work. PRs should explain the behavior change, mention any fixture or spec touchpoints, and list the exact commands run for verification.
 

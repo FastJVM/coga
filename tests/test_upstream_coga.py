@@ -112,16 +112,6 @@ def company(tmp_path: Path, client: Path) -> Path:
     return _company(tmp_path, [client])
 
 
-@pytest.fixture
-def synced(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Path, list[Path], str]]:
-    calls: list[tuple[Path, list[Path], str]] = []
-    monkeypatch.setattr(
-        "coga.git.publish",
-        lambda cfg, paths, message, **kw: calls.append(
-            (list(paths)[0], list(paths), message)
-        ),
-    )
-    return calls
 
 
 def _run(company: Path) -> tuple[int, str]:
@@ -183,7 +173,7 @@ def test_parse_entries_reads_fields_then_prose() -> None:
 
 
 def test_first_run_files_every_entry_and_second_run_files_none(
-    company: Path, client: Path, synced: list
+    company: Path, client: Path
 ) -> None:
     code, out = _run(company)
     assert code == 0
@@ -213,22 +203,15 @@ def test_first_run_files_every_entry_and_second_run_files_none(
     assert _template_cursors(company) == {
         "multiply": "2026-09-10-bump-flag-is-undocumented"
     }
-    # One publication covering the cursor and both tickets it accounts for.
-    assert len(synced) == 1
-    anchor, paths, message = synced[0]
-    assert anchor == company / "recurring" / "upstream-coga" / "ticket.md"
-    assert set(paths) == {anchor, *(r.path for r in refs), company / "log.md"}
-    assert "2 upstream ticket(s)" in message
 
     code, out = _run(company)
     assert code == 0
     assert len(list_tasks(cfg)) == 2
     assert "0 ticket(s) filed, 0 entr(ies) seen" in out
-    assert len(synced) == 1
 
 
 def test_new_entries_after_the_cursor_are_filed_on_a_later_run(
-    company: Path, client: Path, synced: list
+    company: Path, client: Path
 ) -> None:
     _run(company)
     with (client / "coga" / "upstream-coga.md").open("a") as f:
@@ -241,7 +224,7 @@ def test_new_entries_after_the_cursor_are_filed_on_a_later_run(
 
 
 def test_missing_checkout_and_missing_file_are_notes_not_errors(
-    tmp_path: Path, synced: list
+    tmp_path: Path
 ) -> None:
     gone = tmp_path / "clients" / "gone"
     bare = tmp_path / "clients" / "bare"
@@ -252,19 +235,17 @@ def test_missing_checkout_and_missing_file_are_notes_not_errors(
     assert f"gone: checkout {gone} not found; skipped." in out
     assert "bare: no coga/upstream-coga.md; skipped." in out
     assert list_tasks(load_config(company)) == []
-    assert synced == []
 
 
-def test_no_configured_checkouts_is_a_note(tmp_path: Path, synced: list) -> None:
+def test_no_configured_checkouts_is_a_note(tmp_path: Path) -> None:
     company = _company(tmp_path, [])
     code, out = _run(company)
     assert code == 0
     assert "no checkouts configured" in out
-    assert synced == []
 
 
 def test_truncated_file_stops_that_checkout_instead_of_refiling(
-    company: Path, client: Path, synced: list
+    company: Path, client: Path
 ) -> None:
     """A cursor id that vanished means the append-only contract was broken;
     re-filing the whole file silently would be the worse failure."""
@@ -281,11 +262,10 @@ def test_truncated_file_stops_that_checkout_instead_of_refiling(
     assert _template_cursors(company) == {
         "multiply": "2026-09-10-bump-flag-is-undocumented"
     }
-    assert len(synced) == 1
 
 
 def test_interrupted_run_does_not_refile_a_ticket_that_already_exists(
-    company: Path, client: Path, synced: list, monkeypatch: pytest.MonkeyPatch
+    company: Path, client: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Ticket created, cursor never written: the `upstream-id` line on the
     ticket — not the cursor — is what keeps the retry from filing it twice."""
@@ -314,7 +294,7 @@ def test_interrupted_run_does_not_refile_a_ticket_that_already_exists(
 
 
 def test_same_directory_name_twice_files_nothing_for_either(
-    tmp_path: Path, synced: list
+    tmp_path: Path
 ) -> None:
     a = tmp_path / "work" / "a" / "product"
     b = tmp_path / "work" / "b" / "product"
@@ -329,11 +309,10 @@ def test_same_directory_name_twice_files_nothing_for_either(
     assert "product: ambiguous checkout name shared by" in out
     assert list_tasks(load_config(company)) == []
     assert _template_cursors(company) == {}
-    assert synced == []
 
 
 def test_directory_name_with_whitespace_is_skipped_with_a_note(
-    tmp_path: Path, synced: list
+    tmp_path: Path
 ) -> None:
     """The cursor line and `upstream-id:` are single tokens: a key with a
     space could be written but never read back, re-filing on every run."""
@@ -348,11 +327,10 @@ def test_directory_name_with_whitespace_is_skipped_with_a_note(
     assert f"[upstream] {checkout}: directory name 'my client' contains whitespace" in out
     assert list_tasks(load_config(company)) == []
     assert _template_cursors(company) == {}
-    assert synced == []
 
 
 def test_same_path_listed_twice_is_one_checkout(
-    tmp_path: Path, client: Path, synced: list
+    tmp_path: Path, client: Path
 ) -> None:
     company = _company(tmp_path, [client, client])
     code, out = _run(company)
@@ -362,7 +340,7 @@ def test_same_path_listed_twice_is_one_checkout(
 
 
 def test_malformed_entry_is_reported_and_the_rest_still_file(
-    company: Path, client: Path, synced: list
+    company: Path, client: Path
 ) -> None:
     with (client / "coga" / "upstream-coga.md").open("a") as f:
         f.write("\n## No fields at all\n\nJust prose.\n")

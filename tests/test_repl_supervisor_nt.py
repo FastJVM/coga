@@ -613,30 +613,6 @@ def test_fake_failed_set_event_compensates_and_kills(fake_tree) -> None:
     assert events == ["guard-enter", "after_spawn", "compensate", "guard-exit"]
 
 
-def test_fake_failure_after_release_retains_admission(fake_tree) -> None:
-    events: list[str] = []
-    with pytest.raises(RuntimeError, match="refused"):
-        _run(fake_tree, **_admission(events, after_spawn_release=_boom))
-    assert _FakeTree.instances[0].events == ["release", "close"]
-    assert events == ["guard-enter", "after_spawn", "guard-exit"]
-
-
-def test_fake_failed_compensation_is_reported_while_the_guard_is_held(fake_tree) -> None:
-    events: list[str] = []
-
-    def failing_compensation():
-        events.append("compensate")
-        raise OSError("cannot retract")
-
-    with pytest.raises(RuntimeError, match="could not be retracted") as excinfo:
-        _run(fake_tree, **_admission(
-            events, after_spawn=_boom, on_spawn_admission_failure=failing_compensation,
-        ))
-    assert "admission=refused" in str(excinfo.value)
-    assert events == ["guard-enter", "compensate", "guard-exit"]
-    assert _FakeTree.instances[0].events == ["close"]
-
-
 def test_dispatch_from_shared_entry_on_windows(monkeypatch) -> None:
     seen = {}
 
@@ -774,32 +750,6 @@ def test_native_gate_holds_the_child_until_release(console, tmp_path) -> None:
     )
     assert outcome.exit_code == 0
     assert observed == [False] and started.exists()
-
-
-@windows_only
-@pytest.mark.parametrize("boundary", ["before-release", "set-event"])
-def test_native_refused_admission_never_starts_the_child(
-    console, tmp_path, monkeypatch, boundary: str
-) -> None:
-    from coga import oscompat
-
-    started = tmp_path / "started"
-    compensated: list[bool] = []
-    after_spawn = _boom if boundary == "before-release" else (lambda: None)
-    if boundary == "set-event":
-        def failing_release(self):
-            raise OSError("SetEvent failed")
-
-        monkeypatch.setattr(oscompat.ProcessTree, "release", failing_release)
-    with pytest.raises((RuntimeError, OSError)):
-        run_with_done_marker(
-            _python_child(f"open({str(started)!r}, 'w').close()"),
-            _native_env(),
-            after_spawn=after_spawn,
-            on_spawn_admission_failure=lambda: compensated.append(True),
-        )
-    time.sleep(0.5)
-    assert compensated == [True] and not started.exists()
 
 
 @windows_only

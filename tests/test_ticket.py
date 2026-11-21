@@ -32,19 +32,6 @@ def _prompt_arg(cmd: list[str]) -> str:
     raise AssertionError(f"No Coga prompt in argv: {cmd!r}")
 
 
-def test_period_generation_renders_as_canonical_task_state() -> None:
-    """The runner-owned token is not mislabeled as a repo extension."""
-    ticket = Ticket(
-        frontmatter={"title": "Check", "period_generation": "generation-1"},
-        body="",
-    )
-
-    rendered = ticket.render()
-
-    assert "period_generation: generation-1" in rendered
-    assert "# --- extensions ---" not in rendered
-
-
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     coga_os = tmp_path / "coga"
@@ -145,37 +132,6 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert "Coga task — investigate-retries" in prompts[0]
     assert "Status: draft" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
-
-
-def test_ticket_publishes_its_launch_line_before_the_session_starts(
-    repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """An attended authoring session must not hold an unpublished log open."""
-    prompts: list[str] = []
-    published: list[str] = []
-    log = repo / "log.md"
-    seen_at_spawn: list[list[str]] = []
-    ticket_path = repo / "tasks" / "investigate-retries.md"
-
-    def record_sync_log(cfg, *, message):  # type: ignore[no-untyped-def]
-        published.append(log.read_text(encoding="utf-8"))
-        return True
-
-    def author_workflow() -> None:
-        seen_at_spawn.append(list(published))
-        t = Ticket.read(ticket_path)
-        t.frontmatter["workflow"] = "code/with-review"
-        t.write(ticket_path)
-
-    monkeypatch.setattr("coga.git.sync_log", record_sync_log)
-    _allow_ticket_launch(monkeypatch, prompts, on_run=author_workflow)
-
-    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
-
-    assert result.exit_code == 0, result.output
-    assert len(seen_at_spawn) == 1
-    assert any("ticket authoring launched" in text for text in seen_at_spawn[0])
 
 
 def test_ticket_path_title_drafts_in_subdirectory(

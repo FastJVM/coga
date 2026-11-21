@@ -115,10 +115,9 @@ def classify_status(status: str) -> str:
 
 def build_update_command(*, pr: bool, pr_title: str) -> list[str]:
     """Return the exact `coga skill update` command this skill runs."""
-    cmd = [sys.executable, "-m", "coga.cli", "skill", "update", "--all", "--json"]
     if pr:
-        cmd.extend(["--pr", "--pr-title", pr_title])
-    return cmd
+        return [sys.executable, "-m", "coga_edge.skill_update_pr", "--pr-title", pr_title]
+    return [sys.executable, "-m", "coga.cli", "skill", "update", "--all", "--json"]
 
 
 def run_update_json(

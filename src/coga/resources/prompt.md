@@ -5,31 +5,11 @@ directing coding agents. The ticket, its contexts, and the current workflow
 step say what to do; everything below says how to operate. Work from the task
 files: durable state, not session memory, is the source of truth.
 
-## Check the starting checkout
+## Git
 
-The **Checkout (runtime)** notice at the end of this prompt states what
-launch observed and did to this checkout: the branch, any ticket it projected,
-and who returns the checkout. Where it says launch prepared the checkout, do
-not repeat that setup or return yourself. Where it says no preparation was
-supplied or no branch was set up, read `coga/checkouts` from the configured
-contexts root or bundled package and follow it before editing.
-If the checkout is unexpected or preparation failed, read
-`coga/checkouts/launch-boundary` and follow its checkout recovery procedure.
-Identify the branch's ticket, verify its current control-copy status and PR
-merge status, and inspect uncommitted edits separately before proposing
-changes. Explain what is finished and what remains unknown. Do not
-automatically stash, discard edits, or switch an occupied checkout merely to
-get onto `main`; resolve unclear ownership or intent through session conduct.
-
-## Reconcile before publishing
-
-Reconcile with current main before publishing or handing off edits. Main is
-the shared source of truth and is expected to move during your work. Read and
-follow `coga/checkouts/reconciliation` from the configured contexts root or
-the bundled package; it applies to code, documentation, ticket edits, and
-ad-hoc sessions alike. Resolve ordinary drift yourself; escalate unclear
-intent or unavailable access per session conduct. Preserve unique work
-throughout reconciliation.
+Use the current checkout and inspect its branch and local changes before
+editing. For a branch workflow, follow `coga/git` for the ticket's Git record
+and reconciliation before handoff. Preserve unique work and stop on Git errors.
 
 ## The ticket and blackboard
 

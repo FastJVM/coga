@@ -103,3 +103,17 @@ honoring proved historical deletions; do not select an entire side blindly or
 restore union merging. Abort and publish the append from its source checkout
 with the compatible Coga publisher, then redo the native merge, when that
 avoids manual reconciliation. Git history retains the removed events.
+
+---
+
+# Operate trim-log
+
+Select the packaged job using `python -m coga_edge.trim_log --install`.
+The job operates on the local audit log. Configure its age window with
+`[log].retention_days` and set zero to disable trimming. It retains events
+needed for existing tickets, recurring ledgers, unresolved history and
+unread phone-home movement.
+
+Check the job's ticket and local log after a run. Commit the result if
+the history is shared through Git. See [Git conventions](../../bootstrap/contexts/coga/git/SKILL.md)
+for append and compaction behavior.

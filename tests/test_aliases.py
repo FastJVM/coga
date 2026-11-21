@@ -619,16 +619,3 @@ def test_old_megalaunch_alias_names_new_expansion() -> None:
         _validate_aliases({"queue": "megalaunch --pick"})
     assert _DEFAULT_ALIASES["megalaunch"] == "launch bootstrap/megalaunch --"
     assert _DEFAULT_ALIASES["pick"] == "launch bootstrap/megalaunch -- --pick"
-
-
-def test_script_help_separator_matches_sweep_policy() -> None:
-    from coga.argv import command_help_requested
-    from coga.cli import _should_sweep_coga_state
-
-    for argv, help_mode in [
-        (["launch", "bootstrap/megalaunch", "--", "--pick", "--help"], True),
-        (["launch", "bootstrap/megalaunch", "--", "--", "--help"], False),
-        (["launch", "bootstrap/megalaunch", "--", "--agent", "--help"], True),
-    ]:
-        assert command_help_requested(argv) is help_mode
-        assert _should_sweep_coga_state(["coga", *argv]) is not help_mode

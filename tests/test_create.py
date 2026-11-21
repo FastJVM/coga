@@ -9,12 +9,11 @@ from typer.testing import CliRunner
 
 from conftest import derived_operator, seed_direct_body_workflow
 from coga.cli import app
-from coga.launch import RecurringPeriodLaunchResult
+from coga.launch import LaunchResult
 from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import RepoResourceUnreadable, log_path
-from coga.recurring import local_period_lease
 from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
@@ -31,21 +30,11 @@ def _patch_recurring_command_launch(
     repo: Path,
     child_launch,
 ) -> None:
-    def typed_child_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+    def typed_child_launch(task: str, **kwargs):
         result = child_launch(task, **kwargs)
-        if isinstance(result, RecurringPeriodLaunchResult):
-            return result
-        cfg = load_config(repo)
-        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
-        return RecurringPeriodLaunchResult(
-            result,
-            local_period_lease(cfg, ref),
-            False,
-        )
+        return result if isinstance(result, LaunchResult) else LaunchResult(result)
 
-    monkeypatch.setattr(
-        "coga.launch.launch_recurring_period", typed_child_launch
-    )
+    monkeypatch.setattr("coga.launch.launch_recurring_period", typed_child_launch)
 
 
 @pytest.fixture
@@ -146,27 +135,6 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.secrets is None
     for removed in ("slug", "human", "assignee", "watchers"):
         assert removed not in ticket.frontmatter
-
-
-def test_create_can_stamp_a_recurring_period_generation(repo: Path) -> None:
-    """The recurring creator can assign one bounded stable-path identity."""
-    cfg = load_config(repo)
-    created = create_task(
-        cfg=cfg,
-        title="Generated period",
-        workflow_name="code/with-review",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-        slug_override="recurring/generated-period",
-        force_directory=True,
-        period_generation="generation-1",
-    )
-
-    ticket = Ticket.read(Path(created["path"]) / "ticket.md")
-
-    assert ticket.frontmatter["period_generation"] == "generation-1"
 
 
 def test_create_canceled_ticket_has_no_workflow_step(repo: Path) -> None:
@@ -1366,55 +1334,6 @@ def test_create_unreadable_resource_names_override(
     assert result.exit_code == 2
     assert str(override) in result.output
     assert not (repo / 'tasks' / 'broken-override.md').exists()
-
-
-def test_created_ticket_carries_guide_through_rewrite_and_composition(
-    repo: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from coga.autoclose import parse_branch_names, parse_pr_url, parse_worktree_path
-    from coga.compose import _extract_section, compose_prompt
-    from coga.taskfile import body_sections, split_body
-    from coga.tasks import resolve_task
-    from coga.validate import validate_task
-
-    monkeypatch.chdir(repo)
-    cfg = load_config(repo)
-    result = create_task(
-        cfg=cfg, title="Explain this ticket", workflow_name=None,
-        contexts=[], owner=None, status=None,
-    )
-    path = result["path"]
-    ticket = Ticket.read(path)
-    assert ticket.frontmatter == {
-        "title": "Explain this ticket",
-        "status": "draft",
-        "owner": cfg.current_user,
-        "workflow": None,
-    }
-    guide = ticket.body[
-        ticket.body.index("<!-- Ticket guide"):ticket.body.index("-->") + 3
-    ]
-    above, _ = split_body(ticket.body)
-    assert [section.key for section in body_sections(above)] == ["description", "context"]
-    assert _extract_section(above, "Context") == guide
-    assert fence_count(path.read_text(encoding="utf-8")) == 1
-    ticket.frontmatter["owner"] = "another-human"
-    ticket.write(path)
-    assert guide in path.read_text(encoding="utf-8")
-    task = resolve_task(cfg, result["slug"])
-    # The guide is for editors of the file; launch prompts omit HTML comments.
-    assert "<!-- Ticket guide" not in compose_prompt(cfg, task, Ticket.read(path))
-    assert guide in path.read_text(encoding="utf-8")
-    issues = validate_task(cfg, result["slug"]).issues
-    assert any(issue.kind == "empty-description" for issue in issues)
-    assert not any(
-        issue.kind == "uncomposed-section" or issue.severity == "error"
-        for issue in issues
-    )
-    blackboard = read_blackboard(path)
-    assert parse_branch_names(blackboard) == []
-    assert parse_pr_url(blackboard) is None
-    assert parse_worktree_path(blackboard) is None
 
 
 def test_create_uses_body_template_override_without_reinterpreting_description(

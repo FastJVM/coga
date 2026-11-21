@@ -26,21 +26,24 @@ from coga.skill_manager import (
     SkillResult,
     SkillUpdateSummary,
     apply_include_allowlist,
-    assert_skill_update_branch_unclaimed,
-    assert_skill_update_pr_preflight,
     hash_skill_tree,
     install_github_skill,
     install_local_skill,
     install_url_skill,
-    open_or_update_pr,
     parse_include_allowlist,
     read_source_metadata,
     remove_skill,
     render_update_pr_body,
-    run_skill_update_pr_flow,
     status_skills,
     update_skills,
     write_source_metadata,
+)
+
+
+from coga_edge import skill_update_pr
+from coga_edge.skill_update_pr import (
+    assert_skill_update_branch_unclaimed, assert_skill_update_pr_preflight,
+    open_or_update_pr, run_skill_update_pr_flow,
 )
 
 
@@ -1736,33 +1739,6 @@ def test_skill_update_pr_leases_against_the_push_url_not_the_fetch_url(
     )
 
 
-def test_skill_update_pr_refuses_disagreeing_push_destinations(tmp_path: Path) -> None:
-    # Git can partially update a multi-push remote, so one lease cannot describe
-    # both destinations when they hold different tips.
-    first = "https://github.com/FastJVM/coga.git"
-    second = "https://example.invalid/mirror.git"
-
-    def runner(args, cwd=None):
-        command = list(args)
-        if command == ["git", "remote", "get-url", "--push", "--all", "origin"]:
-            return _completed(command, stdout=f"{first}\n{second}\n")
-        if command[:3] == ["git", "ls-remote", "--heads"]:
-            oid = _REMOTE_OID if command[3] == first else "2" * 40
-            return _completed(
-                command, stdout=f"{oid}\trefs/heads/coga/skill-update\n"
-            )
-        raise AssertionError(f"unexpected command: {command}")
-
-    with pytest.raises(SkillManagerError, match="disagree about the branch tip"):
-        open_or_update_pr(
-            "Update Coga-managed skills",
-            "summary",
-            branch="coga/skill-update",
-            runner=runner,
-            cwd=tmp_path,
-        )
-
-
 def test_skill_update_pr_reports_a_failed_ls_remote(tmp_path: Path) -> None:
     def runner(args, cwd=None):
         command = list(args)
@@ -2778,34 +2754,6 @@ def test_guard_fails_closed_when_a_lookup_fails(
 
     with pytest.raises(SkillManagerError):
         assert_skill_update_branch_unclaimed(cfg, runner=_guard_runner([], fail=fail))
-
-
-@pytest.mark.parametrize(
-    "push_urls",
-    [
-        "/srv/mirror/coga.git\n",
-        "https://gitlab.com/FastJVM/coga.git\n",
-        f"{_PUSH_URL}\nhttps://github.com/someone/fork.git\n",
-    ],
-)
-def test_guard_refuses_push_destinations_it_cannot_bind_to_one_github_repo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, push_urls: str
-) -> None:
-    cfg = load_config(_repo(tmp_path, monkeypatch))
-    commands: list[list[str]] = []
-
-    def runner(args, cwd=None):
-        command = list(args)
-        commands.append(command)
-        if command[:3] == ["git", "remote", "get-url"]:
-            return _completed(command, stdout=push_urls)
-        if command[:2] == ["git", "ls-remote"]:
-            return _completed(command, stdout=f"{_REMOTE_OID}\trefs/heads/x\n")
-        raise AssertionError(f"unexpected command: {command}")
-
-    with pytest.raises(SkillManagerError, match="Cannot check"):
-        assert_skill_update_branch_unclaimed(cfg, runner=runner)
-    assert not any(c[0] == "gh" for c in commands)
 
 
 def test_guard_binds_to_non_origin_push_destination_not_fetch_url(

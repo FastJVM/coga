@@ -36,7 +36,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/recurring/phone-home/ticket.py",
     "coga/resources/templates/coga/bootstrap/workflows/phone-home/run.md",
     "coga/resources/templates/coga/recurring/phone-home/operations.md",
-    "coga/resources/templates/coga/recurring/autoclose-merged/operations.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md",
@@ -71,23 +70,19 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/"
     "scan-protocol/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "autoclose/sweep/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
     "blockers/remind/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "ticket/finalize/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md",
     "coga/resources/templates/coga/recurring/address-pr-comments/ticket.md",
-    "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/resolve-conflicts/ticket.md",
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
-    "coga/resources/templates/coga/bootstrap/workflows/autoclose-merged/sweep.md",
     "coga/resources/templates/coga/bootstrap/workflows/blocker-reminders/run.md",
     "coga/resources/templates/coga/bootstrap/workflows/direct/body.md",
     "coga/resources/templates/coga/bootstrap/workflows/skill-update/run.md",
@@ -121,14 +116,10 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
     "coga/resources/templates/coga/skills/_template/SKILL.md",
     "coga/resources/templates/coga/contexts/.gitignore",
-    "coga/resources/templates/coga/bootstrap/workflows/branch-sweep/sweep.md",
     "coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md",
     "coga/resources/templates/coga/workflows/_template.md",
-    "coga/resources/templates/coga/recurring/branch-sweep/ticket.md",
-    "coga/resources/templates/coga/recurring/branch-sweep/ticket.py",
     "coga/resources/templates/coga/recurring/dream/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.py",
-    "coga/resources/templates/coga/recurring/autoclose-merged/ticket.py",
     "coga/resources/templates/coga/recurring/skill-update/ticket.py",
     "coga/resources/templates/coga/tasks/coga-build.md",
     "coga/resources/templates/coga/bootstrap/skills/direct/body/SKILL.md",
@@ -157,10 +148,8 @@ SCAFFOLD_COUNTERPARTS = {
 }
 STATE_CARRIER_COUNTERPARTS = {
     "coga/recurring/address-pr-comments/ticket.md": "saved parent blackboard, independent of its delegated definition",
-    "coga/recurring/autoclose-merged/ticket.md": "saved cross-run notes; retires.md remains a separate worklist",
     "coga/recurring/blackboard-size/ticket.md": "state carrier created on the selected job's first admitted run",
     "coga/recurring/blocker-reminders/ticket.md": "saved parent blackboard, including state without declared state_keys",
-    "coga/recurring/branch-sweep/ticket.md": "saved parent notes; clone success ledgers remain machine-local",
     "coga/recurring/dream/ticket.md": "saved cross-run sweep state and notes",
     "coga/recurring/phone-home/ticket.md": "complete movement cursor, counters, identity and unrelated blackboard state",
     "coga/recurring/resolve-conflicts/ticket.md": "saved parent blackboard, independent of its delegated definition",
@@ -522,8 +511,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/human-assist",
         "coga/pr-publication",
         "coga/pr-publication/preparation",
-        "coga/state-publication",
-        "coga/state-publication/launch-boundaries",
         "coga/knowledge",
         "coga/launch",
         "coga/lifecycle",
@@ -542,22 +529,13 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/script-tickets",
         "coga/secrets",
         "coga/skill-management",
-        "coga/sync",
+        "coga/git",
         "coga/tickets",
         "coga/tickets/authoring",
         "coga/tickets/discovery",
         "coga/uninstall",
         "coga/usage",
         "coga/workflows",
-        "coga/checkout-cleanup",
-        "coga/checkout-cleanup/branch-sweep",
-        "coga/checkout-cleanup/terminal-owners",
-        "coga/checkouts",
-        "coga/checkouts/reconciliation",
-        "coga/checkouts/launch-boundary",
-        "coga/checkouts/chat",
-        "coga/checkouts/manual",
-        "coga/checkouts/sandbox-clone",
     }
 )
 
@@ -690,7 +668,7 @@ def test_context_distribution_follows_the_configured_root(
     assert _canonical_contexts_root() == Path("docs/contexts")
     assert _context_distribution_problems() == []
     live_paths = {live for live, _ in _discover_live_packaged_twins()}
-    assert "docs/contexts/coga/sync/SKILL.md" in live_paths
+    assert "docs/contexts/coga/git/SKILL.md" in live_paths
     assert "docs/contexts/.gitignore" in live_paths
     assert "docs/contexts/_template/SKILL.md" not in live_paths
     assert not any(path.startswith("coga/contexts/") for path in live_paths)
@@ -701,7 +679,7 @@ def test_context_distribution_tolerates_a_removed_canonical_counterpart(
 ) -> None:
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
-    (canonical / "coga/sync/SKILL.md").unlink()
+    (canonical / "coga/git/SKILL.md").unlink()
     (canonical / ".gitignore").unlink()
 
     # The package owner still ships, so removing the legacy copy is fine.
@@ -714,12 +692,12 @@ def test_context_distribution_reports_a_topic_deleted_from_both_copies(
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
     packaged = tmp_path / PACKAGED_ROOT
-    (canonical / "coga/sync/SKILL.md").unlink()
-    (packaged / BOOTSTRAP_CONTEXTS / "coga/sync/SKILL.md").unlink()
+    (canonical / "coga/git/SKILL.md").unlink()
+    (packaged / BOOTSTRAP_CONTEXTS / "coga/git/SKILL.md").unlink()
     (packaged / SEEDED_CONTEXTS / "_template/SKILL.md").unlink()
 
     problems = _context_distribution_problems()
-    assert "required bootstrap context 'coga/sync' is not packaged" in problems
+    assert "required bootstrap context 'coga/git' is not packaged" in problems
     assert "required init-seeded context file '_template/SKILL.md' is missing" in (
         problems
     )
@@ -1065,7 +1043,7 @@ def test_shipped_workflow_refs_resolve_without_a_seeded_copy(
         )
 
 
-def test_no_launch_entrypoint_run_py_files_remain() -> None:
+def test_packaged_workflow_scripts_have_their_canonical_paths() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     packaged_root = repo_root / "src" / "coga" / "resources" / "templates" / "coga"
     packaged = {
@@ -1077,7 +1055,11 @@ def test_no_launch_entrypoint_run_py_files_remain() -> None:
         for path in (repo_root / "coga").rglob("run.py")
     }
 
-    assert packaged == set()
+    assert packaged == {
+        "bootstrap/skills/code/merge-pr/run.py",
+        "bootstrap/skills/git/open-branch/run.py",
+        "bootstrap/skills/git/push-and-open-pr/run.py",
+    }
     assert live == set()
 
 
@@ -1256,7 +1238,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
 
 
 BUNDLED_PARENTS = (
-    "address-pr-comments", "autoclose-merged", "blackboard-size", "blocker-reminders", "branch-sweep",
+    "address-pr-comments", "blackboard-size", "blocker-reminders",
     "dream", "phone-home", "resolve-conflicts", "skill-update", "trim-log",
 )
 
@@ -1423,7 +1405,7 @@ for name in sorted(names - {"phone-home"}):
                 runpy.run_path(str(script), run_name="__main__")
             except SystemExit as exc:
                 assert exc.code == 0, (name, exc.code)
-assert set(calls) == {"autoclose", "blocker-reminders", "skill-update", "branch-sweep"}, calls
+assert set(calls) == {"blocker-reminders", "skill-update"}, calls
 import coga_edge.phone_home as t
 assert "installed" in t.__file__
 assert "installed" in str(t._PACKAGE_FILE)

@@ -424,16 +424,6 @@ def test_suppressed_cursor_baselines_complete_eof(repo):
     assert _state(repo)["repo_id"] is None
 
 
-def test_publication_failure_keeps_reservation_and_local_evidence(repo, monkeypatch, capsys):
-    def fail(*a, **kw):
-        raise t.git.GitError("simulated failure")
-    monkeypatch.setattr(t.git, "publish", fail)
-    sent = _run(repo, monkeypatch)
-    assert len(sent) == 1 and _state(repo)["run"] == 1
-    assert "sync failed" in (repo/"log.md").read_text(encoding="utf-8")
-    assert "local state retained" in capsys.readouterr().out
-
-
 def test_slack_failure_cannot_change_successful_capture(repo, monkeypatch):
     monkeypatch.setattr(t, "_admitted", lambda cfg: True)
     cfg = replace(load_config(repo), slack_enabled=True, notification_channels=["slack"])

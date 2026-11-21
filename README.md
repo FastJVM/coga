@@ -44,7 +44,7 @@ This keeps the plan *evolvable*, not automatically correct. Humans can inspect, 
 
 ## See the workflow
 
-In an existing Git repository, after installing Coga (replace `YOUR_NAME`
+In a project directory, after installing Coga (replace `YOUR_NAME`
 with the name you want Coga to use for you):
 
 ```sh
@@ -161,29 +161,17 @@ and open a new terminal.
 
 ### Initialize a repository
 
-Change into your project's Git repository; outside one, `coga init` stops.
-To start a new project, create one in your home folder. PowerShell can open
-in `C:\WINDOWS\system32`, so change to your home folder first.
-
-```sh
-cd ~
-mkdir my-project
-cd my-project
-git init
-```
-
-Then run:
+From your project's directory run:
 
 ```sh
 coga init --user YOUR_NAME
 ```
 
-If Git has no identity yet, init stops before writing anything and prints the
-`git config --global` commands that set one; run them, then re-run init.
+Init writes Coga files and local agent links. Commit the shared files when
+ready if you use Git. In a clone that already uses Coga, init sets up your
+local identity and agent links.
+[Init details](src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)
 
-In a repo new to Coga, init commits the Coga files. In a clone that already
-uses Coga, it sets up your local identity and agent links without a commit
-([init details](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)).
 Coga installs no agent CLI. In an interactive terminal, if exactly one
 supported CLI is present, init offers to make it your default agent.
 It seeds an onboarding ticket only for an otherwise empty repo; a short starter
@@ -192,7 +180,7 @@ README, LICENSE, or `.gitattributes` still counts as empty.
 Choose how to begin:
 
 ```sh
-# New, otherwise empty Git repo: discuss the idea and draft a first plan
+# New, otherwise empty project: discuss the idea and draft a first plan
 coga build
 
 # Repo with existing files: describe your first task
@@ -226,7 +214,7 @@ Everything Coga manages is visible under `coga/`:
 - **Tickets** (`coga/tasks/`) — specific outcomes, attached context, workflow, and working notes. [How tickets work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md).
 - **Contexts** — durable facts, constraints, and decisions you choose to attach to tasks. [How knowledge works](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
 - **Skills** (`coga/skills/` or bundled) — reusable procedures selected for tickets and workflow steps. [How knowledge works](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
-- **Workflows** — agent steps and human review gates. [How workflows work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
+- **Workflows** — scripts, agent steps, and human review gates. [How workflows work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **History** (`coga/log.md`) — task transitions kept separately from the prompt sent to an agent.
 
 ## Principles
@@ -238,6 +226,16 @@ Coga is built around a few deliberate choices:
 **Keep everything at human scale.** Coga stays small enough to understand and change. The tool should fit the way you work, not make you fit its process.
 
 **Amplify agents, don't duplicate them.** Don't build another planner, researcher, coder, or reviewer. Use what coding agents already know. As they improve, Coga benefits.
+
+**Deterministic by default.** Workflow scripts handle repeatable steps. Agents
+handle work that needs judgment.
+
+**Use tools plainly.** Coga runs tickets in the current directory. Use Git and
+`gh` directly, or select workflow scripts that run them. Tickets and their
+state travel in the same Git changes as the work. [Git conventions](src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)
+
+**Fail loud.** When a script or Git operation fails, Coga surfaces the failure
+and keeps the local state so you can recover.
 
 **Coga encoded in Coga.** The same tickets, contexts, and workflows used for other projects should describe and evolve Coga itself.
 

@@ -19,71 +19,21 @@ full local fork; distribution and adoption are in
 
 ## Classifier
 
-Launch runs `<task_dir>/ticket.py` when it is a regular file. File-form tasks have no task directory and never qualify.
-Directory tasks and bootstrap tickets use the same name. Executable bits and
-other filenames never participate: a `run.py`, test, or other executable
-attachment is untouched by the classifier and runs only when agent
-instructions invoke it explicitly. A user repo may keep script tests beside
-the ticket, but Coga neither discovers nor runs them. A recurring template's
-`ticket.py` is copied into each period task (`coga/recurring/templates`). Classification is a point-in-time stat:
-launch repeats it after every moving sync. A vanished file becomes an
-agent-only handoff for stateful tasks. A stateless bootstrap target positively
-classified as a script instead exits 2 if its entry disappears before spawn;
-bootstrap targets classified agent-only still accept launch arguments.
-Explicit
-[read-only command dispatch](../launch/SKILL.md#read-only-command-dispatch)
-likewise refuses a vanished entry and never hands off to an agent.
+The current workflow step's `run: <skill-ref>` names a directory containing
+`run.py`. It resolves local-first, then to a packaged skill. A selected
+directory with a missing or unreadable script is an error. A script step
+requires an agent-held role. A step without `run:` uses its task's
+`ticket.py` when the task has a companion directory. Stateless bootstrap
+targets continue to use `ticket.py`.
 
 ## One deterministic phase
 
-The ordinary script phase runs before any agent setup: no prompt composition, CLI
-lookup, skill refresh, or push probe.
-
-1. Declared secrets resolve before any lifecycle write.
-2. An `active` ticket becomes `in_progress` (actor `system`, `▶️ script
-   started`); draft/paused/blocked were activated just before. A
-   `launched as a script (ticket.py)` log line is published before user code.
-3. Those syncs can move a control checkout, so config, target, ticket,
-   secrets, and the entry stat are reloaded. If the task vanished, its status
-   is no longer `in_progress`, or its routing identity (status, step, owner,
-   main agent, step roles) changed, the script does not run and the fresh
-   state is reclassified.
-4. The child runs as `[sys.executable, ticket.py, *args]` from the host
-   repository root. For a stateless bootstrap target, `args` are the launch's
-   trailing positionals in order, one argv element each (no shell, no
-   joining), read from `sys.argv[1:]`. A stateful task or recurring period
-   takes none: launch refuses trailing arguments to one with exit 2 before
-   any secret, activation, lifecycle, or log effect, because they would be
-   hidden mutable input ([coga/extension-model](../extension-model/SKILL.md)).
-   A script-only bootstrap target needs no configured agent. Its environment gets fresh `COGA_TASK_*`,
-   `COGA_SCRIPT_TASK=<absolute target path>`, and loses `COGA_SUPERVISED`,
-   `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and
-   `COGA_EXPECTED_AGENT`, so a
-   child completion cannot finish an outer agent session.
-5. Launch reports a child killed by signal `N` as exit status `128 + N`
-   (SIGINT 130, SIGKILL 137), including in read-only dispatch. A stateful
-   launch logs `script exited with code N` even if the script deleted or broke
-   its ticket, and a non-zero exit posts `💥 script failed` with posting
-   failures treated as non-fatal. Both use the reported exit status. On
-   success config, target, and ticket are re-derived
-   again. A bootstrap script keeps framing on stderr so
-   `$(coga <verb>)` sees only its stdout. A bootstrap script that exits 75
-   declares it retained local state:
-   launch skips its teardown refresh, withholds the end-of-command sweep, and
-   exits 75. A stateful script with a pending guarded audit-mutation receipt
-   also exits 75 without the between-phase refresh. After any other crash,
-   that durable receipt makes publication and checkout settlement refuse
-   until recovery; a nonzero exit alone is not a transaction receipt. The
-   [audit mutation contract](../state-publication/SKILL.md) and
-   [trim-log runbook](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
-   specify recovery before retrying a later command.
-
-Read-only command dispatch reuses this subprocess and environment builder but
-skips lifecycle and reload/teardown handling; its complete effects contract is
-owned by [launch](../launch/SKILL.md#read-only-command-dispatch). Ordinary
-bootstrap scripts keep their existing config requirements and exit sweep.
-The report command tickets carry their complete implementations beside
-`ticket.md`; copying one does not require importing another report.
+The script runs with the current Python interpreter and ticket environment.
+A stateful script receives no trailing arguments. A stateless command may
+declare its own arguments. The launcher checks secrets before executing code
+and records the local outcome. A nonzero exit ends the phase and reports
+failure. A blocked ticket requires `coga unblock --answer` before running its
+script.
 
 ## Stateless command help and interrupts
 

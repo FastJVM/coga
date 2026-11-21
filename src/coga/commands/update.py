@@ -12,7 +12,6 @@ from __future__ import annotations
 from importlib.resources import files
 from importlib.resources.abc import Traversable
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -78,10 +77,8 @@ FRESH_SCAFFOLDS: tuple[str, ...] = (
 # disabled until a repo selects it. Owner review decides this default list.
 FRESH_RECURRING_SELECTION: tuple[str, ...] = (
     "address-pr-comments",
-    "autoclose-merged",
     "blackboard-size",
     "blocker-reminders",
-    "branch-sweep",
     "dream",
     "phone-home",
     "resolve-conflicts",
@@ -127,32 +124,10 @@ def nearest_existing_dir(target: Path) -> Path | None:
 
 
 def is_git_repo(target: Path) -> bool:
-    """True when `target` is a git repo root or sits inside a git work tree.
+    """Check for a repository, worktree, or submodule marker in the ancestry."""
+    from coga.config import find_checkout_root
 
-    `.git` may be a directory (normal repo) or a file (worktree/submodule), so
-    test existence rather than dir-ness; that also keeps the common repo-root
-    case a pure filesystem check. A target *without* its own `.git` may still
-    be a subdir of a host repo (monorepo `coga init tools/ops`), so fall back
-    to asking git from the nearest existing ancestor — `target` itself may not
-    exist yet. `coga init` requires this up front, `_git_commit_coga_os` reuses
-    it to decide whether to commit, and `ensure_host_gitignore` to decide
-    whether a host `.gitignore` is meaningful — the three must agree, so they
-    share this predicate.
-    """
-    if (target / ".git").exists():
-        return True
-    probe = nearest_existing_dir(target)
-    if probe is None:
-        return False
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(probe), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            text=True, encoding="utf-8",
-        )
-    except OSError:
-        return False
-    return result.returncode == 0 and result.stdout.strip() == "true"
+    return (target / ".git").exists() or find_checkout_root(target) is not None
 
 
 HOST_GITIGNORE_BEGIN = "# >>> coga-managed >>>"
