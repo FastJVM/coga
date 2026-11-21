@@ -38,6 +38,28 @@ def pr_view(cwd: str, url: str) -> dict:
     ))
 
 
+def merge_method(cwd: str, url: str) -> str:
+    repo = url.rsplit("/pull/", 1)[0]
+    settings = json.loads(subprocess.check_output(
+        [
+            "gh", "repo", "view", repo, "--json",
+            "viewerDefaultMergeMethod,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed",
+        ],
+        cwd=cwd, text=True,
+    ))
+    method = settings.get("viewerDefaultMergeMethod")
+    allowed = {"MERGE": "mergeCommitAllowed", "REBASE": "rebaseMergeAllowed",
+               "SQUASH": "squashMergeAllowed"}
+    if isinstance(method, str) and method.upper() in allowed:
+        method = method.upper()
+        if settings.get(allowed[method]) is True:
+            return "--" + method.lower()
+    enabled = [name for name, key in allowed.items() if settings.get(key) is True]
+    if len(enabled) == 1:
+        return "--" + enabled[0].lower()
+    raise ValueError(f"Cannot determine an enabled merge method for {repo}")
+
+
 def run() -> int:
     try:
         path = Path(os.environ["COGA_TASK_TICKET"]).resolve()
@@ -76,7 +98,7 @@ def run() -> int:
         if pr.get("statusCheckRollup") != []:
             subprocess.run(["gh", "pr", "checks", url, "--watch", "--fail-fast"], cwd=cwd, check=True)
         subprocess.run(
-            ["gh", "pr", "merge", url, "--squash", "--match-head-commit", head],
+            ["gh", "pr", "merge", url, merge_method(cwd, url), "--match-head-commit", head],
             cwd=cwd, check=True,
         )
     except subprocess.CalledProcessError as exc:

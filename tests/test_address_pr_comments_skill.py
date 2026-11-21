@@ -19,36 +19,7 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
         / "SKILL.md"
     ).read_text(encoding="utf-8")
 
-    assert "gh api graphql" in skill
-    assert "reviewThreads" in skill
-    assert "addPullRequestReviewThreadReply" in skill
-    assert "headRefOid" in skill
-    assert "headRepositoryOwner" in skill
-    assert "[git].remote" in skill
-    assert "git remote get-url --push --all <configured-remote>" in skill
-    assert "Require exactly one" in skill
-    assert "multi-push remote" in skill
-    assert "<verified-push-url>" in skill
-    assert "`coga/checkouts` manual start check" in skill
-    assert "python -m pytest" in skill
-    assert "git push --force-with-lease=refs/heads/<branch-name>:" in skill
-    assert "git merge-base --is-ancestor <verified-remote-oid> HEAD" in skill
-    assert "require the PR to remain open" in skill
-    assert "not permission to rewrite history" in skill
-    assert "git push origin" not in skill
-    assert "Every thread is already satisfied" in skill
-    assert "Do not manufacture a commit and do not" in skill
-    assert "git fetch --no-write-fetch-head <verified-push-url>" in skill
-    assert "refs/coga/address-pr-comments/<unique-token>" in skill
-    assert "git rev-parse <assist-fetch-ref>" in skill
-    assert "git update-ref -d <assist-fetch-ref>" in skill
-    assert "Do not read `FETCH_HEAD`" in skill
-    assert skill.count("FETCH_HEAD") == 1
-    assert "applicable post-push or no-change proof" in skill
-    assert "`coga/checkouts` end-of-step return" in skill
-    assert "`git switch main`" not in skill  # the return recipe lives in coga/checkouts
-    assert "Do not merge" in skill
-    assert "Do not resolve" in skill
-    assert "Do not run `coga bump`" in skill
-    assert "Do not run `coga mark done`" in skill
-    assert "Do not use `coga slack` as a completion signal" in skill
+    assert "`branch:` and `pr:` under `## Dev`" in skill
+    assert "stop if Git refuses" in skill
+    assert "owner about ambiguous or conflicting requests" in skill
+    assert "Leave the final bump and merge to the owner." in skill

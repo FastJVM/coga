@@ -52,9 +52,7 @@ maintenance contract above rather than masquerading as a reported no-op.
   the package.
 - May change: imported skill files under `coga/skills/` (rewritten in place
   by `coga skill update`), committed onto the dedicated `coga/skill-update`
-   branch — never the caller's branch. Branch sweep preserves this shared
-   branch under [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep).
-   The clean updates are published as a
+   branch. The clean updates are published as a
   draft PR; nothing is merged.
 - Action: `pr-required`
 - Idempotency: URL-backed updates overwrite only when the upstream digest

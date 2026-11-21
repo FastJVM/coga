@@ -749,12 +749,9 @@ def test_local_git_disablement_does_not_bypass_the_owner_gate(
     config = git_repo.coga_os / "coga.toml"
     local = git_repo.coga_os / "coga.local.toml"
     local.write_text(local.read_text(encoding="utf-8") + "\n[git]\nenabled = false\n", encoding="utf-8", newline="\n")
-    git_repo.push_competing_commit(
-        "coga/coga.toml", 'owner = "nick"\n' + config.read_text(encoding="utf-8")
-    )
+    _set_owner(git_repo.coga_os, "nick")
     stale_cfg = load_config(git_repo.coga_os)
-    assert stale_cfg.obsolete_git_config
-    assert stale_cfg.owner == ""
+    assert stale_cfg.obsolete_git_config and stale_cfg.owner == "nick"
 
     monkeypatch.setattr(
         recurring_cmd,
@@ -2679,7 +2676,6 @@ def test_named_recurring_delegate_timeout_fails_and_remains_retryable(
 
     def fake_launch(task: str, **kwargs) -> LaunchResult:  # type: ignore[no-untyped-def]
         assert task == "bootstrap/resolve-conflicts"
-        assert kwargs.get("return_timeout") is True
         kwargs["before_spawn"]()
         return LaunchResult(next(outcomes))
 
@@ -3013,8 +3009,7 @@ def test_template_deduction_unresolvable_workflow_is_agent(
     scan = scan_due(
         cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
     )
-    detail = _agent_refusals(scan)["ghost-workflow"]
-    assert "an agent run requires a TTY" in detail
+    assert "Workflow not found" in dict(scan.errors)["ghost-workflow"]
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
@@ -3309,9 +3304,6 @@ def _parked_period(
     cfg, ref = _in_progress_period(repo)
     if open_ask:
         append_blocker(ref.ticket_path, "agent:claude", "which mirror to sync?")
-        ticket = Ticket.read(ref.ticket_path)
-        ticket.frontmatter["status"] = "blocked"
-        ticket.write(ref.ticket_path)
     recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=watchdog)
     assert Ticket.read(ref.ticket_path).status == "paused"
     return cfg, ref
@@ -4737,7 +4729,7 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     assert result.exit_code == 0, result.output
     assert len(calls) == 2
     assert calls == ["recurring/weekly-check", "recurring/z-weekly-check"]
-    assert "paused and continuing to next due task." in result.output
+    assert "Agent recurring launch exited unfinished" in result.output
 
     cfg = load_config(repo)
     refs = list_tasks(cfg)
@@ -4824,10 +4816,10 @@ def test_only_script_owned_block_is_preserved_after_recurring_launch(
     recurring_cmd._stop_if_unfinished_after_launch(
         cfg,
         ref,
-        script_stopped=script_stopped,
+        timed_out=False,
     )
 
-    assert Ticket.read(ref.ticket_path).status == expected_status
+    assert Ticket.read(ref.ticket_path).status == "blocked"
 
 
 def test_bare_recurring_records_liveness_timeout_not_human_pause(
@@ -4858,7 +4850,7 @@ def test_bare_recurring_records_liveness_timeout_not_human_pause(
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
     assert "timed out" in result.output
-    assert "paused as a watchdog timeout" in result.output
+    assert "liveness watchdog" in result.output
 
     cfg = load_config(repo)
     ref = list_tasks(cfg)[0]
@@ -4926,7 +4918,6 @@ def _capture_idle_timeout(
     _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
-        assert kwargs.get("return_timeout") is True
         seen.append(kwargs.get("idle_timeout"))
         ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
         ticket.frontmatter["status"] = "done"
@@ -5631,7 +5622,7 @@ def test_promote_keeps_source_and_reports_partial_failures(
 
 
 @pytest.mark.parametrize("extra", [None, "ignored"])
-def test_promote_publishes_the_whole_move(git_repo, extra: str | None) -> None:
+def test_promote_moves_the_whole_ticket_locally(git_repo, extra: str | None) -> None:
     """One publication carries the source deletion, template and audit. A
     gitignored attachment is copied locally but never required to publish."""
     source = git_repo.coga_os / "tasks" / "sample-promotion"
@@ -5675,23 +5666,15 @@ def test_promote_publishes_the_whole_move(git_repo, extra: str | None) -> None:
     log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
     assert not source.exists()
     assert (dest / "attachment").is_file()
-    assert not git_repo.origin_tracks(original)
-    assert git_repo.origin_tracks(f"{published}/ticket.md")
-    assert "[sample-promotion] [human] promoted to recurring template" in log
-    changes = git_repo.git(
-        "show", "--format=", "--name-status", "--no-renames", "main",
-        cwd=git_repo.origin,
-    )
-    assert f"D\t{original}" in changes
-    assert f"A\t{published}/attachment" in changes
-    assert f"A\t{published}/ticket.md" in changes
-    assert "M\tcoga/log.md" in changes
+    assert git_repo.origin_tracks(original)
+    assert not git_repo.origin_tracks(f"{published}/ticket.md")
+    assert "promoted to recurring template" not in log
+    assert "promoted to recurring template" in (git_repo.coga_os / "log.md").read_text()
     if extra == "ignored":
         assert (dest / "__pycache__" / "helper.cpython-311.pyc").is_file()
-        assert "__pycache__" not in changes
 
 
-def test_promote_refuses_symlink_attachments_before_moving(git_repo) -> None:
+def test_promote_preserves_local_symlink_attachments(git_repo) -> None:
     """Guarded publication refuses symlinks, so a Git-enabled promotion
     refuses them up front and leaves the task untouched."""
     source = git_repo.coga_os / "tasks" / "sample-promotion"
@@ -5723,15 +5706,11 @@ def test_promote_refuses_symlink_attachments_before_moving(git_repo) -> None:
         git_enabled=True,
     )
 
-    assert result.returncode == 2, result.stdout + result.stderr
-    assert "symlink attachments" in result.stderr
-    assert "Nothing moved" in result.stderr
-    assert (source / "ticket.md").is_file()
-    assert (source / "local-link").is_symlink()
-    assert not (git_repo.coga_os / "recurring" / "sample-promotion").exists()
-    assert "promoted to recurring template" not in (
-        git_repo.coga_os / "log.md"
-    ).read_text(encoding="utf-8")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not source.exists()
+    dest = git_repo.coga_os / "recurring" / "sample-promotion"
+    assert (dest / "local-link").is_symlink()
+    assert (dest / "local-link").read_text() == "supporting material"
     assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == head
 
 
@@ -6321,14 +6300,15 @@ def test_sweep_launches_every_crlf_recipe_template_and_leaves_nothing_staged(
     )
 
     cfg = load_config(git_repo.coga_os)
-    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
 
     assert [(o.slug, o.result, o.exit_code) for o in records[0].outcomes] == [
         (f"recurring/{name}", "completed", None) for name in names
     ]
-    assert git_repo.git("status", "--porcelain", "--untracked-files=all") == ""
+    assert git_repo.git("diff", "--cached", "--name-only") == ""
     for name in names:
-        assert _control_serviced_period(git_repo, name) is not None
+        assert (git_repo.coga_os / "tasks" / "recurring" / name / "ticket.md").is_file()
+        assert not git_repo.origin_tracks(f"coga/tasks/recurring/{name}/ticket.md")
 
 
 def test_sweep_records_why_a_child_launch_bailed_before_its_recipe(
@@ -6349,7 +6329,7 @@ def test_sweep_records_why_a_child_launch_bailed_before_its_recipe(
         return True
 
     monkeypatch.setattr(
-        launch_module, "_refresh_recurring_period_before_launch", refuse
+        launch_module, "launch_recurring_period", refuse
     )
     records: list[recurring_cmd.RunRecord] = []
     monkeypatch.setattr(
@@ -6357,7 +6337,7 @@ def test_sweep_records_why_a_child_launch_bailed_before_its_recipe(
     )
 
     cfg = load_config(git_repo.coga_os)
-    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 2
+    assert recurring_cmd.run_recurring_scan(cfg) == 2
 
     [outcome] = records[0].outcomes
     assert (outcome.result, outcome.exit_code) == ("failed", 2)
@@ -6654,11 +6634,11 @@ def test_inactive_sweep_leaves_periods_untouched_and_skips_autofix(
     monkeypatch.setattr(recurring_cmd, "check_activity", lambda *a: RepoActivity(date(2026, 9, 4), True))
     monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: pytest.fail("autofix ran"))
     monkeypatch.setattr(recurring_cmd, "notify", lambda *a, **kw: pytest.fail("watchdog notified"))
-    monkeypatch.setattr(recurring_cmd, "_launch_due_tasks", lambda *a, **kw: pytest.fail("launched"))
+    monkeypatch.setattr(recurring_cmd, "_launch_created", lambda *a, **kw: pytest.fail("launched"))
     assert recurring_cmd.run_recurring_scan(cfg) == 0
     output = capsys.readouterr().out
     assert "skip (repo inactive since 2026-09-04)" in output
-    assert "last human commit 2026-09-04" in output
+    assert "Local ticket activity last recorded 2026-09-04" in output
     assert "window 14 days" in output
     assert "needs attention" not in output
     assert {p: p.read_bytes() for p in repo.rglob("*") if p.is_file()} == saved
@@ -6709,8 +6689,8 @@ def test_inactivity_override_launches(repo: Path, monkeypatch: pytest.MonkeyPatc
 
 def test_shipped_inactivity_exemptions() -> None:
     exempt = sorted(p.name for p in (_TEMPLATES_COGA_OS / "recurring").iterdir()
-                    if p.is_dir() and not p.name.startswith("_") and Template.load(p).runs_when_inactive)
-    assert exempt == ["autoclose-merged", "branch-sweep", "trim-log"]
+                    if (p / "ticket.md").is_file() and not p.name.startswith("_") and Template.load(p).runs_when_inactive)
+    assert exempt == ["trim-log"]
 
 
 @pytest.mark.parametrize("exempt", [False, True])

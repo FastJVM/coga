@@ -109,7 +109,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/seed_local_config.py",
     "coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md",

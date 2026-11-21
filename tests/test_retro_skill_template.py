@@ -77,7 +77,7 @@ def test_retro_repoints_inbound_references_before_deleting() -> None:
     assert "resolve relative targets from the referring file" in norm
     assert "Honor the repository's search restrictions" in norm
     assert "Existing commit permalinks already preserve the source" in norm
-    assert "commit permalink of the fresh control-branch tip" in norm
+    assert "commit permalink of the fresh base tip" in norm
     assert "Never add a new live-tree link to a source task you are deleting" in norm
     assert "land a deletion that leaves a live-tree reference to the deleted task" in norm
 

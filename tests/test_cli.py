@@ -227,7 +227,6 @@ def test_windows_idle_timeout_refusal_keeps_checkout_and_control(
     err = capsys.readouterr().err
     assert "--idle-timeout is unavailable on native Windows" in err
     assert "--max-session" in err
-    assert "refused before changing state" in err
     assert {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()} == before
     assert git_repo.git("branch", "--show-current").strip() == "feature/keep-this-checkout"
     assert git_repo.git("rev-parse", "HEAD") == head

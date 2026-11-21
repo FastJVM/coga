@@ -512,7 +512,7 @@ def test_retire_leaves_dirty_worktree_in_place(
     assert result.exit_code == 0, result.output
     assert _retire_status(repo, slug) == "active"
     assert (feature / "uncommitted.txt").read_text() == "work in progress"
-    assert _git(feature, "branch", "--show-current").strip() == "fix-retry-branch"
+    assert _git(feature, "branch", "--show-current").stdout.strip() == "fix-retry-branch"
 
 
 
