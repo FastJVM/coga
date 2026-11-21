@@ -1,6 +1,6 @@
 ---
 title: Launch on a stale feature branch leaves projected ticket and log.md dirty
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,6 +36,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:f417e574-a312-4012-b02e-f99509d2695c
 ---
 
 ## Description
