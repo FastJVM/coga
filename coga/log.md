@@ -4618,3 +4618,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 17:10 v1 [v1/04-script-or-agent-one-executor-model-and-one-launch] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-20 17:10 v1 [v1/04-script-or-agent-one-executor-model-and-one-launch] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-20 17:10 v1 [v1/04-script-or-agent-one-executor-model-and-one-launch] [megalaunch] launched via coga megalaunch
+2026-11-20 17:17 v1 [v1/04-script-or-agent-one-executor-model-and-one-launch] [agent:claude] advanced to step 2 (evaluate-design) → codex — Spec written; 5 open questions on the blackboard (delegation completion, mark done bootstrap/, megalaunch unchanged=stopped, coga exit placement, env rename). Implement after v1/03 merges.
