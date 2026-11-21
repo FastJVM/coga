@@ -214,6 +214,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1277
 branch: fix-google-skills-helper-paths
 
 ## Implement handoff
