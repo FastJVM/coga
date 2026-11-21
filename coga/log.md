@@ -4613,3 +4613,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-20 16:52 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-20 16:52 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-20 16:52 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [megalaunch] launched via coga megalaunch
+2026-11-20 16:52 v1 [refresh-the-v1-microkernel-task-readmes-after-the] [human:nicktoper] unblocked (asks resolved, still in_progress): Both prerequisite PRs merged on 2026-11-19: #1255 (merge dc7754b1d1e72406a388ca867220b1f5ceb3bc1a) and #1259 (merge 347f8983c03961d0d754a33c54bc208ae7bb0a29). Proceeding with the README refresh.

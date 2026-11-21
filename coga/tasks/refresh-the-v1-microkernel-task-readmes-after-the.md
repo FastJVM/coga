@@ -149,7 +149,8 @@ permalinks, then decide the fate of
 
 ## Blockers
 
-- [ ] [2026-11-18 23:57] [agent:claude] id=20261118T235751 Waiting on PRs #1255 (retro prompt-assembly trials knowledge) and #1259 (retro 06 read/report commands knowledge) to merge; both are still OPEN. The ticket says to refresh the READMEs only after they merge (their deletions and merge commits are what the rows must cite). Unblock once both are merged.
+- [x] [2026-11-18 23:57] [agent:claude] id=20261118T235751 Waiting on PRs #1255 (retro prompt-assembly trials knowledge) and #1259 (retro 06 read/report commands knowledge) to merge; both are still OPEN. The ticket says to refresh the READMEs only after they merge (their deletions and merge commits are what the rows must cite). Unblock once both are merged.
+  resolved: [2026-11-20 16:52] [human:nicktoper] Both prerequisite PRs merged on 2026-11-19: #1255 (merge dc7754b1d1e72406a388ca867220b1f5ceb3bc1a) and #1259 (merge 347f8983c03961d0d754a33c54bc208ae7bb0a29). Proceeding with the README refresh.
 
 ---
 
