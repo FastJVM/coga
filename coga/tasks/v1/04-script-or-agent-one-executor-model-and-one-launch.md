@@ -1,6 +1,6 @@
 ---
 title: 'Script or agent: one executor model and one launch loop'
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -47,7 +47,6 @@ workflow:
     checkout: reuse-required
 step: 2 (evaluate-design)
 agent: claude
-launch_generation: 81eef652-6cb1-443c-88d9-021686903695
 ---
 
 ## Description
@@ -686,3 +685,9 @@ Design step, 2026-11-20. Recommendations first; the owner decides in review-desi
   namespace (for example bubblewrap) would otherwise make `os.kill` hit an
   unrelated in-namespace PID. Refusing non-ancestors makes the sandbox case
   fall back to the message.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-20 17:18] [agent:codex] id=20261120T171827 Relaunch evaluate-design from a clean, current main checkout. The supplied checkout is on refresh-v1-microkernel-readmes-after-retro, with an unmerged implementation commit for refresh-the-v1-microkernel-task-readmes-after-the still in progress. Its ticket and log modifications already match fetched origin/main. Preserve that branch and its commit when returning the checkout to main.
