@@ -107,24 +107,12 @@ first.
 
 Megalaunch is an editable bootstrap script and complete `coga_edge.megalaunch`
 module, reached through direct launch aliases. Core never imports its policy.
-`launch.run_claimed_agent_session` delegates to `claimed_session`: exact source
-bytes, generation construction, strict claim publication, final local/control
-proofs, held-child barrier, release, released witness and admission form one
-package-private transaction. Ordinary launch recovery consumes the same pending
-seal and generation machinery. A filesystem edge cannot choose the seal's sole
-pending-to-admitted exception safely. This bounded co-versioning proof covers
-those mechanics, not picker, ordering, budgets or stop classification.
-`mark.reblock_unresolved_resume` serves ordinary launch and queue cleanup;
-shared foreground waits serve stateless scripts and recurring control relays.
-`session_limits` shares env/config parsing between recurring and the queue;
-each caller supplies its own idle default. `authoring.invoke_ticket_authoring`
-uses public CLI argv and preserves its guarded finalization. Its narrow
-co-versioning obligation is two Python-only `cli.main` seams: mapping a
-retained authoring finalization (`authoring.authored_state_retained`, not the
-broader withheld-sweep flag) to 75 before CLI cleanup resets it, and refusing
-rather than scaffolding a picked ref that no longer resolves
-(`authoring.existing_target_only`). This is why the edge does not inspect a
-private CLI flag or copy an authoring executor.
+The queue uses the shared step-script resolver and agent executor. It owns
+selection, ordering, budgets and stop classification. `session_limits` shares
+environment and config parsing between recurring and megalaunch.
+`authoring.invoke_ticket_authoring` uses CLI arguments and the
+`existing_target_only` entry point so a vanished pick cannot scaffold a new
+ticket.
 `13-move-ticket-authoring-to-a-command-ticket` still owns the authoring
 coordinator's eventual placement.
 

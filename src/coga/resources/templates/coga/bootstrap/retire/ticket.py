@@ -47,35 +47,13 @@ def retire(
 ) -> None:
     """Wrap up a finished task: delete a done one, run Retro on a canceled one.
 
-    A `done` ticket's positive learning already landed with its merged PR (the
-    owning topic changes in the same PR), so retiring it is deterministic: no
-    agent runs. Retire disposes of its checkout and then deletes the task and
-    syncs the removal, exactly as `coga delete` does (recover with
-    `git restore`).
+    A `done` ticket is deleted locally through `coga delete`.
 
-    A `canceled` ticket's learning is negative — the cancellation reason and
-    whatever the blackboard says did not work — and nothing landed it. Retire
-    creates a one-shot ad-hoc task whose body invokes the `retro/done-ticket`
-    skill against it. Retro opens a PR when it extracts new durable knowledge;
-    that PR records the `## Retro` marker, edits the knowledge base, and deletes
-    the source task directory in the same PR. If no new durable knowledge
-    exists, Retro direct-deletes the task via `coga delete`.
-
-    Before deleting the task or launching that retro pass, retire disposes of the ticket's feature
-    checkout and git branch, both read from the `## Dev` blackboard section
-    while the ticket (and thus the `worktree:` / `branch:` lines) still exists.
-    The recorded linked worktree is removed first — which also unpins the branch
-    Git would otherwise refuse to delete — then the local branch and its
-    `origin` counterpart. This is the manual lifecycle event that disposes of
-    both; the daily autoclose sweep runs the same shared proofs
-    (`coga.checkout_disposal`) for the tickets it closes. The worktree removal
-    requires an exact, unshared, locally pristine linked checkout of this same
-    repository, and the remote branch delete is gated on the linked PR being
-    merged at the current exact head with no other open PR for that branch.
-    Claims from sibling Coga workspaces in the same Git checkout count as
-    shared. It never removes the invoking checkout, `main`, or an unrelated
-    branch. (This deliberately overrides the former punt that branch hygiene
-    was a Dream concern — that punt is why branches and worktrees piled up.)
+    For a `canceled` ticket, retire creates a one-shot task that invokes
+    the `retro/done-ticket` skill. Retro opens a PR when it extracts durable
+    knowledge. That PR records `## Retro`, updates the knowledge base and
+    deletes the source ticket. If there is no new durable knowledge,
+    Retro deletes the ticket locally through `coga delete`.
     """
     if os.environ.get("COGA_SCRIPT_HELP") == "1":
         raise typer.Exit(2)
