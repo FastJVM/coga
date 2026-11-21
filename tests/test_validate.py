@@ -3174,3 +3174,37 @@ def test_validation_entries_do_not_mask_internal_value_errors(
     result = CliRunner().invoke(app, ["validate", "--json"])
     assert isinstance(result.exception, ValueError)
     assert result.exit_code != 2
+
+
+@pytest.mark.parametrize("legacy_section", [True, False])
+def test_renamed_step_uses_its_legacy_section(repo: Path, legacy_section: bool) -> None:
+    workflow_path = _write_skillless_release_workflow(repo)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    legacy = "\n## release\n\nOld step name: follow the ship script.\n" if legacy_section else ""
+    _write(workflow_path, f"""
+        ---
+        name: custom/release
+        description: Release workflow.
+        steps:
+          - name: ship
+            assignee: agent
+        ---
+
+        ## ship
+
+        Ship the release.
+    """)
+    workflow_path.write_text(workflow_path.read_text() + legacy)
+
+    kinds = [issue.kind for issue in run(load_config(repo)).issues]
+
+    assert ("missing-step-instructions" in kinds) is not legacy_section
