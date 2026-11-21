@@ -36,7 +36,7 @@ blocker cleanup read its latest state after synchronization. This is internal
 organization, not a phase registry or extension surface; the ordering
 guarantees in [coga/launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md) apply across those
 boundaries. Entry preparation is `git.prepare_control_checkout`
-([git refresh](../git-refresh/SKILL.md)); a prepared step spawns with the
+([coga/git](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)); a prepared step spawns with the
 prompt composed before the switch
 (`spawn_agent_session(composed_prompt=...)`). `prepare_agent_launch` is the shared readiness operation for ordinary launch
 and megalaunch. It resolves the agent and CLI, validates prompt layers, builds
@@ -58,7 +58,7 @@ open blocker left after a resumed session is restored by
 Ordinary managed agent-only startup carries the captured source and prospective
 lifecycle into supervision, plans linkage without writing it, composes, then
 publishes and confirms the group before checkout entry and notification.
-[`_publish_startup`](../state-publication/publish/SKILL.md#ordinary-managed-startup)
+[coga/git](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)
 owns the finalizer and its failure paths. Other launch routes keep their own
 publication order.
 
@@ -86,13 +86,13 @@ prompt applicability rule or relocate those existing delivery defaults.
    into the spawn gate or already published by the caller with
    `record_launch=False`) and, with `commit_log`, publish it at once. `coga
    launch` always sets `commit_log`, so a code step's start check
-   ([coga/checkouts](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)) finds a clean tree;
+   ([coga/git](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)) finds a clean tree;
    megalaunch's deferred audit publishes with its launch admission.
    `before_recompose` (recurring: after the audit
    publishes, exit this pass so the caller reloads and recomposes);
    `before_spawn` final boundary.
 5. `repl_supervisor.run_with_done_marker`, optionally with the held-child
-   gate ([launch claims](../launch-claims/SKILL.md)).
+   gate ([launch claims](SKILL.md)).
 6. Teardown: when the child actually started, capture usage
    (`coga/usage`; outcome `unknown` unless classified), then publish. A
    stateful `TaskRef` session calls `git.retry_session_publication` for its
@@ -220,7 +220,7 @@ the terminal-status probe while `completion_pending` finds a live one, and
 also supply `launch._terminal_status_probe` through the supervisor's
 `terminal_status` callback. The completion backstop, signal diagnostics and
 recurring outcome contract live in
-[session liveness](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md#session-completion-and-liveness).
+[session liveness](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md).
 Both completion paths send SIGTERM then SIGKILL after 2 s.
 
 `ReplOutcome.kind`: `natural` (own exit, own code), `done` (0, with sentinel
@@ -243,7 +243,7 @@ reports false (no observation). The POSIX PTY child records a failed
 `exec` in its private session directory. The supervisor reads and removes
 the record after the child exits. It passes `exec_failed` through
 `ReplOutcome` and `AgentSessionResult` for megalaunch's
-[startup compensation](../launch-claims/SKILL.md#failed-agent-start).
+[startup compensation](SKILL.md).
 Launch and megalaunch freeze `(status, step)`
 immediately before spawn. They compare it with post-session state through
 `repl_supervisor.unsignalled_advance_warning` to print the

@@ -77,7 +77,7 @@ publication failure restores only the command's own ticket bytes and retracts
 its audit; an uncertain push keeps the write for reconciliation. Both exit 75
 to suppress the generic sweep. With Git disabled or unavailable through a
 documented soft-skip, the local write remains the result
-([publish primitive](../internals/state-publication/publish/SKILL.md)).
+([coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)).
 
 ## Settled read/report placements
 
@@ -242,12 +242,8 @@ repo chooses from.
 - **No inversion.** Moving logic out of the kernel moves the substance
   unchanged: deterministic Python stays Python (a recipe or `ticket.py`),
   never agent judgment.
-- **`prepare-checkout` is a recipe, not shared infra alone.** It is the one
-  in-chat consumer of the branch preparation in `src/coga/checkouts.py` that
-  ordinary launch also calls, so those mechanics are shared infra. The recipe
-  is registered because its argv, report and 0/2/75 exits must agree with
-  launch's private live-chat receipt. It is not a Typer head, alias, ticket
-  plugin, or general phase registry.
+- **Git workflow scripts.** Branch creation and PR operations live beside
+  their packaged workflow skills and read the ticket's Git record.
 - **Skill provenance at use is unbuilt.** Compose does not verify loaded
   skills against a provenance digest; that launch-time trust hook would be
   kernel when built.

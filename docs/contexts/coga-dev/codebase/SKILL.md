@@ -53,7 +53,7 @@ The repo separates implementation from the OS it operates:
   table in the same change. Only `_resolve_secret_value` runs `env:`
   indirection, for the two Slack webhook keys.
 - `git.py`: the whole Git sync layer (`publish`, `refresh`,
-  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/state-publication](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md).
+  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
 - `review_conflict.py`: the human-review PR a lifecycle command opens for an
   unrankable ticket status conflict, and its merged/closed/open return path;
   shared by lifecycle commands through `commands/common.reconcile_lifecycle_ticket`
@@ -62,24 +62,11 @@ The repo separates implementation from the OS it operates:
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
   It also owns the shared `## Recipe Failure` floor (`run_reported`, with an
   optional root resolver) and the edge entry sequence `run_entry`
-  (report → publish → bump). `state_sweep.py` is the end-of-invocation sweep
-  mechanism shared by `cli._sweep_coga_state` and `run_entry`.
-- `oscompat.py`: per-user lock paths and descriptor locks for publication
-  and chat, and owned process trees for both recurring runners and the
-  Windows agent supervisor. POSIX uses flock/process groups; Windows uses
-  byte-range locks and Job Objects. Its interactive mode runs
-  `_nt_session_wrapper.py`, a stdlib-only script run by path under the base
-  interpreter.
-- `launch.py` (launch API, preparation and supervision; `prepare_agent_launch`
-  shares CLI/prompt/secret/command readiness with megalaunch, and explicit
-  read-only invocation reuses `launch_script.run_script_phase`),
-  `checkout_policy.py` (pure entry-checkout selection: the frozen step's
-  `checkout:`, else the legacy table for older snapshots; the draft
-  `v1/microkernel/18-retire-the-legacy-checkout-policy-snapshot-fallbac`
-  owns that table's retirement under the `coga/checkouts` rule) and
-  `checkouts.py` (shared branch preparation for launch and the
-  `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
-  `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
+  (report, then bump).
+- `oscompat.py` provides owned process trees for recurring and the Windows
+  supervisor. Its interactive mode runs `_nt_session_wrapper.py`.
+- `launch.py` owns launch readiness and supervision. `launch_script.py`
+  resolves workflow scripts and ticket scripts. `task_env.py` exports
   (`COGA_TASK_*`), `repl_supervisor.py` with its native Windows backend
   and command planner `repl_supervisor_nt.py` (imported only on Windows by
   the shared entry), `claimed_session.py` (queue claim/release/admission),
@@ -148,5 +135,5 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
 - [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md): PyPI release and install gate.
 - [coga/skill-management](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md): skill shapes and
   `coga skill`.
-- [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md): code-ticket checkouts and
+- [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md): code-ticket checkouts and
   the `## Dev` linkage.

@@ -12,8 +12,9 @@ from pathlib import Path
 
 import typer
 
+from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.compose import LaunchContext
-from coga.config import Config, ConfigError, load_config
+from coga.config import Config, ConfigError, ConfigParseError, load_config
 from coga.launch import LaunchBail, interactive_stdio_has_tty
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, task_log_lines
@@ -686,38 +687,64 @@ def run_recurring_all_repos(
     if not repos:
         typer.echo(f"No Coga repos found under {root}.")
         return 1
-    base = [sys.executable, "-m", "coga.cli", "run", "recurring-scan"]
-    if force:
-        base.append("--force")
-    if interactive:
-        base.append("--interactive")
-    if agent_override:
-        base.extend(("--agent", agent_override))
-    failed = []
+    typer.echo(f"Found {len(repos)} Coga repo(s) under {root}.")
+    failed: list[str] = []
+    unconfigured = 0
+    not_owner = 0
     swept = 0
     for index, repo in enumerate(repos, 1):
         label = _repo_label(repo, root)
-        typer.echo(f"\n[{index}/{len(repos)}] {label}")
         try:
             cfg = load_config(repo)
-        except ConfigError as exc:
-            typer.echo(f"Skipped {label}: {exc}", err=True)
+            validate_aliases({**DEFAULT_ALIASES, **cfg.aliases})
+        except ConfigParseError as exc:
+            typer.echo(f"{label}: {exc}", err=True)
+            failed.append(label)
+            continue
+        except ConfigError:
+            unconfigured += 1
             continue
         if _refuse_non_owner(cfg):
+            not_owner += 1
             continue
+        typer.echo(f"\n[{index}/{len(repos)}] {label}")
         try:
-            status = subprocess.run(base, cwd=repo, check=False).returncode
+            status = _run_repo_recurring(
+                repo, force=force, interactive=interactive,
+                agent_override=agent_override, clone_only=False,
+            )
         except OSError as exc:
             typer.echo(f"{label}: {exc}", err=True)
             status = 1
         if status:
             failed.append(label)
+            typer.echo(f"{label} — recurring exited {status}", err=True)
         else:
             swept += 1
     typer.echo(f"Swept {swept} of {len(repos)} Coga repo(s).")
+    if unconfigured:
+        typer.echo(f"Skipped {unconfigured} unconfigured repos.")
+    if not_owner:
+        typer.echo(f"Skipped {not_owner} repo(s) owned by another operator.")
     if failed:
         typer.echo(f"Recurring failed in {', '.join(failed)}.", err=True)
     return int(bool(failed))
+
+
+def _run_repo_recurring(
+    repo: Path, *, force: bool, interactive: bool,
+    agent_override: str | None, clone_only: bool,
+) -> int:
+    argv = [sys.executable, "-m", "coga.cli", "run", "recurring-scan"]
+    if force:
+        argv.append("--force")
+    if interactive:
+        argv.append("--interactive")
+    if agent_override:
+        argv.extend(("--agent", agent_override))
+    if clone_only:
+        argv.append("--clone-only")
+    return subprocess.run(argv, cwd=repo, check=False).returncode
 
 
 def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
@@ -870,13 +897,19 @@ def _run_delegated_task(
             max_session=max_session, return_timeout=True, launch_context=launch_context,
             before_spawn=start_period,
         )
+        cfg = load_config(cfg.repo_root)
         if result.kind == "timeout":
             if continue_after_timeout:
                 _stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
                 return DelegatedRunResult(0, "timeout")
             return DelegatedRunResult(result.exit_code or _TIMEOUT_EXIT_CODE, result.kind)
         if result.kind != "done" or result.exit_code:
-            raise RecurringError(f"{delegate} ended without its done signal. {ref.id_slug} remains in progress.")
+            typer.echo(
+                f"{delegate} ended without its done signal ({result.kind or 'unknown'}). "
+                f"{ref.id_slug} remains in progress.",
+                err=True,
+            )
+            return DelegatedRunResult(2, result.kind or "unknown")
         if ref.ticket_path.is_file():
             current = read_ticket(ref)
             if current.status == "in_progress":
@@ -889,7 +922,7 @@ def _run_delegated_task(
     except LaunchBail as exc:
         typer.echo(exc.reason or str(exc), err=True)
         return DelegatedRunResult(exc.code, "refused")
-    except (RecurringError, TicketError, TaskValidationError, *PREPARE_ACTIVE_ERRORS) as exc:
+    except (ConfigError, RecurringError, TicketError, TaskValidationError, *PREPARE_ACTIVE_ERRORS) as exc:
         typer.echo(str(exc), err=True)
         return DelegatedRunResult(2, "refused")
 

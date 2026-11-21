@@ -21,8 +21,6 @@ from typing import Any
 
 import yaml
 
-from coga_edge.skill_subprocess import run_subprocess
-
 from coga.config import Config
 from coga.github_source import github_owner_repo
 from coga.paths import packaged_template_path
@@ -594,6 +592,20 @@ def ensure_gh_skill(*, runner: Runner | None = None) -> None:
             raise GhSkillUnavailableError(message)
         message = f"{GH_SKILL_REQUIRED}\n{output}" if output else GH_SKILL_REQUIRED
         raise SkillManagerError(message)
+
+
+def run_subprocess(
+    args: Sequence[str],
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    argv = list(args)
+    return subprocess.run(
+        argv,
+        cwd=cwd,
+        text=True, encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
 
 
 def materialize_url_skill(

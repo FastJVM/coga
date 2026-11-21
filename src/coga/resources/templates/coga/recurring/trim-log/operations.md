@@ -53,7 +53,7 @@ Publish the selection and attribute edits together after upgrading every
 writer. When preparing adoption for PR review, commit both files before any
 command that publishes Coga state; clean committed files on a feature branch
 wait for merge under the
-[publication rules](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#control-versus-feature-checkouts).
+[coga/git](../../bootstrap/contexts/coga/git/SKILL.md).
 Keep participating schedulers stopped until the merged files and compatible
 installations are verified. Rollback likewise requires a compatible wheel/repo
 pair; do not restore old cursor state or trimmed history.

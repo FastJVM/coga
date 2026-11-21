@@ -6,10 +6,7 @@ description: Where Coga's agent-session usage records live and how coga usage re
 # Agent session usage
 
 Every Coga-launched agent session appends one usage record to the repo's own
-`coga/log.md`, and `coga usage` rolls those records up. This is a local,
-git-backed data primitive: the records live in the repository and travel
-wherever the repository's git remote sends them — Coga's state publication
-pushes `coga/log.md` to the control branch (`coga/sync`). Session activity and
+`coga/log.md`, and `coga usage` rolls those records up. The audit log travels with ordinary Git commits. Session activity and
 token records are excluded from the weekly aggregate telemetry snapshot;
 [`coga/recurring/phone-home/ticket.md`](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md) owns that separate external boundary.
 
@@ -91,8 +88,7 @@ root is recorded unknown, not zero. A relative `CODEX_HOME`, or one set only in
 the agent's own environment (ticket `secrets:`, agent env config), is not
 supported.
 
-`coga usage` is read-only: no mutation, no network, and no end-of-command
-state sweep. It is the after-the-fact counterpart to `coga launch --prompt-report`,
+`coga usage` is read-only: it reads the local audit log. It is the after-the-fact counterpart to `coga launch --prompt-report`,
 which estimates the prompt side before a run.
 
 ## Reading the numbers honestly

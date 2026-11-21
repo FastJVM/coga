@@ -27,21 +27,9 @@ description: "Operating agent sessions in restricted sandboxes: nested reviewers
   `launch_args = "--no-daemon"` under `[agents.codex]`, which the shipped
   `coga.toml` sets and explains; launch warns after a session whose ticket
   moved without a done signal.
-- State-changing commands (`create`, `bump`, `mark`) write in three places a
-  sandbox can treat differently: the checkout files (ticket, log), Git's
-  object database (`git hash-object -w`), and the index lock
-  (`.git/index.lock`). A writable checkout with unwritable Git storage saves
-  the transition and fails only its publication: the `[git] sync failed`
-  report names the checkout and the object directory Git resolved, which may
-  be a linked checkout's shared store or a `GIT_OBJECT_DIRECTORY` override
-  rather than `<checkout>/.git/objects`. Do not rerun the command. With the
-  operator's authorization, rerun unsandboxed or grant write access to that
-  destination (the Codex grant below covers the Git common directory), then
-  run the `coga run publish-state` recovery the report prints
-  ([recovery](../state-publication/SKILL.md#recovering-a-failed-publication)).
-- When creating the feature branch fails because the primary `.git` is
-  read-only, use the independent-clone fallback in
-  [coga/checkouts/sandbox-clone](../checkouts/sandbox-clone/SKILL.md).
+- State changes write the local ticket and audit log. Git workflow steps
+  also need access to Git's index and object storage. Keep local state if
+  Git fails and resolve the reported error before retrying.
 
 ### Codex sandbox grant
 
@@ -82,12 +70,8 @@ writable_roots = ["<git common dir>"]
   supply the same grant (network on, the Git common dir or a directory above
   it writable) for every session it covers. Coga neither reads nor checks
   that file, so narrowing or reverting it brings the failures back.
-- A missing grant shows up in `coga/log.md` as `[git] sync failed` lines
-  naming `Could not resolve host` (no network) or `git hash-object …
-  Read-only file system` (read-only `.git`). The outer `coga launch` runs
-  outside the sandbox and retries publication at checkout return and in its
-  exit sweep; see [recovering a failed publication](../state-publication/SKILL.md#recovering-a-failed-publication)
-  when that retry is refused too.
+- Diagnose a failed Git step from its command output. Check if the session
+  can write the Git common directory and reach the remote.
 - To attribute a `[git] sync failed` line to the session that caused it,
   match it to its enclosing session in `coga/log.md`: the preceding
   `launched (… agent=X)` line and that session's usage record `"cli":"X"`.

@@ -106,7 +106,7 @@ Lifecycle commands (`bump`, the `mark` verbs, `block`, `unblock`) commit
 through a prepared ticket transaction: `git.write_ticket(..., prepared=)`
 rereads the file under the lock and raises `TicketChangedError` rather than
 overwrite an edit made after the command read the ticket
-([coga/state-publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#prepared-ticket-transactions)
+([coga/state-publication](SKILL.md)
 owns the contract). Only a `write_ticket` call without `prepared` keeps the
 serialize-without-reread behavior. `owner`, launch startup, and megalaunch's
 and the recurring runner's delegated starts compare source bytes under the

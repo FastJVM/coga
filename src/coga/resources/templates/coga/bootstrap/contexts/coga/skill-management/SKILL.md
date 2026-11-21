@@ -78,7 +78,7 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
 - `--pr` requires `--all` and opens or updates one draft PR after running the
   `--verify` commands (default `coga validate --json`).
   The updater reuses a shared branch protected by the
-  [branch-sweep cleanup contract](../checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
+  [coga/git](../git/SKILL.md).
   Before applying any update it refuses, listing each path, when the switch
   to that branch would fail or sweep up local work: unmerged paths, local
   edits or untracked files at paths that differ on the control branch, any

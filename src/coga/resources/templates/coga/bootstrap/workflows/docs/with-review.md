@@ -52,6 +52,9 @@ and check accuracy, scope, links, and definition ownership. Fix must-fix
 findings, commit them, and record the head and evidence under `## Dev` and
 `## PR`. Bump when the handoff is ready.
 
+In the review receipt, record the actual reviewer and disclose any overlap with
+the implementation session.
+
 ## open-pr
 
 On a frozen ticket with this earlier step name, follow the `code/open-pr`

@@ -53,3 +53,8 @@ On a frozen snapshot without a step skill, follow `code/implement`.
 ## peer-review
 
 On a frozen snapshot without a step skill, follow `code/peer-review`.
+
+## No other-agent code review
+
+This workflow is for teams using one agent. The implementer runs self-review
+and the owner reviews the PR before merging.

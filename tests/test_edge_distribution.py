@@ -140,7 +140,7 @@ from coga.recurring import create_named
 subprocess.run(["git", "init", "-b", "main"], check=True, capture_output=True)
 subprocess.run(["git", "config", "user.name", "Test"], check=True)
 subprocess.run(["git", "config", "user.email", "test@example.test"], check=True)
-with patch("coga.commands.init._require_init_tools"), patch("coga.commands.init._offer_optional_tools"):
+with patch("coga.commands.init._offer_optional_tools"):
     result = CliRunner().invoke(app, ["init", ".", "--user", "tester"])
 assert result.exit_code == 0, result.output
 local = Path("coga/coga.local.toml")

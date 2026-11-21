@@ -25,11 +25,7 @@ terminal outcomes `done` and `canceled`.
 | `blocked` | `coga block --task <ref> --reason ...` (keeps `step:`) | `active`, `in_progress`, `blocked` |
 | `blocked → active` | `coga unblock` (keeps `step:`; on `in_progress` or a paused `recurring/` period it only resolves asks) | `blocked` |
 
-Every writer above except launch decides from the ticket reconciled with
-freshly fetched control, not this checkout's possibly stale copy: a terminal
-control copy cannot be reopened by a stale `mark active`, pause, or block, and
-owner and `requires:` gates are rechecked there
-([prepared ticket transactions](../state-publication/SKILL.md#prepared-ticket-transactions)).
+Each writer reads and updates the ticket in the current checkout.
 
 Launching is itself the
 readiness signal: `coga launch` performs `mark active` inline on a `draft` or
@@ -39,15 +35,6 @@ pre-launch authoring notes on the blackboard
 ([coga/blackboard](../blackboard/SKILL.md)); first activation also fills
 `agent:` and freezes a bare workflow ref ([coga/tickets](../tickets/SKILL.md)).
 Tickets without a workflow move through statuses only via `coga mark`.
-
-For an ordinary managed agent launch, activation and start are prepared in
-memory and published as the final `in_progress` ticket with checkout linkage
-and the launch audit. Their distinct audit events remain ordered; there is
-no separately published intermediate `active` state. Standalone commands and
-strict queue/recurring callers keep their own immediate transitions.
-[Launch publication boundaries](../state-publication/launch-boundaries/SKILL.md)
-owns the accounting; [checkout preparation](../checkouts/launch-boundary/SKILL.md)
-owns refusal and retained-state recovery.
 
 - `--message` adds an FYI to active/paused/done notifications; for canceled
   it is the required audit reason, appended to `coga/log.md`. Cancellation
@@ -88,11 +75,8 @@ when its asks are resolved.
   that step, so it could not otherwise reach `in_progress`), checks the leaving step's
   `requires:` gate, and advances one step, or on the final step delegates to
   `mark_done`. A supervised bump whose session was composed for a step
-  other than the one reconciled with control refuses as stale context. A
-  workflow-less ticket is refused with a pointer to `coga mark done`. `--message` rides the transition notification. A forward
-  bump from a step with a usable `## Dev` `branch:` warns on stderr (never
-  blocks) about stranded ticket writes; see
-  [Git](../git/SKILL.md).
+  other than the current local step refuses as stale context. A
+  workflow-less ticket is refused with a pointer to `coga mark done`. `--message` rides the transition notification.
 - `--to` / `--backward` is a **human** rewind; agents inside a supervised
   launch are refused (`COGA_SUPERVISED`). It is recovery when a step went
   wrong but the ticket's premise still holds: because status and blackboard
@@ -104,9 +88,7 @@ when its asks are resolved.
   status, and derives the target operator without persisting it. From
   `active`/`paused` it must target an agent step (an owner step could not be
   resumed or bumped); `in_progress` may target either. It refuses `blocked`
-  (unblock first) and terminal tickets. It moves backward from the step
-  reconciled with control. If its guarded publication is not confirmed, the local mutation is left for inspection: reconcile the checkout
-  with control before another mutating command, push, or merge.
+  (unblock first) and terminal tickets. It reads the current step from the local ticket.
 
 Pausing preserves the step; cancellation clears it.
 
