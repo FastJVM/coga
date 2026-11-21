@@ -808,9 +808,13 @@ def run_recurring_scan(
             for task in scan.tasks:
                 if not task.watchdog_paused or task.ref is None or (force and not task.launch_refusal):
                     continue
-                detail = "Watchdog timeout left the period paused."
+                detail = "A watchdog timeout left the period paused."
                 if task.launch_refusal:
-                    detail += f" Recovery refused: {task.launch_refusal}"
+                    recovery = "Forced recovery" if force else "Recovery"
+                    detail += (
+                        f" {recovery} refused: {task.launch_refusal} "
+                        f"Resume with `coga launch {task.ref.id_slug}`."
+                    )
                 else:
                     detail += " This sweep retries it."
                 paused_ticket = read_ticket(task.ref)
@@ -833,6 +837,9 @@ def run_recurring_scan(
             for task in due:
                 if task.ref is None:
                     continue
+                if not task.ref.ticket_path.is_file():
+                    record.note(f"{task.ref.id_slug} was removed during the sweep")
+                    continue
                 try:
                     if force:
                         _prepare_forced_launch(cfg, task)
@@ -844,6 +851,9 @@ def run_recurring_scan(
                         scheduled=True,
                     )
                     failure = failure or code
+                    if force and task.watchdog_paused and task.ref.ticket_path.is_file():
+                        if read_ticket(task.ref).status not in TERMINAL_STATUSES:
+                            failure = failure or 2
                 except (RecurringError, TicketError, TaskValidationError, OSError, *PREPARE_ACTIVE_ERRORS) as exc:
                     typer.echo(f"{task.ref.id_slug}: {exc}", err=True)
                     _record_outcome(
@@ -937,7 +947,11 @@ def _run_delegated_task(
             )
             return DelegatedRunResult(2, result.kind or "unknown")
         if ref.ticket_path.is_file():
-            current = read_ticket(ref)
+            try:
+                current = read_ticket(ref)
+            except (OSError, UnicodeError, TicketError) as exc:
+                typer.echo(f"Cannot finalize delegated period {ref.id_slug}: {exc}", err=True)
+                return DelegatedRunResult(2, "refused")
             if current.status == "in_progress":
                 assert_frozen_delegation(ref, current)
                 mark_done(
@@ -961,7 +975,7 @@ def _launch_created(
     ticket = read_ticket(ref)
     if ticket.status not in {"active", "in_progress"}:
         typer.echo(f"{ref.id_slug} is {ticket.status}; not launching")
-        return 2 if ticket.status == "canceled" else 0
+        return 0
     before = _template_description(cfg, template)
     idle_timeout = resolve_idle_timeout(cfg, default=None if interactive else _RECURRING_IDLE_TIMEOUT_SECONDS)
     max_session = resolve_max_session(cfg)
@@ -1028,6 +1042,8 @@ def run_recurring_named(
             resumed = _resume_named_pause(cfg, ref)
             if resumed is not None:
                 return resumed
+            if read_ticket(ref).status == "in_progress":
+                typer.echo(f"Resuming {ref.id_slug}")
         return _launch_created(
             cfg, ref, interactive=interactive, agent_override=agent_override,
             record=record, template=name,

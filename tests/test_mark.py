@@ -917,10 +917,10 @@ def test_mark_canceled_slack_text_includes_reason(
     )
 
 
-def test_mark_canceled_on_feature_lands_union_evidence_on_control(
+def test_mark_canceled_on_feature_writes_only_local_evidence(
     git_repo,
 ) -> None:
-    """An abandoned feature branch cannot strand the cancellation reason."""
+    """Cancellation changes the local ticket and audit log."""
     cfg = load_config(git_repo.coga_os)
     ref = create_task(
         cfg=cfg,
@@ -931,10 +931,12 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         agent="claude",
         status="active",
     )
+    git_repo.git("add", "coga")
+    git_repo.git("commit", "-m", "Seed cancel task")
+    git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/cancel")
 
-    # Move origin/main under the feature checkout with a concurrent union-file
-    # append. The cancellation sync must retry and preserve both writers.
+    # Simulate a peer audit append while cancellation runs locally.
     local_log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     git_repo.push_competing_commit(
         "coga/log.md", local_log + "2026-01-01 00:00 rival: unrelated event\n"
@@ -951,9 +953,11 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
     )
     control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    assert control_ticket.status == "canceled"
-    assert control_ticket.step is None
-    assert "canceled (active → canceled): Owner declined" in control_log
+    assert control_ticket.status == "active"
+    assert "Owner declined" not in control_log
+    completed = Ticket.read(Path(ref["path"]))
+    assert completed.status == "canceled" and completed.step is None
+    assert "Owner declined" in (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     assert "rival: unrelated event" in control_log
     assert git_repo.git("branch", "--show-current").strip() == "feature/cancel"
     # Coga never commits on the feature branch: the live ticket and log stay
@@ -986,11 +990,8 @@ def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> d
 
 
 @pytest.mark.parametrize("control_has_notes", [True, False])
-def test_activation_synthesis_gate_reads_the_prepared_ticket(git_repo, control_has_notes):
-    """`mark active` checks draft-blackboard synthesis on the ticket reconciled
-    with fresh control, not the stale on-disk copy: control's authoring notes
-    refuse activation, and stale local notes control already synthesized do
-    not."""
+def test_activation_synthesis_gate_reads_local_notes(git_repo, control_has_notes):
+    """Activation uses the local blackboard even as the remote changes."""
     cfg = load_config(git_repo.coga_os)
     ref = _seed_pushed_task(git_repo, cfg, title="Draft gate", status="draft")
     ticket_path = Path(ref["path"])
@@ -1008,13 +1009,14 @@ def test_activation_synthesis_gate_reads_the_prepared_ticket(git_repo, control_h
     result = CliRunner().invoke(app, ["mark", "active", ref["slug"]])
 
     control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+    assert control.status == "draft"
     if control_has_notes:
+        assert result.exit_code == 0, result.output
+        assert Ticket.read(ticket_path).status == "active"
+    else:
         assert result.exit_code != 0, result.output
         assert "Ticket authoring notes" in result.output
-        assert control.status == "draft"
-    else:
-        assert result.exit_code == 0, result.output
-        assert control.status == "active"
+        assert Ticket.read(ticket_path).status == "draft"
 
 
 # --- main-agent selection timing (the approved activation-time contract) -------

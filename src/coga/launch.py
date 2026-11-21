@@ -2074,7 +2074,8 @@ def _terminal_status_probe(
             key = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
             if key != cached_key:
                 current = Ticket.read(ref.ticket_path)
-                cached_status = current.status if current.status in TERMINAL_STATUSES else None
+                status = current.status
+                cached_status = status if isinstance(status, str) and status in TERMINAL_STATUSES else None
                 cached_key = key
         except (OSError, TicketError, UnicodeError):
             cached_key = cached_status = None

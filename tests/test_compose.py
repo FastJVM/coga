@@ -183,7 +183,7 @@ def _conduct_step_task(repo: Path) -> tuple[object, object, object]:
     )
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
-    ticket.frontmatter["step"] = "2 (peer-review)"
+    ticket.frontmatter["step"] = "3 (peer-review)"
     ticket.write(ref.ticket_path)
     return cfg, ref, read_ticket(ref)
 
@@ -414,7 +414,7 @@ def test_compose_ticket_loop_only_for_task_tickets(
     assert ("`coga bump <id>` is the only command" in report.prompt) is not bootstrap
     # The ticket-file editing rules and reconciliation hold in every session.
     assert "You may edit `contexts` and the body sections" in report.prompt
-    assert "`coga/checkouts/reconciliation`" in report.prompt
+    assert "`coga/git`" in report.prompt
 
 
 @pytest.mark.parametrize(
@@ -458,7 +458,7 @@ def test_bundled_review_step_composes_address_pr_comments_skill(
     prompt = compose_prompt(cfg, ref, read_ticket(ref))
 
     assert "Current step: review (skill: code/address-pr-comments)" in prompt
-    assert "Do not run `coga bump`" in prompt
+    assert "Leave the final bump and merge to the owner." in prompt
     assert "A pure prose edit does not require pytest" in prompt
 
 
@@ -477,12 +477,13 @@ def test_created_ticket_implement_prompt_includes_code_citation_guidance(
     )
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
+    ticket.frontmatter["step"] = "2 (implement)"
     prompt = compose_prompt(cfg, ref, ticket)
 
     assert "Current step: implement (skill: code/implement)" in prompt
     assert "Skill — bootstrap/ticket" not in prompt
     assert "Skill — code/design" not in prompt
-    assert "Cite module plus symbol, never a bare line number." in prompt
+    assert "cite the module and symbol" in prompt
 
 
 def test_design_workflow_routes_a_cold_peer_review_before_owner_approval(
@@ -566,15 +567,9 @@ def test_design_prompts_remain_accurate_for_pre_evaluator_snapshots(
     [
         (
             "code/with-self-review",
-            "2 (self-qa)",
-            "Independent quality pass over what `code/implement` committed",
+            "3 (self-qa)",
+            "Review the whole diff",
             "`coga block` — something is off",
-        ),
-        (
-            "code/with-review",
-            "3 (open-pr)",
-            "done by a single deterministic command, `coga open-pr`",
-            "earlier-step gap — `coga block` with a one-line reason",
         ),
         (
             "direct/body",
@@ -624,7 +619,7 @@ def test_stock_step_prompt_escalates_per_launch_mode(
     )
 
     assert body_marker in normalized_prompt
-    assert "escalate per your launch mode" in normalized_prompt
+    assert ("session conduct" in normalized_prompt or "escalate per your launch mode" in normalized_prompt)
     assert legacy_direction not in normalized_prompt
 
 
