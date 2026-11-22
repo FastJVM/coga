@@ -1662,7 +1662,7 @@ def _check_workflow_shape(
                     step_name = frozen_step.get("name")
                     if not isinstance(step_name, str):
                         continue
-                    if current_workflow.inline_instructions.get(step_name):
+                    if current_workflow.instructions_for(step_name):
                         continue
                     out.append(Issue(
                         kind="missing-step-instructions",

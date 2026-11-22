@@ -2755,3 +2755,37 @@ def test_validate_checks_run_entry_and_inherited_role(repo, assignee, diagnostic
     report = validate_task(load_config(repo), "check")
     errors = [issue.message for issue in report.issues if issue.severity == "error"]
     assert any(diagnostic in message for message in errors), errors
+
+
+@pytest.mark.parametrize("legacy_section", [True, False])
+def test_renamed_step_uses_its_legacy_section(repo: Path, legacy_section: bool) -> None:
+    workflow_path = _write_skillless_release_workflow(repo)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    legacy = "\n## release\n\nOld step name: follow the ship script.\n" if legacy_section else ""
+    _write(workflow_path, f"""
+        ---
+        name: custom/release
+        description: Release workflow.
+        steps:
+          - name: ship
+            assignee: agent
+        ---
+
+        ## ship
+
+        Ship the release.
+    """)
+    workflow_path.write_text(workflow_path.read_text() + legacy)
+
+    kinds = [issue.kind for issue in run(load_config(repo)).issues]
+
+    assert ("missing-step-instructions" in kinds) is not legacy_section

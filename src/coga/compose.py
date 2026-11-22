@@ -763,7 +763,7 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
         raise ComposeError(
             f"Task {slug!r}: cannot load workflow {wf_name!r} at {wp}: {exc}"
         ) from exc
-    inline = wf.inline_instructions.get(name)
+    inline = wf.instructions_for(name)
     if inline:
         return [PromptLayer(
             "workflow_inline",
