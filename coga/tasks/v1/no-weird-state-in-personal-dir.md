@@ -41,7 +41,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 7 (push-and-open-pr)
+step: 8 (review)
 agent: claude
 ---
 
@@ -578,6 +578,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1280
 branch: coga/v1-no-weird-state-in-personal-dir-d9bd4b
 base: coga/v1-03-use-git-like-everyone-remove-coga-s-public-9c8a83
 remote: origin
