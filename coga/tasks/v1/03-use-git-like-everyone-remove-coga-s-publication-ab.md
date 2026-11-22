@@ -41,7 +41,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 6 (open-pr)
+step: 7 (review)
 agent: claude
 contexts:
 - coga-dev/principles
@@ -715,6 +715,7 @@ before relying on any of them.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1279
 base: main
 remote: origin
 branch: coga/v1-03-use-git-like-everyone-remove-coga-s-public-9c8a83
