@@ -61,6 +61,16 @@ class Workflow:
     body: str = ""
     # step name -> markdown section body (used when step has no skills ref)
     inline_instructions: dict[str, str] = field(default_factory=dict)
+    # other `## <heading>` sections; a ticket frozen before a step rename
+    # finds its old step's instructions here
+    other_sections: dict[str, str] = field(default_factory=dict)
+
+    def instructions_for(self, step_name: str) -> str | None:
+        """Inline instructions for a step, including a frozen step whose
+        name the current definition no longer declares."""
+        if any(step.name == step_name for step in self.steps):
+            return self.inline_instructions.get(step_name)
+        return self.other_sections.get(step_name)
 
     # --- io --------------------------------------------------------------------
 
@@ -94,7 +104,13 @@ class Workflow:
             raise WorkflowError(f"{path}: `steps` must be a non-empty list")
 
         steps = [_parse_step(s, path) for s in fm["steps"]]
-        inline = _parse_inline_sections(body, {s.name for s in steps})
+        step_names = {s.name for s in steps}
+        inline = _parse_inline_sections(body, step_names)
+        other = {
+            section.heading: body[section.content_start:section.end].strip()
+            for section in body_sections(body)
+            if section.heading not in step_names
+        }
 
         return cls(
             name=fm["name"],
@@ -102,6 +118,7 @@ class Workflow:
             steps=steps,
             body=body,
             inline_instructions=inline,
+            other_sections=other,
         )
 
     # --- freezing --------------------------------------------------------------
