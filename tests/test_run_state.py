@@ -13,6 +13,8 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import windows_skip
+
 from coga import oscompat, run_state
 from coga.compose import write_prompt_file
 from coga.config import load_config
@@ -122,6 +124,49 @@ def test_nested_scope_never_removes_the_parent(repo: Path) -> None:
         assert (outer.path / "keep").is_file()
 
 
+@windows_skip("Windows cannot unlink an open lock; nested-scope tests cover its lock lifetime.")
+def test_launch_retries_if_sweep_retires_new_lock_before_acquisition(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    tokens = iter(("aaaaaaaa", "bbbbbbbb"))
+    monkeypatch.setattr(run_state.secrets, "token_hex", lambda _: next(tokens))
+    real_lock = run_state.lock_fd
+
+    def preempt(fd: int, *, blocking: bool) -> None:
+        monkeypatch.setattr(run_state, "lock_fd", real_lock)
+        assert [item.token for item in run_state.sweep_orphans(cfg).removed] == ["aaaaaaaa"]
+        real_lock(fd, blocking=blocking)
+
+    monkeypatch.setattr(run_state, "lock_fd", preempt)
+    with run_state.launch_tmp_scope(cfg) as scope:
+        assert scope.path.name == "bbbbbbbb"
+        assert scope.path.with_suffix(".lock").is_file()
+        assert not run_state.sweep_orphans(cfg).removed
+
+
+def test_launch_keeps_directory_when_mkdir_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    path = run_state.tmp_root(cfg) / "aaaaaaaa"
+    real_mkdir = Path.mkdir
+
+    def already_created(directory: Path, *args, **kwargs) -> None:
+        if directory == path:
+            real_mkdir(path)
+            (path / "keep").write_text("someone else's file")
+        real_mkdir(directory, *args, **kwargs)
+
+    monkeypatch.setattr(run_state.secrets, "token_hex", lambda _: "aaaaaaaa")
+    monkeypatch.setattr(Path, "mkdir", already_created)
+    with pytest.raises(FileExistsError):
+        with run_state.launch_tmp_scope(cfg):
+            pytest.fail("launch should not have started")
+    assert (path / "keep").is_file()
+    assert not path.with_suffix(".lock").exists()
+
+
 @pytest.mark.parametrize("limit, warns", [(8, True), (4096, False)])
 def test_scope_warns_about_long_socket_paths(
     repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
@@ -196,6 +241,38 @@ def test_launch_scope_sweeps_crashed_siblings(repo: Path) -> None:
     crashed = _orphan(root, "aaaaaaaa")
     with run_state.launch_tmp_scope(load_config(repo)):
         assert not crashed.exists()
+
+
+def test_sweep_claims_old_lockless_directory_through_removal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    orphan = _orphan(run_state.tmp_root(cfg), "aaaaaaaa", lock=False, age=3600)
+    real_remove = run_state._remove_tree
+
+    def check_exclusive(path: Path) -> list[str]:
+        assert path.with_suffix(".lock").is_file()
+        assert not run_state.sweep_orphans(cfg).removed
+        return real_remove(path)
+
+    monkeypatch.setattr(run_state, "_remove_tree", check_exclusive)
+    assert [item.path for item in run_state.sweep_orphans(cfg).removed] == [orphan]
+    assert not orphan.exists()
+    assert not orphan.with_suffix(".lock").exists()
+
+
+def test_validate_reports_evidence_with_corrupt_owner_record(repo: Path) -> None:
+    cfg = load_config(repo)
+    path = run_state.data_root(cfg) / "tasks" / "broken"
+    path.mkdir(parents=True)
+    (path / run_state.OWNER_FILE).write_bytes(b"\xff")
+    (path / "evidence").write_bytes(b"abc")
+
+    report = validate_run(cfg)
+    assert report.state is not None
+    assert [(entry.owner, entry.bytes) for entry in report.state.entries] == [
+        ("(unattributed)", 3),
+    ]
 
 
 def test_read_only_scope_never_sweeps(repo: Path) -> None:

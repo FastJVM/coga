@@ -19,7 +19,6 @@ how task paths nest.
 
 from __future__ import annotations
 
-import errno
 import os
 import re
 import secrets
@@ -180,8 +179,10 @@ def launch_tmp_scope(cfg: Config, *, sweep: bool = True) -> Iterator[TmpScope]:
     fd, token = _create_locked_token(root)
     path = root / token
     lock_path = root / f"{token}.lock"
+    created = False
     try:
         path.mkdir()
+        created = True
         absolute = str(path.resolve())
         if len(absolute.encode()) > SOCKET_WARN_BYTES:
             _warn(
@@ -193,28 +194,24 @@ def launch_tmp_scope(cfg: Config, *, sweep: bool = True) -> Iterator[TmpScope]:
         overrides[SYSTEM_TMPDIR_ENV] = system_tmp
         yield TmpScope(path=Path(absolute), env_overrides=overrides)
     finally:
-        problems = _remove_tree(path)
-        problems.extend(_retire_lock(fd, lock_path))
-        for problem in problems:
-            _warn(f"could not fully remove launch tmp {path}: {problem}")
+        try:
+            problems = _remove_tree(path) if created else []
+        finally:
+            lock_problems = _retire_lock(fd, lock_path)
+        problems.extend(lock_problems)
+        if problems:
+            _warn(f"could not fully remove launch tmp {path}: {', '.join(problems)}")
 
 
 def _create_locked_token(root: Path) -> tuple[int, str]:
     while True:
         token = secrets.token_hex(4)
         lock_path = root / f"{token}.lock"
-        if (root / token).exists():
+        if os.path.lexists(root / token):
             continue
-        try:
-            fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError:
-            continue
-        try:
-            lock_fd(fd, blocking=False)
-        except BaseException:
-            os.close(fd)
-            raise
-        return fd, token
+        fd = _try_lock(lock_path, create=True)
+        if fd is not None:
+            return fd, token
 
 
 def _retire_lock(fd: int, lock_path: Path) -> list[str]:
@@ -307,43 +304,36 @@ def _grace_expired(path: Path, now: float) -> bool:
         return False
 
 
-def _try_lock_existing(lock_path: Path) -> int | None:
-    """Open an existing lock without creating it and take it, or return None."""
+def _try_lock(lock_path: Path, *, create: bool = False) -> int | None:
+    """Take the named lock without waiting, optionally creating it exclusively."""
+    flags = os.O_RDWR | (os.O_CREAT | os.O_EXCL if create else 0)
     try:
-        fd = os.open(lock_path, os.O_RDWR)
-    except FileNotFoundError:
+        fd = os.open(lock_path, flags, 0o600)
+    except FileExistsError:
         return None
+    except FileNotFoundError:
+        if create:
+            raise
+        return None
+    keep = False
     try:
         lock_fd(fd, blocking=False)
-    except (BlockingIOError, PermissionError):
-        os.close(fd)
+        # A sweeper may have retired the inode before even its creator locked it.
+        # Windows prevents unlink while our descriptor is open.
+        keep = os.name != "posix" or os.path.samestat(lock_path.stat(), os.fstat(fd))
+        return fd if keep else None
+    except (BlockingIOError, PermissionError, FileNotFoundError):
         return None
-    except OSError as exc:
-        if exc.errno in {errno.EACCES, errno.EAGAIN}:
+    finally:
+        if not keep:
             os.close(fd)
-            return None
-        os.close(fd)
-        raise
-    if os.name == "posix":
-        # The owner unlinks its lock while holding it; a lock taken on a
-        # retired inode proves nothing about the current path.
-        try:
-            current = os.stat(lock_path)
-        except FileNotFoundError:
-            os.close(fd)
-            return None
-        held = os.fstat(fd)
-        if (current.st_dev, current.st_ino) != (held.st_dev, held.st_ino):
-            os.close(fd)
-            return None
-    return fd
 
 
 def _classify(root: Path, token: str, now: float) -> tuple[str, int | None]:
     """Return ("live" | "orphan" | "grace", held lock fd for an orphan with a lock)."""
     path, lock_path = root / token, root / f"{token}.lock"
     if os.path.lexists(lock_path):
-        fd = _try_lock_existing(lock_path)
+        fd = _try_lock(lock_path)
         if fd is None:
             return ("live" if os.path.lexists(lock_path) else "grace"), None
         return "orphan", fd
@@ -378,9 +368,20 @@ def sweep_orphans(cfg: Config) -> SweepResult:
         if verdict != "orphan":
             continue
         orphan = Orphan(token, root / token, root / f"{token}.lock")
-        problems = _remove_tree(orphan.path)
-        if fd is not None:
-            problems.extend(_retire_lock(fd, orphan.lock_path))
+        if fd is None:
+            fd = _try_lock(orphan.lock_path, create=True)
+            if fd is None:
+                continue
+            # The original directory may have been replaced before we claimed it.
+            if not _grace_expired(orphan.path, now):
+                for problem in _retire_lock(fd, orphan.lock_path):
+                    result.failures.append(f"could not retire orphan lock: {problem}")
+                continue
+        try:
+            problems = _remove_tree(orphan.path)
+        finally:
+            lock_problems = _retire_lock(fd, orphan.lock_path)
+        problems.extend(lock_problems)
         if problems:
             result.failures.extend(
                 f"could not remove orphan tmp {orphan.path}: {p}" for p in problems
@@ -438,7 +439,7 @@ def read_owner(directory: Path) -> tuple[str, str] | None:
     """Return (kind, id_slug) from a `.coga-owner` record, or None."""
     try:
         text = (directory / OWNER_FILE).read_text(encoding="utf-8").strip()
-    except OSError:
+    except (OSError, UnicodeError):
         return None
     kind, _, slug = text.partition(" ")
     if kind not in {"task", "bootstrap"} or not slug:

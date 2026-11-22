@@ -56,12 +56,14 @@ contexts:
 
 ## Unversioned state
 
-Keep everything you or your scripts write inside this repository. Put durable
-unversioned state (keys, run records, traces, evidence, caches) in
+Keep durable unversioned state (keys, run records, traces, evidence, caches) in
 `$COGA_TASK_DATA_DIR`, state shared across tickets in `$COGA_DATA_DIR/_shared/`,
 and disposable files in `$TMPDIR`, which Coga empties when the launch ends.
-Never hard-code `/tmp`; use `$TMPDIR`. Do not write to the user's home
+If a tool needs scratch space outside the checkout, use a dedicated disposable
+directory (including under system temp) and delete it when the work ends,
+including on failure. For normal scratch work, use `$TMPDIR`. Other writes
+outside the repository, including to the user's home
 (`~/.local`, `$XDG_*`, `~/.<tool>`), `/tmp`, sibling directories, or external
-storage unless the owner grants that in this session; record the grant on the
+storage, require the owner's grant in this session. Record the grant on the
 blackboard. Reading anything is fine. Agent CLIs' own session files are
 outside this rule.

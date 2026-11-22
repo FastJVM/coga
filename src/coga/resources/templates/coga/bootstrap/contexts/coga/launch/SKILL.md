@@ -99,13 +99,14 @@ Agent sessions also stop on process failure or a liveness limit.
 
 ## Run state
 
-Everything a launch runs writes its unversioned state inside the repo, in
-the ignored `<coga root>/.coga/` (`src/coga/run_state.py`):
+A launch provides ignored, repo-local storage for unversioned state under
+`<coga root>/.coga/` (`src/coga/run_state.py`):
 
 - `data/tasks/<id_slug>/` (a task) or `data/bootstrap/<name>/` (a bootstrap
   target) is durable and exported as `COGA_TASK_DATA_DIR`. Each carries a
   `.coga-owner` record naming its target, so attribution never depends on how
-  task paths nest. `data/_shared/` holds cross-ticket state; `COGA_DATA_DIR`
+  task paths nest. Files with unreadable ownership metadata are attributed to
+  the nearest readable owner, if one exists. `data/_shared/` holds cross-ticket state; `COGA_DATA_DIR`
   names `data/`. In a linked Git worktree `data/` resolves to the primary
   checkout, so durable state survives `git worktree remove`. Nothing deletes
   durable state automatically.
@@ -135,9 +136,11 @@ leaves the rest for the sweep; it never fails the launch. On POSIX a file a
 background process still holds open is unlinked but keeps its disk space
 until that process exits.
 
-A launch first sweeps sibling tokens whose lock it can take without blocking
-(re-checking the lock file's identity after locking), lock files with no
-directory, and lockless directories older than 60 seconds. `coga validate`
+A launch first sweeps sibling tokens whose lock it can take without blocking,
+including lock files with no directory. It claims a lock before removing a
+lockless directory older than 60 seconds and rechecks the age under the lock.
+On POSIX launch and sweep both verify that the acquired lock still names the
+same file. `coga validate`
 reports the same orphans read-only as `orphan-tmp`, and only a repo-wide
 `coga validate --fix` removes them. A linked worktree created under a
 purged tmp area leaves stale metadata that `git worktree prune` clears.
@@ -145,8 +148,8 @@ purged tmp area leaves stale metadata that `git worktree prune` clears.
 If the absolute tmp path exceeds 64 bytes, every launch warns once on stderr
 with the path and the ~108-byte Unix socket limit, and still uses it: a
 silent fallback to `/tmp` would break the rule. The prompt rule agents follow
-is in the base prompt's "Unversioned state" section; the owner may grant an
-exception in the session, recorded on the blackboard.
+is in the base prompt's "Unversioned state" section, including the cleanup
+requirement for disposable scratch outside the checkout.
 
 ## Options and exits
 
