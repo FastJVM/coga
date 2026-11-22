@@ -30,6 +30,9 @@ ACTION_DIRECT_FIX = "direct-fix"
 ACTION_PR_PROPOSAL = "pr-proposal"
 ACTION_HUMAN_NEEDED = "human-needed"
 
+# `coga validate --fix` repairs that touch only machine-local state.
+MACHINE_LOCAL_FIX_KINDS = frozenset({"orphan-tmp"})
+
 ACTION_LABELS = {
     ACTION_DIRECT_FIX: "Direct Fix",
     ACTION_PR_PROPOSAL: "PR Proposal",
@@ -454,6 +457,28 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "orphan-tmp":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "A launch's tmp area under the ignored `.coga/tmp/` outlived "
+                "its launch. It is machine-local: the next launch or a local "
+                "`coga validate --fix` removes it. Nothing to commit."
+            ),
+        )
+
+    if kind == "stale-state":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "Durable state under the ignored `.coga/data/` belongs to a "
+                "done, canceled or missing ticket. Ask the owner whether to "
+                "keep or delete it; Coga never deletes it automatically."
+            ),
+        )
+
     if kind in {"missing-user", "unset-secret-env"}:
         return ClassifiedIssue(
             issue=issue,
@@ -693,6 +718,9 @@ def commit_and_push_fixes(
     remote: str = "origin",
     allow_main_push: bool = False,
 ) -> str | None:
+    # Machine-local repairs (orphan launch tmp under the ignored `.coga/`)
+    # have nothing to commit.
+    fixes = [f for f in fixes if f.kind not in MACHINE_LOCAL_FIX_KINDS]
     if not fixes:
         return None
 

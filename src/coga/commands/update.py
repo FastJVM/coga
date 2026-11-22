@@ -139,7 +139,9 @@ _HOST_GITIGNORE_BODY = (
     "# agent CLIs (Claude Code, Codex) can discover Coga's generated skill view.\n"
     ".claude/skills/coga\n"
     ".codex/skills/coga\n"
-    "# Machine-local Coga state: run records, megalaunch selection.\n"
+    "# Machine-local Coga state: run records, megalaunch selection, durable\n"
+    "# agent state (`.coga/data/`) and per-launch temporaries (`.coga/tmp/`,\n"
+    "# purged when each launch ends).\n"
     ".coga/\n"
     f"{HOST_GITIGNORE_END}\n"
 )

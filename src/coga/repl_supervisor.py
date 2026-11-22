@@ -343,7 +343,7 @@ def run_with_done_marker(
             raise AgentCliNotFound(cmd[0]) from exc
         return ReplOutcome(code, "natural")
 
-    sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
+    sentinel_dir = tempfile.mkdtemp(prefix="coga-done-", dir=oscompat.system_tmpdir())
     sentinel_path = os.path.join(sentinel_dir, "sentinel")
     exec_failure_path = os.path.join(sentinel_dir, "exec-failed")
     child_env = dict(env)

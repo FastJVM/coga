@@ -1,7 +1,9 @@
 # Machine-local config — paths and secrets. Never commit.
 coga.local.toml
 
-# Machine-local Coga state — run records, megalaunch selection.
+# Machine-local Coga state — run records, megalaunch selection, durable
+# agent state (`.coga/data/`) and per-launch temporaries (`.coga/tmp/`,
+# purged when each launch ends).
 .coga/
 
 # Generated merged skill view for agent CLIs. Rebuilt by `coga init`

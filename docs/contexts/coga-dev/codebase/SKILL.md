@@ -63,6 +63,11 @@ The repo separates implementation from the OS it operates:
   (report, then bump).
 - `oscompat.py` provides owned process trees for recurring and the Windows
   supervisor. Its interactive mode runs `_nt_session_wrapper.py`.
+  `system_tmpdir()` is where Coga's own temp files go inside a launch.
+- `run_state.py` owns the repo-local `.coga/data/` and `.coga/tmp/` layout,
+  the per-launch tmp scope, the orphan sweep and the usage walk; launch,
+  megalaunch, recurring clone, validate and init consume it
+  ([coga/launch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#run-state)).
 - `launch.py` owns launch readiness and supervision. `launch_script.py`
   resolves workflow scripts and ticket scripts. `task_env.py` exports
   (`COGA_TASK_*`), `repl_supervisor.py` with its native Windows backend

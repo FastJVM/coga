@@ -501,7 +501,7 @@ def run(
     sentinel_dir: str | None = None
     sentinel_path = ""
     if console:
-        sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
+        sentinel_dir = tempfile.mkdtemp(prefix="coga-done-", dir=oscompat.system_tmpdir())
         sentinel_path = os.path.join(sentinel_dir, "sentinel")
         child_env[SENTINEL_ENV] = sentinel_path
     else:

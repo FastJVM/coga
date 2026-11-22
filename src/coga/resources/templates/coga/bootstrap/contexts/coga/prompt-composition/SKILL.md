@@ -15,7 +15,8 @@ on the next launch. There is no follow-up loading.
 
 1. **Header**: task ref, title, exact task directory, status.
 2. **Base prompt** (resource `prompt.md`): the rules every session needs —
-   ticket-file editing rules, boundaries, and the [Git conventions](../git/SKILL.md).
+   ticket-file editing rules, boundaries, the [Git conventions](../git/SKILL.md),
+   and where unversioned state goes ([run state](../launch/SKILL.md#run-state)).
    **Ticket loop** (resource `prompt-ticket.md`) follows it for a task ticket
    only: the blackboard, `bump`, and `block` loop. A stateless
    `bootstrap/<name>` target omits it, since it has no lifecycle; its own

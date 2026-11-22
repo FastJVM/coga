@@ -99,12 +99,16 @@ FYI script never completes anything.
 
 The namespace is exactly `COGA_TASK_SLUG`,
 `COGA_TASK_DIR`, `COGA_TASK_TICKET`, `COGA_TASK_BLACKBOARD`,
-`COGA_TASK_STEP`, `COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`, `COGA_SCRIPT_TASK`,
-`COGA_ASSIST_AGENT`, and the
+`COGA_TASK_STEP`, `COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`, `COGA_DATA_DIR`,
+`COGA_TASK_DATA_DIR`, `COGA_SCRIPT_TASK`, `COGA_ASSIST_AGENT`, and the
 parser-only `COGA_SCRIPT_HELP`. There is no
 `COGA_TASK_LOG`. Each launch clears every key, then sets the slug, task directory, ticket path, Coga root, and host repo root,
 plus, for tasks under `tasks/` only, `COGA_TASK_BLACKBOARD` and, when a step
-exists, `COGA_TASK_STEP` (`<index> (<name>)`). The script marker and assist
+exists, `COGA_TASK_STEP` (`<index> (<name>)`). `COGA_DATA_DIR` and
+`COGA_TASK_DATA_DIR` name the durable run-state paths; a launch creates the
+task directory before the phase runs, and also points `TMPDIR`, `TMP` and
+`TEMP` at its purged tmp area ([coga/launch](../launch/SKILL.md#run-state)).
+The script marker and assist
 values are re-minted only at their launch boundaries. Nothing survives by
 inheritance, so a stateless bootstrap target never exposes a packaged
 `ticket.md` as a blackboard. `blackboard_from_env` refuses an inherited

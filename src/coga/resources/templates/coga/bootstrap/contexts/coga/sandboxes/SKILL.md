@@ -84,10 +84,16 @@ writable_roots = ["<git common dir>"]
   remote-tracking ref without fetching first, so a read-only `.git` fails at
   `git hash-object` before any network call, while a writable `.git` with
   network off fails at push or fetch.
+- A launch's `TMPDIR` is the repo-local `.coga/tmp/<token>/`
+  ([coga/launch](../launch/SKILL.md#run-state)), inside the checkout that
+  `workspace-write` already makes writable, so `mktemp` and `tempfile` need no
+  grant. Nested reviewer sessions in the same checkout share that writable root.
 - Linked worktrees share the granted common dir. Create them under an already
-  writable root, such as a `mktemp -d` directory, rather than as a sibling of
-  the checkout: Dream's Retro pass puts its linked checkout inside its
-  temporary run directory for this reason.
+  writable root, such as a `mktemp -d` directory (now under the launch's
+  repo-local tmp), rather than as a sibling of the checkout: Dream's Retro
+  pass puts its linked checkout inside its temporary run directory for this
+  reason. Purging the tmp area leaves stale worktree metadata that
+  `git worktree prune` clears.
 - The grant takes effect in a new codex session; relaunch after editing it.
 
 ### Local configuration in a separate clone

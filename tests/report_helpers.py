@@ -22,6 +22,12 @@ def report_module(name: str) -> ModuleType:
     return module
 
 
+# pytest's basetemp is deeper than the 64-byte socket threshold, so every
+# subprocess launch warns (`coga/launch` "Run state"); in-process launches are
+# quieted by conftest instead.
+RUN_STATE_PATH_WARNING = "Warning: run-state tmp path is "
+
+
 def report_cli(args: list[str], *, env: dict[str, str] | None = None) -> SimpleNamespace:
     """Run a fresh CLI and its report child, retaining separate stderr."""
     child_env = dict(os.environ)
@@ -34,5 +40,5 @@ def report_cli(args: list[str], *, env: dict[str, str] | None = None) -> SimpleN
     return SimpleNamespace(exit_code=result.returncode, stdout=result.stdout,
                            stderr=result.stderr, output=result.stdout + "\n".join(
                                line for line in result.stderr.splitlines()
-                               if not line.startswith("→ coga ")),
+                               if not line.startswith(("→ coga ", RUN_STATE_PATH_WARNING))),
                            exception=None)

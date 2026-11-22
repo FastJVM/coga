@@ -1881,6 +1881,33 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     assert ".gitignore" not in tracked
 
 
+def test_init_creates_ignored_run_state_areas(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    state = target / "coga" / ".coga"
+    assert (state / "data").is_dir()
+    assert (state / "tmp").is_dir()
+    # Both areas sit under the already-ignored `.coga/`.
+    (state / "data" / "probe").write_text("x", encoding="utf-8")
+    (state / "tmp" / "probe").write_text("x", encoding="utf-8")
+    untracked = subprocess.run(
+        ["git", "-C", str(target), "status", "--porcelain", "--untracked-files=all"],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout
+    assert ".coga/" not in untracked
+    for gitignore in (target / ".gitignore", target / "coga" / ".gitignore"):
+        text = gitignore.read_text(encoding="utf-8")
+        assert "`.coga/data/`" in text and "`.coga/tmp/`" in text
+
+
 def test_init_appends_to_existing_host_gitignore(
     tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:

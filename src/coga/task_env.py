@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from coga.config import Config, ConfigError, find_repo_root
+from coga.run_state import DATA_DIR_ENV, TASK_DATA_DIR_ENV, data_env
 from coga.tasks import BootstrapRef, TargetRef
 from coga.ticket import Ticket
 
@@ -30,6 +31,8 @@ TASK_ENV_KEYS = (
     "COGA_TASK_STEP",
     "COGA_COGA_OS_ROOT",
     "COGA_REPO_ROOT",
+    DATA_DIR_ENV,
+    TASK_DATA_DIR_ENV,
     SCRIPT_TASK_ENV,
     "COGA_SCRIPT_HELP",
     "COGA_ASSIST_AGENT",
@@ -56,7 +59,9 @@ def build_task_env(
 
     `COGA_TASK_STEP` is emitted only when a stateful ticket has a current
     workflow step. `COGA_TASK_BLACKBOARD` is emitted only for a task under
-    `coga/tasks/`.
+    `coga/tasks/`. `COGA_DATA_DIR` and `COGA_TASK_DATA_DIR` name the durable
+    run-state paths (`coga/launch` "Run state"); this pure builder never
+    creates them.
     A bootstrap ticket is stateless — no status, no workflow, no blackboard —
     and its `ticket.md` is normally a *packaged* resource, so handing that path
     to a report writer makes it append run reports into a file that ships in
@@ -70,6 +75,7 @@ def build_task_env(
         "COGA_TASK_TICKET": str(ref.ticket_path.resolve()),
         "COGA_COGA_OS_ROOT": str(cfg.repo_root.resolve()),
         "COGA_REPO_ROOT": str(host_repo_root(cfg).resolve()),
+        **data_env(cfg, ref),
     }
     if not isinstance(ref, BootstrapRef):
         # The blackboard is the final region of the single ticket file, so this

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from coga.oscompat import system_tmpdir
 from coga.blackboard import (
     BLOCKER_TS_FORMAT,
     Blocker,
@@ -521,7 +522,7 @@ def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = 
     safe_slug = task_ref.id_slug.replace("/", "-")
     prompt_file = tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", newline="\n", prefix=f"coga-{safe_slug}-", suffix=".md",
-        dir=dest_dir, delete=False,
+        dir=system_tmpdir() if dest_dir is None else dest_dir, delete=False,
     )
     path = Path(prompt_file.name)
     try:

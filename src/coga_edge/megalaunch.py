@@ -70,7 +70,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
-from coga import notification
+from coga import notification, run_state
 from coga.authoring import invoke_ticket_authoring, resolve_authoring_agent
 from coga.blackboard import (
     Blocker,
@@ -1167,7 +1167,13 @@ def _candidate_result(
     return None
 
 
-def _launch_until_stop(
+def _launch_until_stop(cfg: Config, ref: TaskRef, ticket: Ticket, **kwargs) -> MegalaunchResult:
+    """Run one child's step chain inside its own launch tmp scope."""
+    with run_state.launch_tmp_scope(cfg) as scope:
+        return _launch_chain(cfg, ref, ticket, tmp_scope=scope, **kwargs)
+
+
+def _launch_chain(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
@@ -1178,6 +1184,7 @@ def _launch_until_stop(
     max_session: float | None = None,
     explicit: bool = False,
     owner_filter: str | None,
+    tmp_scope: run_state.TmpScope,
 ) -> MegalaunchResult:
     from coga.bump import OperatorResolutionError, resolve_operator
 
@@ -1234,7 +1241,10 @@ def _launch_until_stop(
                         cfg, ref, ticket, actor="megalaunch",
                         log_message=f"activated ({prior} → active) via coga megalaunch",
                     )
-                phase = run_script_phase(cfg, ref, ticket, stateless=False, failure_important=True)
+                phase = run_script_phase(
+                    cfg, ref, ticket, stateless=False, failure_important=True,
+                    tmp_scope=tmp_scope,
+                )
             except (OSError, ValueError, TaskValidationError, ConfigError) as exc:
                 return _result(ref, "failed", str(exc), launch_agent, launched=launched)
             launched = launched or phase.ran
@@ -1272,9 +1282,11 @@ def _launch_until_stop(
                     log_message="started (active → in_progress) via coga megalaunch",
                 )
             before = ticket
+            run_state.ensure_task_data_dir(cfg, ref)
             session = spawn_agent_session(
                 cfg, ref, ticket, prepared_agent.agent,
-                env=prepared_agent.env, actor="megalaunch",
+                env=run_state.apply_tmp_env(prepared_agent.env, tmp_scope),
+                actor="megalaunch",
                 log_message=f"launched by megalaunch (agent: {launch_agent})",
                 name=ticket.title, idle_timeout=idle_timeout, max_session=max_session,
                 launch_context="megalaunch", composed_prompt=prepared_agent.prompt,

@@ -28,6 +28,7 @@ from pathlib import Path
 import tomlkit
 import typer
 
+from coga import run_state
 from coga.agent_skills import refresh_agent_skill_view
 from coga.paths import LocalOverrideError
 from coga.aliases import ONBOARDING_TASK
@@ -1074,6 +1075,9 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
         wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
         host_gitignore_changed = ensure_host_gitignore(target)
+        # The managed unversioned-state areas (`coga/launch` "Run state");
+        # `.coga/` is already ignored by both managed blocks.
+        run_state.ensure_layout(coga_os)
         written_guides = _write_agent_guides(target)
     except BaseException:
         # Roll back the partial coga/ this run created (only this run — a

@@ -30,6 +30,13 @@ from coga.repl_supervisor import (
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
 )
+from coga.run_state import (
+    DATA_DIR_ENV,
+    TASK_DATA_DIR_ENV,
+    TmpScope,
+    apply_tmp_env,
+    ensure_task_data_dir,
+)
 from coga.task_env import TASK_ENV_KEYS, SCRIPT_TASK_ENV, apply_task_env, host_repo_root
 from coga.process_relay import run_foreground_child
 from coga.tasks import (
@@ -139,8 +146,14 @@ def run_script_phase(
     read_only: bool = False,
     args: Sequence[str] = (),
     failure_important: bool = False,
+    tmp_scope: TmpScope | None = None,
 ) -> ScriptPhaseResult:
-    """Execute one deterministic phase with the current ticket environment."""
+    """Execute one deterministic phase with the current ticket environment.
+
+    `tmp_scope` is the caller's open launch tmp scope; with it the phase gets
+    the repo-local TMPDIR and an existing task data directory. Read-only
+    dispatch gets the temp redirection but no durable data variables.
+    """
     if read_only and (not stateless or not isinstance(ref, BootstrapRef)):
         raise ValueError("Read-only dispatch requires a stateless bootstrap script.")
     if not stateless and ticket.status == "blocked":
@@ -211,6 +224,12 @@ def run_script_phase(
     env.pop(EXPECTED_STEP_ENV, None)
     env.pop(EXPECTED_AGENT_ENV, None)
     env[SCRIPT_TASK_ENV] = str(ref.path.resolve())
+    if read_only:
+        env.pop(DATA_DIR_ENV, None)
+        env.pop(TASK_DATA_DIR_ENV, None)
+    elif tmp_scope is not None:
+        ensure_task_data_dir(cfg, ref)
+    env = apply_tmp_env(env, tmp_scope)
 
     if stateless and not read_only:
         exit_code, _ = run_foreground_child(
@@ -303,6 +322,7 @@ def run_script_chain(
     *,
     args: Sequence[str] = (),
     failure_important: bool = False,
+    tmp_scope: TmpScope | None = None,
 ) -> ScriptChainResult:
     """Run consecutive deterministic steps until a human or agent takes over."""
     stateless = isinstance(ref, BootstrapRef)
@@ -320,6 +340,7 @@ def run_script_chain(
             stateless=stateless,
             args=args,
             failure_important=failure_important,
+            tmp_scope=tmp_scope,
         )
         cfg = phase.cfg or cfg
         ref = phase.ref or ref

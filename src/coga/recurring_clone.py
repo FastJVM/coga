@@ -35,6 +35,7 @@ from pathlib import Path
 from coga.oscompat import ProcessTree
 from coga.atomicio import atomic_write_text
 from coga.config import Config, build_launch_env
+from coga.run_state import apply_tmp_env, data_env, launch_tmp_scope
 from coga.task_env import TASK_ENV_KEYS, host_repo_root
 
 SCOPE_REPO = "repo"
@@ -144,12 +145,16 @@ def run_clone_template(
     env[SCOPE_ENV] = SCOPE_CLONE
     env[TEMPLATE_ENV] = name
     env[PERIOD_ENV] = period
-    exit_code, output, log_output = _run_clone_script(
-        [sys.executable, str(script)],
-        cwd=host_repo_root(cfg),
-        env=env,
-        timeout=timeout,
-    )
+    # Clone scripts have no task identity: they get the shared durable root
+    # and a launch tmp scope, never COGA_TASK_DATA_DIR.
+    env.update(data_env(cfg, None))
+    with launch_tmp_scope(cfg) as scope:
+        exit_code, output, log_output = _run_clone_script(
+            [sys.executable, str(script)],
+            cwd=host_repo_root(cfg),
+            env=apply_tmp_env(env, scope),
+            timeout=timeout,
+        )
     log_path = _log_path(cfg, name)
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
