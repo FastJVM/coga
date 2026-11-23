@@ -231,3 +231,10 @@ checks:
   base: 75c2dcf245eb2d44d529d48c31c94a8243c4556f
   detail: 'Clean merge against PR #1246 head ceae31f12894883ccf7a4b5379729284704a0dd9.'
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: the terminal-backstop PTY test can fail once under full-suite load
