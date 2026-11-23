@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -152,89 +152,118 @@ ordinary ticket.
 branch: coga/add-the-megalaunch-dependency-resolution-append-lo
 base: main
 remote: origin
-reviewed: bc4a9bdb31b812e504f8ec9beb941a7607f6c579
+reviewed: 23c8f0d4b9b483746e8ec114782eb442257082d4
 
 ## Peer review
 
-- Human confirmed using origin/main after PRs #1247 and #1248 merged. Coga
-  published the unblock in 12bc5e02a. The isolated worktree is
-  /home/n/Code/coga-log-writers-review, preserving the active checkout.
-- Rebased the inventory branch onto origin/main. Current source has 35
-  direct append_log calls. Megalaunch now lives in coga_edge and has a
-  second writer for failed-start restoration. The two rows and the headline
-  count were reconciled in bc4a9bdb3.
-- Codex directly reviewed the rebased docs and checked both Megalaunch
-  publication paths and the owned rollback helper. Claude wrote the original
-  inventory change. Codex authored and reviewed the reconciliation edits.
-- After verification, an admitted peer-review launch is required to advance
-  if the ticket is still active following unblock.
+Codex completed a direct review of the full diff from `a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9`
+to `23c8f0d4b9b483746e8ec114782eb442257082d4`. The only changed path is the developer inventory.
+Its 15 rows account for all 35 calls across 31 symbols. Both megalaunch
+entries match the publishing code and its ownership checks on rollback.
+No must-fix findings. Claude wrote the original entry. An earlier Codex
+session wrote the reconciliation, so the receipt records that overlap.
+
+Both overlapping PRs landed on main. The November 22 resolution of the three
+asks is recorded in `12bc5e02a`. On November 23 the owner confirmed that this
+ticket should proceed against main while PR #1279 is open. That PR deletes
+the inventory. This attended launch ran `coga unblock` and used the existing
+inventory worktree at `/home/n/Code/coga-log-writers-review` to preserve the
+other checkout. The supervised ticket and its receipts were carried into the
+inventory worktree for handoff.
 
 ## PR
 
 ```yaml
-title: Add missing megalaunch writers to the log-writers inventory
+title: Document both megalaunch writers in the audit log inventory
 author: claude
 author_evidence: >-
-  Claude implemented the original dependency-resolution row. Codex updated
-  its path and count and added the failed-start restore row during reconciliation.
-head: bc4a9bdb31b812e504f8ec9beb941a7607f6c579
-base: 12bc5e02a729155c8b1c913abf36b6c1c5503540
+  Claude implemented the dependency-resolution entry. An earlier Codex session
+  reconciled it with main and added the failed-start restoration entry.
+head: 23c8f0d4b9b483746e8ec114782eb442257082d4
+base: a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9
 depth: skim
 rationale: >-
-  The docs-only diff records the two megalaunch writes and their existing
-  publication and rollback behavior.
+  The diff changes one developer topic. The source inventory, focused
+  publication tests and full Linux suite verify both entries.
 implementation: >-
-  Add the dependency-resolution and failed-start restore writers in coga_edge
-  and update the direct call-site count from 32 to 35.
+  Record how megalaunch publishes partial dependency resolution and restores
+  a ticket after a failed start. Document when it rolls back its own write and
+  when it retains local evidence. Update the headline from 32 to 35 calls.
 deviations: >-
-  Current main has a second megalaunch writer that the original ticket predates.
+  The original ticket expected 33. Current main also has the stateless
+  completion writer and a second megalaunch writer for failed starts.
 limitations: >-
-  Native Windows and macOS verification is deferred to release.
+  The owner chose to target main while PR #1279, which deletes this topic, is
+  open. Native Windows and macOS verification is deferred to release.
 files:
   docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: >-
-    Add both missing megalaunch writers and reconcile the inventory count.
+    Add the two megalaunch publication paths and reconcile the inventory total.
 review:
   reviewer: codex
   kind: self
   status: passed
-  head: bc4a9bdb31b812e504f8ec9beb941a7607f6c579
-  base: 12bc5e02a729155c8b1c913abf36b6c1c5503540
+  head: 23c8f0d4b9b483746e8ec114782eb442257082d4
+  base: a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9
   detail: >-
-    Codex directly reviewed the full diff, independently checking Claude's
-    original row and checking its own reconciliation edits. No open findings.
+    Codex completed a direct review of the entire diff. Verified the state
+    lock, ticket-byte preconditions, owned rollback and uncertain outcomes in
+    both writers. An earlier Codex session authored the reconciliation after
+    Claude's original change. No must-fix findings.
 checks:
-  - command: /home/n/Code/coga/.venv/bin/python -m pytest -xq -p no:cacheprovider
+  - command: >-
+      /home/n/Code/coga/.venv/bin/python -m pytest -xq -p no:cacheprovider
     status: passed
-    head: bc4a9bdb31b812e504f8ec9beb941a7607f6c579
-    base: 12bc5e02a729155c8b1c913abf36b6c1c5503540
+    head: 23c8f0d4b9b483746e8ec114782eb442257082d4
+    base: a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9
     detail: >-
-      5179 passed, 33 skipped in 1008.70s on Linux with Python 3.12.12,
-      with inherited Coga variables cleared,
-      an absolute PYTHONPATH pointing to the review worktree's src, and an
-      isolated TMPDIR outside any Coga repo. The first run inherited a
-      repository-local TMPDIR and a relative PYTHONPATH and failed in fixtures.
-  - command: git grep -n -F 'append_log(' HEAD -- src/ | rg -vc 'def append_log'
+      5179 passed, 33 skipped in 995.16s on Pop!_OS 24.04 LTS, x86_64 Linux,
+      Python 3.12.12. Both pytest runs used this worktree's absolute src
+      directory on PYTHONPATH, cleared inherited COGA_* variables and used
+      dedicated temporary and cache directories outside the checkout.
+  - command: >-
+      /home/n/Code/coga/.venv/bin/python -m pytest -q -p no:cacheprovider
+      tests/test_megalaunch.py::test_megalaunch_partial_dependency_resolution_publication
+      tests/test_megalaunch.py::test_megalaunch_failed_start_publishes_restore_against_the_claim
     status: passed
-    head: bc4a9bdb31b812e504f8ec9beb941a7607f6c579
-    base: 12bc5e02a729155c8b1c913abf36b6c1c5503540
-    detail: "35 source calls. Independently summed the inventory rows to 35."
-  - command: git diff --check origin/main...HEAD
+    head: 23c8f0d4b9b483746e8ec114782eb442257082d4
+    base: a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9
+    detail: >-
+      6 passed in 3.81s on the same Linux host and Python 3.12.12. Covered
+      success, refusal, uncertainty, local edit and deletion, and failed-start
+      restoration against the launch claim.
+  - command: >-
+      git grep -n -F 'append_log(' HEAD -- src/ | rg -vc 'def append_log'
     status: passed
-    head: bc4a9bdb31b812e504f8ec9beb941a7607f6c579
-    base: 12bc5e02a729155c8b1c913abf36b6c1c5503540
+    head: 23c8f0d4b9b483746e8ec114782eb442257082d4
+    base: a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9
+    detail: >-
+      35 committed source calls. An independent Python AST check matched all
+      31 containing symbols to the 15 table rows and verified each row count.
+  - command: "git diff --check origin/main...HEAD"
+    status: passed
+    head: 23c8f0d4b9b483746e8ec114782eb442257082d4
+    base: a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9
     detail: "No whitespace errors."
+  - command: >-
+      env COGA_LOCAL_CONFIG=/home/n/Code/coga/coga/coga.local.toml
+      PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/coga-log-writers-review/src
+      coga validate --task add-the-megalaunch-dependency-resolution-append-lo --json
+    status: passed
+    head: 23c8f0d4b9b483746e8ec114782eb442257082d4
+    base: a9ca22ad5f13c388bffde4a20a9a3dacb2e9fbe9
+    detail: "The reviewed checkout validated the ticket with zero issues."
 ```
 
 ## Blockers
 
 - [x] [2026-11-18 21:07] [agent:codex] id=20261118T210707 Reconcile this inventory after v1/microkernel/move-slack-fyis-to-a-command-ticket (PR #1247) and v1/microkernel/08-residual-command-surfaces (PR #1248) land, or provide a reconciled stacked base for both. Recount append_log calls after incorporating their changes before opening this PR.
-  resolved: [2026-11-22 09:23] [human:nicktoper] Confirmed by the human: PRs #1247 and #1248 are merged into origin/main. Reconcile on origin/main in an isolated worktree, preserve the active checkout and existing branches, and recount append_log writers before publication.
+  resolved: [2026-11-23 14:04] [human:nicktoper] PRs #1247 and #1248 merged into main. Continue peer review against origin/main in the existing inventory worktree, preserve the other checkout and branches, and recount the writers before publication. The owner chose to proceed while PR #1279 is open.
 
 - [x] [2026-11-19 11:18] [agent:codex] id=20261119T111841 PRs #1247 (v1/microkernel/move-slack-fyis-to-a-command-ticket) and #1248 (v1/microkernel/08-residual-command-surfaces) are both still open. Resume after both land, or provide the intended reconciled stacked base. Recount append_log call sites on that base before publishing.
-  resolved: [2026-11-22 09:23] [human:nicktoper] Confirmed by the human: PRs #1247 and #1248 are merged into origin/main. Reconcile on origin/main in an isolated worktree, preserve the active checkout and existing branches, and recount append_log writers before publication.
+  resolved: [2026-11-23 14:04] [human:nicktoper] PRs #1247 and #1248 merged into main. Continue peer review against origin/main in the existing inventory worktree, preserve the other checkout and branches, and recount the writers before publication. The owner chose to proceed while PR #1279 is open.
 
 - [x] [2026-11-20 18:45] [agent:codex] id=20261120T184549 Both overlapping PRs (#1247 and #1248) merged and are on fetched origin/main, so that is the proposed base for resolving both prior asks. Confirm that resolution and resume peer review from a clean current main checkout. The supplied checkout is occupied by refresh-the-v1-microkernel-task-readmes-after-the on refresh-v1-microkernel-readmes-after-retro with unmerged commit 258ca14c7 and no linked PR. All six unstaged files matched fetched control before blocking. Preserve that branch and commit; rebase the inventory branch and recount writers before publication.
-  resolved: [2026-11-22 09:23] [human:nicktoper] Confirmed by the human: PRs #1247 and #1248 are merged into origin/main. Reconcile on origin/main in an isolated worktree, preserve the active checkout and existing branches, and recount append_log writers before publication.
+  resolved: [2026-11-23 14:04] [human:nicktoper] PRs #1247 and #1248 merged into main. Continue peer review against origin/main in the existing inventory worktree, preserve the other checkout and branches, and recount the writers before publication. The owner chose to proceed while PR #1279 is open.
 
 
 ---
