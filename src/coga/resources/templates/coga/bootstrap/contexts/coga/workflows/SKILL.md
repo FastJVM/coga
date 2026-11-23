@@ -35,7 +35,9 @@ Inline sections are fence-aware: closed backtick and tilde examples retain
 their `##` lines and subsequent prose inside the current section, so fenced
 headings cannot supply instructions for another step. A real H2 ends the
 current section even when its name is not a step; only headings matching a
-step name supply instructions. Headings may be indented up to three spaces
+step name supply instructions, either a step the definition declares or a
+frozen step it no longer declares (see the legacy-section fallback below).
+Headings may be indented up to three spaces
 and have a closing `#` run. Unmatched fence openers are ordinary text, so
 they cannot hide later real step headings.
 
@@ -76,6 +78,13 @@ otherwise launch would compose a "not found" or "no instructions" placeholder.
 Deleting or renaming a definition in use is therefore a validation error.
 Validation also resolves step skills of recurring templates before any period
 exists.
+
+Renaming or removing a skill-less step is not an error, provided its section
+stays: when a frozen step's name is absent from the current `steps:` list, compose
+and validation fall back to a body `## <old-step-name>` section. Such a
+retained section is load-bearing for every ticket frozen before the rename,
+so keep it (prose may note it is legacy) until no live ticket uses the old
+name; deleting it leaves those tickets with missing step instructions.
 
 ## Roles are the routing
 
