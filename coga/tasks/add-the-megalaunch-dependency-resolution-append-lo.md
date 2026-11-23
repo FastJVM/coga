@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -149,6 +149,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1284
 branch: coga/add-the-megalaunch-dependency-resolution-append-lo
 base: main
 remote: origin
