@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from coga import git
 from coga.blackboard import render_blackboard
 from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
 from coga.config import Config
@@ -77,7 +76,6 @@ def create_task(
     agent: str | None = None,
     skills: list[str] | None = None,
     delegate: str | None = None,
-    period_generation: str | None = None,
     slug_override: str | None = None,
     directory: str | None = None,
     description: str | None = None,
@@ -226,8 +224,6 @@ def create_task(
         fm["skills"] = list(skills)
     if delegate is not None:
         fm["delegate"] = delegate
-    if period_generation is not None:
-        fm["period_generation"] = period_generation
     fm["workflow"] = wf.freeze() if wf else None
     if secrets:
         fm["secrets"] = secrets
@@ -280,11 +276,7 @@ def create_task(
     # One file per task: body + fence + blackboard, no sibling blackboard.md /
     # log.md. Audit history goes to the repo-global log.
     full_body = join_task_body(ticket_body, blackboard)
-    git.write_ticket(
-        cfg,
-        Ticket(frontmatter=fm, body=full_body),
-        ticket_path,
-    )
+    Ticket(frontmatter=fm, body=full_body).write(ticket_path)
 
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
     append_log(cfg, created_ref.id_slug, actor, f"created (status={status})")

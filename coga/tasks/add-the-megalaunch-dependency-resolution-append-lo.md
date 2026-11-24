@@ -1,7 +1,7 @@
 ---
 title: Add the megalaunch dependency-resolution append_log writer to the log-writers
   inventory
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (review)
 agent: claude
 ---
 
@@ -154,6 +153,13 @@ branch: coga/add-the-megalaunch-dependency-resolution-append-lo
 base: main
 remote: origin
 reviewed: 23c8f0d4b9b483746e8ec114782eb442257082d4
+
+## Merge reconciliation
+
+PR #1279 removed the publication inventory. The current megalaunch drain
+records two local events, for partial blocker resolution and for activation
+after all dependencies finish. Their implementation and attribution are
+documented in `coga-dev/internals/spool-merge`.
 
 ## Peer review
 

@@ -102,8 +102,10 @@ holds local Coga-dev knowledge. There are no forwarding files or symlink mirrors
   reasons fail. Repo-only jobs and attachments have no packaged counterpart
   and stay local.
 - Authoring starters may exist only as ignored, untracked materializations.
-  `.coga/`, `.venv/`, generated agent views, bytecode caches and local config
-  are machine-local artifacts outside the definition inventory.
+  `.coga/` (run records, the megalaunch selection, durable agent state in
+  `.coga/data/` and per-launch temporaries in `.coga/tmp/`), `.venv/`,
+  generated agent views, bytecode caches and local config are machine-local
+  artifacts outside the definition inventory.
 - Navigation reads actual package-relative links and inbound links from local
   development topics, repo-authored skills/workflows/jobs, indexes and release
   notes. Frozen task histories and archives are excluded; archives are never
@@ -115,7 +117,7 @@ Its source-repo rehearsal retained every parent blackboard, worklist, frozen
 period, custom job and clone ledger. Publication continues to use the ordinary
 state roots and guards. Package edits are outside those roots; deliberately
 reviewed local knowledge edits on a feature checkout are held for merge,
-dirty or committed, so commit them on the branch. See [state publication](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md).
+dirty or committed, so commit them on the branch. See [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
 
 A packaged recurring template leaves `owner:` and `agent:` empty so each
 adopting repo's defaults apply; `test_recurring` pins that routing. A local

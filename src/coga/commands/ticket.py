@@ -10,11 +10,10 @@ from typing import Callable
 
 import typer
 
-from coga import git
+from coga import run_state
 from coga.authoring import (
     AUTHORING_AGENT_ENV,
     AuthoringError,
-    authored_state_retained,
     existing_target_only,
     finalize_authored,
     resolve_authoring_agent,
@@ -372,34 +371,39 @@ def _run_authoring_session(
     # (least privilege), and 1Password CLI auth is scrubbed so the interviewer
     # cannot `op read` either. The kickoff token makes `coga ticket` greet first.
     try:
-        session = spawn_agent_session(
-            cfg,
-            ref,
-            ticket,
-            agent,
-            env=scrub_op_auth_env(os.environ),
-            actor=f"human:{cfg.current_user}",
-            log_message=(
-                "ticket authoring launched "
-                f"(interviewer={launch_agent}, agent={agent.name})"
-            ),
-            discussion=True,
-            kickoff=kickoff,
-            label="Ticket",
-            # Publish the start line now, as `coga chat` and launch do, rather
-            # than leave the log dirty for the whole attended session; the
-            # teardown sync still carries the usage record.
-            commit_log=True,
-            secrets_are_scoped=False,
-            stateless_identity=(AUTHORING_SKILL, bootstrap_title),
-            include_blocker_preamble=False,
-        )
+        with run_state.launch_tmp_scope(cfg) as scope:
+            run_state.ensure_task_data_dir(cfg, ref)
+            env = run_state.apply_tmp_env(scrub_op_auth_env(os.environ), scope)
+            session = spawn_agent_session(
+                cfg,
+                ref,
+                ticket,
+                agent,
+                env=env,
+                actor=f"human:{cfg.current_user}",
+                log_message=(
+                    "ticket authoring launched "
+                    f"(interviewer={launch_agent}, agent={agent.name})"
+                ),
+                discussion=True,
+                kickoff=kickoff,
+                label="Ticket",
+                # Publish the start line now, as `coga chat` and launch do, rather
+                # than leave the log dirty for the whole attended session; the
+                # teardown sync still carries the usage record.
+                commit_log=True,
+                secrets_are_scoped=False,
+                stateless_identity=(AUTHORING_SKILL, bootstrap_title),
+                include_blocker_preamble=False,
+            )
     except ComposeError as exc:
         _bail(str(exc))
     except AgentCliNotFound:
         _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
     except FileNotFoundError as exc:
         _bail(missing_launch_file_message(exc))
+    except OSError as exc:
+        _bail(str(exc))
 
     if session.exit_code != 0:
         typer.secho(
@@ -412,19 +416,7 @@ def _run_authoring_session(
     try:
         finalize_authored(cfg, before_snapshot=before_authoring, ref=ref)
     except (AuthoringError, TaskValidationError) as exc:
-        # A retry sweep would separate an authored ticket from knowledge its
-        # guarded transaction refused, potentially publishing broken refs.
-        git.state_sweep_withheld.set(True)
-        authored_state_retained.set(True)
-        _bail(
-            f"{exc}\n[ticket] Authoring edits are retained under {cfg.repo_root} "
-            f"and the configured contexts root ({cfg.contexts_root}); the state "
-            "sweep is withheld. Resolve the reported validation or publication "
-            "problem, then retry the interview or review the retained changes "
-            f"and run `coga run publish-state` from {cfg.repo_root}. "
-            "That recovery publishes all eligible Coga state without another "
-            "lifecycle transition; do not repeat cancellation or bump."
-        )
+        _bail(f"{exc}\nAuthoring edits are retained on disk for inspection.")
 
 
 def _bail(msg: str) -> None:

@@ -31,8 +31,7 @@ never report: these are repos with active sweeps, **not install counts**.
 
 `[telemetry] enabled = false` suppresses both
 capture and its Slack receipt before identity minting or worker creation.
-This is not a global network-off switch: git sync and lifecycle notifications
-retain their own switches.
+Lifecycle notifications retain their own configuration.
 
 Production admission is checked before creating each worker and again inside
 it. Suppress for presence of `PYTEST_CURRENT_TEST`, active `CI` (anything other
@@ -48,7 +47,7 @@ contribute PMF data. There is no bypass flag, endpoint, host, or key option.
 Automated installed-wheel tests preserve CI/pytest gates and fake transport;
 manual ingestion proof uses a release wheel outside development trees.
 
-### State, publication, and loss
+### Local state and loss
 
 The repo-owned parent blackboard holds exactly one readable single-line JSON
 `period_state:` value: `schema` (2), `run` (nonnegative monotonic invocation
@@ -63,24 +62,14 @@ seeds exactly its consumed movement, leaving later events unread. A null
 identity baselines the snapshot because the first enabled run promises zero.
 An invalid non-null prefix cannot migrate losslessly: trim refuses untouched;
 phone-home retains its visible reset warning and zero baseline when it runs.
-Trim may perform the non-sending migration under a joint guarded log/parent
-publication, preserving `run`, identity, above-fence bytes and unrelated prose.
-After migration trim only reads this state.
+Trim may perform the non-sending migration, preserving `run`, identity,
+above-fence bytes and unrelated prose. After migration trim only reads this state.
 
-Under `git.state_lock(cfg)`, capture parent bytes, read using
-`taskfile.read_blackboard(expected_bytes=...)`, replace using
-`taskfile.replace_blackboard(expected_bytes=...)`, and explicitly publish only
-that parent via `git.publish(..., expect={parent: original_bytes})`. The current
-lock is reentrant, so mutation and publication share one lock window. On direct
-first use, create a state carrier once from the unused package seed and pin
-control's absence (`expect={parent: None}`). Recurring creation publishes its
-carrier with the period before dispatch. State lookup uses a unique active or
-parked parent and rejects malformed carriers and incomplete forks; it never
-reseeds existing state. A direct invocation retains its own policy: a false
-job selection stops recurring admission, not this explicit call. Preserve
-all above-fence bytes and unrelated prose. No period bump is relied upon to
-publish its parent. No-git/disabled-git runs keep authoritative local state;
-publication failures retain state and ordinary local audit evidence.
+The reservation is an atomic local write to the parent blackboard. On direct
+first use, create a state carrier from the unused package seed. State lookup
+uses a unique active or parked parent and rejects malformed carriers and
+incomplete forks. Existing state is preserved. A disabled job selection stops
+recurring admission. Direct invocation uses its own admission checks.
 
 Gate first. Disabled/development-suppressed runs increment the marker and
 baseline the cursor, without minting identity or sending anything. Enabled

@@ -136,24 +136,9 @@ it actually behaves, none of them obvious from the field list above:
   hashing to `installed_tree_digest` (`_status_url_skill`), and a hand prune
   with only notes is exactly that divergence: `update` will not overwrite it
   without `--force` and never re-prunes. Prefer the allowlist.
-- **The install auto-commits *and publishes* before you can prune.**
-  `install-url` is in `_SWEEPING_SKILL_SUBCOMMANDS`, so coga's catch-all state
-  sweep (`git.sync_coga_state`) commits the freshly landed tree as a `Sync coga
-  state` commit on the way out — the unpruned bulk included. It does not stop
-  at a local commit: the sweep hands every Coga root to `git.publish`, which
-  lands the dirty paths on the control branch whether HEAD is the control
-  branch or a feature branch. **Squashing a feature-branch pair therefore does not help** —
-  by the time you prune, the unpruned tree is already in control-branch
-  history, and only a history rewrite would remove it.
-
-  Decide which you want before you run the install:
-
-  - **Accept it.** Prune in a following commit and let control history carry
-    the bulk once. Fine for a few hundred KB; this is the normal path.
-  - **Keep it out of history.** Do the `install-url` in a throwaway clone,
-    prune there, then copy the pruned directory into the real repo and commit
-    that once. This is the only way to keep the unpruned tree out of the
-    control branch entirely.
+- **Prune before committing.** The installed tree is written locally. Set the
+  include list, review the files, and commit the pruned tree through Git if the
+  repository shares its skills.
 
 ## Where imported skills live
 

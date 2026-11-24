@@ -10,7 +10,6 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from coga import git as git_module
 from coga.blackboard import append_blocker, open_blockers
 from conftest import derived_operator, hold_by_agent, hold_by_owner
 from coga.cli import app
@@ -513,91 +512,6 @@ def test_mark_paused_preserves_step(repo: Path) -> None:
     assert t.step == "2 (pr)"
 
 
-def test_lifecycle_write_waits_until_child_release_even_without_git(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A final spawn proof cannot race a local-only lifecycle mutation."""
-    slug, task_path = _make_task(repo, status="in_progress")
-    cfg = replace(load_config(repo), git_enabled=False)
-    ref = resolve_task(cfg, slug)
-    ticket = read_ticket(ref)
-    original = task_path.read_bytes()
-    attempted = threading.Event()
-    gate_written = threading.Event()
-    write_finished = threading.Event()
-    errors: list[BaseException] = []
-    real_write = git_module.write_ticket
-
-    def observed_write(cfg_, ticket_, path_, **kwargs):  # type: ignore[no-untyped-def]
-        attempted.set()
-        real_write(cfg_, ticket_, path_, **kwargs)
-        assert gate_written.is_set()
-        write_finished.set()
-
-    monkeypatch.setattr(git_module, "write_ticket", observed_write)
-
-    def pause_ticket() -> None:
-        try:
-            mark_paused(
-                cfg,
-                ref,
-                ticket,
-                actor="human:marc",
-                log_message="paused during held-child admission",
-            )
-        except BaseException as exc:
-            errors.append(exc)
-
-    worker = threading.Thread(target=pause_ticket)
-    with git_module.state_lock(cfg):
-        worker.start()
-        assert attempted.wait(timeout=5)
-        assert not write_finished.wait(timeout=0.1)
-        assert task_path.read_bytes() == original
-        # Models the supervisor's gate-byte write while it still owns the
-        # shared admission/publication barrier.
-        gate_written.set()
-
-    worker.join(timeout=5)
-    assert not worker.is_alive()
-    assert errors == []
-    assert Ticket.read(task_path).status == "paused"
-
-
-def test_bump_clears_finished_megalaunch_claim(repo: Path) -> None:
-    slug, task_path = _make_task(repo, status="in_progress")
-    ticket = Ticket.read(task_path)
-    ticket.frontmatter["launch_generation"] = "finished-session"
-    ticket.write(task_path)
-
-    result = CliRunner().invoke(app, ["bump", slug])
-
-    assert result.exit_code == 0, result.output
-    advanced = Ticket.read(task_path)
-    assert advanced.step == "2 (pr)"
-    assert advanced.launch_generation is None
-
-
-@pytest.mark.parametrize("status", ["paused", "done", "canceled"])
-def test_mark_session_end_clears_megalaunch_claim(
-    repo: Path, status: str
-) -> None:
-    slug, task_path = _make_task(repo, status="active")
-    ticket = Ticket.read(task_path)
-    ticket.frontmatter["launch_generation"] = "finished-session"
-    ticket.write(task_path)
-    command = ["mark", status, slug]
-    if status == "canceled":
-        command.extend(["--message", "No longer needed"])
-
-    result = CliRunner().invoke(app, command)
-
-    assert result.exit_code == 0, result.output
-    ended = Ticket.read(task_path)
-    assert ended.status == status
-    assert ended.launch_generation is None
-
-
 def test_mark_paused_from_draft_errors(repo: Path) -> None:
     slug, _ = _make_task(repo, status="draft")
     runner = CliRunner()
@@ -855,120 +769,6 @@ def test_shared_mark_active_refuses_canceled_ticket(repo: Path) -> None:
     assert Ticket.read(task_path).status == "canceled"
 
 
-def test_mark_in_progress_uses_matching_sync_subject(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, _ = _make_task(repo, status="active")
-    cfg = load_config(repo)
-    ref = resolve_task(cfg, slug)
-    messages: list[str] = []
-
-    def capture_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
-        messages.append(message)
-
-    monkeypatch.setattr("coga.mark.git.publish", capture_publish)
-
-    mark_in_progress(
-        cfg,
-        ref,
-        read_ticket(ref),
-        actor="human:marc",
-        log_message="started",
-    )
-
-    assert messages == [f"Ticket: {slug} — in_progress"]
-
-
-def test_strict_mark_in_progress_publishes_before_announcing(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A strict start publishes first and never announces a refused claim."""
-    slug, task_path = _make_task(repo, status="active")
-    cfg = load_config(repo)
-    ref = resolve_task(cfg, slug)
-    events: list[str] = []
-
-    def capture_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
-        events.append("publish")
-        return True
-
-    monkeypatch.setattr("coga.mark.git.publish", capture_publish)
-    monkeypatch.setattr(
-        "coga.mark.post", lambda *args, **kwargs: events.append("post")
-    )
-
-    mark_in_progress(
-        cfg,
-        ref,
-        read_ticket(ref),
-        actor="system",
-        log_message="started through exact lease",
-        slack_text="started",
-        strict=True,
-    )
-    assert events == ["publish", "post"]
-
-    events.clear()
-
-    def refuse_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
-        events.append("publish")
-        raise git_module.StateRegressionError("control moved")
-
-    monkeypatch.setattr("coga.mark.git.publish", refuse_publish)
-    with pytest.raises(git_module.StateRegressionError):
-        mark_in_progress(
-            cfg,
-            ref,
-            Ticket.read(task_path),
-            actor="system",
-            log_message="started again",
-            slack_text="started",
-            strict=True,
-        )
-    assert events == ["publish"]
-
-
-def test_mark_publish_failure_survives_an_unwritable_failure_log(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Best-effort stays nonfatal and strict re-raises the publication error,
-    even when the failure's own audit line cannot be written."""
-    slug, task_path = _make_task(repo, status="active")
-    cfg = load_config(repo)
-    ref = resolve_task(cfg, slug)
-
-    def fail_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
-        raise git_module.GitError("`git push origin` failed (exit 1): fatal: offline")
-
-    def unwritable_log(*args):  # type: ignore[no-untyped-def]
-        raise OSError(30, "Read-only file system")
-
-    monkeypatch.setattr("coga.mark.git.publish", fail_publish)
-    monkeypatch.setattr("coga.git.append_log", unwritable_log)
-
-    mark_in_progress(
-        cfg, ref, read_ticket(ref), actor="human:marc", log_message="started"
-    )
-    err = capsys.readouterr().err
-    assert "[git] sync failed: `git push origin` failed" in err
-    assert "could not record the sync failure in the log" in err
-    assert "Local task state was saved; Git publication failed." in err
-    assert Ticket.read(task_path).status == "in_progress"
-
-    with pytest.raises(git_module.GitError, match="git push origin"):
-        mark_in_progress(
-            cfg,
-            ref,
-            Ticket.read(task_path),
-            actor="system",
-            log_message="started again",
-            strict=True,
-        )
-    err = capsys.readouterr().err
-    assert "[git] sync failed: `git push origin` failed" in err
-    assert "saved" not in err
-
-
 # --- --message ----------------------------------------------------------------
 
 
@@ -1117,10 +917,10 @@ def test_mark_canceled_slack_text_includes_reason(
     )
 
 
-def test_mark_canceled_on_feature_lands_union_evidence_on_control(
+def test_mark_canceled_on_feature_writes_only_local_evidence(
     git_repo,
 ) -> None:
-    """An abandoned feature branch cannot strand the cancellation reason."""
+    """Cancellation changes the local ticket and audit log."""
     cfg = load_config(git_repo.coga_os)
     ref = create_task(
         cfg=cfg,
@@ -1131,10 +931,12 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         agent="claude",
         status="active",
     )
+    git_repo.git("add", "coga")
+    git_repo.git("commit", "-m", "Seed cancel task")
+    git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/cancel")
 
-    # Move origin/main under the feature checkout with a concurrent union-file
-    # append. The cancellation sync must retry and preserve both writers.
+    # Simulate a peer audit append while cancellation runs locally.
     local_log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     git_repo.push_competing_commit(
         "coga/log.md", local_log + "2026-01-01 00:00 rival: unrelated event\n"
@@ -1151,9 +953,11 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
     )
     control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    assert control_ticket.status == "canceled"
-    assert control_ticket.step is None
-    assert "canceled (active → canceled): Owner declined" in control_log
+    assert control_ticket.status == "active"
+    assert "Owner declined" not in control_log
+    completed = Ticket.read(Path(ref["path"]))
+    assert completed.status == "canceled" and completed.step is None
+    assert "Owner declined" in (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     assert "rival: unrelated event" in control_log
     assert git_repo.git("branch", "--show-current").strip() == "feature/cancel"
     # Coga never commits on the feature branch: the live ticket and log stay
@@ -1185,59 +989,9 @@ def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> d
     return ref
 
 
-@pytest.mark.parametrize(
-    ("seed_status", "landed_status", "argv", "expected_local"),
-    [
-        ("active", "done", ["canceled", "--message", "Owner declined"], "canceled"),
-        ("active", "canceled", ["done"], "done"),
-        ("active", "done", ["paused"], "paused"),
-        ("paused", "done", ["active"], "active"),
-    ],
-)
-def test_transition_refuses_to_bury_terminal_control_copy(
-    git_repo, seed_status, landed_status, argv, expected_local
-):
-    """No `mark` verb can reopen or overwrite a terminal control copy.
-
-    Each verb prepares its ticket against freshly fetched control before
-    checking eligibility (`git.prepare_ticket`). A stale checkout with no
-    unpublished ticket edit adopts control's terminal copy, so the stale
-    transition is refused by the ordinary status check before anything is
-    written — not published-then-refused after a local write.
-    """
-    cfg = load_config(git_repo.coga_os)
-    ref = _seed_pushed_task(git_repo, cfg, title="Contended work", status=seed_status)
-    ticket_path = Path(ref["path"])
-    rel = ticket_path.relative_to(git_repo.root).as_posix()
-    git_repo.checkout_branch("feature/contended")
-    original = ticket_path.read_bytes()
-
-    # Another checkout closes the ticket on the control branch under us.
-    git_repo.push_competing_commit(
-        rel,
-        ticket_path.read_text(encoding="utf-8").replace(
-            f"status: {seed_status}", f"status: {landed_status}"
-        ),
-    )
-
-    verb, *rest = argv
-    result = CliRunner().invoke(app, ["mark", verb, ref["slug"], *rest])
-
-    assert result.exit_code == 2, result.output
-    assert repr(landed_status) in result.output
-    # Nothing was written locally, and control keeps its terminal copy.
-    assert ticket_path.read_bytes() == original
-    assert expected_local not in (landed_status,)
-    control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
-    assert control.status == landed_status
-
-
 @pytest.mark.parametrize("control_has_notes", [True, False])
-def test_activation_synthesis_gate_reads_the_prepared_ticket(git_repo, control_has_notes):
-    """`mark active` checks draft-blackboard synthesis on the ticket reconciled
-    with fresh control, not the stale on-disk copy: control's authoring notes
-    refuse activation, and stale local notes control already synthesized do
-    not."""
+def test_activation_synthesis_gate_reads_local_notes(git_repo, control_has_notes):
+    """Activation uses the local blackboard even as the remote changes."""
     cfg = load_config(git_repo.coga_os)
     ref = _seed_pushed_task(git_repo, cfg, title="Draft gate", status="draft")
     ticket_path = Path(ref["path"])
@@ -1255,13 +1009,14 @@ def test_activation_synthesis_gate_reads_the_prepared_ticket(git_repo, control_h
     result = CliRunner().invoke(app, ["mark", "active", ref["slug"]])
 
     control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+    assert control.status == "draft"
     if control_has_notes:
+        assert result.exit_code == 0, result.output
+        assert Ticket.read(ticket_path).status == "active"
+    else:
         assert result.exit_code != 0, result.output
         assert "Ticket authoring notes" in result.output
-        assert control.status == "draft"
-    else:
-        assert result.exit_code == 0, result.output
-        assert control.status == "active"
+        assert Ticket.read(ticket_path).status == "draft"
 
 
 # --- main-agent selection timing (the approved activation-time contract) -------

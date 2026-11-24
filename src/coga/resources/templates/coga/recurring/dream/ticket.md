@@ -83,11 +83,9 @@ another command. Do not create child worker tasks.
 ### Agent capability preflight
 
 Run this once, from Dream's checkout, before Phase 1. The execute half
-fetches, pushes, opens PRs, and syncs ticket state. An agent sandbox that
-cannot do those fails each of them in turn, after the decide half has already
-spent the run, so check the capabilities first. Read `[git].remote` and
-`[git].control_branch` from the shared `coga.toml` (defaults `origin` and
-`main`), then check:
+uses Git and GitHub for the isolated Retro changes. Determine the remote
+and base from the repository's Git and GitHub configuration, then check the
+capabilities before starting the decide half.
 
 1. **The Git common dir is writable.** Resolve
    `git rev-parse --path-format=absolute --git-common-dir`, create a uniquely
@@ -96,7 +94,7 @@ spent the run, so check the capabilities first. Read `[git].remote` and
    permission-bit check does not count, and the probe never uses a Git lock
    name.
 2. **The remote is reachable.**
-   `git ls-remote <configured-remote> <configured-control-branch>` succeeds.
+   `git ls-remote <configured-remote> <base>` succeeds.
 3. **The GitHub CLI is authenticated.** `gh auth status` succeeds.
 
 Print one console line with the result, for example
@@ -334,7 +332,7 @@ Delegate the entire Retro pass to one subagent in a dedicated **isolated git
 checkout**, running `retro/done-ticket <slug> [<slug> ...]` there and passing
 every eligible slug. Start it with a fresh context and a self-contained
 delegation message, as for the scan shards (codex: `fork_turns: "none"`).
-Fetch the configured remote control branch first and base
+Fetch the configured remote base branch first and base
 the checkout's unique temporary branch on that fresh tip. Use native
 `isolation: worktree` when the agent supports it; otherwise create a temporary
 linked checkout with `git worktree add` at `<run-dir>/checkout`, inside the
@@ -360,7 +358,7 @@ direct delete, and finally `complete`. Read that file when the subagent returns
 or terminates, before removing any paths. A missing `pr` or `deleted` receipt
 means the outcome is unknown: the remote mutation may have succeeded before
 the worker stopped. Follow the skill's reconciliation checks against the fresh
-remote control branch and branch/PR state before retrying. Without `complete`,
+remote base branch and branch/PR state before retrying. Without `complete`,
 report the phase as `partial` with the file's contents and preserve the run
 directory and isolated checkout for recovery; a final message alone does not
 establish completion.
@@ -368,28 +366,25 @@ establish completion.
 Retro hands PR FYIs back as `pr` receipts in `progress.md` and never runs
 `coga slack` in the isolated checkout (skill step 12). After it returns, Dream
 posts each FYI from its own checkout with
-`coga slack --task <this-dream-task>`, so the audit line lands through Dream's
-ordinary state sync.
+`coga slack --task <this-dream-task>`, which appends the audit line locally.
 
 Every processed done ticket is deleted: a ticket that contributed durable
 knowledge is deleted in its theme's knowledge PR, which also records its
-`## Retro` marker; a ticket carrying nothing durable is direct-deleted with
-`coga delete <slug> --keep-control-checkout` from a linked worktree or ordinary
-`coga delete <slug>` from an independent clone. Both land the removal on the
-remote control branch without mutating the operator's checkout, with no PR and
-no marker. Recovery is via `git restore`. Retro never leaves a processed done
+`## Retro` marker. For an unreferenced ticket carrying no durable knowledge,
+follow Retro's local deletion and explicit Git handoff. Recovery is via
+`git restore`. Retro never leaves a processed done
 ticket on disk and never opens a marker-only PR. Retro also searches tracked
 files for durable references to each source task, such as a README or doc
-link on `blob/<control-branch>`. Before a deletion lands, it repoints each one
+link on `blob/<base>`. Before a deletion lands, it repoints each one
 to a commit permalink in a PR. A no-durable-knowledge ticket with such a
 reference therefore leaves in the run's reference-pin PR, not by direct
 delete. The skill's **Inbound references** section owns the rule. The
 eligibility gates above do not cover it.
 
-After the subagent returns, fetch the remote control branch and verify:
+After the subagent returns, fetch the remote base branch and verify:
 
 - every PR branch is pushed;
-- every direct delete is present on the remote control branch;
+- every direct delete is present on the remote base branch;
 - the isolated checkout holds nothing unlanded, by the check the
   `retro/done-ticket` skill's **Isolation boundary** defines.
 
@@ -404,8 +399,8 @@ not delete anything: preserve the run directory, the isolated checkout, and
 its temporary branch, because they may hold the only copy of the work. Record
 under `### Stranded Retro work` on this task's blackboard the temporary branch,
 the checkout or clone path, the run directory, the commits it holds
-(`git log --oneline <remote>/<control-branch>..<branch>`), the unlanded paths
-(`git diff --stat <remote>/<control-branch>...<branch>` plus uncommitted
+(`git log --oneline <remote>/<base>..<branch>`), the unlanded paths
+(`git diff --stat <remote>/<base>...<branch>` plus uncommitted
 changes), and the exact commands a human runs to land and then remove them.
 This run then ends blocked, never `done` — see the closing rule under
 `### Slack`.
@@ -493,9 +488,7 @@ remedy: done tickets follow Phase 4's Retro/retirement split, and a recurring
 writer's own state goes to that writer's owner. Do not create slimming drafts
 for done tickets. For live tickets needing cleanup or an owner decision,
 apply the grouping and ownership rule below to file or reuse a
-`brief-for-human` draft with no branch or PR requirement. The owner can edit
-directly on control; ticket and sibling-attachment changes publish through
-`coga/state-publication`. Dream does not rewrite another ticket's blackboard.
+`brief-for-human` draft with no branch or PR requirement. The owner can edit locally and share changes through ordinary Git. Dream does not rewrite another ticket's blackboard.
 
 Route the remaining Phase 1 `human-needed` issues by validator `kind`, one draft ticket
 per **systematic class**, never one per issue:
@@ -703,7 +696,7 @@ the Slack summary, then end the run with
 `coga block --task <this-dream-task> --reason "Retro work stranded on <branch> at <checkout path>; land it, then remove both — see ### Stranded Retro work"`
 instead of `coga mark done`. In an attended session, first show the human the
 stranded record and ask whether they will land it now; once they have, verify
-it against the fetched remote control branch, remove the preserved paths, and
+it against the fetched remote base branch, remove the preserved paths, and
 close normally. If they do not, this block is the answer the ticket needs:
 it is what makes the sweep count the run as a problem.
 

@@ -21,12 +21,26 @@ else:
     import msvcrt
 
 
+# A launch redirects TMPDIR/TMP/TEMP into the repo-local run-state area and
+# keeps the original here, so nested Coga processes still find the system temp.
+SYSTEM_TMPDIR_ENV = "COGA_SYSTEM_TMPDIR"
+
+
+def system_tmpdir() -> str:
+    """The system temp directory, even inside a launch's redirected TMPDIR.
+
+    Coga's own short-lived files (per-user locks, prompt files, sentinels,
+    skill scratch) stay in the system temp; `coga/launch` "Run state" owns why.
+    """
+    return os.environ.get(SYSTEM_TMPDIR_ENV) or tempfile.gettempdir()
+
+
 def lock_dir(prefix: str) -> Path:
     """Locate a user's locks outside every checkout (keep POSIX names stable)."""
     user = str(os.getuid()) if os.name == "posix" else re.sub(
         r"[^a-zA-Z0-9_.-]", "_", getpass.getuser()
     )
-    return Path(tempfile.gettempdir()) / f"{prefix}-{user}"
+    return Path(system_tmpdir()) / f"{prefix}-{user}"
 
 
 def lock_fd(fd: int, *, blocking: bool) -> None:

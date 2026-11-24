@@ -1,4 +1,4 @@
-"""The skill-update job: reports on `coga skill update --all --pr`.
+"""The skill-update job: reports on `python -m coga_edge.skill_update_pr`.
 
 Wheel-owned edge code (`coga/edge-code`). The packaged recurring
 `skill-update/ticket.py` shim runs `main`, as does
@@ -7,7 +7,7 @@ library and shared `coga` infrastructure, so a copy of this single file over a
 recurring `ticket.py` is a complete local fork. The updater itself
 (`coga skill update`, `coga.skill_manager`) stays in core for its own callers.
 
-Wraps `coga skill update --all --pr`: publishes the clean results emitted by
+Wraps `python -m coga_edge.skill_update_pr`: publishes the clean results emitted by
 the GitHub- and URL-backed updater paths in one reviewable PR, and groups their
 reported conflicts, URL local adaptations, or fetch failures as follow-up work
 on the task blackboard. Every installed GitHub-backed skill gets its own
@@ -115,10 +115,9 @@ def classify_status(status: str) -> str:
 
 def build_update_command(*, pr: bool, pr_title: str) -> list[str]:
     """Return the exact `coga skill update` command this skill runs."""
-    cmd = [sys.executable, "-m", "coga.cli", "skill", "update", "--all", "--json"]
     if pr:
-        cmd.extend(["--pr", "--pr-title", pr_title])
-    return cmd
+        return [sys.executable, "-m", "coga_edge.skill_update_pr", "--pr-title", pr_title]
+    return [sys.executable, "-m", "coga.cli", "skill", "update", "--all", "--json"]
 
 
 def run_update_json(
@@ -127,7 +126,7 @@ def run_update_json(
     pr: bool,
     pr_title: str,
 ) -> tuple[dict[str, Any], list[str]]:
-    """Run `coga skill update --all [--pr] --json` and return `(payload, cmd)`.
+    """Run the selected skill update command and return `(payload, cmd)`.
 
     The command exits non-zero only when the update itself failed; a clean run
     that leaves some skills needing follow-up still exits 0.

@@ -31,7 +31,6 @@ import sys
 
 import typer
 
-from coga import git
 from coga.config import ConfigError, load_config
 from coga.create import create_task, description_structure_problem
 from coga.paths import RepoResourceUnreadable
@@ -149,7 +148,6 @@ def create_draft(
 
     slug = result["slug"]
     typer.echo(f"{slug}: created (draft)")
-    git.sync_task_state(cfg, result["path"], message=f"Ticket: {slug} — created")
     return result
 
 

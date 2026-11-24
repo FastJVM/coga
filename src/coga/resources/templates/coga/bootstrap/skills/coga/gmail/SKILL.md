@@ -35,8 +35,7 @@ message/attachment not found.
 
 `/resolved/coga/gmail/` stands for this skill's resolved directory: the repo's
 local `coga/skills/coga/gmail/` override if one exists, else the installed
-bundled skill (resolution as in `coga/checkouts/sandbox-clone`, "What a fresh
-checkout lacks"). Bundled skills are not copied into the repo.
+bundled skill (resolution as in `coga/sandboxes`). Bundled skills are not copied into the repo.
 
 ## Auth — OAuth user credentials
 

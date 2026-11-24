@@ -40,11 +40,6 @@ def validate(
         "--check-slack",
         help="Probe the Slack webhook with an empty-text payload (network call).",
     ),
-    check_github: bool = typer.Option(
-        False,
-        "--check-github",
-        help="Probe git/GitHub auth readiness via git/gh (network call).",
-    ),
 ) -> None:
     """Validate repo + config; exits 1 if any errors are found."""
     try:
@@ -57,7 +52,7 @@ def validate(
         report = execute_validation(
             cfg, task=task, fix=fix, idle_hours=idle_hours,
             max_blackboard_kb=max_blackboard_kb,
-            check_slack=check_slack, check_github=check_github,
+            check_slack=check_slack,
         )
     except ValidationOptionError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)

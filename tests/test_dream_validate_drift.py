@@ -373,7 +373,6 @@ def test_classifies_operator_environment_drift_as_human_needed(kind: str) -> Non
 
 def test_classifier_explicitly_covers_every_emitted_validator_kind() -> None:
     kinds = _emitted_validator_kind_samples()
-    assert "github-dynamic-kind" in kinds
 
     unknown = [
         kind
@@ -740,7 +739,7 @@ def test_commit_and_push_main_passes_configured_remote(
 
     result = validate_drift.run_validate_drift_recipe(
         None,  # type: ignore[arg-type]
-        ["--cwd", str(tmp_path), "--commit-and-push"],
+        ["--cwd", str(tmp_path), "--commit-and-push", "--remote", "upstream"],
     )
 
     assert result == 0
@@ -760,9 +759,16 @@ def test_recipe_consumes_real_module_entry_with_fix_and_thresholds(
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     payload, command = run_validate_json(cwd=root, idle_hours=48, max_blackboard_kb=12)
     assert command == build_validate_command(idle_hours=48, max_blackboard_kb=12)
-    assert set(payload) == {"generated_at", "ok_count", "fixes", "issues"}
+    assert set(payload) == {"generated_at", "ok_count", "fixes", "issues", "state"}
     assert payload["fixes"][0]["kind"] == "blackboard-fence"
     assert any(i["severity"] == "error" for i in payload["issues"]) == broken
     _write(root / "coga.toml", 'version = 99\n')
     with pytest.raises(RuntimeError, match="exit 2"):
         run_validate_json(cwd=root)
+
+
+def test_machine_local_orphan_tmp_fixes_are_never_committed(tmp_path: Path) -> None:
+    fixes = [ValidationFix(kind="orphan-tmp", task="(state)", message="removed",
+                           path=str(tmp_path / "coga" / ".coga" / "tmp" / "aaaaaaaa"))]
+    # Returns before any git call: tmp_path is not a repository.
+    assert validate_drift.commit_and_push_fixes(cwd=tmp_path, fixes=fixes, message="m") is None

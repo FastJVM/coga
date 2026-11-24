@@ -7,17 +7,10 @@ BOOTSTRAP = (
 )
 
 
-def test_implement_skill_has_read_only_git_clone_fallback() -> None:
+def test_implement_skill_uses_the_ticket_branch_and_legacy_setup() -> None:
     skill = (BOOTSTRAP / "skills/code/implement/SKILL.md").read_text(encoding="utf-8")
-    owner = (BOOTSTRAP / "contexts/coga/checkouts/sandbox-clone/SKILL.md").read_text(encoding="utf-8")
 
-    assert "coga/checkouts/sandbox-clone" in skill
-    assert "First refusal after launch switched" in skill
-    # The recipe itself is owned by the sandbox-clone topic.
-    assert "git clone --no-hardlinks" in owner
-    assert "mktemp -d /tmp/coga-feature" in owner
-    assert "switch -C main FETCH_HEAD" in owner
-    assert "switch -c <branch-name>" in owner
-    assert "Record that clone's repo path as `worktree:`" in owner
-    assert "coga block --task <slug>" in owner
-    assert "git clone --no-hardlinks" not in skill
+    assert "recorded Git fields" in skill
+    assert "git/open-branch/run.py --no-bump" in skill
+    assert "Keep the current `implement` step open." in skill
+    assert "stop if Git refuses" in skill

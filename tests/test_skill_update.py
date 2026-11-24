@@ -87,7 +87,7 @@ def test_has_followups_detects_human_needed_statuses() -> None:
 
 def test_build_update_command_toggles_pr() -> None:
     with_pr = build_update_command(pr=True, pr_title="T")
-    assert with_pr[-4:] == ["--json", "--pr", "--pr-title", "T"]
+    assert with_pr[-4:] == ["-m", "coga_edge.skill_update_pr", "--pr-title", "T"]
     no_pr = build_update_command(pr=False, pr_title="T")
     assert "--pr" not in no_pr
     assert no_pr[-1] == "--json"
@@ -318,7 +318,7 @@ def test_recipe_writes_a_failure_report_to_the_blackboard_on_the_hard_exit(
 
     def boom(*, cwd: Path | None, pr: bool, pr_title: str):
         raise RuntimeError(
-            "`coga skill update --all --pr --json` failed with exit 1: "
+            "`python -m coga_edge.skill_update_pr --json` failed with exit 1: "
             "! [rejected] coga/skill-update -> coga/skill-update (stale info)"
         )
 
@@ -442,9 +442,9 @@ def test_skill_update_skill_declares_contract() -> None:
     assert "## Known Skill Contract" in text
     assert "- Purpose: update clean GitHub- and URL-backed imported skills" in text
     assert "- Action: `pr-required`" in text
-    assert "coga skill update --all --pr" in text
+    assert "python -m coga_edge.skill_update_pr" in text
     assert "`coga/skill-update` branch" in norm
-    assert "never the caller's branch" in norm
+    assert "The caller's branch stays checked out." in norm
     assert "Bundled (package-backed) skills are not updated here" in norm
     assert "`gh skill`'s own metadata for GitHub-backed installs" in norm
     assert "Coga `.coga-source.json` provenance for URL-backed installs" in norm
@@ -476,7 +476,7 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     assert "mode:" not in ticket
     assert "recipe:" not in ticket
     assert "workflow: skill-update/run" in ticket
-    assert "coga skill update --all --pr" in ticket
+    assert "python -m coga_edge.skill_update_pr" in ticket
     assert "`coga skill install-local` is a third supported installation path" in ticket
     assert "weekly report neither lists nor verifies them" in ticket
 
@@ -523,7 +523,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_skill_update_runs_from_the_edge_module_and_reports_no_op(
     repo: Path, monkeypatch: pytest.MonkeyPatch, installed_bundled_twin: bool
 ) -> None:
-    # No imported skills under `skills/`: `coga skill update --all --pr` finds
+    # No imported skills under `skills/`: `python -m coga_edge.skill_update_pr` finds
     # nothing clean to update, so after its read-only preflight it commits
     # nothing and opens no PR, and the edge job reports a clean no-op
     # on the task blackboard. The pre-update branch guard asks the remote

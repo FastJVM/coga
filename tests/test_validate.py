@@ -774,64 +774,6 @@ def test_validate_rejects_unsafe_frozen_delegate_component(
     assert "one path component" in issue.message
 
 
-def test_validate_rejects_an_empty_period_generation(repo: Path) -> None:
-    """A present creator-owned generation token must identify something."""
-    cfg = load_config(repo)
-    created = create_task(
-        cfg=cfg,
-        title="Generated period",
-        workflow_name="code/with-review",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="draft",
-        slug_override="recurring/generated-period",
-        force_directory=True,
-        period_generation="generation-1",
-    )
-    ticket_path = Path(created["path"]) / "ticket.md"
-    ticket = Ticket.read(ticket_path)
-    ticket.frontmatter["period_generation"] = ""
-    ticket.write(ticket_path)
-
-    report = run(cfg)
-
-    issue = next(
-        issue
-        for issue in report.issues
-        if issue.kind == "bad-shape" and issue.task == "recurring/generated-period"
-    )
-    assert "period_generation" in issue.message
-
-
-def test_validate_rejects_period_generation_on_an_ordinary_task(repo: Path) -> None:
-    """Only the recurring runner may stamp its materialized generation token."""
-    cfg = load_config(repo)
-    created = create_task(
-        cfg=cfg,
-        title="Ordinary task",
-        workflow_name="code/with-review",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="draft",
-    )
-    ticket_path = Path(created["path"])
-    ticket = Ticket.read(ticket_path)
-    ticket.frontmatter["period_generation"] = "forged-generation"
-    ticket.write(ticket_path)
-
-    report = run(cfg)
-
-    issue = next(
-        issue
-        for issue in report.issues
-        if issue.kind == "invalid-period-generation-owner"
-        and issue.task == created["slug"]
-    )
-    assert "runner-owned" in issue.message
-
-
 def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
     cfg = load_config(repo)
     created = create_task(
@@ -970,92 +912,6 @@ def test_validate_ignores_global_filemode_outside_git(
 
     script.chmod(0o755)
     assert not [i for i in run(cfg).issues if i.kind == "non-executable-script"]
-
-
-def test_validate_skips_shebang_mode_check_without_a_trustworthy_source(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # A Windows working tree cannot carry the bit; with no git index to fall
-    # back on either, silence beats a false error.
-    cfg = load_config(repo)
-    _write_shebang_script(repo, 0o644)
-    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
-    monkeypatch.setattr("coga.validate._git_index_modes", lambda root: None)
-
-    report = run(cfg)
-    assert not [i for i in report.issues if i.kind == "non-executable-script"]
-
-
-def test_validate_reads_the_git_index_where_the_working_tree_has_no_mode(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Simulate Windows: the working tree says nothing about the committed
-    # mode, so the check reads what git tracks instead. The packaged skills
-    # live in this checkout's own index, so point that root at nothing.
-    cfg = load_config(git_repo.coga_os)
-    script = _write_shebang_script(git_repo.coga_os, 0o755)
-    rel = script.relative_to(git_repo.root).as_posix()
-    git_repo.git("add", "-A")
-    git_repo.git("update-index", "--chmod=-x", rel)
-    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
-    monkeypatch.setattr(
-        "coga.validate.bundled_skills_root",
-        lambda cfg: git_repo.coga_os / "no-bundled-skills",
-    )
-
-    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
-    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/run.sh"]
-
-    git_repo.git("update-index", "--chmod=+x", rel)
-    clean = run(cfg)
-    assert not [i for i in clean.issues if i.kind == "non-executable-script"]
-
-
-@pytest.mark.parametrize(
-    ("working_mode", "index_mode", "expected_error"),
-    [(0o644, "+x", False), (0o755, "-x", True)],
-)
-def test_validate_uses_index_when_git_filemode_is_false(
-    git_repo,
-    monkeypatch: pytest.MonkeyPatch,
-    working_mode: int,
-    index_mode: str,
-    expected_error: bool,
-) -> None:
-    cfg = load_config(git_repo.coga_os)
-    script = _write_shebang_script(git_repo.coga_os, working_mode)
-    rel = script.relative_to(git_repo.root).as_posix()
-    git_repo.git("config", "core.fileMode", "false")
-    git_repo.git("add", rel)
-    git_repo.git("update-index", f"--chmod={index_mode}", rel)
-    monkeypatch.setattr(
-        "coga.validate.bundled_skills_root",
-        lambda cfg: git_repo.coga_os / "no-bundled-skills",
-    )
-
-    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
-    assert [i.task for i in flagged] == (
-        ["skills/infra/tests/scripts/run.sh"] if expected_error else []
-    )
-
-
-def test_validate_index_fallback_preserves_non_ascii_paths(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg = load_config(git_repo.coga_os)
-    script = _write_shebang_script(git_repo.coga_os, 0o644)
-    script = script.rename(script.with_name("café-語.sh"))
-    git_repo.git("add", script.relative_to(git_repo.root).as_posix())
-    # Git emits UTF-8 paths even when Windows' default encoding is cp1252.
-    monkeypatch.setattr("locale.getencoding", lambda: "cp1252")
-    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
-    monkeypatch.setattr(
-        "coga.validate.bundled_skills_root",
-        lambda cfg: git_repo.coga_os / "no-bundled-skills",
-    )
-
-    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
-    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/café-語.sh"]
 
 
 def test_validate_prunes_skill_dependencies_before_scanning(
@@ -2212,297 +2068,6 @@ def _github_kinds(report) -> list[str]:
     return [i.kind for i in report.issues if i.task == "(github)"]
 
 
-def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "git@github.com:o/r.git\n"
-                ),
-                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
-                    _FakeProc(0)
-                ),
-                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
-                    0, "", "Logged in to github.com"
-                ),
-            }
-        ),
-    )
-    cfg = load_config(repo)
-    report = run(cfg, check_github=True)
-    assert _github_kinds(report) == []
-
-
-def test_check_github_missing_remote(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # No push entry: a missing remote must short-circuit before the auth probe
-    # runs (the factory raises on any unexpected call).
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    2, "", "error: No such remote 'origin'"
-                ),
-                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status"): _FakeProc(0, "", "Logged in"),
-            }
-        ),
-    )
-    cfg = load_config(repo)
-    report = run(cfg, check_github=True)
-    kinds = _github_kinds(report)
-    assert "github-git-remote" in kinds
-    assert "github-git-auth" not in kinds
-
-
-def test_check_github_missing_gh(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # `gh` absent (FileNotFoundError): gh-auth must be skipped.
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "git@github.com:o/r.git\n"
-                ),
-                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
-                    _FakeProc(0)
-                ),
-                ("gh", "--version"): FileNotFoundError(),
-            }
-        ),
-    )
-    cfg = load_config(repo)
-    report = run(cfg, check_github=True)
-    kinds = _github_kinds(report)
-    assert "github-gh-installed" in kinds
-    assert "github-gh-auth" not in kinds
-
-
-def test_check_github_gh_unauthenticated(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "git@ghe.example.com:o/r.git\n"
-                ),
-                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
-                    _FakeProc(0)
-                ),
-                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status", "--hostname", "ghe.example.com"): _FakeProc(
-                    1, "", "not logged in to ghe.example.com"
-                ),
-            }
-        ),
-    )
-    cfg = load_config(repo)
-    report = run(cfg, check_github=True)
-    kinds = _github_kinds(report)
-    assert "github-gh-auth" in kinds
-    auth_issue = next(i for i in report.issues if i.kind == "github-gh-auth")
-    assert "gh auth login --hostname ghe.example.com" in auth_issue.message
-    assert auth_issue.severity == "error"
-
-
-def test_check_github_push_auth_failure(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "https://github.com/o/r.git\n"
-                ),
-                ("git", "push", "--dry-run", "origin"): _FakeProc(
-                    128, "", "remote: Permission to o/r.git denied"
-                ),
-                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
-                    0, "", "Logged in to github.com"
-                ),
-            }
-        ),
-    )
-    cfg = load_config(repo)
-    report = run(cfg, check_github=True)
-    kinds = _github_kinds(report)
-    assert "github-git-auth" in kinds
-    auth_issue = next(i for i in report.issues if i.kind == "github-git-auth")
-    assert "push access" in auth_issue.message
-
-
-def test_check_github_stale_branch(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "https://github.com/o/r.git\n"
-                ),
-                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
-                    _FakeProc(1)
-                ),
-                ("git", "merge-base", "refs/remotes/origin/main", "HEAD"): _FakeProc(
-                    0, "base-sha\n"
-                ),
-                (
-                    "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "refs/remotes/origin/main",
-                ): _FakeProc(0, "src/coga/changed.py\n"),
-                (
-                    "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "HEAD",
-                ): _FakeProc(0, "README.md\n"),
-                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, "coga/\n"),
-                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
-                    0, "", "Logged in to github.com"
-                ),
-            }
-        ),
-    )
-    cfg = load_config(repo)
-    report = run(cfg, check_github=True)
-
-    kinds = _github_kinds(report)
-    assert "github-git-branch-current" in kinds
-    branch_issue = next(
-        i for i in report.issues if i.kind == "github-git-branch-current"
-    )
-    assert "does not contain latest origin/main" in branch_issue.message
-    assert "git rebase origin/main" in branch_issue.message
-
-
-def test_check_github_accepts_non_overlapping_coga_state_drift(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "https://github.com/o/r.git\n"
-                ),
-                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
-                    _FakeProc(1)
-                ),
-                ("git", "merge-base", "refs/remotes/origin/main", "HEAD"): _FakeProc(
-                    0, "base-sha\n"
-                ),
-                (
-                    "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "refs/remotes/origin/main",
-                ): _FakeProc(0, "coga/tasks/other.md\ncoga/log.md\n"),
-                (
-                    "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "HEAD",
-                ): _FakeProc(0, "src/coga/feature.py\n"),
-                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, "coga/\n"),
-                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
-                    0, "", "Logged in to github.com"
-                ),
-            }
-        ),
-    )
-
-    cfg = load_config(repo)
-    report = run(cfg, check_github=True)
-
-    assert _github_kinds(report) == ["github-git-branch-state-only-drift"]
-    issue = next(
-        item
-        for item in report.issues
-        if item.kind == "github-git-branch-state-only-drift"
-    )
-    assert issue.severity == "warning"
-    assert "safe to publish" in issue.message
-
-
-@pytest.mark.parametrize(
-    ("coga_prefix", "control_paths", "expected_kind"),
-    [
-        ("", "tasks/other.md\nlog.md\n", "github-git-branch-state-only-drift"),
-        ("coga/", "example/coga/tasks/other.md\n", "github-git-branch-current"),
-    ],
-)
-def test_check_github_scopes_state_drift_to_configured_coga_root(
-    repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    coga_prefix: str,
-    control_paths: str,
-    expected_kind: str,
-) -> None:
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run",
-        _fake_subprocess_factory(
-            {
-                ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "https://github.com/o/r.git\n"
-                ),
-                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
-                    _FakeProc(1)
-                ),
-                ("git", "merge-base", "refs/remotes/origin/main", "HEAD"): _FakeProc(
-                    0, "base-sha\n"
-                ),
-                (
-                    "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "refs/remotes/origin/main",
-                ): _FakeProc(0, control_paths),
-                (
-                    "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "HEAD",
-                ): _FakeProc(0, "src/coga/feature.py\n"),
-                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, coga_prefix),
-                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
-                    0, "", "Logged in to github.com"
-                ),
-            }
-        ),
-    )
-
-    report = run(load_config(repo), check_github=True)
-
-    assert _github_kinds(report) == [expected_kind]
-
-
-def test_run_no_github_check_by_default(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Only the local file-mode query is allowed without --check-github.
-    monkeypatch.setattr(
-        "coga.github_preflight.subprocess.run", _fake_subprocess_factory({})
-    )
-    cfg = load_config(repo)
-    run(cfg)  # must not raise
-
-
 # --- ticket frontmatter extensions ------------------------------------------
 
 
@@ -3128,33 +2693,6 @@ def test_validation_entries_fix_only_selected_ticket_without_user_or_publication
     assert not (root / ".agent-skills").exists()
 
 
-def test_safe_fix_refuses_concurrent_ticket_write(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from coga import validate as validator
-    from coga.taskfile import TaskFileError
-    cfg = load_config(repo)
-    path = repo / "tasks" / "concurrent.md"
-    _write(path, '---\ntitle: Concurrent\nstatus: draft\n---\n\n## Description\nOriginal.\n')
-    original = validator.render_blackboard
-    def racing_render(*args, **kwargs):
-        path.write_text(path.read_text() + "Concurrent edit.\n", encoding="utf-8")
-        return original(*args, **kwargs)
-    monkeypatch.setattr(validator, "render_blackboard", racing_render)
-    with pytest.raises(TaskFileError, match="ticket changed"):
-        apply_safe_fixes(cfg)
-    assert path.read_text().endswith("Concurrent edit.\n")
-    assert "<!-- coga:blackboard -->" not in path.read_text()
-
-
-@pytest.mark.parametrize("probe", ["--check-slack", "--check-github"])
-def test_module_entry_refuses_probe_with_task_using_short_message(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, probe: str
-) -> None:
-    monkeypatch.chdir(repo)
-
-    assert _main(["--task", "anything", probe]) == 2
-    assert capsys.readouterr().err == f"{probe} is not supported with --task\n"
-
-
 def test_validation_entries_do_not_mask_internal_value_errors(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3174,3 +2712,80 @@ def test_validation_entries_do_not_mask_internal_value_errors(
     result = CliRunner().invoke(app, ["validate", "--json"])
     assert isinstance(result.exception, ValueError)
     assert result.exit_code != 2
+
+
+@pytest.mark.parametrize("assignee,diagnostic", [
+    ("agent", "Cannot read workflow script"),
+    ("owner", "an owner step cannot declare run"),
+])
+def test_validate_checks_run_entry_and_inherited_role(repo, assignee, diagnostic):
+    _write(
+        repo / "workflows" / "check-run.md",
+        f"""
+        ---
+        name: check-run
+        steps:
+          - name: prepare
+            assignee: {assignee}
+          - name: compute
+            run: fixture/compute
+        ---
+        ## prepare
+
+        Prepare the check.
+        """,
+    )
+    _write(repo / "skills" / "fixture" / "compute" / "SKILL.md", "# Compute\n")
+    _write(
+        repo / "tasks" / "check.md",
+        """
+        ---
+        title: Check
+        status: draft
+        owner: marc
+        workflow: check-run
+        ---
+        ## Description
+
+        Check script routing.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    report = validate_task(load_config(repo), "check")
+    errors = [issue.message for issue in report.issues if issue.severity == "error"]
+    assert any(diagnostic in message for message in errors), errors
+
+
+@pytest.mark.parametrize("legacy_section", [True, False])
+def test_renamed_step_uses_its_legacy_section(repo: Path, legacy_section: bool) -> None:
+    workflow_path = _write_skillless_release_workflow(repo)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    legacy = "\n## release\n\nOld step name: follow the ship script.\n" if legacy_section else ""
+    _write(workflow_path, f"""
+        ---
+        name: custom/release
+        description: Release workflow.
+        steps:
+          - name: ship
+            assignee: agent
+        ---
+
+        ## ship
+
+        Ship the release.
+    """)
+    workflow_path.write_text(workflow_path.read_text() + legacy)
+
+    kinds = [issue.kind for issue in run(load_config(repo)).issues]
+
+    assert ("missing-step-instructions" in kinds) is not legacy_section

@@ -16,11 +16,9 @@ import sys
 
 import typer
 
-from coga import git, oscompat, pr_assist
+from coga import pr_assist
 from coga.commands.common import (
-    bail_ticket_changed,
     completion_identity,
-    prepare_lifecycle_ticket,
 )
 from coga.config import Config, ConfigError, load_config
 from coga.lifecycle import CANCELABLE_STATUSES
@@ -29,7 +27,6 @@ from coga.mark import (
     MainAgentUnavailable,
     CancellationError,
     RequiredExtensionMissing,
-    StrandedProductCode,
     WorkflowMissing,
 )
 from coga.mark import format_blackboard_synthesis_refusal
@@ -68,7 +65,7 @@ def active(
     ),
 ) -> None:
     """Set status to `active`. Allowed from `draft` or `paused`."""
-    cfg, ref, ticket, prepared = _load(task)
+    cfg, ref, ticket = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _ACTIVE_FROM, "active")
 
@@ -82,10 +79,7 @@ def active(
             actor=actor,
             log_message=log_message,
             echo=f"{ref.id_slug}: active",
-            prepared=prepared,
         )
-    except git.TicketChangedError as exc:
-        bail_ticket_changed(exc)
     except WorkflowMissing:
         _bail(
             f"Cannot activate {ref.id_slug}: ticket has no workflow. A "
@@ -129,7 +123,7 @@ def paused(
     ),
 ) -> None:
     """Set status to `paused`. Allowed from `active` or `in_progress`."""
-    cfg, ref, ticket, prepared = _load(task)
+    cfg, ref, ticket = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _PAUSED_FROM, "paused")
     assist = _assist_session(cfg, ref)
@@ -143,10 +137,7 @@ def paused(
             actor=_actor(cfg, assist),
             log_message=log_message,
             echo=f"{ref.id_slug}: paused",
-            prepared=prepared,
         )
-    except git.TicketChangedError as exc:
-        bail_ticket_changed(exc)
     except TaskValidationError as exc:
         _bail(str(exc))
 
@@ -174,7 +165,7 @@ def done(
     if task.startswith(_BOOTSTRAP_PREFIX):
         _finish_stateless_command(task, message=message, force=force)
         return
-    cfg, ref, ticket, prepared = _load(task)
+    cfg, ref, ticket = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
     # `done` posts its outcome live with `fatal=False`, so an unresolved
@@ -206,22 +197,6 @@ def done(
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
             force=force,
-            prepared=prepared,
-        )
-    except git.TicketChangedError as exc:
-        bail_ticket_changed(exc)
-    except StrandedProductCode as exc:
-        listed = "\n".join(f"    {p}" for p in exc.paths)
-        _bail(
-            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow has "
-            f"no push/PR step, but this checkout committed tracked product code "
-            f"that is not on {cfg.git_control_branch!r}:\n"
-            f"{listed}\n"
-            f"That code will strand off the control branch if this checkout "
-            f"or its branch is removed. Move the ticket to a code/* workflow "
-            f"(code/with-review, or code/with-self-review without a peer agent) "
-            f"so it opens a PR, or "
-            f"re-run with --force to finish anyway and keep the code stranded."
         )
     except TaskValidationError as exc:
         _bail(str(exc))
@@ -245,7 +220,7 @@ def canceled(
     ),
 ) -> None:
     """Set status to `canceled`. Allowed from every non-terminal status."""
-    cfg, ref, ticket, prepared = _load(task)
+    cfg, ref, ticket = _load(task)
     reason = message.strip()
     if not reason:
         _bail("--message cannot be empty")
@@ -268,10 +243,7 @@ def canceled(
             ),
             image_url=cfg.gif_for("canceled"),
             echo=f"{ref.id_slug}: canceled — {reason}",
-            prepared=prepared,
         )
-    except git.TicketChangedError as exc:
-        bail_ticket_changed(exc)
     except (CancellationError, TaskValidationError) as exc:
         _bail(str(exc))
 
@@ -297,7 +269,6 @@ def _finish_stateless_command(task: str, *, message: str | None, force: bool) ->
     """
     from coga.bump import OperatorResolutionError, resolve_main_agent
     from coga.logfile import append_log
-    from coga.paths import log_path
     from coga.tasks import BootstrapRef, resolve_target
 
     if message is not None or force:
@@ -330,20 +301,6 @@ def _finish_stateless_command(task: str, *, message: str | None, force: bool) ->
     actor = f"agent:{operator}" if operator else f"human:{cfg.current_user}"
 
     append_log(cfg, ref.id_slug, actor, STATELESS_DONE_LOG)
-    if cfg.git_enabled:
-        published = git.sync_log(cfg, message=f"Log: {ref.id_slug}")
-        if published is None:
-            git.state_sweep_withheld.set(True)
-            recovery = oscompat.shell_command(
-                ["coga", "run", "publish-state", str(log_path(cfg))]
-            )
-            _bail(
-                f"{ref.id_slug}: completion not signalled — its audit line is "
-                "not confirmed on control and was kept locally. Publish it "
-                f"with `{recovery}`. The session can still exit normally "
-                "or reach a configured timeout.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
     typer.echo(f"{ref.id_slug}: done")
     emit_done_marker(session_id=ref.id_slug)
 
@@ -362,20 +319,12 @@ def _load(task: str):
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    # Eligibility, messages, and the write all use the ticket reconciled with
-    # fresh control (`git.prepare_ticket`), never a stale local read.
-    if not ref.ticket_path.is_file():
-        read_ticket(ref)  # the ordinary missing-ticket error
-    prepared = prepare_lifecycle_ticket(cfg, ref)
-    return cfg, ref, prepared.ticket, prepared
+    return cfg, ref, read_ticket(ref)
 
 
 def _assist_session(cfg: Config, ref: TaskRef) -> pr_assist.AssistSession | None:
     """The inherited human-step assist identity, if this command runs in one."""
-    try:
-        return pr_assist.assist_session_from_env(cfg, ref)
-    except git.GitError as exc:
-        _bail(f"Could not rebuild {ref.id_slug}'s recorded assist session: {exc}")
+    return pr_assist.assist_session_from_env(cfg, ref)
 
 
 def _actor(cfg: Config, assist: pr_assist.AssistSession | None) -> str:

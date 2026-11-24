@@ -58,7 +58,7 @@ effects, or calling shared infrastructure does not settle their placement.
 | --- | --- | --- |
 | `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `13-move-ticket-authoring-to-a-command-ticket` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `14-move-skill-management-to-command-tickets` |
-| `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
+| `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped local write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
 
 These tickets live under `coga/tasks/v1/microkernel/`; the owner's
 2026-11-12 decision in [current direction](../current-direction/SKILL.md)
@@ -69,15 +69,8 @@ kernel boundary below rather than replacing it. Shared helpers and launch-time
 trust hooks retain their own kernel justification independently of the
 user-facing heads that call them.
 
-The `owner` head's claim to core is its package-private transaction: it holds
-`git.state_lock` across the read, prospective validation, local byte
-comparison, write, audit, and strict publication with the original ticket
-bytes as `expect`. A concurrent local edit is preserved. A definite
-publication failure restores only the command's own ticket bytes and retracts
-its audit; an uncertain push keeps the write for reconciliation. Both exit 75
-to suppress the generic sweep. With Git disabled or unavailable through a
-documented soft-skip, the local write remains the result
-([publish primitive](../internals/state-publication/publish/SKILL.md)).
+The `owner` command reads the local ticket, validates the proposed owner
+and writes the change atomically. Its placement remains open.
 
 ## Settled read/report placements
 
@@ -90,8 +83,8 @@ selection remains shared with status and scheduling.
 
 Validation stays in core: its public CLI and Dream's edge
 `coga_edge.validate_drift` worker consume the fix-capable module entry and
-JSON serialization. Both parsers call one core execution/rendering contract. Safe local fixes retain the state lock,
-concurrent-byte refusal and atomic write, without publication or user setup.
+JSON serialization. Both parsers call one core execution/rendering contract.
+Safe local fixes write atomically.
 
 The fixed `recurring list` adapter is a settled co-versioned exception: its
 forwarding agrees with launch's private read-only boundary while retaining the
@@ -114,24 +107,12 @@ first.
 
 Megalaunch is an editable bootstrap script and complete `coga_edge.megalaunch`
 module, reached through direct launch aliases. Core never imports its policy.
-`launch.run_claimed_agent_session` delegates to `claimed_session`: exact source
-bytes, generation construction, strict claim publication, final local/control
-proofs, held-child barrier, release, released witness and admission form one
-package-private transaction. Ordinary launch recovery consumes the same pending
-seal and generation machinery. A filesystem edge cannot choose the seal's sole
-pending-to-admitted exception safely. This bounded co-versioning proof covers
-those mechanics, not picker, ordering, budgets or stop classification.
-`mark.reblock_unresolved_resume` serves ordinary launch and queue cleanup;
-shared foreground waits serve stateless scripts and recurring control relays.
-`session_limits` shares env/config parsing between recurring and the queue;
-each caller supplies its own idle default. `authoring.invoke_ticket_authoring`
-uses public CLI argv and preserves its guarded finalization. Its narrow
-co-versioning obligation is two Python-only `cli.main` seams: mapping a
-retained authoring finalization (`authoring.authored_state_retained`, not the
-broader withheld-sweep flag) to 75 before CLI cleanup resets it, and refusing
-rather than scaffolding a picked ref that no longer resolves
-(`authoring.existing_target_only`). This is why the edge does not inspect a
-private CLI flag or copy an authoring executor.
+The queue uses the shared step-script resolver and agent executor. It owns
+selection, ordering, budgets and stop classification. `session_limits` shares
+environment and config parsing between recurring and megalaunch.
+`authoring.invoke_ticket_authoring` uses CLI arguments and the
+`existing_target_only` entry point so a vanished pick cannot scaffold a new
+ticket.
 `13-move-ticket-authoring-to-a-command-ticket` still owns the authoring
 coordinator's eventual placement.
 
@@ -242,12 +223,8 @@ repo chooses from.
 - **No inversion.** Moving logic out of the kernel moves the substance
   unchanged: deterministic Python stays Python (a recipe or `ticket.py`),
   never agent judgment.
-- **`prepare-checkout` is a recipe, not shared infra alone.** It is the one
-  in-chat consumer of the branch preparation in `src/coga/checkouts.py` that
-  ordinary launch also calls, so those mechanics are shared infra. The recipe
-  is registered because its argv, report and 0/2/75 exits must agree with
-  launch's private live-chat receipt. It is not a Typer head, alias, ticket
-  plugin, or general phase registry.
+- **Git workflow scripts.** Branch creation and PR operations live beside
+  their packaged workflow skills and read the ticket's Git record.
 - **Skill provenance at use is unbuilt.** Compose does not verify loaded
   skills against a provenance digest; that launch-time trust hook would be
   kernel when built.

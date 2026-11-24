@@ -14,7 +14,7 @@ Each step links to the topic that owns its contract.
 Use a macOS, Linux or native Windows terminal; Windows needs the
 README's [native Windows notes](https://github.com/FastJVM/coga/blob/main/README.md#get-started).
 For this walk's GitHub PR, start on clean, current `main` (or your configured
-control branch) in a repo with a remote you can push to. Install GitHub CLI
+base branch) in a repo with a remote you can push to. Install GitHub CLI
 and run `gh auth login`; Git push credentials must also work.
 
 The example uses `code/with-review`. With the default configuration it needs
@@ -63,7 +63,7 @@ These checks do not test agent authentication or complete a first task.
 On an empty repo, `init` seeded an onboarding ticket. `coga build` is a
 default alias for `launch coga-build`: one question, an agent-led chat, a
 short vision, then a batch of starter tickets, offered for launch only once
-the vision and the batch are confirmed on the control branch. Use `coga build --agent
+the vision and the batch are confirmed on the base branch. Use `coga build --agent
 codex` for Codex. It dispatches through `coga launch`, so it needs an
 initialized repo. Coga never installs an agent CLI: when the configured one
 cannot be found, the launch fails and names the `[agents.*]` table to fix in
@@ -92,37 +92,17 @@ task's main agent. New tasks use the configured default at activation; see
 
 ## 2. Launch it
 
-```sh
-coga launch add-a-health-check-endpoint --prompt-report   # inspect, don't launch
-coga launch add-a-health-check-endpoint
-```
-
-`--prompt-report` shows the composed layers and their token counts
-([coga/prompt-composition](../prompt-composition/SKILL.md)). Typing
-`coga launch` approves a draft or paused ticket; a launch refused by a
-preflight leaves the ticket unchanged ([coga/launch](../launch/SKILL.md)).
-
-The session is attended: you watch and talk to the agent. It does the step's
-work, records findings on the blackboard using its inline
-guidance, and finishes with `coga bump`.
-For a multi-step workflow such as `code/with-review`, the supervisor then
-starts the next agent step, rotating to the peer agent for review
-([coga/workflows](../workflows/SKILL.md)).
+Use `coga launch <slug> --prompt-report` to inspect an agent step's context.
+Then `coga launch <slug>` starts the workflow. For the code workflows the
+opening script creates a feature branch from your current HEAD. The agent
+implements and verifies the change. The review step records its evidence
+before the PR script runs. [Git](../git/SKILL.md) describes the handoff.
 
 ## 3. Review and merge
 
-The final `review` step is a human gate with an open PR. Review and merge it
-on GitHub, then run `coga bump <task>`; bumping the final step marks the
-ticket `done`. Confirm `coga show <task>` reports `done` and inspect the
-merged result; a successful install, prompt report, or agent exit alone
-does not establish a completed task. A repo that schedules the
-`autoclose-merged` recurring sweep
-also closes merged tickets on its next run, but that is opt-in
-([coga/recurring](../recurring/SKILL.md)). To decline the work instead, use
-`coga mark canceled <task> --message "<reason>"`, which stays distinct from
-completed work. States and gates: [coga/lifecycle](../lifecycle/SKILL.md).
-
-`coga show <task>` prints the whole ticket, history included.
+Review the open PR. On the feature branch, run the final `coga bump <slug>`
+when satisfied, then commit and push the finished ticket state before merging.
+The ticket reaches the base with the code. Follow [Git](../git/SKILL.md).
 
 ## What you touched
 
