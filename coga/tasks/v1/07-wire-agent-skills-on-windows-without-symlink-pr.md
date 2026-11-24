@@ -433,3 +433,9 @@ ordinary ticket.
 ## Blockers
 
 - [ ] [2026-11-20 17:25] [agent:codex] id=20261120T172513 Relaunch evaluate-design from a clean, current main checkout. The supplied checkout is on refresh-v1-microkernel-readmes-after-retro, holding unmerged commit 258ca14c7 for refresh-the-v1-microkernel-task-readmes-after-the (in progress, no linked PR). All four unstaged ticket and log files matched fetched origin/main before blocking. Preserve the implementation branch and its commit when returning to main.
+
+---
+
+## Blocker reminders
+
+- fcea6ff1cddb last_reminded: 2026-11-23 14:48

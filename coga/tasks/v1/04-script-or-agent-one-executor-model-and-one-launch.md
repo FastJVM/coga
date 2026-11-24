@@ -691,3 +691,9 @@ Design step, 2026-11-20. Recommendations first; the owner decides in review-desi
 ## Blockers
 
 - [ ] [2026-11-20 17:18] [agent:codex] id=20261120T171827 Relaunch evaluate-design from a clean, current main checkout. The supplied checkout is on refresh-v1-microkernel-readmes-after-retro, with an unmerged implementation commit for refresh-the-v1-microkernel-task-readmes-after-the still in progress. Its ticket and log modifications already match fetched origin/main. Preserve that branch and its commit when returning the checkout to main.
+
+---
+
+## Blocker reminders
+
+- 72a2466b5f57 last_reminded: 2026-11-23 14:48
