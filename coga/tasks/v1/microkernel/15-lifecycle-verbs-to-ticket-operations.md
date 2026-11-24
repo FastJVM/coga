@@ -8,8 +8,7 @@ contexts:
 - coga-dev/principles
 - coga-dev/testing
 - coga-dev/project-stage
-- coga/checkouts
-- coga-dev/internals/state-publication/publish
+- coga/git
 - coga/extension-model
 - coga/script-tickets
 workflow:

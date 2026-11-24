@@ -38,7 +38,7 @@ python /resolved/coga/google-calendar/gcal.py <verb> ...
 `/resolved/coga/google-calendar/` stands for that skill's resolved
 directory: the repo's local `coga/skills/coga/google-calendar/` override
 if one exists, else the installed bundled skill (resolution as in
-`coga/checkouts/sandbox-clone`, "What a fresh checkout lacks"). The
+`coga/sandboxes`). The
 call shapes below use the same placeholder.
 
 The script speaks the Google event resource as JSON in and out. Exit

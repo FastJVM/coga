@@ -39,7 +39,6 @@ from coga.repl_supervisor import (
     _TTY_SANITIZE,
     AgentCliNotFound,
     ReplOutcome,
-    _admit_held_child,
     _sentinel_signals_done,
     completion_pending,
     remove_sentinel_dir,
@@ -475,12 +474,6 @@ def run(
     max_session: float | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
-    after_spawn: Callable[[], None] | None = None,
-    spawn_release_guard: (
-        Callable[[], AbstractContextManager[None]] | None
-    ) = None,
-    after_spawn_release: Callable[[], None] | None = None,
-    on_spawn_admission_failure: Callable[[], None] | None = None,
 ) -> ReplOutcome:
     """Supervise one agent on native Windows; see ``run_with_done_marker``.
 
@@ -508,7 +501,7 @@ def run(
     sentinel_dir: str | None = None
     sentinel_path = ""
     if console:
-        sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
+        sentinel_dir = tempfile.mkdtemp(prefix="coga-done-", dir=oscompat.system_tmpdir())
         sentinel_path = os.path.join(sentinel_dir, "sentinel")
         child_env[SENTINEL_ENV] = sentinel_path
     else:
@@ -534,21 +527,10 @@ def run(
         tree = ProcessTree(
             spawn.argv,
             interactive=True,
-            gate=after_spawn is not None,
             new_process_group=True,
             shell=spawn.shell,
             env=spawn.env,
         )
-        if after_spawn is not None:
-            # Any raise leaves through the `finally`, whose Job close kills
-            # the held (or, after release, running) wrapper.
-            _admit_held_child(
-                tree.release,
-                after_spawn=after_spawn,
-                spawn_release_guard=spawn_release_guard,
-                after_spawn_release=after_spawn_release,
-                on_spawn_admission_failure=on_spawn_admission_failure,
-            )
         if not console:
             return ReplOutcome(tree.process.wait() & 0xFFFFFFFF, "natural")
 

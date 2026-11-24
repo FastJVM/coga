@@ -1,6 +1,6 @@
 ---
 title: Refresh the v1 microkernel task READMEs after the W47 Retro deletions
-status: blocked
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 1 (implement)
 agent: claude
 ---
 
@@ -126,29 +125,51 @@ ordinary ticket.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Status (implement, 2026-11-18)
+## Dev
 
-Precondition unmet; no branch created, no edits made.
+- branch: `refresh-v1-microkernel-readmes-after-retro`
 
-- PR #1255 (`codex/retro-prompt-assembly-trials-knowledge`, "New context: paired
-  agent-behavior trial method for prompt changes") is OPEN. It deletes the
-  `03-prompt-assembly/01-…` ticket tree that `03-prompt-assembly/README.md` links.
-- PR #1259 (`codex/retro-v1-microkernel-06-read-report-commands-as-ticket-workflows-knowledge`)
-  is OPEN. It deletes/edits `06-read-report-commands-as-ticket-workflows.md`
-  and `docs/contexts/coga-dev/microkernel/SKILL.md`.
-- Doing the README refresh before they merge would conflict with both and
-  could not cite their merge-commit permalinks.
+## Plan (implement, 2026-11-20)
 
-Next: once both merge, relaunch; refresh `coga/tasks/v1/microkernel/README.md`
-rows for 01/02/03/06 and `03-prompt-assembly/README.md` using commit
-permalinks, then decide the fate of
-`03-prompt-assembly/03-implement-the-proven-prompt-assembly-evidence/`.
+Precondition met: #1255 merged as `dc7754b1`, #1259 as `347f8983`.
+#1255 already rewrote `03-prompt-assembly/README.md` with permalinks.
+
+- Every child linked from `v1/microkernel/README.md` except 12–17 is done and
+  deleted (01, 02, 03-launch, 04, 04b, 04d, 06, 07, 08, 09, slack). Split the
+  table into done rows (merge-commit permalinks plus the ticket's last-revision
+  blob permalink) and live rows (12–17; add the missing 13 and 14). Refresh the
+  stale Status and execution-order prose.
+- Evidence dir decision: **delete**. Only the 03 row cites it; it is dated PR
+  verification for a done ticket (knowledge: dated evidence lives in the archive or in
+  history). Re-point that row at a tree permalink of its last revision.
+
+## Already satisfied
+
+The README refresh was committed on the branch as `258ca14c7`. The identical
+change (the same 8 paths, +42/−3778) reached `main` as `2eefd573c` "Sync coga
+state" (2026-11-20 17:17), because `coga/tasks/**` is control-branch state. When
+the branch was rebased onto `origin/main` `0f36aaba5`, git skipped `258ca14c7`
+as already applied. Branch HEAD is now equal to the merge-base
+(`0f36aaba5d1fade5dbf2062e2666eebf745c1432`), so there is no diff for a PR.
+
+- README rows show the done state: `v1/microkernel/README.md` on main has a
+  Done table for 01, 02, 03-launch, 04, 04b, 04d, 06, 07, 08, 09 and Slack. Each
+  row has a merge-commit permalink and a permalink to the ticket's last
+  revision. A Remaining table covers 12–17, with 13 and 14 added. The stale
+  proposal-era status and execution-order prose is gone.
+- Deleted ticket paths are no longer linked: every permalink OID/path was
+  checked with `git cat-file -e` (all resolve).
+- Evidence directory: deleted from main. The 03 row in
+  `03-prompt-assembly/README.md` points to its tree permalink at `08b6e16f`.
+- Open items: none recorded, so no follow-up drafts are needed. Tests were not
+  run because this ticket adds no code or diff.
 
 ---
 
 ## Blockers
 
-- [ ] [2026-11-18 23:57] [agent:claude] id=20261118T235751 Waiting on PRs #1255 (retro prompt-assembly trials knowledge) and #1259 (retro 06 read/report commands knowledge) to merge; both are still OPEN. The ticket says to refresh the READMEs only after they merge (their deletions and merge commits are what the rows must cite). Unblock once both are merged.
+- [x] [2026-11-18 23:57] [agent:claude] id=20261118T235751 Waiting on PRs #1255 (retro prompt-assembly trials knowledge) and #1259 (retro 06 read/report commands knowledge) to merge; both are still OPEN. The ticket says to refresh the READMEs only after they merge (their deletions and merge commits are what the rows must cite). Unblock once both are merged.
+  resolved: [2026-11-20 16:52] [human:nicktoper] Both prerequisite PRs merged on 2026-11-19: #1255 (merge dc7754b1d1e72406a388ca867220b1f5ceb3bc1a) and #1259 (merge 347f8983c03961d0d754a33c54bc208ae7bb0a29). Proceeding with the README refresh.
 
 ---
 

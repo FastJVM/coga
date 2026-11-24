@@ -21,19 +21,9 @@ or name (checked before anything moves), an unresolvable workflow, and an
 deleted.
 
 The command refuses a name already used by an effective local or bundled
-definition. It records a promotion audit after removing the source and
-publishes the source deletion, template and audit together. With Git sync
-disabled, the move and audit are local.
-
-With Git sync enabled, a directory-form task with a symlink anywhere in it is
-refused with exit 2 before anything moves, because guarded publication refuses
-symlinks. Gitignored attachments are copied but are not required to publish.
-
-Exit 75 means local changes need reconciliation. A cleanup or deletion
-failure names the affected paths. A publication refusal keeps the local move
-for recovery.
-Inspect the named paths and audit log before retrying publication. See
-[state publication](context:coga/state-publication).
+definition. It records a promotion audit after removing the source. The
+template, source removal, and audit are local filesystem changes. A cleanup
+or deletion failure reports the affected paths.
 
 To customize the procedure, copy this directory with `ticket.md`, `ticket.py`
 and `promotion.py` into your workspace's `bootstrap/recurring-promote/`.

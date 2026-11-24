@@ -6,12 +6,12 @@ own untagged continuation lines. `parse_events` preserves original spans and
 keeps uncertain data opaque. Readers retain their established history semantics.
 
 The log is never a prompt-composition layer. The trim-log ticket owns retention;
-`coga-dev/internals/spool-merge` owns event publication and guarded deletion.
-Native Git uses `/log.md -merge`, while Coga reconciles appends explicitly.
+`coga/git` describes union merging and the compaction race.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
@@ -67,12 +67,13 @@ def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> bytes:
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     encoded = encode_log_message(message)
     line = f"{timestamp} v1 [{task_ref}] [{actor}] {encoded}\n".encode("utf-8")
-    from coga import git
-
-    with git.state_lock(cfg):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("ab") as f:
-            f.write(line)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0), 0o666)
+    try:
+        if os.write(fd, line) != len(line):
+            raise OSError(f"Incomplete append to {path}")
+    finally:
+        os.close(fd)
     return line
 
 
@@ -148,11 +149,7 @@ def parse_events(raw: bytes) -> tuple[LogEvent, ...]:
 
 @dataclass(frozen=True)
 class LogMutation:
-    """Authority to remove exact whole-event occurrences from one preimage.
-
-    Receipts are also used for local rollback. Publication verifies the control
-    preimage and the local postimage independently; a short file is no receipt.
-    """
+    """Whole-event occurrences to remove from one log snapshot."""
 
     preimage: bytes
     removed: tuple[int, ...]
@@ -167,59 +164,15 @@ class LogMutation:
 
 
 def replace_log(cfg: Config, mutation: LogMutation) -> None:
-    """Apply a local receipt atomically, refusing any intervening file write."""
-    from coga import git
+    """Compact the planned preimage and keep appends observed since planning."""
     from coga.atomicio import atomic_write_bytes
 
-    with git.state_lock(cfg):
-        path = log_path(cfg)
-        raw = path.read_bytes() if path.exists() else b""
-        if raw != mutation.preimage:
-            raise git.StateRegressionError("audit log changed since the mutation was planned")
-        atomic_write_bytes(path, mutation.postimage)
-
-
-def retract_log_append(cfg: Config, before: bytes | None, appended: bytes) -> bool:
-    """Retract the exact returned append, preserving peer events and duplicates."""
-    from coga import git
-
-    with git.state_lock(cfg):
-        path = log_path(cfg)
-        if not path.exists():
-            return before is None
-        raw = path.read_bytes()
-        # Prefer the appended occurrence after the observed prefix. Never use
-        # a substring match inside another event (including legacy messages).
-        old_count = sum(e.raw == appended for e in parse_events(before or b""))
-        matches = [i for i, e in enumerate(parse_events(raw)) if e.raw == appended]
-        if len(matches) <= old_count:
-            return False
-        replace_log(cfg, LogMutation(raw, (matches[old_count],)))
-        if before is None and not path.read_bytes():
-            path.unlink()
-        return True
-
-
-def retract_log_lines(cfg: Config, task_ref: str, before: bytes | None) -> None:
-    """Undo this ref's post-snapshot events while the caller holds state_lock.
-
-    A changed prefix is a visible refusal, never a silently abandoned rollback.
-    Callers unable to hold the transaction use returned append identities.
-    """
-    from coga import git
-
-    with git.state_lock(cfg):
-        path = log_path(cfg)
-        if not path.exists():
-            return
-        raw = path.read_bytes()
-        prefix = before or b""
-        if not raw.startswith(prefix):
-            raise git.StateRegressionError("audit prefix changed during rollback; retain state for recovery")
-        removed = tuple(i for i, e in enumerate(parse_events(raw))
-                        if e.start >= len(prefix) and e.ref == task_ref)
-        if removed:
-            replace_log(cfg, LogMutation(raw, removed))
+    path = log_path(cfg)
+    compacted = mutation.postimage
+    current = path.read_bytes()
+    if not current.startswith(mutation.preimage):
+        raise OSError(f"Audit log changed before trimming: {path}")
+    atomic_write_bytes(path, compacted + current[len(mutation.preimage):])
 
 
 def ref_tag_for_path(cfg: Config, path: Path) -> str:
@@ -412,7 +365,6 @@ def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
 
 
 __all__ = [
-    "retract_log_lines",
     "append_log",
     "decode_log_message",
     "encode_log_message",

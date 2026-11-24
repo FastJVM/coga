@@ -23,7 +23,6 @@ from textwrap import dedent
 import pytest
 
 from coga.repl_supervisor import (
-    CHECKOUT_RETURN_ENV,
     EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -41,7 +40,6 @@ from coga.task_env import TASK_ENV_KEYS
 LAUNCH_OWNED_ENV = (
     SENTINEL_ENV,
     "COGA_SUPERVISED",
-    CHECKOUT_RETURN_ENV,
     EXPECTED_TASK_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_AGENT_ENV,
@@ -220,6 +218,16 @@ def _isolate_tmpdir(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _quiet_run_state_socket_warning(monkeypatch):
+    # pytest's basetemp paths exceed the 64-byte socket warning threshold, so
+    # every in-process launch would add a stderr line that output-parsing tests
+    # do not expect. `tests/test_run_state.py` exercises the warning itself.
+    from coga import run_state
+
+    monkeypatch.setattr(run_state, "SOCKET_WARN_BYTES", 1 << 20)
+
+
+@pytest.fixture(autouse=True)
 def _stub_init_dep_check(monkeypatch):
     """No-op `coga init`'s external-CLI dependency checks by default.
 
@@ -233,41 +241,6 @@ def _stub_init_dep_check(monkeypatch):
         monkeypatch.setattr(
             f"coga.commands.init.{name}", lambda *args: None, raising=False
         )
-
-
-@pytest.fixture(autouse=True)
-def _stub_init_identity_check(monkeypatch):
-    """No-op `coga init`'s git-identity check by default.
-
-    `_isolate_home` points HOME at a tmp dir, so no test sees the developer's
-    global `user.email`; whether `git var GIT_COMMITTER_IDENT` then succeeds
-    depends on the host's hostname (git's auto-detection), which would make
-    every init-invoking test machine-dependent. Default the check to a no-op
-    so those tests run anywhere; the dedicated identity tests in test_init.py
-    re-install the real `_check_git_identity` with a deterministic repo."""
-    monkeypatch.setattr(
-        "coga.commands.init._check_git_identity",
-        lambda target: None,
-        raising=False,
-    )
-
-
-@pytest.fixture(autouse=True)
-def _scope_state_sweep_withholding():
-    """Give every test its own `git.state_sweep_withheld` and
-    `git.control_relay_started` scopes.
-
-    `cli.main` scopes both per invocation; tests that call launch or recurring
-    helpers or `CliRunner` directly would otherwise leak a refusal or a relay
-    into later tests, silently suppressing their exit publication.
-    """
-    from coga import git
-
-    token = git.state_sweep_withheld.set(False)
-    relay_token = git.control_relay_started.set(False)
-    yield
-    git.control_relay_started.reset(relay_token)
-    git.state_sweep_withheld.reset(token)
 
 
 @pytest.fixture(autouse=True)
@@ -361,86 +334,6 @@ def _disable_autofix(monkeypatch, request):
 def autofix_enabled(monkeypatch):
     """Opt back into the autofix loop for tests that cover it."""
     monkeypatch.setenv("COGA_AUTOFIX", "1")
-
-
-@pytest.fixture(autouse=True)
-def _stub_git(monkeypatch, request):
-    """Default-off git sync so the bulk of tests don't touch git.
-
-    The git analogue of `_stub_slack`: most tests run in a non-git tmp dir
-    and only care about file/Slack effects, so `coga.git.sync_task_state`
-    is stubbed to a no-op. Without this, every `mark` / `bump` / `create`
-    test would shell out to git on a non-git path (noise at best) and the
-    tests that fake `subprocess.run` for the agent launch would break.
-
-    Tests that exercise real git sync request the `git_repo` fixture (full
-    real-git harness) or the `real_git` marker fixture (for branches like
-    "not a git repo" that need the real helper without a repo); this stub
-    steps aside for both (autouse runs first, but the opt-in is detected via
-    the requested fixture names, so the real helper runs there)."""
-    if {"git_repo", "real_git"} & set(request.fixturenames):
-        return
-    # Every publishing entry point is stubbed: `publish` (the one primitive:
-    # `coga ticket` authoring, delete, megalaunch admission
-    # call it directly), `sync_task_state` (mark / bump / create / block),
-    # `sync_log` (a bootstrap-ticket launch), and the catch-all
-    # `sync_coga_state` sweep fired from the CLI dispatch boundary. Stubbing
-    # only one would let the others shell out to real git on a non-git tmp
-    # path and break the faked-subprocess tests.
-    monkeypatch.setattr("coga.git.publish", lambda *a, **k: None)
-    monkeypatch.setattr("coga.git.sync_task_state", lambda *a, **k: None)
-    monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: False)
-    monkeypatch.setattr("coga.git.retry_session_publication", lambda *a, **k: False)
-    # Lifecycle commands prepare a ticket against freshly fetched control;
-    # off the harness that preparation reads only the local copy, exactly as
-    # an offline checkout does, without shelling out to git.
-    from coga.git import local_ticket_preparation
-
-    monkeypatch.setattr(
-        "coga.git.prepare_ticket", lambda cfg, path: local_ticket_preparation(path)
-    )
-    monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
-    # The exit diagnostic also reads Git; its real-git tests opt in above.
-    monkeypatch.setattr("coga.cli._warn_unpublished_log_lines", lambda *a, **k: None)
-    # The `direct/body` stranding guard (`mark done`) also shells out to git;
-    # default it to "nothing stranded" off the real-git harness.
-    monkeypatch.setattr("coga.mark.stranded_product_paths", lambda *a, **k: [])
-    # Launch's end-of-run pull-back fetches; `status`'s staleness probe reads
-    # local refs. Both shell out to git, so no-op them off the harness too.
-    monkeypatch.setattr("coga.git.refresh", lambda *a, **k: True)
-    # Launch's checkout normalization and its recorded-checkout probe shell
-    # out too; off the harness a launch keeps its (non-git) checkout.
-    from coga.git import CheckoutPreparation
-
-    monkeypatch.setattr(
-        "coga.git.prepare_control_checkout",
-        lambda *a, **k: CheckoutPreparation("exempt", "git stubbed in tests"),
-    )
-    monkeypatch.setattr(
-        "coga.launch._checkout_exemption", lambda *a, **k: None
-    )
-    from contextlib import nullcontext
-
-    monkeypatch.setattr(
-        "coga.launch._orientation_checkout_guard", lambda cfg: nullcontext()
-    )
-    monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
-    # The report binds probes at import time; patch the owning script.
-    from report_helpers import report_module
-    status_report = report_module("status")
-    monkeypatch.setattr(status_report, "stale_coga_task_rels", lambda *a, **k: [])
-    monkeypatch.setattr(status_report, "feature_sync_plan", lambda *a, **k: None)
-    monkeypatch.setattr(status_report, "stale_index_lock", lambda *a, **k: None)
-    # Launch's push-auth gate also shells out to git (check_git_remote /
-    # check_git_auth). Default the remote probe to "unresolved" so the gate
-    # self-skips exactly as it would in a non-git checkout; the dedicated gate
-    # tests override this with a resolving remote.
-    from coga.github_preflight import CheckResult
-
-    monkeypatch.setattr(
-        "coga.launch.check_git_remote",
-        lambda remote: CheckResult("git-remote", False, "no remote (test default)"),
-    )
 
 
 @pytest.fixture
@@ -619,8 +512,6 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
 def git_repo(tmp_path, monkeypatch) -> GitRepo:
     """A real-git repo with the working tree on `main`, cwd set to `coga/`.
 
-    Requesting this fixture opts the test out of the `_stub_git` no-op, so
-    `coga.git.sync_task_state` runs for real against this repo.
     """
     repo = init_git_repo(tmp_path)
     monkeypatch.chdir(repo.coga_os)

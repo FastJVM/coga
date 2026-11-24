@@ -14,7 +14,6 @@ that half and commits nothing.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from importlib.resources.abc import Traversable
 import json
 import os
@@ -23,13 +22,13 @@ import shlex
 import shutil
 import subprocess
 import sys
-import textwrap
 import tomllib
 from pathlib import Path
 
 import tomlkit
 import typer
 
+from coga import run_state
 from coga.agent_skills import refresh_agent_skill_view
 from coga.paths import LocalOverrideError
 from coga.aliases import ONBOARDING_TASK
@@ -44,7 +43,6 @@ from coga.commands.update import (
 from coga.config import (
     Config,
     ConfigError,
-    _parse_git,
     load_config,
     resolve_layout_contexts_path,
 )
@@ -56,7 +54,6 @@ from coga.dependencies import (
     Dependency,
     agent_label,
 )
-from coga.git import GitError, control_branch_present, symbolic_head
 from coga.logfile import append_log
 
 
@@ -227,45 +224,6 @@ def _enclosing_coga_root(target: Path) -> Path | None:
     return None
 
 
-def _host_ignores_coga(target: Path) -> bool:
-    """True when the host repo's ignore rules would exclude the coga/ dir we're
-    about to create at `target`.
-
-    `git add` refuses ignored paths, so if the host repo gitignores the target
-    subtree (e.g. `coga init build/ops` where `build/` is ignored) we'd write
-    coga/ to disk and then silently skip the commit — the very silent-skip the
-    up-front git check exists to prevent. Detected here so `coga init` can fail
-    loud before writing anything. `target` may not exist yet, so run
-    `git check-ignore` from the nearest existing ancestor.
-    """
-    return _host_ignores_path(target / "coga")
-
-
-def _host_ignores_path(path: Path) -> bool:
-    """True when the enclosing checkout's ignore rules exclude `path`."""
-    probe = nearest_existing_dir(path)
-    if probe is None:
-        return False
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(probe),
-                "check-ignore",
-                "-q",
-                "--no-index",
-                f"{path}{os.sep}",
-            ],
-            capture_output=True,
-        )
-    except OSError:
-        return False
-    return result.returncode == 0
-
-
-# Delivered onboarding ticket, pruned from the copied tree on a filled repo
-# (a real project doesn't want the bootstrap interview seeded for it).
 _ONBOARDING_TICKET_DIRS: tuple[str, ...] = (ONBOARDING_TASK,)
 
 
@@ -398,39 +356,6 @@ def _interactive() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def _require_init_tools() -> None:
-    """Fail loud when a tool `coga init` *requires* is not on PATH.
-
-    Covers the `required_at_init` dependencies in the `coga.dependencies`
-    manifest — just `git`. `_do_init` calls it only after the checks that need
-    no tool (the `coga/` state, `--user`, an enclosing Coga repo) have passed,
-    and before the Git-backed ones that cannot run without it. In an
-    interactive terminal a missing required tool is first offered through the
-    machine's package manager; nothing installs without a yes, and a
-    non-interactive init never prompts. A tool still missing exits 2 with its
-    install hint.
-    """
-    interactive = _interactive()
-    manager = _package_manager() if interactive else None
-    required = [
-        dep
-        for dep in DEPENDENCIES
-        if dep.required_at_init
-        and shutil.which(dep.name) is None
-        and not (interactive and _offer_install(dep, manager))
-    ]
-    if not required:
-        return
-    lines = [
-        "coga needs these external command-line tools, but they are not on "
-        "PATH:",
-        *(f"  - {dep.name}: install from {dep.install}" for dep in required),
-        "Install the missing tool(s), then re-run `coga init`.",
-    ]
-    typer.secho("\n".join(lines), fg=typer.colors.RED, err=True)
-    sys.exit(2)
-
-
 def _offer_optional_tools() -> None:
     """Offer missing optional CLIs and `gh auth login`; warn on what is left.
 
@@ -457,8 +382,6 @@ def _offer_optional_tools() -> None:
         and shutil.which(dep.name) is None
         and not (interactive and _offer_install(dep, manager))
     ]
-    if interactive and "gh" not in {dep.name for dep in optional}:
-        _offer_gh_login()
     if optional:
         typer.secho(
             "\n".join(
@@ -546,36 +469,6 @@ def _offer_install(dep: Dependency, manager: str | None) -> bool:
         )
         return False
     return True
-
-
-def _offer_gh_login() -> None:
-    """Offer `gh auth login` when `gh` is installed but not logged in."""
-    gh = shutil.which("gh")
-    if gh is None:
-        return
-    if _gh_logged_in(gh):
-        return
-    typer.echo("`gh` is installed but not logged in to GitHub.")
-    if typer.confirm("Run `gh auth login` now?", default=True):
-        subprocess.run([gh, "auth", "login"], check=False)
-
-
-def _gh_logged_in(gh: str) -> bool:
-    """True when the active github.com account of `gh` is authenticated.
-
-    Plain `gh auth status` tests every known account on every host and exits
-    1 if any of them has a problem, so a stale second account would read as
-    "logged out". `--active --hostname github.com` checks only the account
-    `gh` actually uses there. A `gh` older than 2.40 has no `--active` (and
-    holds one account per host), so on an unknown-flag error retry with
-    `--hostname` alone.
-    """
-    argv = [gh, "auth", "status", "--active", "--hostname", "github.com"]
-    status = subprocess.run(argv, capture_output=True, text=True, check=False)
-    if status.returncode != 0 and "unknown flag" in (status.stderr or ""):
-        argv.remove("--active")
-        status = subprocess.run(argv, capture_output=True, text=True, check=False)
-    return status.returncode == 0
 
 
 def _installed_agent_clis() -> list[str]:
@@ -795,57 +688,6 @@ def _stamp_agent_into_delivered_tickets(coga_os: Path, old: str, new: str) -> No
             ticket.write_text(new_text, encoding="utf-8", newline="\n")
 
 
-def _check_git_identity(target: Path) -> None:
-    """Fail loud before any writes when git cannot author a commit here.
-
-    On a fresh machine with no `user.email`/`user.name` (every truly new
-    machine), the "commit coga/" step at the end of init would fail —
-    historically silently, leaving coga/ staged but uncommitted, and the
-    user's first `coga create` dying on a raw `fatal: ambiguous argument
-    'HEAD'`. Git resolves author and committer identity separately, so probe
-    both `git var GIT_AUTHOR_IDENT` and `GIT_COMMITTER_IDENT` up front — after
-    the git-repo check, before the slow clone/venv — and fail with the remedy
-    if either is unavailable. The probes honor config, their matching GIT_*
-    env vars, EMAIL, and git's hostname auto-detection. `target` may not exist
-    yet (nested init), so probe from the nearest existing ancestor; repo-local
-    `user.email` still counts. A missing or unrunnable git is not this check's
-    problem —
-    `_require_init_tools` owns that.
-    """
-    probe = nearest_existing_dir(target)
-    if probe is None:
-        return
-    result: subprocess.CompletedProcess[str] | None = None
-    for identity_var in ("GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"):
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(probe), "var", identity_var],
-                capture_output=True,
-                text=True, encoding="utf-8",
-            )
-        except OSError:
-            return
-        if result.returncode != 0:
-            break
-    if result is None or result.returncode == 0:
-        return
-    detail = next(
-        (line for line in result.stderr.strip().splitlines() if line.strip()),
-        "no user.email / user.name configured",
-    )
-    typer.secho(
-        f"git has no identity configured on this machine — coga is git-backed "
-        f"and `coga init` commits coga/ into your repo, but git cannot author "
-        f"a commit ({detail}).\n"
-        f"Tell git who you are, then re-run `coga init`:\n"
-        f'    git config --global user.email "you@example.com"\n'
-        f'    git config --global user.name "Your Name"',
-        fg=typer.colors.RED,
-        err=True,
-    )
-    sys.exit(2)
-
-
 def init(
     path: Path | None = typer.Argument(
         None,
@@ -934,219 +776,6 @@ def _relocate_fresh_contexts(
 _GIT_TABLE_ANCHOR = "# --- Aliases ---"
 
 
-def _render_git_control_branch_table(branch: str, default: str) -> str:
-    """The `[git]` table `coga init` writes when `default` is absent here."""
-    return (
-        f"# `coga init` found no {default!r} branch in this checkout, so it\n"
-        f"# identified {branch!r} as this repository's control branch.\n"
-        f"# Change this if the team\n"
-        f"# syncs coga state onto a different branch.\n"
-        f"[git]\n"
-        f'control_branch = "{branch}"\n'
-    )
-
-
-def _scaffolded_git_defaults(coga_os: Path) -> tuple[str, str, bool]:
-    """`(control_branch, remote, declared)` for the freshly scaffolded config.
-
-    Deliberately parses only `[git]` rather than going through `load_config`:
-    init must not start failing over an unrelated config problem (an
-    unresolvable Slack webhook, say) that it never used to read at this point.
-
-    `declared` is True when the scaffold ships a real `[git]` table. The
-    packaged template documents that table in comments only, so a scaffold
-    that has one made a deliberate choice — and a second table written under
-    it would not even parse.
-    """
-    shared = tomllib.loads((coga_os / "coga.toml").read_text(encoding="utf-8"))
-    git_table = shared.get("git")
-    remote, control_branch, _worktrees_ticket_owned = _parse_git(git_table)
-    return control_branch, remote, git_table is not None
-
-
-def _repository_has_refs(target: Path) -> bool:
-    """Whether this checkout has any refs, distinguishing fresh from orphaned."""
-    result = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(target),
-            "for-each-ref",
-            "--count=1",
-            "--format=%(refname)",
-        ],
-        capture_output=True,
-        text=True, encoding="utf-8",
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or f"exit {result.returncode}"
-        raise GitError(f"`git for-each-ref` failed: {detail}")
-    return bool(result.stdout.strip())
-
-
-def _git_can_read_repository(target: Path) -> bool:
-    """Whether Git recognizes the checkout beyond a synthetic `.git` marker."""
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(target), "rev-parse", "--git-dir"],
-            capture_output=True,
-            text=True, encoding="utf-8",
-            check=False,
-        )
-    except OSError:
-        return False
-    return result.returncode == 0
-
-
-def _cached_remote_default_branch(target: Path, remote: str) -> str | None:
-    """The branch named by cached `refs/remotes/<remote>/HEAD`, if present."""
-    ref = f"refs/remotes/{remote}/HEAD"
-    result = subprocess.run(
-        ["git", "-C", str(target), "symbolic-ref", "--quiet", "--short", ref],
-        capture_output=True,
-        text=True, encoding="utf-8",
-        check=False,
-    )
-    if result.returncode == 1:
-        return None
-    if result.returncode != 0:
-        detail = result.stderr.strip() or f"exit {result.returncode}"
-        raise GitError(f"`git symbolic-ref {ref}` failed: {detail}")
-    symbolic = result.stdout.strip()
-    prefix = f"{remote}/"
-    if not symbolic.startswith(prefix) or symbolic == prefix:
-        return None
-    return symbolic[len(prefix) :]
-
-
-def _unwritable_control_branch_reason(branch: str) -> str | None:
-    """Why `branch` cannot be emitted as a TOML basic string, if any."""
-    if '"' in branch or "\\" in branch:
-        # Git permits a quote in a ref name; it would not survive the
-        # `control_branch = "..."` literal written below.
-        return f"branch {branch!r} cannot be written to coga.toml"
-    return None
-
-
-def _detect_control_branch(
-    target: Path, *, control_branch: str, remote: str
-) -> tuple[str | None, str | None]:
-    """What `coga init` should record as the control branch, and why it can't.
-
-    `coga init` must not create the mismatch every later command complains
-    about, so the trigger here is the local/cached-ref portion of the predicate
-    behind that warning: `git.control_branch_present`. Init deliberately does
-    not contact a remote while scaffolding. Returns `(branch, None)` when the
-    configured control branch is absent and a safe replacement can be recorded,
-    `(None, None)` when the configured value already fits, and `(None, reason)`
-    when init cannot make a safe choice.
-
-    Detection is deliberately narrow. A ref-less fresh repo is safe to infer
-    from its unborn HEAD. An established repo is pinned only to its confirmed,
-    cached remote default; recording its current HEAD could make a disposable
-    feature branch the shared control branch.
-    """
-    try:
-        # `symbolic-ref` resolves an unborn HEAD, which `rev-parse` cannot. If
-        # it already names the configured branch, the init commit will create
-        # that ref; do not write a redundant table or claim the branch is absent.
-        branch = symbolic_head(target)
-    except (OSError, GitError):
-        # The up-front dependency check owns a missing Git executable. Some
-        # unit fixtures deliberately supply only an empty `.git/` marker.
-        return None, None
-    if branch == control_branch:
-        return None, None
-
-    try:
-        if control_branch_present(
-            target, control_branch, remote, probe_remote=False
-        ):
-            return None, None
-    except OSError:
-        return None, None
-    except GitError as exc:
-        if not _git_can_read_repository(target):
-            # Preserve init's historical clean skip for synthetic/unreadable
-            # `.git/` markers; a real invocation fails an earlier repo/identity
-            # gate. Valid repos reach the loud remote-probe diagnostic below.
-            return None, None
-        return None, (
-            f"git could not verify configured control branch "
-            f"{control_branch!r} ({exc})"
-        )
-    if branch is None:
-        return None, (
-            f"configured control branch {control_branch!r} is absent and this "
-            "checkout has a detached HEAD"
-        )
-
-    try:
-        remote_configured = subprocess.run(
-            ["git", "-C", str(target), "remote", "get-url", remote],
-            capture_output=True,
-            text=True, encoding="utf-8",
-            check=False,
-        ).returncode == 0
-        has_refs = _repository_has_refs(target)
-        remote_default = (
-            _cached_remote_default_branch(target, remote)
-            if remote_configured
-            else None
-        )
-    except (GitError, OSError) as exc:
-        return None, f"git could not determine a safe replacement branch ({exc})"
-
-    if not remote_configured and not has_refs:
-        reason = _unwritable_control_branch_reason(branch)
-        return (None, reason) if reason else (branch, None)
-
-    if remote_default is not None:
-        reason = _unwritable_control_branch_reason(remote_default)
-        if reason is not None:
-            return None, reason
-        try:
-            if control_branch_present(
-                target, remote_default, remote, probe_remote=False
-            ):
-                return remote_default, None
-        except (GitError, OSError) as exc:
-            return None, (
-                f"git could not verify cached remote default branch "
-                f"{remote_default!r} ({exc})"
-            )
-
-    if remote_configured:
-        detail = (
-            f"cached default branch {remote_default!r} is absent"
-            if remote_default is not None
-            else f"remote {remote!r} has no cached default branch"
-        )
-    else:
-        detail = "there is no configured remote default"
-    return None, (
-        f"configured control branch {control_branch!r} is absent, but current "
-        f"branch {branch!r} belongs to an established repository and {detail} "
-        "to confirm the team's control branch"
-    )
-
-
-def _pin_control_branch(coga_os: Path, branch: str, default: str) -> None:
-    """Record `[git] control_branch` in the freshly scaffolded `coga.toml`."""
-    config_path = coga_os / "coga.toml"
-    table = _render_git_control_branch_table(branch, default)
-    text = config_path.read_text(encoding="utf-8")
-    anchor = f"\n{_GIT_TABLE_ANCHOR}"
-    if anchor in text:
-        text = text.replace(anchor, f"\n{table}{anchor}", 1)
-    else:
-        # A customized scaffold without the shipped headings still gets the
-        # same table — a trailing one parses identically.
-        text = text.rstrip("\n") + "\n\n" + table
-    config_path.write_text(text, encoding="utf-8", newline="\n")
-
-
 def _local_toml_user(local_toml: Path) -> str | None:
     """Return the `user` value `coga.local.toml` currently sets, or None.
 
@@ -1191,19 +820,6 @@ def _write_local_user(local_toml: Path, name: str) -> str:
     tomllib.loads(text)
     local_toml.write_text(text, encoding="utf-8", newline="\n")
     return verb
-
-
-def _require_git_work_tree(target: Path) -> None:
-    """Both fresh init and clone setup require an enclosing Git work tree."""
-    if not is_git_repo(target):
-        typer.secho(
-            f"{target} is not inside a git repository — coga is git-backed.\n"
-            f"Run `git init` in {target} (or an ancestor) first, then re-run "
-            f"`coga init`.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
 
 
 def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> None:
@@ -1251,8 +867,6 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
         )
         sys.exit(2)
     name = _require_user_name(user)
-    _require_init_tools()
-    _require_git_work_tree(target)
     _offer_optional_tools()
 
     # A saved user is the completed-setup guard on the next invocation. Keep
@@ -1348,49 +962,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
 
-    # Every check below runs git, so a missing git is reported (or, in a
-    # terminal, offered for install) only now, once the checks that need no
-    # tool have passed.
-    _require_init_tools()
-
-    # Coga is git-backed: `coga init` commits coga/ into the host repo.
-    # If the target isn't inside a git work tree, fail loud (principle 6)
-    # instead of writing coga/ and silently skipping the commit further down.
-    # The target itself doesn't have to be the git root — `coga init tools/ops`
-    # inside a monorepo scaffolds a nested coga/ committed into the host repo.
-    # We don't run `git init` ourselves — the user does, which keeps branch
-    # naming in their hands. Checked here, before any writes, so a bad
-    # invocation leaves nothing behind and we fail before the slow clone/venv.
-    _require_git_work_tree(target)
-
-    # The host repo must actually be able to track coga/. If its ignore rules
-    # exclude the target, `git add` refuses the path and the commit is silently
-    # skipped — same silent-skip the git check above guards against. Fail loud
-    # up front (still before any writes) so nothing is left behind.
-    if _host_ignores_coga(target):
-        typer.secho(
-            f"{target / 'coga'} is gitignored by the host repo — coga is "
-            f"git-backed and `coga init` must commit coga/ into your repo, but "
-            f"git refuses to track an ignored path.\n"
-            f"Remove the ignore rule covering {target}, or pick a target the "
-            f"repo tracks, then re-run `coga init`.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
-
-    # Same fail-before-writes posture for git identity: with no user.email /
-    # user.name, the "commit coga/" step at the end would fail and leave
-    # coga/ staged but uncommitted. Probe it here so the remedy comes before
-    # the slow clone/venv, not after.
-    _check_git_identity(target)
-
-    # Decide empty-vs-filled against the pristine dir, before init writes
-    # anything of its own — a filled repo skips onboarding-ticket seeding.
-    # A target without its own `.git` is a nested init below an established
-    # host repo's root: always treat it as filled, even when the subdir itself
-    # is empty — the onboarding interview is for genuinely new repos.
-    nested = not (target / ".git").exists()
+    nested = not (target / ".git").exists() and is_git_repo(target)
     is_empty = _repo_is_empty(target) and not nested
 
     template_root = packaged_template_root()
@@ -1419,20 +991,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             err=True,
         )
         sys.exit(2)
-    if (
-        contexts_destination is not None
-        and contexts_destination != default_contexts
-        and _host_ignores_path(contexts_destination)
-    ):
-        typer.secho(
-            f"Cannot scaffold configured contexts at {contexts_destination}: "
-            "the host repository ignores that path, so Git could not preserve "
-            "the directory in a fresh clone.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
-
     # Every precondition has passed: only now offer optional supporting-tool
     # installs and `gh auth login`, then show what this machine can drive, so
     # a doomed invocation never changes the machine.
@@ -1483,27 +1041,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name), encoding="utf-8", newline="\n")
 
-        # Init must not scaffold the very control-branch mismatch every later
-        # command nags about. Infer only when Git makes the repository's intent
-        # unambiguous; otherwise keep the configured default and say how to fix
-        # it rather than pinning a transient feature branch.
-        default_control_branch, default_remote, git_declared = (
-            _scaffolded_git_defaults(coga_os)
-        )
-        pinned_branch, unpinnable_control_branch = _detect_control_branch(
-            target, control_branch=default_control_branch, remote=default_remote
-        )
-        if pinned_branch is not None and git_declared:
-            # The scaffold already made its own `[git]` choice. Report the
-            # mismatch rather than editing a config that states one.
-            unpinnable_control_branch = (
-                f"configured control branch {default_control_branch!r} is absent, "
-                "and this scaffold's coga.toml already declares its own [git] table"
-            )
-            pinned_branch = None
-        if pinned_branch is not None:
-            _pin_control_branch(coga_os, pinned_branch, default_control_branch)
-
         # Write the scan's answer into the config every later command reads.
         # Non-interactive init (`found_agent_clis is None`) never touches the
         # file: a scripted run saw no scan to act on, so the packaged template
@@ -1538,18 +1075,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
         wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
         host_gitignore_changed = ensure_host_gitignore(target)
+        # The managed unversioned-state areas (`coga/launch` "Run state");
+        # `.coga/` is already ignored by both managed blocks.
+        run_state.ensure_layout(coga_os)
         written_guides = _write_agent_guides(target)
-        generated_host_paths = list(written_guides)
-        if relocated_contexts is not None:
-            try:
-                relocated_contexts.relative_to(coga_os)
-            except ValueError:
-                generated_host_paths.append(
-                    os.path.relpath(relocated_contexts, target)
-                )
-        commit_sha, commit_failure = _git_commit_coga_os(
-            target, coga_os, host_gitignore_changed, generated_host_paths
-        )
     except BaseException:
         # Roll back the partial coga/ this run created (only this run — a
         # pre-existing one is refused far above and never reaches here), then
@@ -1591,22 +1120,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             f"Remove or convert it so skill wiring can complete.",
             fg=typer.colors.YELLOW,
         )
-    if pinned_branch is not None:
-        typer.echo(
-            f'Set [git] control_branch = "{pinned_branch}" in '
-            f"{coga_os / 'coga.toml'} — this repo has no "
-            f"{default_control_branch!r} branch."
-        )
-    elif unpinnable_control_branch is not None:
-        typer.secho(
-            f"[git] coga init could not safely select a control branch: "
-            f"{unpinnable_control_branch}. It left the "
-            f"{default_control_branch!r} default in {coga_os / 'coga.toml'}; "
-            f"verify that branch or set the right one explicitly:\n"
-            f"    [git]\n"
-            f'    control_branch = "<your-branch>"',
-            fg=typer.colors.YELLOW,
-        )
     # Read the outcome back off disk rather than inferring it from the scan:
     # after a failed rewrite the packaged file is still there declaring
     # everything, and a message built from `found_agent_clis` would describe a
@@ -1639,46 +1152,9 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         typer.echo(
             f"Wrote {', '.join(written_guides)} (agent orientation — Claude Code / Codex)."
         )
-    external_contexts = False
-    if relocated_contexts is not None:
-        try:
-            relocated_contexts.relative_to(coga_os)
-        except ValueError:
-            external_contexts = True
-    state_label = "Coga state" if external_contexts else "coga/"
-    if commit_sha is not None:
-        typer.echo(f"Committed {state_label} as {commit_sha[:12]} (push when ready).")
-    elif commit_failure is not None:
-        # Backstop for commit failures the up-front identity check can't see
-        # (failing hooks, odd repo state): coga/ is on disk, so don't roll
-        # back — but never let the failure pass silently. Re-stage every path
-        # init generated before retrying because the failed phase may have
-        # been `git add` itself.
-        add_command = shlex.join(
-            ["git", "-C", str(target), "add", "--", *commit_failure.paths]
-        )
-        commit_command = shlex.join(
-            [
-                "git",
-                "-C",
-                str(target),
-                "commit",
-                "-m",
-                "Create coga via `coga init`",
-                "--",
-                *commit_failure.paths,
-            ]
-        )
-        typer.secho(
-            f"Warning: {state_label} was written but NOT committed — "
-            f"{commit_failure.phase} failed with:\n"
-            f"{textwrap.indent(commit_failure.error, '  ')}\n"
-            f"Fix the cause, then stage and commit every generated path:\n"
-            f"  {add_command}\n"
-            f"  {commit_command}",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
+    typer.echo("Commit `coga/` when ready.")
+    if relocated_contexts is not None and not relocated_contexts.is_relative_to(coga_os):
+        typer.echo(f"Include the relocated contexts at {relocated_contexts}.")
 
     # Whether the user already has a working `coga` they can run as-is.
     # `shutil.which` honors the executable bit, so a stale non-executable
@@ -1884,103 +1360,6 @@ def _write_agent_guides(target: Path) -> list[str]:
             continue
         written.append(name)
     return written
-
-
-@dataclass(frozen=True)
-class GitCommitFailure:
-    """A failed phase of init's generated-path commit, with retry context."""
-
-    phase: str
-    error: str
-    paths: tuple[str, ...]
-
-
-def _git_commit_coga_os(
-    target: Path,
-    coga_os: Path,
-    include_host_gitignore: bool,
-    extra_host_paths: list[str] | None = None,
-) -> tuple[str | None, GitCommitFailure | None]:
-    """Commit coga/ plus generated host paths when `target` is a git repo.
-
-    Returns `(sha, None)` on success, `(None, None)` on a clean skip (not a
-    git repo, or nothing to stage), and `(None, failure)` when a git invocation
-    failed. The failure names the phase, carries git's stderr, and preserves
-    the exact generated path set so the caller can print a complete recovery
-    command instead of the historical silent skip (principle 6). Never raises.
-    `target` may sit below the git root (nested init) — `git -C <target>`
-    resolves pathspecs relative to `target`, and the commit lands in the host
-    repo. The commit is scoped to the staged coga paths, so any unrelated
-    changes the user already had staged in the host repo are left staged, not
-    swept in.
-    """
-    if not is_git_repo(target):
-        return None, None
-    paths = ["coga"]
-    if include_host_gitignore and (target / ".gitignore").is_file():
-        paths.append(".gitignore")
-    for extra in extra_host_paths or []:
-        if (target / extra).exists():
-            paths.append(extra)
-    phase = "git repository check"
-    try:
-        # `is_git_repo` is a filesystem heuristic (a bare `.git` entry counts);
-        # confirm git itself agrees before treating later failures as loud
-        # errors. Disagreement is the same "not a git repo" clean skip as
-        # above — the real not-a-repo case already failed loud in `_do_init`,
-        # and test fixtures fake a repo with an empty `.git` dir.
-        probe = subprocess.run(
-            ["git", "-C", str(target), "rev-parse", "--git-dir"],
-            capture_output=True,
-        )
-        if probe.returncode != 0:
-            return None, None
-        phase = "git add"
-        subprocess.run(
-            ["git", "-C", str(target), "add", "--", *paths],
-            check=True,
-            capture_output=True,
-            text=True, encoding="utf-8",
-        )
-        # Anything actually staged *among our paths*? Scope the check (and the
-        # commit below) to `paths`: a nested init runs inside a live host repo
-        # where the user may already have unrelated files staged, and an
-        # unscoped commit would sweep them into the "Create coga" commit.
-        phase = "git staged-change check"
-        diff = subprocess.run(
-            ["git", "-C", str(target), "diff", "--cached", "--quiet", "--", *paths],
-            capture_output=True,
-            text=True, encoding="utf-8",
-        )
-        if diff.returncode == 0:
-            return None, None
-        if diff.returncode != 1:
-            error = diff.stderr.strip() or f"git diff exited {diff.returncode}"
-            return None, GitCommitFailure(phase, error, tuple(paths))
-        phase = "git commit"
-        subprocess.run(
-            [
-                "git", "-C", str(target),
-                "commit", "-m", "Create coga via `coga init`", "--", *paths,
-            ],
-            check=True,
-            capture_output=True,
-            text=True, encoding="utf-8",
-        )
-        phase = "git commit verification"
-        rev = subprocess.run(
-            ["git", "-C", str(target), "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True, encoding="utf-8",
-        )
-        return rev.stdout.strip() or None, None
-    except FileNotFoundError as exc:
-        return None, GitCommitFailure(phase, str(exc), tuple(paths))
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip()
-        error = stderr or f"{shlex.join(str(arg) for arg in exc.cmd)} exited {exc.returncode}"
-        return None, GitCommitFailure(phase, error, tuple(paths))
 
 
 def _on_path(directory: Path) -> bool:

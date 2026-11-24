@@ -19,8 +19,7 @@ from pathlib import Path
 
 import typer
 
-from coga import git
-from coga.blackboard import parse_blockers_text, prelaunch_blackboard_synthesis_reason_text
+from coga.blackboard import prelaunch_blackboard_synthesis_reason_text
 from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
@@ -46,102 +45,6 @@ from coga.paths import RepoResourceUnreadable
 _NO_PR_WORKFLOWS = {"direct/body"}
 
 
-class StrandedProductCode(RuntimeError):
-    """Raised when a `direct/body` ticket is finished with committed product
-    code that will not reach the control branch (the workflow has no push/PR
-    step). The CLI renders the offending paths and points at a `code/*`
-    workflow; `--force` overrides.
-    """
-
-    def __init__(self, workflow_name: str, paths: list[str]):
-        self.workflow_name = workflow_name
-        self.paths = paths
-        super().__init__(
-            f"{workflow_name} task committed {len(paths)} tracked product "
-            "file(s) not on the control branch"
-        )
-
-
-def _workflow_name(ticket: Ticket) -> str | None:
-    """The ticket's workflow name, whether frozen (dict) or a bare-string ref."""
-    wf = ticket.workflow
-    if isinstance(wf, dict):
-        name = wf.get("name")
-        return str(name) if name else None
-    if isinstance(wf, str):
-        return wf.strip() or None
-    return None
-
-
-def _assert_no_stranded_product_code(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
-    """Refuse to finish a no-PR-workflow ticket that committed product code.
-
-    A `direct/body` (or other push/PR-less) workflow lands only Coga OS state on
-    the control branch; any tracked product code the agent committed rides a
-    throwaway branch or detached checkout that never reaches `main` and dangles
-    when that checkout is removed. Detect it before the `done` write and raise
-    so the CLI can steer the ticket to a `code/*` workflow (or `--force` past
-    it).
-    """
-    name = _workflow_name(ticket)
-    if name not in _NO_PR_WORKFLOWS:
-        return
-    stranded = stranded_product_paths(cfg, ref.path)
-    if stranded:
-        raise StrandedProductCode(name or "direct/body", stranded)
-
-
-def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
-    """Tracked non-Coga paths this checkout committed that the control branch lacks.
-
-    The detection half of the `direct/body` stranding guard (the 2026-07-06
-    DaCapo incident). A merge-base (three-dot) `--name-only` diff of HEAD
-    against the control branch, restricted to paths outside the Coga roots
-    (`git.coga_root_paths`: the Coga root and the contexts root), so an independently
-    advanced control branch is not mistaken for stranded work and a HEAD level
-    with control is a fast `[]`. Only tracked, committed files appear.
-
-    Fail-open: `[]` when git is disabled, this is not a git repo, the control
-    branch is absent, or any probe fails — a guard that cannot inspect git must
-    not block a local `mark done` (the on-disk markdown is the source of truth).
-    """
-    if not cfg.git_enabled:
-        return []
-    try:
-        root = git.toplevel(anchor_path)
-        if root is None:
-            return []
-        base = _local_control_base(cfg, root)
-        if base is None:
-            return []
-        if git.run_git(root, "rev-parse", "HEAD").strip() == base:
-            return []
-        excludes = [
-            f":(exclude){git.relative_to_root(root, path)}"
-            for path in git.coga_root_paths(cfg)
-        ]
-        # `-z` (NUL-delimited, no path quoting) so a product file with
-        # non-ASCII characters is named verbatim in the `mark done` error.
-        out = git.run_git(
-            root, "diff", "-z", "--name-only", f"{base}...HEAD", "--", ".", *excludes
-        )
-        return [path for path in out.split("\x00") if path]
-    except git.GitError:
-        return []
-
-
-def _local_control_base(cfg: Config, root: Path) -> str | None:
-    for ref in (
-        f"refs/heads/{cfg.git_control_branch}",
-        f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}",
-    ):
-        try:
-            return git.run_git(root, "rev-parse", "--verify", "-q", ref).strip()
-        except git.GitError:
-            continue
-    return None
-
-
 def mark_done(
     cfg: Config,
     ref: TaskRef,
@@ -154,7 +57,6 @@ def mark_done(
     echo: str | None = None,
     force: bool = False,
     strict: bool = False,
-    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
@@ -165,21 +67,7 @@ def mark_done(
     is visible even if a live post crashes). Pass `None` to suppress — used by
     quiet auto-bump paths such as launch-time freshness checks.
 
-    A `direct/body` ticket that committed tracked product code off the control
-    branch is refused with `StrandedProductCode` (the code would strand); pass
-    `force=True` to override. See `_assert_no_stranded_product_code`.
-
-    `strict=True` (a recurring delegator publishing a child's result) makes
-    the git publication transactional: refusals and transport failures
-    propagate, and completion is published before it is announced, so a stale
-    or unverified child result has no visible lifecycle side effect.
-
-    `prepared` (every writer here accepts it) is the `git.prepare_ticket`
-    view `ticket` came from: the write refuses if the local file changed
-    since, and publication expects the exact control bytes it read.
     """
-    if not force:
-        _assert_no_stranded_product_code(cfg, ref, ticket)
     owner = ticket.owner or cfg.current_user
     # Validate the prospective close before committing it, the way
     # `mark canceled` already does. An `other-agent` step that cannot resolve
@@ -190,73 +78,18 @@ def mark_done(
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     prospective.frontmatter["status"] = "done"
     prospective.frontmatter.pop("step", None)
-    prospective.frontmatter.pop("launch_generation", None)
     assert_task_valid(cfg, ref, action="mark done", ticket_override=prospective)
     ticket.frontmatter = prospective.frontmatter
-    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
+    ticket.write(ref.ticket_path)
     append_log(cfg, ref.id_slug, actor, log_message)
     snapshot = read_snapshot(ref.path)
-
-    def announce() -> None:
-        notify(
-            cfg,
-            slack_text,
-            kind="done",
-            owner=owner,
-            task_path=ref.path,
-            image_url=image_url,
-            # The ticket is already `done` on disk; an undeliverable broadcast
-            # is reported but never aborts the transition.
-            fatal=False,
-        )
-
-    def sync_state() -> None:
-        paths = [ref.path, log_path(cfg)]
-        # The parent template's working state (high-water / state keys) lives
-        # in the blackboard region of its single-file ticket.md, so publish it
-        # with the period task.
-        if snapshot is not None:
-            parent_ticket = parent_ticket_path(cfg, snapshot)
-            if parent_ticket.parent.is_dir():
-                paths.append(parent_ticket)
-        _publish(cfg, ref, paths, f"Ticket: {ref.id_slug} — done", strict=strict, prepared=prepared)
-
-    # A strict caller waits until the transition is durable before announcing;
-    # the ordinary path announces before syncing.
-    if strict:
-        sync_state()
     if echo is not None:
         typer.echo(echo)
-    announce()
-    if not strict:
-        sync_state()
+    notify(
+        cfg, slack_text, kind="done", owner=owner, task_path=ref.path,
+        image_url=image_url, fatal=False,
+    )
     _warn_if_state_not_advanced(cfg, ref, ticket, owner, snapshot)
-
-
-def _publish(
-    cfg: Config, ref: TaskRef, paths: list[Path], message: str, *, strict: bool,
-    prepared: git.PreparedTicket | None = None,
-) -> None:
-    """One task-state publication; non-fatal unless `strict`."""
-    fresh = prepared is not None and prepared.fresh
-    try:
-        git.publish(
-            cfg, paths, message,
-            expect=prepared.expect() if fresh else None, remember=fresh,
-        )
-    except git.StateRegressionError as exc:
-        sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
-        if strict:
-            raise
-    except git.GitError as exc:
-        git.record_sync_failure(cfg, ref.id_slug, exc)
-        sys.stderr.write(git.sync_failure_report(
-            cfg, exc, message=message,
-            retained=None if strict else "Local task state was saved",
-            recovery_paths=paths,
-        ))
-        if strict:
-            raise
 
 
 class CancellationError(RuntimeError):
@@ -273,7 +106,6 @@ def mark_canceled(
     slack_text: str,
     image_url: str | None = None,
     echo: str | None = None,
-    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip any non-terminal ticket to ``canceled`` and record why.
 
@@ -296,7 +128,6 @@ def mark_canceled(
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     prospective.frontmatter["status"] = "canceled"
     prospective.frontmatter.pop("step", None)
-    prospective.frontmatter.pop("launch_generation", None)
     assert_task_valid(
         cfg,
         ref,
@@ -304,7 +135,7 @@ def mark_canceled(
         ticket_override=prospective,
     )
     ticket.frontmatter = prospective.frontmatter
-    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
+    ticket.write(ref.ticket_path)
     append_log(
         cfg,
         ref.id_slug,
@@ -321,9 +152,6 @@ def mark_canceled(
         task_path=ref.path,
         image_url=image_url,
         fatal=False,
-    )
-    git.sync_task_state(
-        cfg, ref.path, message=f"Ticket: {ref.id_slug} — canceled", prepared=prepared
     )
 
 
@@ -578,7 +406,6 @@ def prepare_active(
     ticket.frontmatter["status"] = "active"
     # An active task has no live megalaunch claim. The next megalaunch writes
     # a fresh generation atomically with its `in_progress` transition.
-    ticket.frontmatter.pop("launch_generation", None)
 
 
 def mark_active(
@@ -591,28 +418,14 @@ def mark_active(
     echo: str | None = None,
     sync_state: bool = True,
     strict: bool = False,
-    prepared: git.PreparedTicket | None = None,
 ) -> None:
-    """Flip a ticket to `active`: write frontmatter and log.
-
-    Refuses to activate a workflow-less ticket. A bare-string `workflow:`
-    ref is frozen into its snapshot here so the activated ticket is
-    launch-ready. Also refuses if any `required = true` extension field is
-    empty. Activation is intentionally silent in Slack; the task log and git
-    sync remain the audit trail. `strict=True` propagates a refused or failed
-    publication (megalaunch's deferred activation).
-    """
+    """Validate, activate, and audit the local ticket."""
     prepare_active(cfg, ref, ticket)
-    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
-    assert_task_valid(cfg, ref, action="mark active")
+    assert_task_valid(cfg, ref, action="mark active", ticket_override=ticket)
+    ticket.write(ref.ticket_path)
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    if sync_state:
-        _publish(
-            cfg, ref, [ref.path, log_path(cfg)],
-            f"Ticket: {ref.id_slug} — active", strict=strict, prepared=prepared,
-        )
 
 
 def mark_in_progress(
@@ -626,32 +439,16 @@ def mark_in_progress(
     echo: str | None = None,
     strict: bool = False,
 ) -> None:
-    """Flip a ticket to `in_progress`: write, sync, then optionally post.
-
-    `strict=True` (megalaunch's claim) publishes before any output or
-    notification and propagates a refused or failed publication, so a claim
-    that did not land has no visible side effect.
-    """
+    """Set the local ticket in progress and audit the transition."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
-    git.write_ticket(cfg, ticket, ref.ticket_path)
-    assert_task_valid(cfg, ref, action="mark in_progress")
+    assert_task_valid(cfg, ref, action="mark in_progress", ticket_override=ticket)
+    ticket.write(ref.ticket_path)
     append_log(cfg, ref.id_slug, actor, log_message)
-
-    def sync_state() -> None:
-        _publish(
-            cfg, ref, [ref.path, log_path(cfg)],
-            f"Ticket: {ref.id_slug} — in_progress", strict=strict,
-        )
-
-    if strict:
-        sync_state()
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
         post(cfg, slack_text, task_path=ref.path, owner=owner, fatal=False)
-    if not strict:
-        sync_state()
 
 
 def mark_blocked(
@@ -664,14 +461,12 @@ def mark_blocked(
     slack_text: str,
     image_url: str | None = None,
     echo: str | None = None,
-    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
-    ticket.frontmatter.pop("launch_generation", None)
-    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
-    assert_task_valid(cfg, ref, action="mark blocked")
+    assert_task_valid(cfg, ref, action="mark blocked", ticket_override=ticket)
+    ticket.write(ref.ticket_path)
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
@@ -685,9 +480,6 @@ def mark_blocked(
         # blocked ticket's agent REPL alive to its idle timeout.
         fatal=False,
     )
-    git.sync_task_state(
-        cfg, ref.path, message=f"Ticket: {ref.id_slug} — blocked", prepared=prepared
-    )
 
 
 def mark_paused(
@@ -700,7 +492,6 @@ def mark_paused(
     slack_text: str | None = None,
     echo: str | None = None,
     strict: bool = False,
-    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip a ticket to `paused`: write frontmatter and log.
 
@@ -713,19 +504,9 @@ def mark_paused(
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
-    ticket.frontmatter.pop("launch_generation", None)
-    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
-    assert_task_valid(cfg, ref, action="mark paused")
+    assert_task_valid(cfg, ref, action="mark paused", ticket_override=ticket)
+    ticket.write(ref.ticket_path)
     append_log(cfg, ref.id_slug, actor, log_message)
-
-    def sync_state() -> None:
-        _publish(
-            cfg, ref, [ref.path, log_path(cfg)],
-            f"Ticket: {ref.id_slug} — paused", strict=strict, prepared=prepared,
-        )
-
-    if strict:
-        sync_state()
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
@@ -738,15 +519,11 @@ def mark_paused(
             important=True,
             fatal=False,
         )
-    if not strict:
-        sync_state()
 
 
 __all__ = [
     "mark_active",
     "prepare_active",
-    "reblock_unresolved_resume",
-    "ResumeReblockResult",
     "PREPARE_ACTIVE_ERRORS",
     "mark_in_progress",
     "mark_blocked",
@@ -757,98 +534,9 @@ __all__ = [
     "RequiredExtensionMissing",
     "WorkflowMissing",
     "MainAgentUnavailable",
-    "StrandedProductCode",
-    "stranded_product_paths",
 ]
 
 
-@dataclass(frozen=True)
-class ResumeReblockResult:
-    kind: Literal["reblocked", "already_blocked", "noop", "invalid"]
-    detail: str = ""
-
-
-def reblock_unresolved_resume(
-    cfg: Config,
-    ref: TargetRef,
-    *,
-    slack_actor: str,
-    log_message: str,
-    echo_owner_text: str,
-    resume_step: str | None = None,
-    fallback_ticket_bytes: bytes | None = None,
-) -> ResumeReblockResult:
-    """Park unanswered resumes, preserving deterministic fallback and routing."""
-    if not isinstance(ref, TaskRef):
-        return ResumeReblockResult("noop")
-    restored_fallback = False
-    try:
-        current_bytes = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
-        if current_bytes is None:
-            raise TicketError("ticket.py removed ticket.md")
-        ticket = Ticket.parse(current_bytes.decode("utf-8"))
-        _, blackboard = split_body(ticket.body)
-        blockers = [
-            item
-            for item in parse_blockers_text(blackboard or "")
-            if not item.resolved
-        ]
-    except (OSError, UnicodeError, TaskFileError, TicketError):
-        if fallback_ticket_bytes is None:
-            return ResumeReblockResult("noop")
-        ticket = Ticket.parse(fallback_ticket_bytes.decode("utf-8"))
-        _, blackboard = split_body(ticket.body)
-        blockers = [
-            item
-            for item in parse_blockers_text(blackboard or "")
-            if not item.resolved
-        ]
-        # A failed deterministic child owns its invalid or missing ticket
-        # result. Fall back to the exact pre-resume ticket so the original ask
-        # stays queue-visible, then preserve the child's exit code upstream.
-        ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
-        git.write_ticket(cfg, ticket, ref.ticket_path)
-        restored_fallback = True
-    if not blockers:
-        return ResumeReblockResult("noop")
-    if ticket.status == "blocked" and not restored_fallback:
-        return ResumeReblockResult("already_blocked", "; ".join(b.reason for b in blockers))
-    if ticket.status != "in_progress" and resume_step is None:
-        return ResumeReblockResult("noop")
-    if resume_step is not None and ticket.step is None:
-        # A terminal deterministic transition can clear ``step``. Restore the
-        # original position and let routing be derived from it again: there is no
-        # copied assignment to restore, so an unresolved ask can no longer be
-        # attributed to whichever agent a later step would have used.
-        ticket.frontmatter["step"] = resume_step
-
-    owner = ticket.owner or cfg.current_user
-    detail = "; ".join(b.reason for b in blockers)
-    try:
-        mark_blocked(
-            cfg,
-            ref,
-            ticket,
-            actor="system",
-            log_message=log_message,
-            slack_text=(
-                f"🛑 {slack_actor} still blocked "
-                f"*{ref.id_slug}* \"{ticket.title}\": {detail}"
-            ),
-            echo=(
-                f"{ref.id_slug}: blocked (unresolved blocker still open; "
-                f"{echo_owner_text.format(owner=owner)})"
-            ),
-        )
-    except TaskValidationError as exc:
-        return ResumeReblockResult("invalid", str(exc))
-    return ResumeReblockResult("reblocked", detail)
-
-
-
-# The refusals `prepare_active` raises before `mark_active` writes anything.
-# `TaskValidationError` is deliberately not one of them: it comes from the
-# post-write `assert_task_valid`, so it belongs to the commit half alone.
 PREPARE_ACTIVE_ERRORS = (
     WorkflowMissing,
     WorkflowError,

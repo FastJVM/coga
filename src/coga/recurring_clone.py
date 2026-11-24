@@ -32,10 +32,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from coga import git
 from coga.oscompat import ProcessTree
 from coga.atomicio import atomic_write_text
 from coga.config import Config, build_launch_env
+from coga.run_state import apply_tmp_env, data_env, launch_tmp_scope
 from coga.task_env import TASK_ENV_KEYS, host_repo_root
 
 SCOPE_REPO = "repo"
@@ -73,36 +73,8 @@ class CloneRunResult:
 
 
 def clone_state_dir(cfg: Config) -> Path:
-    """The clone-local state directory, anchored at the primary checkout.
-
-    A linked worktree (the temporary control worktree `--all` services an
-    off-control clone from) shares refs with its primary, so it records against
-    the primary's Coga workspace at the same relative path. Outside git, or when
-    git cannot say, the invoking workspace is the clone.
-    """
-    root = cfg.repo_root
-    if cfg.git_enabled:
-        try:
-            top = git.toplevel(root)
-        except git.GitError:
-            top = None
-        if top is not None:
-            try:
-                common = Path(
-                    git.run_git(
-                        top, "rev-parse", "--path-format=absolute", "--git-common-dir"
-                    ).strip()
-                )
-            except git.GitError:
-                common = None
-            if common is not None and common.name == ".git":
-                primary = common.parent
-                try:
-                    rel = cfg.repo_root.resolve().relative_to(top.resolve())
-                except ValueError:
-                    rel = Path()
-                root = primary / rel
-    return root / _STATE_DIR
+    """Store recurring state in the current workspace."""
+    return cfg.repo_root / _STATE_DIR
 
 
 def _ledger_path(cfg: Config, name: str) -> Path:
@@ -173,12 +145,16 @@ def run_clone_template(
     env[SCOPE_ENV] = SCOPE_CLONE
     env[TEMPLATE_ENV] = name
     env[PERIOD_ENV] = period
-    exit_code, output, log_output = _run_clone_script(
-        [sys.executable, str(script)],
-        cwd=host_repo_root(cfg),
-        env=env,
-        timeout=timeout,
-    )
+    # Clone scripts have no task identity: they get the shared durable root
+    # and a launch tmp scope, never COGA_TASK_DATA_DIR.
+    env.update(data_env(cfg, None))
+    with launch_tmp_scope(cfg) as scope:
+        exit_code, output, log_output = _run_clone_script(
+            [sys.executable, str(script)],
+            cwd=host_repo_root(cfg),
+            env=apply_tmp_env(env, scope),
+            timeout=timeout,
+        )
     log_path = _log_path(cfg, name)
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)

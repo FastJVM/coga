@@ -346,7 +346,7 @@ def test_corrupt_state_and_argv_fail_visibly_without_sending(repo, state):
             t.run_phone_home(load_config(repo), argv, sender=lambda *a: pytest.fail("sent"))
 
 
-def test_parent_publication_reaches_second_checkout_without_dirty_files(git_repo, monkeypatch, tmp_path):
+def test_phone_home_updates_only_the_local_parent(git_repo, monkeypatch, tmp_path):
     root = git_repo.coga_os
     parent = _seed(root)
     _write(git_repo.root/"tracked.txt", "committed")
@@ -363,9 +363,10 @@ def test_parent_publication_reaches_second_checkout_without_dirty_files(git_repo
     assert git_repo.git("show", "main:tracked.txt", cwd=git_repo.origin) == "committed"
     clone = tmp_path/"second"
     git_repo.git("clone", "-c", "core.autocrlf=false", "-b", "main", str(git_repo.origin), str(clone))
-    assert (clone/"coga/recurring/phone-home/ticket.md").read_bytes() == parent.read_bytes()
+    assert (clone/"coga/recurring/phone-home/ticket.md").read_bytes() != parent.read_bytes()
     _write(clone/"coga/coga.local.toml", 'user = "marc"\n')
-    assert _state(clone/"coga")["repo_id"] == REPO_ID
+    assert _state(root)["repo_id"] == REPO_ID
+    assert _state(clone/"coga")["repo_id"] is None
 
 
 def test_http_one_post_no_redirect_or_response_body(repo, monkeypatch):
@@ -400,21 +401,6 @@ def test_false_gates_parent_and_worker_before_http_or_process(repo, monkeypatch)
     assert t._receipt(cfg, {}, "accepted") == "suppressed"
 
 
-def test_cas_detects_parent_edit_and_preserves_prose(repo, monkeypatch):
-    parent = repo/"recurring/phone-home/ticket.md"
-    original = parent.read_bytes()
-    actual_replace = t.replace_blackboard
-    def race(path, region, *, expected_bytes):
-        assert expected_bytes == original
-        path.write_bytes(original + b"\nConcurrent prose\n")
-        return actual_replace(path, region, expected_bytes=expected_bytes)
-    monkeypatch.setattr(t, "replace_blackboard", race)
-    from coga.taskfile import TaskFileError
-    with pytest.raises(TaskFileError, match="changed"):
-        t.run_phone_home(load_config(repo), [])
-    assert parent.read_bytes() == original + b"\nConcurrent prose\n"
-
-
 def test_suppressed_cursor_baselines_complete_eof(repo):
     (repo/"log.md").write_bytes(_line()+b"partial")
     t.run_phone_home(load_config(repo), [])
@@ -422,16 +408,6 @@ def test_suppressed_cursor_baselines_complete_eof(repo):
     # The legacy event owns the incomplete continuation, so it is not reserved.
     assert _state(repo)["seen_movements"] == []
     assert _state(repo)["repo_id"] is None
-
-
-def test_publication_failure_keeps_reservation_and_local_evidence(repo, monkeypatch, capsys):
-    def fail(*a, **kw):
-        raise t.git.GitError("simulated failure")
-    monkeypatch.setattr(t.git, "publish", fail)
-    sent = _run(repo, monkeypatch)
-    assert len(sent) == 1 and _state(repo)["run"] == 1
-    assert "sync failed" in (repo/"log.md").read_text(encoding="utf-8")
-    assert "local state retained" in capsys.readouterr().out
 
 
 def test_slack_failure_cannot_change_successful_capture(repo, monkeypatch):

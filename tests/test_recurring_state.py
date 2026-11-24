@@ -34,7 +34,6 @@ from coga.recurring_state import (
     parent_state_path,
     render_carrier,
 )
-from coga.retire_worklist import worklist_for_period_task
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import TaskNotFoundError, resolve_bootstrap
 from coga.validate import _check_recurring_templates
@@ -42,7 +41,7 @@ from coga.validate import _check_recurring_templates
 
 NOW = datetime(2026, 4, 22, 10, 0, 0)
 BUNDLED = (
-    "address-pr-comments", "autoclose-merged", "blackboard-size", "blocker-reminders", "branch-sweep",
+    "address-pr-comments", "blackboard-size", "blocker-reminders",
     "dream", "phone-home", "resolve-conflicts", "skill-update", "trim-log",
 )
 
@@ -278,19 +277,6 @@ def test_dangling_selection_never_restores_local_only_activation(repo: Path) -> 
     assert not (repo / "tasks/recurring/local-job").exists()
 
 
-def test_worklist_only_directory_resolves_the_selected_bundled_parent(repo: Path) -> None:
-    _jobs(repo, "[jobs]\nautoclose-merged = true\n")
-    worklist = repo / "recurring" / "autoclose-merged" / "retires.md"
-    _write(worklist, "# Retire follow-ups\n")
-    cfg = load_config(repo)
-    assert inspect_parent_dir(worklist.parent).kind == STATE_ONLY
-    period = repo / "tasks" / "recurring" / "autoclose-merged" / "ticket.md"
-    _write(period, "---\ntitle: x\n---\n")
-    assert worklist_for_period_task(cfg, period) == worklist
-    _jobs(repo, "[jobs]\nautoclose-merged = false\n")
-    assert worklist_for_period_task(load_config(repo), period) is None
-
-
 def test_cache_only_directory_does_not_shadow_the_package(repo: Path) -> None:
     _jobs(repo, "[jobs]\nphone-home = true\n")
     cache = repo / "recurring" / "phone-home" / "__pycache__"
@@ -366,8 +352,7 @@ def test_invalid_local_skill_and_bootstrap_overrides_never_select_stock(repo: Pa
 
 
 @pytest.mark.parametrize("feature", [False, True])
-def test_first_package_period_publishes_carrier_and_ledger_together(git_repo, feature):
-    from coga.recurring_runner import _sync_recurring_create
+def test_first_package_period_creates_carrier_and_ledger_locally(git_repo, feature):
     from coga_edge import phone_home
 
     _jobs(git_repo.coga_os, "[jobs]\nphone-home = true\n")
@@ -378,66 +363,12 @@ def test_first_package_period_publishes_carrier_and_ledger_together(git_repo, fe
         git_repo.checkout_branch("feature/test")
     cfg = load_config(git_repo.coga_os)
     outcome = create_named(cfg, "phone-home", now=NOW)
-    failures = []
-    assert _sync_recurring_create(cfg, "phone-home", outcome.ref, sync_failures=failures)
-    assert not failures
     parent_rel = "coga/recurring/phone-home/ticket.md"
-    assert git_repo.origin_tracks(parent_rel)
-    assert git_repo.origin_tracks("coga/tasks/recurring/phone-home/.state-snapshot.json")
-    assert git_repo.origin_tracks("coga/tasks/recurring/phone-home/ticket.py")
-    assert "created recurring/phone-home" in git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    assert "period_state:" in git_repo.git("show", f"main:{parent_rel}", cwd=git_repo.origin)
+    assert not git_repo.origin_tracks(parent_rel)
+    assert (git_repo.root / parent_rel).is_file()
+    assert (outcome.ref.task_dir / ".state-snapshot.json").is_file()
+    assert (outcome.ref.task_dir / "ticket.py").is_file()
+    assert "created recurring/phone-home" in (git_repo.coga_os / "log.md").read_text()
+    assert "period_state:" in (git_repo.root / parent_rel).read_text()
     assert phone_home.run_phone_home(cfg, []) == 0
     assert phone_home._state(read_blackboard(git_repo.coga_os / "recurring/phone-home/ticket.md"))[0]["run"] == 1
-
-
-def test_package_create_adopts_a_racing_parent_without_resetting_state(git_repo, monkeypatch):
-    from coga import git
-    from coga.recurring_runner import _sync_recurring_create
-
-    _jobs(git_repo.coga_os, "[jobs]\nphone-home = true\n")
-    git_repo.git("add", "coga/recurring/jobs.toml")
-    git_repo.git("commit", "-m", "select packaged phone-home")
-    git_repo.git("push", "origin", "main")
-    cfg = load_config(git_repo.coga_os)
-    outcome = create_named(cfg, "phone-home", now=NOW)
-    parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
-    peer = parent.read_text(encoding="utf-8").replace('"run":0', '"run":9') + "\nother: peer\n"
-    original = git._push
-    raced = False
-    def create_parent(root, remote, refspec):
-        nonlocal raced
-        if not raced:
-            raced = True
-            git_repo.push_competing_commit("coga/recurring/phone-home/ticket.md", peer)
-        return original(root, remote, refspec)
-    monkeypatch.setattr(git, "_push", create_parent)
-    failures = []
-    assert _sync_recurring_create(cfg, "phone-home", outcome.ref, sync_failures=failures)
-    assert raced and not failures
-    assert parent.read_text(encoding="utf-8") == peer
-    assert git_repo.git("show", "main:coga/recurring/phone-home/ticket.md", cwd=git_repo.origin) == peer
-
-
-def test_stale_package_create_adopts_the_existing_period_and_carrier(git_repo):
-    from coga.recurring_runner import _sync_recurring_create
-
-    _jobs(git_repo.coga_os, "[jobs]\nphone-home = true\n")
-    git_repo.git("add", "coga/recurring/jobs.toml")
-    git_repo.git("commit", "-m", "select packaged phone-home")
-    git_repo.git("push", "origin", "main")
-    start = git_repo.git("rev-parse", "HEAD").strip()
-    cfg = load_config(git_repo.coga_os)
-    first = create_named(cfg, "phone-home", now=NOW)
-    assert _sync_recurring_create(cfg, "phone-home", first.ref)
-    expected_task = first.ref.ticket_path.read_bytes()
-    expected_snapshot = (first.ref.path / ".state-snapshot.json").read_bytes()
-    parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
-    expected_parent = parent.read_bytes()
-    git_repo.git("reset", "--hard", start)
-    stale = create_named(cfg, "phone-home", now=NOW)
-    assert stale.ref.ticket_path.read_bytes() != expected_task
-    assert not _sync_recurring_create(cfg, "phone-home", stale.ref)
-    assert stale.ref.ticket_path.read_bytes() == expected_task
-    assert (stale.ref.path / ".state-snapshot.json").read_bytes() == expected_snapshot
-    assert parent.read_bytes() == expected_parent

@@ -27,9 +27,8 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: 7111cb78-4af5-4048-85c9-db6a75fc8a26
 ---
 
 ## Description
@@ -158,6 +157,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1276
 branch: coga/fix-the-windows-aws-walk-step-and-add-the-v1-14-at
 
 ## Plan (implement, 2026-11-18)
@@ -218,11 +218,7 @@ shadowed Python and wrong version each returned 2, and missing Python returned
 native registry PATH and actual Store alias behavior remain unverified.
 The interactive launch instructions describe existing behavior from v1/14.
 
-At handoff, PRs #1256 and #1257 were open. They change the same runbook's
-environment and long-run notes, respectively. Follow the ticket's publication
-order and reconcile their changes before opening this PR. In particular,
-#1256 overlaps the Restricted-policy explanation. The Windows README
-alignment comes from open PR #1267, which should land first or together.
+Publication ordering is settled; see "Open-pr reconciliation".
 
 ## PR
 
@@ -233,8 +229,8 @@ author_evidence: >-
   Claude Code (claude-opus-5-5) implemented the original patch, as recorded
   in the implement handoff. Codex authored the peer-review follow-up
   ab243ceb5 that tightens executable validation.
-head: ab243ceb52b574d2890652abb8176229909a2d94
-base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+head: bf56965e8e14a24052f431490daacb9726cee735
+base: 860f53c168fa7eec219fba098ac64debbafdbaf5
 depth: deep
 rationale: >-
   Inspect the new fail-fast Windows PATH check. Linux tested its decision
@@ -252,8 +248,9 @@ deviations: >-
 limitations: >-
   Native verification is deferred to release. The Server 2025 harness
   cannot cover the Windows 11 Restricted policy or Store alias.
-  Publication must account for open runbook PRs #1256 and #1257 and
-  Windows README PR #1267.
+  The review head predates a rebase onto merged #1256, #1257 and
+  #1267; the only post-review change drops a step-2 sentence that
+  duplicated #1256's Restricted-policy paragraph.
 files:
   scripts/clean-install/windows-walk.ps1: >-
     Exercise the README's --default and python --version steps as the
@@ -273,12 +270,12 @@ review:
     the resulting head, including its own follow-up. No unresolved code
     findings.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider -x
     status: passed
-    head: ab243ceb52b574d2890652abb8176229909a2d94
-    base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+    head: bf56965e8e14a24052f431490daacb9726cee735
+    base: 860f53c168fa7eec219fba098ac64debbafdbaf5
     detail: >-
-      5004 passed, 33 skipped in 844.69 seconds. Linux Pop!_OS 24.04 LTS, Python 3.12.12, clean committed tree.
+      5179 passed, 33 skipped in 1071.89 seconds after rebasing onto main. Linux Pop!_OS 24.04 LTS, clean committed tree.
   - command: bash /tmp/coga-windows-walk-peer-pwsh/run-probe.sh
     status: passed
     head: ab243ceb52b574d2890652abb8176229909a2d94
@@ -289,14 +286,14 @@ checks:
       All four exit-code cases and the successful PATH restoration passed.
   - command: .venv/bin/coga validate --json
     status: passed
-    head: ab243ceb52b574d2890652abb8176229909a2d94
-    base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+    head: bf56965e8e14a24052f431490daacb9726cee735
+    base: 860f53c168fa7eec219fba098ac64debbafdbaf5
     detail: >-
-      Exited zero with 17 warnings and no errors.
+      Exited zero after rebasing onto main.
   - command: git diff --check main...HEAD
     status: passed
-    head: ab243ceb52b574d2890652abb8176229909a2d94
-    base: b3129bbb27acbc096ce2a867ee77d72c16814c97
+    head: bf56965e8e14a24052f431490daacb9726cee735
+    base: 860f53c168fa7eec219fba098ac64debbafdbaf5
     detail: >-
       No whitespace errors.
   - command: Windows clean-install walk on Server 2025
@@ -305,24 +302,14 @@ checks:
       Native Windows verification is deferred to release under coga-dev/testing.
 ```
 
-### Open-pr hold (2026-11-18)
+## Open-pr reconciliation (2026-11-20)
 
-Did not run `coga open-pr`. The ticket's route is to open this PR only after
-the overlapping PRs land or rebase. All three are still open on
-`origin/main` `4b943120e`:
-
-- #1256 (`codex/retro-install-python-pins-knowledge`) and #1257
-  (`codex/retro-coga-dev-hazards-knowledge`): Retro PRs editing the same
-  windows-aws skill. #1256's Restricted paragraph overlaps this step-2 note.
-- #1267: README `--default` / `python --version`, which this aligns the walk
-  with. Its ticket `fix-the-readme-windows-walk-findings-left-unowned` is
-  still `in_progress`.
-
-Peer review (Codex, direct) completed with no unresolved findings, so the
-only gate is ordering. On resume: rebase the branch onto main after the
-dependencies merge, drop any duplicate Restricted explanation from #1256,
-re-run `python -m pytest`, push with `--force-with-lease`, then
-`coga open-pr`.
+Dependencies #1256, #1257 and #1267 merged (blocker resolved). Rebased the
+branch onto main `860f53c16` (clean, three commits); commit `bf56965e8` points
+step 2 at #1256's Restricted paragraph instead of restating it. Re-ran
+pytest, validate and `git diff --check` on the new head; Codex review and
+PowerShell probe receipts stay at `ab243ceb5`. After merge, v1/14 is
+retirable via the normal Dream/Retro sweep; no separate draft needed.
 
 ---
 

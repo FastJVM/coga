@@ -175,7 +175,7 @@ template sibling in a fixed shape (`autoclose-merged/retires.md`, owned by
 `coga/autoclose/sweep` skill); or one-line facts in `coga/log.md`. The schedule
 high-water mark lives only in the log
 ([ledger](../scheduling/SKILL.md#periods-and-the-serviced-period-ledger)).
-The [autoclose template's upgrade guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/autoclose-merged/operations.md) owns worklist setup for older repos.
+The [coga/git](../../git/SKILL.md) owns worklist setup for older repos.
 
 ## `ticket.py` completion and reporting
 

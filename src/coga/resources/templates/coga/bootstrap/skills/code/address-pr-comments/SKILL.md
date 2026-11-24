@@ -1,124 +1,24 @@
 ---
 name: code/address-pr-comments
-description: Assist on an owner-controlled PR review by applying requested fixes, testing and pushing them, and replying to unresolved GitHub review threads without merging, resolving threads, or advancing the ticket.
+description: Address requested PR changes while preserving the owner's review gate.
 ---
-
-# Address PR review comments
-
-Use this skill only for an on-demand assist during the owner-controlled
-`review` step. The human has finished leaving comments and explicitly launched
-an agent with `coga launch <slug> --agent <type>`.
-
-You may inspect the PR, run verification, prepare and push explicitly requested
-fixes, and report a recommendation. Apply every must-fix review comment that is
-within the ticket's scope. Ask the attending human about ambiguous, optional,
-contradictory, or scope-expanding requests before changing code.
-
-## Preserve the owner gate
-
-The human still owns the review and merge decision.
-
-- Do not merge the PR or delete its branch.
-- Do not resolve GitHub review threads. Replying is allowed; resolution stays
-  with the human.
-- Do not run `coga bump`. This skill is an explicit exception to the base
-  prompt's finish-a-step rule: the ticket must remain on `review`.
-- Do not run `coga mark done` or otherwise advance, close, pause, cancel, or
-  reassign the ticket.
-- Do not use `coga slack` as a completion signal. It is non-terminal for an
-  ordinary task and this attended assist ends when the human ends the session.
-
-On the normal `in_progress` review path neither `step:` nor `status:` changes,
-so the launch supervisor stops after this assist instead of chaining another
-session. The existing `autoclose-merged` sweep marks the ticket done after the
-human merges.
-
-That closure is unconditional (`coga/workflows`, "Obligations the merge does
-not discharge"). If review turns up an obligation the merge will not
-discharge (a release step, an attended check, a follow-up proof), name it to
-the human before they merge and offer to file it as its own draft
-(`coga create`). File it only if they agree; don't rely on a reply or a
-blackboard note to carry it past closure.
 
 ## 1. Verify the recorded PR and checkout
 
-Read the current ticket's `## Dev` block. Require both recorded values:
+Read `branch:`, `remote:`, `base:` and `pr:` under `## Dev`. Switch to the
+recorded branch if needed and stop if Git refuses. Leave unrelated edits
+alone and stop if they prevent verification. Confirm the PR is open against
+the recorded base and that its head repository and branch match the recorded
+remote and branch. Keep the owner's review gate in place.
 
-```text
-branch: <branch-name>
-pr: <full-pr-url>
-```
-
-(`worktree:` appears only when the branch lives in a sandbox clone; work
-there instead of switching in the launch checkout.) Do not infer a missing
-value from the task slug or current checkout. Fail loud and ask the attending
-human to repair the ticket if the linkage is missing, ambiguous, or stale.
-
-**Recorded legacy checkout.** An older review ticket may record a linked
-worktree or clone as `worktree:`. When this session already runs in that
-exact checkout (`git rev-parse --show-toplevel` resolves to the recorded
-`worktree:`) and HEAD is on the recorded `branch:`, launch recognized it as
-the assist checkout and already fast-forwarded it to the verified PR head.
-Work there: skip steps 1 and 2 below and stay on the recorded branch.
-Launch has already published its audit to
-control, so dirty Coga state in that checkout (`coga/log.md`, task files,
-recurring state) is expected; leave it unstaged and never commit it with a
-fix. Any other dirt still stops the assist. A recorded `worktree:` that is
-not the current checkout, or a current checkout on another branch, gets no
-such exception: ask the attending human.
-
-Confirm `gh auth status` succeeds. Then, in the launch checkout:
-
-1. Check the **Checkout (runtime)** notice. An ordinary assist from the
-   primary checkout starts on the recorded `branch:` (reused, never reset),
-   with this ticket projected unstaged from control as the only entry dirt;
-   never stage or commit it with a fix. A notice that reports kept local
-   commits means reconcile before pushing. If the notice says no branch was
-   prepared, perform the `coga/checkouts` manual start check and switch.
-2. Verify HEAD is `<branch-name>` and nothing else is dirty. Do not absorb
-   unrelated local changes or stage `coga/log.md` with a fix. If anything
-   differs, stop and ask the attending human; do not stash, commit, or
-   switch past another ticket's work.
-3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
-   remote to resolve the publication destination with
-   `git remote get-url --push --all <configured-remote>`. Require exactly one
-   non-empty result and call it `<verified-push-url>`. Stop if there are zero or
-   multiple results: Git can partially update a multi-push remote, so it cannot
-   preserve the assist's exact-tip transaction.
-4. Use `gh pr view <pr-url> --json ...` to read `state`, `url`,
-   `headRefName`, `headRefOid`, `headRepository`, and
-   `headRepositoryOwner`. Require an open PR whose head ref matches `branch:`.
-   Construct the actual PR head repository as
-   `<headRepositoryOwner.login>/<headRepository.name>` and require the
-   `<verified-push-url>` to identify that same GitHub repository. A same-named
-   branch in the base repository is not the PR head when the PR comes from a
-   fork, and a separate fetch URL does not authorize lifecycle pushes to the
-   wrong repository.
-5. Create a fresh, command-unique `<assist-fetch-ref>` under
-   `refs/coga/address-pr-comments/<unique-token>`; never reuse it for another
-   fetch. Fetch the branch directly from `<verified-push-url>`, resolve the
-   fetched OID, then delete the private ref:
-
-   ```text
-   git fetch --no-write-fetch-head <verified-push-url> refs/heads/<branch-name>:<assist-fetch-ref>
-   git rev-parse <assist-fetch-ref>
-   git update-ref -d <assist-fetch-ref>
-   ```
-
-   Record the resolved value before deletion as `<verified-remote-oid>` and
-   require it to equal the PR's reported `headRefOid`. Always delete the private
-   ref after recording the OID, including on a mismatch or later failure.
-   Do not read `FETCH_HEAD`: it is shared by concurrent fetches in the checkout
-   and can be replaced between commands. Fast-forward the local checkout from
-   the exact recorded OID when it is merely behind. If it is ahead unexpectedly
-   or diverged, ask the human before rewriting published history.
-
-Stay on the recorded branch until the replies are posted. Inspect another ref
-with read-only Git commands rather than checking it out.
-
-Extract the base repository owner, repository name, and PR number from the
-recorded PR URL. The URL identifies the base repository even when the PR comes
-from a fork.
+For the destination proof, require exactly one URL from
+`git remote get-url --push --all <remote>`. Verify it identifies the PR head
+repository and retain it as `<verified-push-url>`. Fetch the head directly
+from that URL into a command-unique private ref under
+`refs/coga/address-pr-comments/`. Require the fetched OID to equal the PR's
+`headRefOid`, and before making changes require it to equal local HEAD.
+Delete the private ref when the proof is finished. Ask the attending owner
+about ambiguous or conflicting requests.
 
 ## 2. Read every unresolved review thread
 
@@ -263,14 +163,6 @@ The concrete call shape is:
 gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutation-above>'
 ```
 
-In a recorded legacy checkout, finish on the recorded branch and leave the
-launch-published Coga state as it is. Otherwise finish on the feature branch
-when launch returns the checkout (the notice says so); a manual session runs
-the `coga/checkouts` end-of-step return, stopping to ask instead of
-discarding anything unpublished or outside Coga state.
-Then give the attending human a compact list of addressed
-threads, the pushed commit, the exact test result, and anything that still
-needs their judgment, and stop naturally with the ticket still `in_progress`
-on `review`. The launch supervisor publishes its trailing usage-log line to
-control during teardown; do not add a completion commit or signal to imitate
-it.
+Commit and push ticket notes with the branch work when they change. Report the
+addressed threads, pushed commit and exact verification results to the owner.
+Leave the final bump and merge to the owner.

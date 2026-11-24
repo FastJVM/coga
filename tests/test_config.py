@@ -761,8 +761,7 @@ def test_autofix_contexts_missing_ref_fails_at_config_load(
 
 @pytest.mark.parametrize(
     ("artifact", "reason"),
-    [("symlink", "symlink"), ("directory", "not a regular file"),
-     ("ignored", "neither tracked nor unignored")],
+    [("symlink", "symlink"), ("directory", "not a regular file")],
 )
 @pytest.mark.parametrize("contexts_root", ["contexts", "docs/contexts"])
 def test_autofix_contexts_reject_invalid_local_override_of_bundled_ref(
@@ -775,11 +774,8 @@ def test_autofix_contexts_reject_invalid_local_override_of_bundled_ref(
         _set_layout_contexts(layout_repo, contexts_root)
     if artifact == "symlink":
         path.symlink_to(layout_repo / "missing.md")
-    elif artifact == "directory":
-        path.mkdir()
     else:
-        path.write_text("Local guidance.\n", encoding="utf-8", newline="\n")
-        (layout_repo / ".gitignore").write_text(f"{contexts_root}/**/SKILL.md\n", encoding="utf-8", newline="\n")
+        path.mkdir()
     toml = layout_repo / "coga.toml"
     toml.write_text(toml.read_text(encoding="utf-8") + '\n[autofix]\ncontexts = ["coga/architecture"]\n', encoding="utf-8", newline="\n")
 
@@ -968,7 +964,7 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
     )
     cfg = load_config(tmp_path)
     assert cfg.current_user == "marc"
-    assert cfg.git_enabled is False  # local override wins
+    assert cfg.obsolete_git_config
 
 
 def test_unknown_top_level_shared_section_rejected(repo: Path) -> None:
@@ -1115,30 +1111,10 @@ def test_unknown_git_key_rejected_local(repo: Path) -> None:
         load_config(repo)
 
 
-def test_git_worktrees_ticket_owned_defaults_off(repo: Path) -> None:
-    # Destructive behavior is never implicit: a repo opts in by writing the
-    # assumption down in `[git]`.
-    assert load_config(repo).git_worktrees_ticket_owned is False
 
 
-def test_git_worktrees_ticket_owned_opt_in(repo: Path) -> None:
-    (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[git]\nworktrees_ticket_owned = true\n",
-        encoding="utf-8", newline="\n",
-    )
-    assert load_config(repo).git_worktrees_ticket_owned is True
 
 
-def test_git_worktrees_ticket_owned_must_be_boolean(repo: Path) -> None:
-    (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[git]\nworktrees_ticket_owned = "yes"\n',
-        encoding="utf-8", newline="\n",
-    )
-    with pytest.raises(
-        ConfigError,
-        match=r"\[git\].worktrees_ticket_owned must be a boolean \(got str\)",
-    ):
-        load_config(repo)
 
 
 @pytest.mark.parametrize(
@@ -1927,74 +1903,14 @@ def test_layout_contexts_nested_git_checkout_rejected(layout_repo: Path) -> None
         load_config(layout_repo)
 
 
-def test_layout_contexts_empty_directory_rejected(layout_repo: Path) -> None:
-    (layout_repo / "docs" / "contexts").mkdir(parents=True)
-    _set_layout_contexts(layout_repo, "docs/contexts")
-    with pytest.raises(ConfigError, match="Git cannot reproduce it"):
-        load_config(layout_repo)
 
 
-def test_layout_contexts_fully_ignored_directory_rejected(layout_repo: Path) -> None:
-    contexts = layout_repo / "docs" / "contexts"
-    contexts.mkdir(parents=True)
-    (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
-    (layout_repo / ".gitignore").write_text("docs/contexts/\n", encoding="utf-8", newline="\n")
-    _set_layout_contexts(layout_repo, "docs/contexts")
-    with pytest.raises(ConfigError, match="directory is ignored by Git"):
-        load_config(layout_repo)
 
 
-def test_layout_contexts_ignored_root_rejected_even_with_tracked_context(
-    layout_repo: Path,
-) -> None:
-    context = layout_repo / "docs" / "contexts" / "team" / "style" / "SKILL.md"
-    context.parent.mkdir(parents=True)
-    context.write_text("# Style\n", encoding="utf-8", newline="\n")
-    subprocess.run(
-        ["git", "-C", str(layout_repo), "add", str(context.relative_to(layout_repo))],
-        check=True,
-    )
-    (layout_repo / ".gitignore").write_text("docs/contexts/\n", encoding="utf-8", newline="\n")
-    _set_layout_contexts(layout_repo, "docs/contexts")
-
-    with pytest.raises(ConfigError, match="directory is ignored by Git"):
-        load_config(layout_repo)
 
 
-@pytest.mark.parametrize("with_autofix_defaults", [False, True])
-def test_layout_contexts_ignored_context_rejected_even_with_trackable_marker(
-    layout_repo: Path, with_autofix_defaults: bool,
-) -> None:
-    contexts = layout_repo / "docs" / "contexts"
-    context = contexts / "team" / "style" / "SKILL.md"
-    context.parent.mkdir(parents=True)
-    context.write_text("# Style\n", encoding="utf-8", newline="\n")
-    (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
-    (layout_repo / ".gitignore").write_text("docs/contexts/**/SKILL.md\n", encoding="utf-8", newline="\n")
-    _set_layout_contexts(layout_repo, "docs/contexts")
-    if with_autofix_defaults:
-        toml = layout_repo / "coga.toml"
-        toml.write_text(toml.read_text(encoding="utf-8") + '\n[autofix]\ncontexts = ["coga/architecture"]\n', encoding="utf-8", newline="\n")
-
-    with pytest.raises(ConfigError, match="context file is neither tracked nor unignored"):
-        load_config(layout_repo)
 
 
-def test_layout_contexts_deleted_last_tracked_file_rejected(
-    layout_repo: Path,
-) -> None:
-    contexts = layout_repo / "docs" / "contexts"
-    contexts.mkdir(parents=True)
-    marker = contexts / ".gitkeep"
-    marker.write_text("", encoding="utf-8", newline="\n")
-    subprocess.run(
-        ["git", "-C", str(layout_repo), "add", "docs/contexts/.gitkeep"],
-        check=True,
-    )
-    marker.unlink()
-    _set_layout_contexts(layout_repo, "docs/contexts")
-    with pytest.raises(ConfigError, match="Git cannot reproduce it"):
-        load_config(layout_repo)
 
 
 def test_layout_contexts_absolute_path_rejected(layout_repo: Path) -> None:
@@ -2157,7 +2073,6 @@ def test_telemetry_precedence(repo, shared, local, expected):
             p = repo/filename
             p.write_text(p.read_text(encoding="utf-8")+f"\n[telemetry]\nenabled = {str(value).lower()}\n", encoding="utf-8", newline="\n")
     assert load_config(repo).telemetry_enabled is expected
-    assert load_config(repo).git_enabled is True
     assert load_config(repo).slack_enabled is True
 
 
