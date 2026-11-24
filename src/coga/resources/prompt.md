@@ -59,11 +59,12 @@ contexts:
 Keep durable unversioned state (keys, run records, traces, evidence, caches) in
 `$COGA_TASK_DATA_DIR`, state shared across tickets in `$COGA_DATA_DIR/_shared/`,
 and disposable files in `$TMPDIR`, which Coga empties when the launch ends.
-If a tool needs scratch space outside the checkout, use a dedicated disposable
-directory (including under system temp) and delete it when the work ends,
-including on failure. For normal scratch work, use `$TMPDIR`. Other writes
-outside the repository, including to the user's home
-(`~/.local`, `$XDG_*`, `~/.<tool>`), `/tmp`, sibling directories, or external
-storage, require the owner's grant in this session. Record the grant on the
+For normal scratch work, use `$TMPDIR`. When a tool needs scratch space
+outside the checkout (a test suite or a tool that walks up to the repository),
+create a dedicated disposable directory under the system temp
+(`$COGA_SYSTEM_TMPDIR`, usually `/tmp`) without asking, and delete it when the
+work ends, including on failure. Other writes outside the repository,
+including to the user's home (`~/.local`, `$XDG_*`, `~/.<tool>`), sibling
+directories, or external storage, require the owner's grant in this session. Record the grant on the
 blackboard. Reading anything is fine. Agent CLIs' own session files are
 outside this rule.
