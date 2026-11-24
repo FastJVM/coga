@@ -14,6 +14,7 @@ owns the criterion; a shipped surface's required reading must be user knowledge.
 - `coga/architecture/SKILL.md` is a short overview of the primitives and the correction loop plus a topic map; the detailed contracts live in the child topics it links (for example `coga/tickets`, `coga/lifecycle`, `coga/prompt-composition`, `coga/launch`).
 - `coga/knowledge/SKILL.md` decides where a fact lives and when to attach versus cite a topic.
 - `coga/extension-model/SKILL.md` owns repo extension choices; `coga-dev/microkernel/SKILL.md` owns the kernel rule summarized below.
+- [`coga-dev/patterns`](docs/contexts/coga-dev/patterns/SKILL.md#rules-of-thumb-for-a-new-composition) governs where Coga and its development tools put state and temporary files.
 - `coga-dev/codebase/SKILL.md` is the source map; `coga-dev/testing/SKILL.md` and `coga-dev/packaging/SKILL.md` own test and package ownership expectations.
 - `coga-dev/current-direction/SKILL.md` and `coga-dev/project-stage/SKILL.md` capture live product posture.
 
