@@ -133,7 +133,11 @@ The scope holds an exclusive lock on `tmp/<token>.lock` from before the
 directory exists until after it is deleted. When the launch ends, normally,
 on failure or on interrupt, it removes its own directory while still holding
 the lock, then retires the lock file (POSIX unlinks it while held; Windows
-closes, then unlinks). A removal it cannot complete warns once on stderr and
+closes, then unlinks). Launch purge and the sweep below also remove
+read-only content a tool left in the area (a copied package tree, a Go
+module cache): on a permission error they grant the owner write access
+inside the area, never through a symlink, and retry once. A removal it
+cannot complete warns once on stderr and
 leaves the rest for the sweep; it never fails the launch. On POSIX a file a
 background process still holds open is unlinked but keeps its disk space
 until that process exits.

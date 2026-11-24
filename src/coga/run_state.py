@@ -245,19 +245,53 @@ def _retire_lock(fd: int, lock_path: Path) -> list[str]:
 
 
 def _remove_tree(path: Path) -> list[str]:
+    """Remove a Coga-owned tmp tree, including read-only parts tools left in it.
+
+    A first pass that hits a permission error makes the remaining tree
+    owner-writable (never following symlinks out of it) and retries once.
+    """
     if not os.path.lexists(path):
         return []
     problems: list[str] = []
+    denied = False
 
     def record(_func, failed, exc_info) -> None:
+        nonlocal denied
         exc = exc_info[1] if isinstance(exc_info, tuple) else exc_info
+        denied = denied or isinstance(exc, PermissionError)
         problems.append(f"{failed}: {exc}")
 
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=record)
-    else:  # pragma: no cover - exercised on 3.11 only
-        shutil.rmtree(path, onerror=record)
+    def rmtree() -> None:
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(path, onexc=record)
+        else:  # pragma: no cover - exercised on 3.11 only
+            shutil.rmtree(path, onerror=record)
+
+    rmtree()
+    if denied and os.path.lexists(path):
+        problems.clear()
+        _make_owner_writable(path)
+        rmtree()
     return problems
+
+
+def _make_owner_writable(root: Path) -> None:
+    """Grant the owner rwx on directories and w on files under ``root``."""
+    pending = [str(root)]
+    while pending:
+        current = pending.pop()
+        try:
+            mode = os.lstat(current).st_mode
+            if stat.S_ISLNK(mode):
+                continue
+            if stat.S_ISDIR(mode):
+                os.chmod(current, stat.S_IMODE(mode) | stat.S_IRWXU)
+                with os.scandir(current) as entries:
+                    pending.extend(entry.path for entry in entries)
+            else:
+                os.chmod(current, stat.S_IMODE(mode) | stat.S_IWUSR)
+        except OSError:
+            continue  # the retry reports whatever still cannot be removed
 
 
 def _warn(message: str) -> None:
