@@ -258,7 +258,11 @@ def test_clone_timeout_kills_descendant_holding_stdout(repo: Path, parent_waits:
             break
         # An orphan may await init's reap, but must no longer be executing.
         stat = Path(f"/proc/{pid}/stat")
-        if stat.exists() and stat.read_text(encoding="utf-8").split()[2] == "Z":
+        try:
+            if stat.exists() and stat.read_text(encoding="utf-8").split()[2] == "Z":
+                break
+        except (FileNotFoundError, ProcessLookupError):
+            # The child was reaped while we inspected its procfs entry.
             break
         time.sleep(0.01)
     else:
