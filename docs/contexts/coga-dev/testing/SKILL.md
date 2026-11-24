@@ -217,6 +217,16 @@ Rule these out before blaming the change under test.
   runner (package on `D:`, temporary repos on `C:`) failed 228 tests this
   way; the Windows AWS harness's default layout keeps both on `C:`, so it
   does not exercise this split.
+- **`tests/test_repl_supervisor.py::test_terminal_ticket_backstop_waits_for_a_live_pending_command`
+  failed once under full-suite load** (2026-11-18, Linux, docs-only diff):
+  `assert seen and all(seen)` failed, then the test passed 3/3 in isolation
+  and the next full run did not reproduce it. It drives a real POSIX PTY
+  child that writes a `.pending-$$` witness, sleeps one second, then marks
+  `released`; the assertion says the terminal-status probe was never
+  consulted while the pending witness was live. The likely cause is a timing
+  window under load, but the cause is unconfirmed and no fix or ticket
+  exists. Rerun it in isolation before blaming an unrelated change; a
+  repeatable failure is a real backstop regression.
 
 ## Verification tiers and receipts
 
