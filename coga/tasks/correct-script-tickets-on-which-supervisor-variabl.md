@@ -1,6 +1,6 @@
 ---
 title: Correct script-tickets on which supervisor variables a ticket.py child loses
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (review)
 agent: claude
 ---
 
@@ -139,6 +138,15 @@ ordinary ticket.
 
 pr: https://github.com/FastJVM/coga/pull/1275
 branch: coga/correct-script-tickets-on-which-supervisor-variabl
+base: main
+remote: origin
+
+## Merge reconciliation
+
+The plain Git migration moved the environment contract to Completion
+attribution and removed the script-side assist identity. The reconciled
+wording follows `run_script_phase` and `apply_task_env`, including the
+explicit empty done sentinel and clearing of inherited assist identity.
 
 ## Handoff (implement)
 
