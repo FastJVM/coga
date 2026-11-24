@@ -121,6 +121,92 @@ def append_test_usage(**kwargs) -> None:
     ))
 
 
+def enclosing_checkout(path: Path) -> Path | None:
+    """The nearest directory at or above `path` that a test could mistake for
+    its own repository, or None.
+
+    Git discovery stops at a `.git` file or a `.git` directory holding `HEAD`
+    (the probe `coga.config.find_checkout_root` uses; an empty `.git` is no
+    repository); `coga.config.find_repo_root` stops at a `coga.toml` or a
+    `coga/coga.toml`. A fixture that forgets its own `git init` or
+    `coga.toml` walks up to whichever of these sits above its tmp tree and
+    acts on that repository instead.
+    """
+    resolved = path.resolve()
+    for candidate in (resolved, *resolved.parents):
+        git = candidate / ".git"
+        if (
+            git.is_file()
+            or (git / "HEAD").is_file()
+            or (candidate / "coga.toml").is_file()
+            or (candidate / "coga" / "coga.toml").is_file()
+        ):
+            return candidate
+    return None
+
+
+_TEMPROOT_ENV = "PYTEST_DEBUG_TEMPROOT"
+_REDIRECTED_TEMPROOT: tuple[Path, Path] | None = None
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """Keep every tmp tree of this session outside any checkout.
+
+    `coga launch` points `TMPDIR` inside the Git work tree
+    (`coga/.coga/tmp/<id>/`). Under that root, a test that expects to find
+    no repository finds the real one: on 2026-11-23,
+    `test_uninstall_outside_repo_errors` ran `coga uninstall --yes` against
+    the live checkout and deleted its `coga/` and `docs/contexts/` files. So
+    an in-checkout temp root is moved to the system temp
+    (`COGA_SYSTEM_TMPDIR`, else `/tmp`) through pytest's lazily read
+    `PYTEST_DEBUG_TEMPROOT`, which keeps pytest's numbered runs and the
+    `failed` retention policy. An explicit in-checkout `--basetemp` is
+    refused because the operator named it. `coga-dev/testing` owns the rule.
+    """
+    global _REDIRECTED_TEMPROOT
+    given = config.option.basetemp
+    if given:
+        checkout = enclosing_checkout(Path(given))
+        if checkout is not None:
+            raise pytest.UsageError(
+                f"--basetemp {given} is inside the checkout {checkout}; tests "
+                "that look for no repository would find and modify it. Use a "
+                "basetemp outside every checkout."
+            )
+        return
+
+    temproot = Path(os.environ.get(_TEMPROOT_ENV) or tempfile.gettempdir())
+    if enclosing_checkout(temproot) is None:
+        return
+    candidates = [os.environ.get("COGA_SYSTEM_TMPDIR")]
+    if os.name != "nt":
+        candidates.append("/tmp")
+    for candidate in candidates:
+        if not candidate or not Path(candidate).is_dir():
+            continue
+        if enclosing_checkout(Path(candidate)) is None:
+            os.environ[_TEMPROOT_ENV] = str(Path(candidate).resolve())
+            _REDIRECTED_TEMPROOT = (temproot, Path(candidate).resolve())
+            return
+    raise pytest.UsageError(
+        f"The pytest temp root {temproot} is inside the checkout "
+        f"{enclosing_checkout(temproot)}, and no system temp directory outside "
+        "a checkout was found. Set TMPDIR or COGA_SYSTEM_TMPDIR to a directory "
+        "outside every checkout."
+    )
+
+
+def pytest_report_header(config: pytest.Config) -> str | None:
+    if _REDIRECTED_TEMPROOT is None:
+        return None
+    original, redirected = _REDIRECTED_TEMPROOT
+    return (
+        f"temp root {original} is inside a checkout; "
+        f"using {redirected} instead"
+    )
+
+
 @pytest.fixture
 def tmp_path(tmp_path: Path) -> Path:
     # Windows may reuse pytest-of-Administrator as pytest-of-administrator.
@@ -210,6 +296,10 @@ def _isolate_tmpdir(tmp_path_factory, monkeypatch):
     # them instead; `TMPDIR` carries it to `coga` subprocesses so they lock
     # in the same place. It stays apart from the tests' own repos so a temp
     # scan cannot rediscover them.
+    # `coga launch` exports `COGA_SYSTEM_TMPDIR` (`/tmp`), which would win
+    # over this per-test dir in `oscompat.system_tmpdir`; the session's
+    # temp-root guard has already read it in `pytest_configure`.
+    monkeypatch.delenv("COGA_SYSTEM_TMPDIR", raising=False)
     tmp = tmp_path_factory.mktemp("tmp").resolve()
     monkeypatch.setattr(tempfile, "tempdir", str(tmp))
     monkeypatch.setenv("TMPDIR", str(tmp))
