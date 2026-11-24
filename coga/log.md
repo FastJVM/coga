@@ -4693,3 +4693,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-23 23:44 v1 [in-workflwo-manage-beter-on-off-better-it-s-creati] [human:nicktoper] created (status=draft)
 2026-11-23 23:44 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-23 23:56 v1 [correct-script-tickets-on-which-supervisor-variabl] [human:nicktoper] task done
+2026-11-23 23:58 v1 [fix-the-google-skills-dead-helper-invocation-paths] [human:nicktoper] task done

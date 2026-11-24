@@ -36,10 +36,9 @@ python /resolved/coga/google-calendar/gcal.py <verb> ...
 ```
 
 `/resolved/coga/google-calendar/` stands for that skill's resolved
-directory: the repo's local `coga/skills/coga/google-calendar/` override
-if one exists, else the installed bundled skill (resolution as in
-`coga/sandboxes`). The
-call shapes below use the same placeholder.
+directory. Resolve it with the commands in `coga/google-calendar`,
+"Resolving the helper directory". The call shapes below use the same
+placeholder.
 
 The script speaks the Google event resource as JSON in and out. Exit
 codes: `0` ok, `1` config/auth/API error (message on stderr), `3` event
@@ -53,8 +52,9 @@ key, enable the Calendar API, **share the reminders calendar with the
 service account's email** (grant "Make changes to events"), and declare
 the key as `GCAL_SERVICE_ACCOUNT_JSON` (or `GCAL_SERVICE_ACCOUNT_FILE`) in
 the reminder ticket's `secrets:` frontmatter. Install the
-Google client libs yourself: `python -m pip install -r requirements.txt` from
-the `coga/google-calendar` skill's dir.
+Google client libs yourself:
+`python -m pip install -r /resolved/coga/google-calendar/requirements.txt`,
+using the same Python that runs `gcal.py`.
 
 ### Calendar target — NOT `primary`
 

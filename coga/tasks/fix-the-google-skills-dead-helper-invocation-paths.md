@@ -1,6 +1,6 @@
 ---
 title: Fix the Google skills' dead helper invocation paths
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (review)
 agent: claude
 ---
 
@@ -215,6 +214,24 @@ ordinary ticket.
 
 pr: https://github.com/FastJVM/coga/pull/1277
 branch: fix-google-skills-helper-paths
+base: main
+remote: origin
+
+## Merge reconciliation
+
+The recipe uses Coga's skill resolver so the root, nested, and local override
+layouts select the same directory as launch. The placeholder test covers the
+Google helpers and their requirements files. The seed helper moved out of
+the skill directory during the plain Git migration and no longer uses a
+`/resolved/` placeholder.
+
+On `6fd16ff59a4feb39b3876272954383d25de233e2`, Pop!_OS 24.04 LTS
+(Linux 7.2.15), Python 3.12.12, `PYTHONPATH="$PWD/src" TERM=dumb
+.venv/bin/python -m pytest -q -p no:cacheprovider` passed 3,196 tests with
+29 skips in 185.50 seconds. The documented resolver also selected both
+bundled and local skill directories for Gmail and Calendar in the root
+and nested repo layouts. Scoped validation passed with legacy checkout
+warnings. Native verification is deferred to release.
 
 ## Implement handoff
 

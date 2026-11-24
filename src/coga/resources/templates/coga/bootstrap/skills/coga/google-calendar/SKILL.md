@@ -32,13 +32,26 @@ Exit codes are the contract:
 | 1 | config / auth / API error (message on stderr) |
 | 3 | event not found (caller can distinguish "gone" from "broken") |
 
+## Resolving the helper directory
+
 `/resolved/coga/google-calendar/` stands for this skill's resolved
-directory: the repo's local `coga/skills/coga/google-calendar/` override
-if one exists, else the installed bundled skill (resolution as in
-`coga/sandboxes`). Bundled
-skills are not copied into the repo, so
-`$COGA_COGA_OS_ROOT/skills/coga/google-calendar/` exists only for a local
-override.
+directory. Run this from a directory where Coga discovers the repo. For
+Gmail, pass `coga/gmail` as the argument.
+
+```sh
+python -c "import sys; from coga.config import load_config; from coga.paths import resolve_skill_path; ref = sys.argv[1]; path = resolve_skill_path(load_config(require_user=False), ref); print(path.parent) if path else sys.exit('Skill not found: ' + ref)" coga/google-calendar
+```
+
+The command uses Coga's normal local-first resolution in POSIX shells,
+PowerShell, and `cmd.exe`. Use a Python that imports `coga`. For a `uv tool`
+or `pipx` install, that is the tool environment's Python. Read the directory
+it prints and substitute it for `/resolved/coga/google-calendar/` below.
+Use the Python that will run the helper to install its Google client libraries.
+
+```sh
+python -m pip install -r "/resolved/coga/google-calendar/requirements.txt"
+python "/resolved/coga/google-calendar/gcal.py" --help
+```
 
 ## Auth — service account
 
@@ -86,9 +99,9 @@ as a separate ticket.)
 ## Dependencies
 
 `requirements.txt` declares `google-api-python-client` and `google-auth`.
-Coga installs nothing for a skill — run `python -m pip install -r
-requirements.txt` from this skill's resolved dir, using the same Python
-that runs `gcal.py`.
+Coga installs nothing for a skill. Install them yourself with
+`python -m pip install -r "/resolved/coga/google-calendar/requirements.txt"`, using the same Python that
+runs `gcal.py` (see "Resolving the helper directory").
 
 ## Out of scope
 
