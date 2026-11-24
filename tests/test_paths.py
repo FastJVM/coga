@@ -56,15 +56,15 @@ def test_incomplete_skill_directory_never_selects_stock(tmp_path, monkeypatch, s
 def test_resolve_context_path_falls_back_to_configured_contexts_dir(tmp_path):
     """A relocated contexts directory resolves ahead of the packaged batteries."""
     cfg = _cfg(tmp_path, contexts_root=tmp_path / "docs" / "contexts")
-    local = tmp_path / "docs" / "contexts" / "coga" / "sync" / "SKILL.md"
+    local = tmp_path / "docs" / "contexts" / "coga" / "git" / "SKILL.md"
     local.parent.mkdir(parents=True)
     local.write_text("relocated\n", encoding="utf-8", newline="\n")
     # The default location holds a decoy: resolution must not fall back to it.
-    decoy = tmp_path / "contexts" / "coga" / "sync" / "SKILL.md"
+    decoy = tmp_path / "contexts" / "coga" / "git" / "SKILL.md"
     decoy.parent.mkdir(parents=True)
     decoy.write_text("default\n", encoding="utf-8", newline="\n")
 
-    assert resolve_context_path(cfg, "coga/sync") == local
+    assert resolve_context_path(cfg, "coga/git") == local
 
 
 def test_resolve_skill_path_falls_back_to_bootstrap(tmp_path):
@@ -86,18 +86,18 @@ def test_resolve_skill_path_prefers_local_over_bootstrap(tmp_path):
 
 def test_resolve_context_path_prefers_local_over_bootstrap(tmp_path):
     cfg = _cfg(tmp_path)
-    local = tmp_path / "contexts" / "coga" / "sync" / "SKILL.md"
+    local = tmp_path / "contexts" / "coga" / "git" / "SKILL.md"
     local.parent.mkdir(parents=True)
     local.write_text("local\n", encoding="utf-8", newline="\n")
 
-    assert resolve_context_path(cfg, "coga/sync") == local
+    assert resolve_context_path(cfg, "coga/git") == local
 
 
 def test_resolve_context_path_falls_back_to_packaged_bootstrap(tmp_path):
     cfg = _cfg(tmp_path)
 
-    assert resolve_context_path(cfg, "coga/sync") == bootstrap_context_path(
-        cfg, "coga/sync"
+    assert resolve_context_path(cfg, "coga/git") == bootstrap_context_path(
+        cfg, "coga/git"
     )
 
 

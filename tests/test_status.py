@@ -372,7 +372,7 @@ def test_git_updated_ignores_a_lookalike_sibling_directory() -> None:
     assert fold == {}
 
 
-def test_status_updated_survives_a_task_directory_rename(git_repo) -> None:
+def test_status_updated_uses_only_activity_under_the_current_ref(git_repo) -> None:
     """The bug: `mv` orphans every append-only log line under the old ref.
 
     Log refs are path-qualified and lines are never rewritten, so a moved task
@@ -403,8 +403,8 @@ def test_status_updated_survives_a_task_directory_rename(git_repo) -> None:
 
     assert result.exit_code == 0, result.output
     line = next(l for l in result.output.splitlines() if "new-name" in l)
-    # Pre-fix this rendered "-": no log line is tagged `new-name`.
-    assert line.rstrip().endswith("-") is False, line
+    # The audit log has no entry tagged `new-name`.
+    assert line.rstrip().endswith("-"), line
 
 
 def test_status_updated_is_blank_without_git_rather_than_crashing(repo: Path) -> None:

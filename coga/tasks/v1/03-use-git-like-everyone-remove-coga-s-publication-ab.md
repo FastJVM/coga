@@ -41,7 +41,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (implement)
+step: 7 (review)
 agent: claude
 contexts:
 - coga-dev/principles
@@ -279,7 +279,8 @@ Kernel without Git:
       finds nothing.
 - [ ] No module under `src/coga/` (core, not `resources/` or `coga_edge/`)
       runs a `git` or `gh` subprocess, except `skill_manager.py` installing
-      a skill from a Git URL (inlined there) (C10).
+      a skill from a Git URL (inlined there) and invoking `gh skill` for
+      skill management (owner-confirmed during peer review) (C10).
 - [ ] In a temporary directory with **no `.git`**, `coga init`, `create`,
       `mark active`, `launch` of a `run:` fixture workflow, `bump`, `block`
       and `unblock --answer` succeed. A test covers this. The fixture
@@ -714,7 +715,11 @@ before relying on any of them.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1279
+base: main
+remote: origin
 branch: coga/v1-03-use-git-like-everyone-remove-coga-s-public-9c8a83
+reviewed: d8848841067e9c7cb9369107bf3d2b0177ee169b
 
 
 ## Production notes
@@ -763,3 +768,476 @@ kept in the agent executor.
 - Re-evaluate every `v1/microkernel/` ticket and `v1/why-is-the-code-so-big`
   against these decisions; drop what this ticket supersedes (owner request,
   2026-11-19).
+
+
+## Implement handoff
+
+The migrated branch was rebased onto `cea3f2980fdbb82997149d67d91198e845f1d761` and pushed at `8839ab94ed475f2ab5dfc1f35d26445b2d8a383f`.
+The rebase preserved the implementation diff and the shared checkout's
+working files. The final implementation and fixture checks ran in a clean
+detached worktree at that head. Pytest reported 3148 passed and 29
+skipped. Repository and seeded-fixture validation returned zero errors.
+
+The branch diff excludes this projected ticket and `coga/log.md`. The owner
+asked to leave the separate workflow-parser edits in the shared checkout
+and bump after verification. Legacy launch may stop its checkout return
+if those edits remain. Peer review and PR publication use the frozen
+workflow and the pre-migration CLI.
+
+## PR
+
+```yaml
+title: Run Coga on local ticket files and use ordinary Git workflows
+author: codex
+author_evidence: "Codex implemented and verified the migration in the supervised implement session."
+head: d8848841067e9c7cb9369107bf3d2b0177ee169b
+base: cea3f2980fdbb82997149d67d91198e845f1d761
+depth: deep
+rationale: "The change alters lifecycle writes, all launch modes, packaged workflows, and GitHub handoffs. Review the compatibility\
+  \ paths and partial Git failures in addition to the kernel deletions."
+implementation: "Remove implicit Git and publication, claims and period leases. Add local workflow script dispatch, a shared Dev record,\
+  \ explicit branch and PR scripts, pinned merge, and updated docs and workflow fixtures."
+deviations: "The owner approved a deterministic final merge step so its push and merge can finish after the local done bump. GitHub\
+  \ CLI remains a dependency, and existing GitHub skill transport is preserved."
+limitations: "The Linux suite exercises Git operations in temporary repositories and stubs GitHub calls in workflow tests. Windows and\
+  \ macOS release suites did not run in this implement session."
+files:
+  AGENTS.md: "Point contributors to the current Git procedure and run-step packaging rule."
+  README.md: "Explain the local-file model and how explicit scripts support a plain Git workflow."
+  coga/.gitattributes: "Resolve concurrent audit log append conflicts with Git's union driver."
+  coga/coga.toml: "Remove retired Git settings and preserve the rest of the configuration."
+  coga/recurring/autoclose-merged/retires.md: "Remove the operational definition or reference for a retired mechanism."
+  coga/recurring/autoclose-merged/ticket.md: "Remove the operational definition or reference for a retired mechanism."
+  coga/recurring/branch-sweep/ticket.md: "Remove the operational definition or reference for a retired mechanism."
+  coga/recurring/jobs.toml: "Align this repository's configured recurring jobs with local state and explicit Git."
+  coga/recurring/upstream-coga/ticket.py: "Align this repository's configured recurring jobs with local state and explicit Git."
+  coga/tasks/recurring/address-pr-comments/ticket.md: "Clean legacy state fields or replace references to the deleted publication topics."
+  coga/tasks/recurring/autoclose-merged/ticket.md: "Remove the operational definition or reference for a retired mechanism."
+  coga/tasks/recurring/autoclose-merged/ticket.py: "Remove the operational definition or reference for a retired mechanism."
+  coga/tasks/recurring/blackboard-size/ticket.md: "Clean legacy state fields or replace references to the deleted publication topics."
+  coga/tasks/recurring/blocker-reminders/ticket.md: "Clean legacy state fields or replace references to the deleted publication topics."
+  coga/tasks/recurring/dream/ticket.md: "Clean legacy state fields or replace references to the deleted publication topics."
+  coga/tasks/v1/microkernel/15-lifecycle-verbs-to-ticket-operations.md: "Clean legacy state fields or replace references to the deleted\
+    \ publication topics."
+  docs/README.md: "Keep the development topic or index aligned with local coordination and explicit workflow scripts."
+  docs/contexts/coga-dev/codebase/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit workflow\
+    \ scripts."
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit\
+    \ workflow scripts."
+  docs/contexts/coga-dev/current-direction/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit\
+    \ workflow scripts."
+  docs/contexts/coga-dev/internals/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit workflow\
+    \ scripts."
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: "Keep the development topic or index aligned with local coordination and\
+    \ explicit workflow scripts."
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit\
+    \ workflow scripts."
+  docs/contexts/coga-dev/internals/assist-publication/SKILL.md: "Keep the development topic or index aligned with local coordination\
+    \ and explicit workflow scripts."
+  docs/contexts/coga-dev/internals/blackboard-io/SKILL.md: "Keep the development topic or index aligned with local coordination and\
+    \ explicit workflow scripts."
+  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: "Remove the operational definition or reference for a retired mechanism."
+  docs/contexts/coga-dev/internals/claim-recovery/SKILL.md: "Remove the operational definition or reference for a retired mechanism."
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: "Remove the operational definition or reference for a retired mechanism."
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: "Remove the operational definition or reference for a retired mechanism."
+  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: "Remove the operational definition or reference for a retired mechanism."
+  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: "Keep the development topic or index aligned with local coordination\
+    \ and explicit workflow scripts."
+  docs/contexts/coga-dev/internals/recurring-control/SKILL.md: "Remove the operational definition or reference for a retired mechanism."
+  docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit\
+    \ workflow scripts."
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: "Remove the operational definition or reference for a retired mechanism."
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  docs/contexts/coga-dev/microkernel/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit workflow\
+    \ scripts."
+  docs/contexts/coga-dev/packaging/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit workflow\
+    \ scripts."
+  docs/contexts/coga-dev/patterns/SKILL.md: "Keep the development topic or index aligned with local coordination and explicit workflow\
+    \ scripts."
+  src/coga/aliases.py: "Adapt aliases to the local ticket model and remove retired coordination."
+  src/coga/authoring.py: "Adapt authoring to the local ticket model and remove retired coordination."
+  src/coga/autoclose.py: "Remove the autoclose module as part of retiring implicit Git and coordination."
+  src/coga/blackboard.py: "Share the Dev record reader and writer and replace guarded edits with atomic local writes."
+  src/coga/branchcleanup.py: "Remove the branchcleanup module as part of retiring implicit Git and coordination."
+  src/coga/branchsweep.py: "Remove the branchsweep module as part of retiring implicit Git and coordination."
+  src/coga/bump.py: "Adapt bump to the local ticket model and remove retired coordination."
+  src/coga/checkout_disposal.py: "Remove the checkout disposal module as part of retiring implicit Git and coordination."
+  src/coga/checkout_policy.py: "Remove the checkout policy module as part of retiring implicit Git and coordination."
+  src/coga/checkouts.py: "Remove the checkouts module as part of retiring implicit Git and coordination."
+  src/coga/claimed_session.py: "Remove the claimed session module as part of retiring implicit Git and coordination."
+  src/coga/cli.py: "Adapt cli to the local ticket model and remove retired coordination."
+  src/coga/commands/block.py: "Streamline the block CLI entry point for local state and plain Git."
+  src/coga/commands/bump.py: "Streamline the bump CLI entry point for local state and plain Git."
+  src/coga/commands/common.py: "Streamline the common CLI entry point for local state and plain Git."
+  src/coga/commands/create.py: "Streamline the create CLI entry point for local state and plain Git."
+  src/coga/commands/delete.py: "Streamline the delete CLI entry point for local state and plain Git."
+  src/coga/commands/init.py: "Streamline the init CLI entry point for local state and plain Git."
+  src/coga/commands/launch.py: "Streamline the launch CLI entry point for local state and plain Git."
+  src/coga/commands/mark.py: "Streamline the mark CLI entry point for local state and plain Git."
+  src/coga/commands/owner.py: "Streamline the owner CLI entry point for local state and plain Git."
+  src/coga/commands/recurring.py: "Streamline the recurring CLI entry point for local state and plain Git."
+  src/coga/commands/skill.py: "Streamline the skill CLI entry point for local state and plain Git."
+  src/coga/commands/ticket.py: "Streamline the ticket CLI entry point for local state and plain Git."
+  src/coga/commands/unblock.py: "Streamline the unblock CLI entry point for local state and plain Git."
+  src/coga/commands/update.py: "Streamline the update CLI entry point for local state and plain Git."
+  src/coga/commands/validate.py: "Streamline the validate CLI entry point for local state and plain Git."
+  src/coga/compose.py: "Remove the runtime checkout notice and retain blocker and assist attribution."
+  src/coga/config.py: "Read workspace files directly and report obsolete Git configuration."
+  src/coga/create.py: "Adapt create to the local ticket model and remove retired coordination."
+  src/coga/delete_task.py: "Adapt delete task to the local ticket model and remove retired coordination."
+  src/coga/dependencies.py: "Declare GitHub CLI for GitHub skill and workflow operations."
+  src/coga/git.py: "Remove the git module as part of retiring implicit Git and coordination."
+  src/coga/github_preflight.py: "Remove the github preflight module as part of retiring implicit Git and coordination."
+  src/coga/launch.py: "Dispatch the step from local ticket state without Git, claims, or blocked re-parking."
+  src/coga/launch_script.py: "Resolve workflow script entry points and retain deterministic chaining."
+  src/coga/log_publication.py: "Remove the log publication module as part of retiring implicit Git and coordination."
+  src/coga/log_transaction.py: "Remove the log transaction module as part of retiring implicit Git and coordination."
+  src/coga/logfile.py: "Append audit records locally with a single write and expose last-activity lookups."
+  src/coga/mark.py: "Adapt mark to the local ticket model and remove retired coordination."
+  src/coga/notification/__init__.py: "Adapt   init   to the local ticket model and remove retired coordination."
+  src/coga/open_pr.py: "Remove the open pr module as part of retiring implicit Git and coordination."
+  src/coga/paths.py: "Adapt paths to the local ticket model and remove retired coordination."
+  src/coga/pr_assist.py: "Adapt pr assist to the local ticket model and remove retired coordination."
+  src/coga/publish_state.py: "Remove the publish state module as part of retiring implicit Git and coordination."
+  src/coga/recurring.py: "Adapt recurring to the local ticket model and remove retired coordination."
+  src/coga/recurring_activity.py: "Adapt recurring activity to the local ticket model and remove retired coordination."
+  src/coga/recurring_autofix.py: "Adapt recurring autofix to the local ticket model and remove retired coordination."
+  src/coga/recurring_clone.py: "Adapt recurring clone to the local ticket model and remove retired coordination."
+  src/coga/recurring_runner.py: "Delegate from local recurring state without a period lease or control relay."
+  src/coga/recurring_state.py: "Adapt recurring state to the local ticket model and remove retired coordination."
+  src/coga/repl_supervisor.py: "Remove child admission plumbing while retaining terminal supervision."
+  src/coga/repl_supervisor_nt.py: "Remove the Windows child admission gate while retaining terminal supervision."
+  src/coga/resources/prompt-blocker-resolution.md: "Carry local-state and workflow step behavior into the prompt, scaffold, or executable\
+    \ resource."
+  src/coga/resources/prompt-ticket.md: "Carry local-state and workflow step behavior into the prompt, scaffold, or executable resource."
+  src/coga/resources/prompt.md: "Carry local-state and workflow step behavior into the prompt, scaffold, or executable resource."
+  src/coga/resources/retire.md: "Carry local-state and workflow step behavior into the prompt, scaffold, or executable resource."
+  src/coga/resources/templates/coga/.gitattributes: "Resolve concurrent audit log append conflicts with Git's union driver."
+  src/coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md: "Carry local-state and workflow step behavior into the\
+    \ prompt, scaffold, or executable resource."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: "Document the current user contract and point to\
+    \ the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: "Remove the operational definition or reference\
+    \ for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: "Remove the operational definition\
+    \ or reference for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md: "Remove the operational definition\
+    \ or reference for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: "Remove the operational definition or reference for\
+    \ a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: "Remove the operational definition or reference\
+    \ for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: "Remove the operational definition or\
+    \ reference for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md: "Remove the operational definition or reference\
+    \ for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md: "Remove the operational definition or\
+    \ reference for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/sandbox-clone/SKILL.md: "Remove the operational definition or\
+    \ reference for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: "Document the current user contract and point to the plain\
+    \ Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: "Document the current user contract and point to\
+    \ the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md: "Document the current user contract and point to\
+    \ the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: "Document the current user contract and point\
+    \ to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md: "Document the current user contract and point to the plain\
+    \ Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md: "Document the current user contract and point to\
+    \ the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: "Document the current user contract and point to the plain\
+    \ Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "Document the current user contract and point to the plain\
+    \ Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md: "Document the current user contract and point to\
+    \ the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/SKILL.md: "Document the current user contract and point to\
+    \ the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: "Document the current user contract and point\
+    \ to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md: "Document the current user contract and point\
+    \ to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: "Document the current user contract and point\
+    \ to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md: "Document the current user contract\
+    \ and point to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: "Document the current user contract and point\
+    \ to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/package-definitions-migration.md: "Document the current\
+    \ user contract and point to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py: "Keep clone seeding beside the optional sandbox\
+    \ procedure."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/seed_local_config.py: "Keep clone seeding beside the optional\
+    \ sandbox procedure."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: "Document the current user contract and point to\
+    \ the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: "Document the current user contract and point\
+    \ to the plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: "Remove the operational definition or reference\
+    \ for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md: "Remove the operational definition\
+    \ or reference for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: "Document the current user contract and point to the plain\
+    \ Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: "Document the current user contract and point to the\
+    \ plain Git procedures where they apply."
+  src/coga/resources/templates/coga/bootstrap/orient/ticket.md: "Carry local-state and workflow step behavior into the prompt, scaffold,\
+    \ or executable resource."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/promotion.py: "Carry local-state and workflow step behavior into the\
+    \ prompt, scaffold, or executable resource."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/ticket.md: "Carry local-state and workflow step behavior into the prompt,\
+    \ scaffold, or executable resource."
+  src/coga/resources/templates/coga/bootstrap/recurring-promote/ticket.py: "Carry local-state and workflow step behavior into the prompt,\
+    \ scaffold, or executable resource."
+  src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md: "Carry local-state and workflow step behavior into the prompt,\
+    \ scaffold, or executable resource."
+  src/coga/resources/templates/coga/bootstrap/retire/ticket.md: "Carry local-state and workflow step behavior into the prompt, scaffold,\
+    \ or executable resource."
+  src/coga/resources/templates/coga/bootstrap/retire/ticket.py: "Carry local-state and workflow step behavior into the prompt, scaffold,\
+    \ or executable resource."
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/delete-task/SKILL.md: "Update the packaged instructions for explicit\
+    \ operations and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/skill-update/SKILL.md: "Update the packaged instructions for explicit\
+    \ operations and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKILL.md: "Update the packaged instructions for explicit\
+    \ operations and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md: "Finish the ticket and merge on the verified head after\
+    \ checks and the reviewed-path guard."
+  src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/run.py: "Finish the ticket and merge on the verified head after checks\
+    \ and the reviewed-path guard."
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: "Remove the operational definition or reference\
+    \ for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/SKILL.md: "Remove the operational definition or reference\
+    \ for a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md: "Update the packaged instructions for explicit\
+    \ operations and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/recurring/verify/SKILL.md: "Update the packaged instructions for explicit\
+    \ operations and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: "Update the packaged instructions\
+    \ for explicit operations and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/coga/ticket/finalize/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/direct/body/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/skills/git/open-branch/SKILL.md: "Create or switch the branch and record its branch, base,\
+    \ and remote before advancing."
+  src/coga/resources/templates/coga/bootstrap/skills/git/open-branch/run.py: "Create or switch the branch and record its branch, base,\
+    \ and remote before advancing."
+  src/coga/resources/templates/coga/bootstrap/skills/git/push-and-open-pr/SKILL.md: "Push state, create or reuse the matching PR, and\
+    \ advance and republish the ticket."
+  src/coga/resources/templates/coga/bootstrap/skills/git/push-and-open-pr/run.py: "Push state, create or reuse the matching PR, and\
+    \ advance and republish the ticket."
+  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: "Update the packaged instructions for explicit operations\
+    \ and legacy snapshot compatibility."
+  src/coga/resources/templates/coga/bootstrap/status/ticket.py: "Carry local-state and workflow step behavior into the prompt, scaffold,\
+    \ or executable resource."
+  src/coga/resources/templates/coga/bootstrap/workflows/autoclose-merged/sweep.md: "Remove the operational definition or reference for\
+    \ a retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/workflows/branch-sweep/sweep.md: "Remove the operational definition or reference for a\
+    \ retired mechanism."
+  src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md: "Align the packaged workflow definition with explicit execution\
+    \ and branch-local handoffs."
+  src/coga/resources/templates/coga/bootstrap/workflows/code/agent-merge.md: "Align the packaged workflow definition with explicit execution\
+    \ and branch-local handoffs."
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: "Align the packaged workflow definition with\
+    \ explicit execution and branch-local handoffs."
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: "Align the packaged workflow definition with explicit execution\
+    \ and branch-local handoffs."
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: "Align the packaged workflow definition with explicit\
+    \ execution and branch-local handoffs."
+  src/coga/resources/templates/coga/bootstrap/workflows/direct/body.md: "Align the packaged workflow definition with explicit execution\
+    \ and branch-local handoffs."
+  src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: "Align the packaged workflow definition with explicit execution\
+    \ and branch-local handoffs."
+  src/coga/resources/templates/coga/bootstrap/workflows/skill-update/run.md: "Align the packaged workflow definition with explicit execution\
+    \ and branch-local handoffs."
+  src/coga/resources/templates/coga/coga.toml: "Remove retired Git settings and preserve the rest of the configuration."
+  src/coga/resources/templates/coga/recurring/autoclose-merged/operations.md: "Remove the operational definition or reference for a\
+    \ retired mechanism."
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.py: "Remove the operational definition or reference for a retired\
+    \ mechanism."
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: "Carry local-state and workflow step behavior into the prompt, scaffold,\
+    \ or executable resource."
+  src/coga/resources/templates/coga/recurring/skill-update/ticket.md: "Carry local-state and workflow step behavior into the prompt,\
+    \ scaffold, or executable resource."
+  src/coga/resources/templates/coga/recurring/trim-log/operations.md: "Carry local-state and workflow step behavior into the prompt,\
+    \ scaffold, or executable resource."
+  src/coga/resources/ticket.md: "Carry local-state and workflow step behavior into the prompt, scaffold, or executable resource."
+  src/coga/retire_worklist.py: "Remove the retire worklist module as part of retiring implicit Git and coordination."
+  src/coga/review_conflict.py: "Remove the review conflict module as part of retiring implicit Git and coordination."
+  src/coga/runner.py: "Remove retired recipe entries and keep execution results local."
+  src/coga/skill_manager.py: "Keep Git URL and GitHub skill install support independent of the removed Git module."
+  src/coga/state_sweep.py: "Remove the state sweep module as part of retiring implicit Git and coordination."
+  src/coga/step_gate.py: "Use the shared Dev record to decide branch and PR gates."
+  src/coga/task_env.py: "Adapt task env to the local ticket model and remove retired coordination."
+  src/coga/ticket.py: "Remove lifecycle generation metadata from the local ticket model."
+  src/coga/validate.py: "Validate local files and workflow script shape and report obsolete keys."
+  src/coga/views.py: "Adapt views to the local ticket model and remove retired coordination."
+  src/coga/workflow.py: "Parse and freeze run steps while ignoring obsolete checkout policy fields."
+  src/coga/workspace_discovery.py: "Adapt workspace discovery to the local ticket model and remove retired coordination."
+  src/coga_edge/blocker_reminders.py: "Adapt the blocker reminders edge behavior to explicit operations and local ticket state."
+  src/coga_edge/git_workflow.py: "Adapt the git workflow edge behavior to explicit operations and local ticket state."
+  src/coga_edge/megalaunch.py: "Adapt the megalaunch edge behavior to explicit operations and local ticket state."
+  src/coga_edge/phone_home.py: "Adapt the phone home edge behavior to explicit operations and local ticket state."
+  src/coga_edge/skill_update.py: "Adapt the skill update edge behavior to explicit operations and local ticket state."
+  src/coga_edge/skill_update_pr.py: "Adapt the skill update pr edge behavior to explicit operations and local ticket state."
+  src/coga_edge/trim_log.py: "Adapt the trim log edge behavior to explicit operations and local ticket state."
+  src/coga_edge/validate_drift.py: "Adapt the validate drift edge behavior to explicit operations and local ticket state."
+  tests/conftest.py: "Align the shared test harness, fixture, or installed resource inventory with the new workflow contracts."
+  tests/fixtures/authoring_cancellation.py: "Align the shared test harness, fixture, or installed resource inventory with the new workflow\
+    \ contracts."
+  tests/fixtures/edge-migration/phone-home-old.py: "Align the shared test harness, fixture, or installed resource inventory with the\
+    \ new workflow contracts."
+  tests/fixtures/seeded-repo/coga/tasks/auto/triage-inbound-email.md: "Exercise the current run-step workflow shape and preserve deterministic\
+    \ ticket launch."
+  tests/fixtures/seeded-repo/coga/workflows/code/with-review.md: "Exercise the current run-step workflow shape and preserve deterministic\
+    \ ticket launch."
+  tests/required_package_resources.txt: "Align the shared test harness, fixture, or installed resource inventory with the new workflow\
+    \ contracts."
+  tests/test_address_pr_comments_skill.py: "Verify address pr comments skill under the local-file model and retire obsolete expectations."
+  tests/test_aliases.py: "Verify aliases under the local-file model and retire obsolete expectations."
+  tests/test_authoring.py: "Verify authoring under the local-file model and retire obsolete expectations."
+  tests/test_autoclose.py: "Remove autoclose tests for the retired command or implementation."
+  tests/test_autoclose_dispose.py: "Remove autoclose dispose tests for the retired command or implementation."
+  tests/test_autoclose_sweep.py: "Remove autoclose sweep tests for the retired command or implementation."
+  tests/test_blackboard.py: "Verify blackboard under the local-file model and retire obsolete expectations."
+  tests/test_blocker_reminders.py: "Verify blocker reminders under the local-file model and retire obsolete expectations."
+  tests/test_bootstrap_workflow_review_sections.py: "Verify bootstrap workflow review sections under the local-file model and retire\
+    \ obsolete expectations."
+  tests/test_branchcleanup.py: "Remove branchcleanup tests for the retired command or implementation."
+  tests/test_branchsweep.py: "Remove branchsweep tests for the retired command or implementation."
+  tests/test_checkouts.py: "Remove checkouts tests for the retired command or implementation."
+  tests/test_cli.py: "Verify cli under the local-file model and retire obsolete expectations."
+  tests/test_code_implement_skill.py: "Verify code implement skill under the local-file model and retire obsolete expectations."
+  tests/test_commands.py: "Verify commands under the local-file model and retire obsolete expectations."
+  tests/test_compose.py: "Verify compose under the local-file model and retire obsolete expectations."
+  tests/test_config.py: "Verify config under the local-file model and retire obsolete expectations."
+  tests/test_create.py: "Verify create under the local-file model and retire obsolete expectations."
+  tests/test_done_marker_emission.py: "Verify done marker emission under the local-file model and retire obsolete expectations."
+  tests/test_dream_validate_drift.py: "Verify dream validate drift under the local-file model and retire obsolete expectations."
+  tests/test_dream_worker_templates.py: "Verify dream worker templates under the local-file model and retire obsolete expectations."
+  tests/test_edge_distribution.py: "Verify edge distribution under the local-file model and retire obsolete expectations."
+  tests/test_env_isolation.py: "Verify env isolation under the local-file model and retire obsolete expectations."
+  tests/test_git.py: "Remove git tests for the retired command or implementation."
+  tests/test_init.py: "Verify init under the local-file model and retire obsolete expectations."
+  tests/test_launch.py: "Verify launch under the local-file model and retire obsolete expectations."
+  tests/test_launch_restart.py: "Verify launch restart under the local-file model and retire obsolete expectations."
+  tests/test_launch_script.py: "Verify launch script under the local-file model and retire obsolete expectations."
+  tests/test_layout_contexts.py: "Verify layout contexts under the local-file model and retire obsolete expectations."
+  tests/test_log_retention.py: "Verify log retention under the local-file model and retire obsolete expectations."
+  tests/test_logfile.py: "Verify logfile under the local-file model and retire obsolete expectations."
+  tests/test_mark.py: "Verify mark under the local-file model and retire obsolete expectations."
+  tests/test_megalaunch.py: "Verify megalaunch under the local-file model and retire obsolete expectations."
+  tests/test_notification_messages.py: "Verify notification messages under the local-file model and retire obsolete expectations."
+  tests/test_open_pr.py: "Verify open pr under the local-file model and retire obsolete expectations."
+  tests/test_open_pr_command.py: "Remove open pr command tests for the retired command or implementation."
+  tests/test_oscompat.py: "Verify oscompat under the local-file model and retire obsolete expectations."
+  tests/test_owner.py: "Verify owner under the local-file model and retire obsolete expectations."
+  tests/test_packaging.py: "Verify packaging under the local-file model and retire obsolete expectations."
+  tests/test_paths.py: "Verify paths under the local-file model and retire obsolete expectations."
+  tests/test_period_state.py: "Verify period state under the local-file model and retire obsolete expectations."
+  tests/test_primitives.py: "Verify primitives under the local-file model and retire obsolete expectations."
+  tests/test_publish_state.py: "Remove publish state tests for the retired command or implementation."
+  tests/test_recurring.py: "Verify recurring under the local-file model and retire obsolete expectations."
+  tests/test_recurring_activity.py: "Verify recurring activity under the local-file model and retire obsolete expectations."
+  tests/test_recurring_autofix.py: "Verify recurring autofix under the local-file model and retire obsolete expectations."
+  tests/test_recurring_clone.py: "Verify recurring clone under the local-file model and retire obsolete expectations."
+  tests/test_recurring_shims.py: "Verify recurring shims under the local-file model and retire obsolete expectations."
+  tests/test_recurring_state.py: "Verify recurring state under the local-file model and retire obsolete expectations."
+  tests/test_repl_supervisor.py: "Verify repl supervisor under the local-file model and retire obsolete expectations."
+  tests/test_repl_supervisor_nt.py: "Verify repl supervisor nt under the local-file model and retire obsolete expectations."
+  tests/test_retire.py: "Verify retire under the local-file model and retire obsolete expectations."
+  tests/test_retire_worklist.py: "Remove retire worklist tests for the retired command or implementation."
+  tests/test_retro_skill_template.py: "Verify retro skill template under the local-file model and retire obsolete expectations."
+  tests/test_review_conflict.py: "Remove review conflict tests for the retired command or implementation."
+  tests/test_runner.py: "Verify runner under the local-file model and retire obsolete expectations."
+  tests/test_secret.py: "Verify secret under the local-file model and retire obsolete expectations."
+  tests/test_seed_local_config.py: "Keep clone seeding beside the optional sandbox procedure."
+  tests/test_skill_manager.py: "Verify skill manager under the local-file model and retire obsolete expectations."
+  tests/test_skill_update.py: "Verify skill update under the local-file model and retire obsolete expectations."
+  tests/test_smoke.py: "Verify smoke under the local-file model and retire obsolete expectations."
+  tests/test_status.py: "Verify status under the local-file model and retire obsolete expectations."
+  tests/test_telemetry.py: "Verify telemetry under the local-file model and retire obsolete expectations."
+  tests/test_ticket.py: "Verify ticket under the local-file model and retire obsolete expectations."
+  tests/test_trim_log.py: "Verify trim log under the local-file model and retire obsolete expectations."
+  tests/test_uninstall.py: "Verify uninstall under the local-file model and retire obsolete expectations."
+  tests/test_upstream_coga.py: "Verify upstream coga under the local-file model and retire obsolete expectations."
+  tests/test_validate.py: "Verify validate under the local-file model and retire obsolete expectations."
+  tests/test_views.py: "Verify views under the local-file model and retire obsolete expectations."
+  tests/test_workspace_discovery.py: "Verify workspace discovery under the local-file model and retire obsolete expectations."
+  docs/contexts/coga-dev/testing/SKILL.md: Update the test harness guidance for the local-file model.
+  docs/contexts/coga-dev/testing/agent-trials/SKILL.md: Describe how to handle private trial artifacts with plain Git.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/preparation/SKILL.md: Document how the PR step retains evidence across ticket and audit-log commits.
+  src/coga/resources/templates/coga/recurring/phone-home/ticket.md: Describe the recurring job's atomic local reservation.
+review:
+  reviewer: codex
+  kind: self
+  status: passed
+  head: d8848841067e9c7cb9369107bf3d2b0177ee169b
+  base: cea3f2980fdbb82997149d67d91198e845f1d761
+  detail: Direct Codex review against the recorded base, in a separate peer-review session from the Codex implementation. Reviewed lifecycle, launch dispatch, legacy snapshots and Git failure paths, then committed the PR evidence correction and documentation updates. Linux verification passed. The owner confirmed that skill management should continue invoking gh skill from src/coga/skill_manager.py. Approved this head with that exception recorded in the ticket. Windows and macOS verification is deferred to release. Separate uncommitted parser edits were preserved and excluded from the reviewed tree.
+checks:
+- command: cd /tmp/coga-v103-verified-tip && PYTHONPATH=/tmp/coga-v103-verified-tip/src /home/n/Code/coga/.venv/bin/python -m pytest
+  status: passed
+  head: d8848841067e9c7cb9369107bf3d2b0177ee169b
+  base: cea3f2980fdbb82997149d67d91198e845f1d761
+  detail: Pop!_OS 24.04 LTS, Python 3.12.12. 3150 passed and 29 skipped in 168.12 seconds.
+- command: cd /tmp/coga-v103-verified-tip && env -u SLACK_WEBHOOK_URL PYTHONPATH=/tmp/coga-v103-verified-tip/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json
+  status: passed
+  head: d8848841067e9c7cb9369107bf3d2b0177ee169b
+  base: cea3f2980fdbb82997149d67d91198e845f1d761
+  detail: Repository validation returned zero errors and 112 warnings.
+- command: cd /tmp/coga-v103-verified-tip/tests/fixtures/seeded-repo && env -u SLACK_WEBHOOK_URL PYTHONPATH=/tmp/coga-v103-verified-tip/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json
+  status: passed
+  head: d8848841067e9c7cb9369107bf3d2b0177ee169b
+  base: cea3f2980fdbb82997149d67d91198e845f1d761
+  detail: Seeded fixture validation returned zero errors and zero warnings.
+- command: git diff --check cea3f2980fdbb82997149d67d91198e845f1d761 d8848841067e9c7cb9369107bf3d2b0177ee169b
+  status: passed
+  head: d8848841067e9c7cb9369107bf3d2b0177ee169b
+  base: cea3f2980fdbb82997149d67d91198e845f1d761
+  detail: No whitespace errors.
+```

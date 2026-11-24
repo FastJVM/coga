@@ -52,7 +52,6 @@ from pathlib import Path
 
 import typer
 
-from coga import git
 from coga.bump import OperatorResolutionError, resolve_other_agent
 from coga.config import AgentType, Config, ConfigError, scrub_op_auth_env
 from coga.create import create_task
@@ -897,7 +896,6 @@ def run_autofix(
     typer.secho(
         f"Autofix: created {slug} — {analysis.title}", fg=typer.colors.CYAN, bold=True
     )
-    git.sync_task_state(cfg, task_dir, message=f"Autofix: {slug} — created")
     post(
         cfg,
         f"🩹 autofix created *{slug}* \"{analysis.title}\" "
@@ -970,7 +968,6 @@ def run_autofix_analyze_recipe(cfg: Config, argv: list[str]) -> int:
 
     slug, task_dir = create_autofix_ticket(cfg, analysis, run_log=record_text)
     typer.echo(f"{path.name}: created {slug} — {analysis.title}")
-    git.sync_task_state(cfg, task_dir, message=f"Autofix: {slug} — created")
     post(
         cfg,
         f"🩹 autofix created *{slug}* \"{analysis.title}\" from {path.name}",

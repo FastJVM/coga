@@ -28,7 +28,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import coga
-from coga import git, notification
+from coga import notification
 from coga.blackboard import append_blackboard_report
 from coga.config import Config, load_config
 from coga.lifecycle import VALID_STATUSES
@@ -260,43 +260,31 @@ def run_phone_home(
     warnings: list[str] = []
     event = None
     outcome = "suppressed" if not admitted else "skipped"
-    with git.state_lock(cfg):
-        from coga.log_transaction import ensure_clear
-        ensure_clear(cfg)
-        parent, created = _parent_state(cfg)
-        raw = parent.read_bytes()
-        region = read_blackboard(parent, expected_bytes=raw)
-        state, match = _state(region)
-        state["run"] += 1
-        counts = None
-        if admitted:
-            try:
-                counts = _inventory(cfg)
-            except (TicketError, TelemetryError, DuplicateTaskSlugError, OSError, UnicodeError):
-                warnings.append("invalid task inventory; snapshot skipped; identity and cursor preserved")
-        if not admitted or counts is not None:
-            try:
-                log = log_path(cfg).read_bytes()
-            except FileNotFoundError:
-                log = b""
-            seen, movement, reset = _cursor(log, state, baseline=not admitted or state["repo_id"] is None)
-            if reset:
-                warnings.append("audit log rewritten or truncated; movement baselined to zero")
-            if admitted:
-                repo_id = state["repo_id"] or str(identity())
-                event = _payload(repo_id, counts, movement, (clock or (lambda: datetime.now(timezone.utc)))())
-                state["repo_id"] = repo_id
-            state = {"schema": 2, "run": state["run"], "repo_id": state["repo_id"], "seen_movements": seen}
-        replacement = region[:match.start()] + "period_state: " + json.dumps(state, separators=(",", ":")) + region[match.end():]
-        replace_blackboard(parent, replacement, expected_bytes=raw)
+    parent, _ = _parent_state(cfg)
+    region = read_blackboard(parent)
+    state, match = _state(region)
+    state["run"] += 1
+    counts = None
+    if admitted:
         try:
-            git.publish(cfg, [parent], "Telemetry: reserve weekly snapshot", expect={parent: None if created else raw})
-        except git.GitError as exc:
-            # Match ordinary sync's durable local failure evidence, scoped to
-            # this parent. Publication failure never rolls back reservation.
-            sys.stderr.write(f"[git] phone-home publication failed: {exc}\n")
-            append_log(cfg, "recurring/phone-home", "git", f"sync failed: {exc}")
-            warnings.append("parent publication failed; local state retained")
+            counts = _inventory(cfg)
+        except (TicketError, TelemetryError, DuplicateTaskSlugError, OSError, UnicodeError):
+            warnings.append("invalid task inventory; snapshot skipped; identity and cursor preserved")
+    if not admitted or counts is not None:
+        try:
+            log = log_path(cfg).read_bytes()
+        except FileNotFoundError:
+            log = b""
+        seen, movement, reset = _cursor(log, state, baseline=not admitted or state["repo_id"] is None)
+        if reset:
+            warnings.append("audit log rewritten or truncated; movement baselined to zero")
+        if admitted:
+            repo_id = state["repo_id"] or str(identity())
+            event = _payload(repo_id, counts, movement, (clock or (lambda: datetime.now(timezone.utc)))())
+            state["repo_id"] = repo_id
+        state = {"schema": 2, "run": state["run"], "repo_id": state["repo_id"], "seen_movements": seen}
+    replacement = region[:match.start()] + "period_state: " + json.dumps(state, separators=(",", ":")) + region[match.end():]
+    replace_blackboard(parent, replacement)
     receipt = "suppressed"
     if event is not None:
         send = sender or _bounded_worker

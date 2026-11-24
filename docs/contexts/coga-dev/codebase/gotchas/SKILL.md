@@ -7,7 +7,7 @@ description: Module seams and code-level hazards to respect when editing Coga's 
 
 Each item names a real seam a new caller must keep. Environment and test
 pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
-[coga/checkouts](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md).
+[coga/git](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
 
 ## Seams
 
@@ -69,7 +69,7 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `tests/test_recurring_shims.py` pins that shape. The other sanctioned shape is
   a wheel-owned edge shim that runs a `coga_edge` module's `main` (phone-home:
   `from coga_edge.phone_home import main`; blocker-reminders and skill-update:
-  `main([], scheduled=True)`, whose `runner.run_entry` reports, publishes and bumps) and has no
+  `main([], scheduled=True)`, whose `runner.run_entry` reports and bumps) and has no
   `RECIPES` entry; do not turn it into a registry entry ([coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
 - **`reminders.py` is only `run()` plus `SweepResult`** for downstream sweep
   scripts: it parses `--today` / `--tasks-dir` / `--dry-run`, prints the
@@ -77,8 +77,6 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   no operands). Date math, frontmatter reads, and acks (blackboard
   `key: value` lines read with `period_state.parse_keys`) stay in each script;
   `tests/fixtures/reminders/` holds worked examples.
-- **`checkout_disposal.py` is imported lazily by `autoclose.py`**, because
-  `branchcleanup` imports `autoclose`'s `## Dev` parsers at load time.
 
 ## Code-level hazards
 
@@ -169,39 +167,14 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'`
   to the [discovery](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md) pathspecs, or a
   `coga/tasks/`-only search misses earlier deletions.
-- **Known open: `coga skill update --all --pr` from a detached HEAD ends on
-  `coga/skill-update`.** `skill_manager._current_git_branch` returns an empty
-  name there (`git branch --show-current`), so `run_skill_update_pr_flow`'s
-  `finally` (`if original_branch and original_branch != branch`) never checks
-  the caller's position back out. Separately, v1/10's peer review recorded that
-  a script launch publishes its audit-log append to control but leaves
-  `coga/log.md` dirty in an invoking feature checkout, so a `skill-update` job
-  run off the control branch can still meet the dirty-tracked-files preflight
-  refusal. Both were left out of scope by v1/10 (PR #1168, 2026-11-04); no
-  follow-up ticket is filed.
-- **Route every Git subprocess through `git._git_env`.** Prefer
-  `git._run`/`git.run_git`. A module that must call `subprocess` directly for
-  a Git argv passes `env=git._git_env(...)`, including callers that also run
-  `gh` (`open_pr._run`, `skill_manager.run_subprocess`); pass any overlay
-  through it, as `branchcleanup._git` does with `{"LC_ALL": "C"}`. `_git_env`
-  forces `GIT_OPTIONAL_LOCKS=0` after overlays. Without it a read such as
-  `git status` refreshes the real index under `<git-dir>/index.lock`, and a
-  SIGKILL during supervisor teardown leaves a 0-byte lock: every later Git
-  write in that checkout fails with only `fatal: stash failed`. Deliberately
-  left alone: `recurring_activity`, `retire_worklist`, `github_preflight`,
-  `commands/update` and `config` (ref-only or `ls-files`/`check-ignore`
-  queries, no optional index lock), and `dream_validate_drift` and
-  `commands/init` (deliberate index writes outside session-ending
-  publication). Re-audit that list when you add a direct caller.
+- **Git workflows require a branch where the task records one.** Git
+  workflow scripts check the recorded branch before pushing or merging.
+  Preserve local work when a Git operation fails.
 - **The deferred done marker has known limits.** `completion_pending` treats
   any pending file whose PID `oscompat.process_is_running` reports alive as
   live, so on POSIX a SIGKILLed Coga command left as an unreaped zombie holds
   off the terminal-status backstop until it is reaped (the idle and
-  max-session backstops still apply). The deferral only removes Coga's own
-  teardown race: an external kill (idle or max-session timeout, or Ctrl-C
-  escalated to SIGKILL) during a control checkout's deliberate real-index
-  writes (`_stage_landed`, `read-tree -m -u`) can still leave `index.lock`.
-  Coga never deletes the lock; `coga status` only reports it.
+  max-session backstops still apply).
 - **Blocker ids are not unique.** `blackboard._blocker_id` formats only whole
   seconds (`%Y%m%dT%H%M%S`), so two asks appended in the same second (for
   example back-to-back `coga block` calls) share an `id=`. Never key

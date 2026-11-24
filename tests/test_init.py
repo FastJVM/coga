@@ -16,7 +16,6 @@ from conftest import load_phone_home
 from typer.testing import CliRunner
 
 import coga.agent_skills as agent_skills
-import coga.git as git_module
 import coga.logfile as logfile
 from coga.cli import app
 from coga.commands import init as init_cmd
@@ -295,7 +294,7 @@ def test_init_into_empty_dir(tmp_path: Path, fake_vendor) -> None:
         target / "coga" / ".agent-skills" / "retro" / "done-ticket"
     ).is_symlink()
     assert (
-        target / "coga" / ".agent-skills" / "coga" / "autoclose" / "sweep"
+        target / "coga" / ".agent-skills" / "git" / "open-branch"
     ).is_symlink()
 
     assert "version = 1" in (target / "coga" / "coga.toml").read_text(encoding="utf-8")
@@ -342,16 +341,11 @@ def test_init_materializes_configured_contexts_at_checkout_root(
         capture_output=True,
         text=True, encoding="utf-8",
     ).stdout.splitlines()
-    assert "docs/contexts/.gitignore" in tracked
+    assert (relocated / ".gitignore").is_file()
+    assert "docs/contexts/.gitignore" not in tracked
     assert "docs/contexts/_template/SKILL.md" not in tracked
-    assert "tools/ops/coga/coga.toml" in tracked
+    assert "tools/ops/coga/coga.toml" not in tracked
     assert load_config(target / "coga").contexts_root == relocated.resolve()
-    assert subprocess.run(
-        ["git", "-C", str(checkout), "status", "--porcelain"],
-        check=True,
-        capture_output=True,
-        text=True, encoding="utf-8",
-    ).stdout == ""
 
 
 def test_init_relocates_contexts_before_empty_repo_onboarding_log(
@@ -386,35 +380,6 @@ def test_init_relocates_contexts_before_empty_repo_onboarding_log(
     ).read_text(encoding="utf-8")
 
 
-def test_init_rejects_ignored_configured_contexts_before_writing(
-    tmp_path: Path,
-    fake_vendor: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    checkout = tmp_path / "company"
-    checkout.mkdir()
-    subprocess.run(["git", "init", "-q", "-b", "main", str(checkout)], check=True)
-    subprocess.run(
-        ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(checkout), "config", "user.name", "Coga Test"],
-        check=True,
-    )
-    (checkout / ".gitignore").write_text("docs/contexts/\n", encoding="utf-8", newline="\n")
-    (fake_vendor / "coga.toml").write_text(
-        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n',
-        encoding="utf-8", newline="\n",
-    )
-    monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
-
-    result = CliRunner().invoke(app, ["init", str(checkout), "--user", "tester"])
-
-    assert result.exit_code == 2
-    assert "host repository ignores that path" in result.output
-    assert not (checkout / "coga").exists()
-    assert not (checkout / "docs" / "contexts").exists()
 
 
 @pytest.mark.parametrize(
@@ -577,7 +542,7 @@ def test_fresh_init_installs_nothing(
     assert result.exit_code == 0, result.output
 
     assert _installer_calls(calls) == []
-    assert any(Path(argv[0]).name == "git" for argv in calls)
+    assert not any(Path(argv[0]).name == "git" for argv in calls)
     skills = target / "coga" / "skills"
     assert sorted(p.name for p in skills.iterdir()) == ["_template"]
     assert not list(skills.glob("google-agents-cli-*"))
@@ -727,31 +692,6 @@ def test_init_sets_up_clone_of_initialized_repo(tmp_path: Path, fake_vendor) -> 
     assert "Initialized coga repo" not in result.output
 
 
-@pytest.mark.parametrize("local_text", [None, '# Local settings\nuser = ""\n'])
-def test_init_clone_setup_requires_git_before_writing(
-    tmp_path: Path, local_text: str | None
-) -> None:
-    target = tmp_path / "unpacked"
-    coga_os = target / "coga"
-    coga_os.mkdir(parents=True)
-    (coga_os / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
-    local_toml = coga_os / "coga.local.toml"
-    if local_text is not None:
-        local_toml.write_text(local_text, encoding="utf-8", newline="\n")
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-
-    assert result.exit_code == 2, result.output
-    assert "not inside a git repository" in result.output
-    assert "git init" in result.output
-    assert (coga_os / "coga.toml").read_text(encoding="utf-8") == "version = 1\n"
-    if local_text is None:
-        assert not local_toml.exists()
-    else:
-        assert local_toml.read_text(encoding="utf-8") == local_text
-    assert not (coga_os / ".agent-skills").exists()
-    assert not (target / ".claude").exists()
-    assert not (target / ".codex").exists()
 
 
 def test_init_clone_setup_is_idempotent(tmp_path: Path, fake_vendor) -> None:
@@ -1022,21 +962,6 @@ def test_init_does_not_misidentify_unrelated_coga_path(
     assert "coga uninstall" not in result.output
 
 
-def test_init_into_missing_dir_errors_not_git_repo(
-    tmp_path: Path, fake_vendor
-) -> None:
-    """A target that doesn't exist and has no git repo above it fails loud
-    instead of auto-creating the dir and silently skipping the commit. Nothing
-    is written — the dir stays absent. (A missing target *below* a git root is
-    fine — that's the nested monorepo init.)"""
-    target = tmp_path / "fresh"
-    assert not target.exists()
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 2
-    assert "not inside a git repository" in result.output
-    assert "git init" in result.output
-    assert not target.exists()
 
 
 # --- init build ticket ----------------------------------------------------------
@@ -1500,57 +1425,6 @@ def _seed_local_coga_os(root: Path) -> Path:
     return coga_os
 
 
-def test_init_commits_coga_os_when_target_is_git_repo(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-    assert "Committed coga/ as" in result.output
-
-    log = subprocess.run(
-        ["git", "-C", str(target), "log", "--oneline"],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    )
-    assert "Create coga via `coga init`" in log.stdout
-
-    # Upstream-managed paths and machine-local files are gitignored — none should be tracked.
-    tracked = subprocess.run(
-        ["git", "-C", str(target), "ls-files", "coga"],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    ).stdout.splitlines()
-    assert any(p.startswith("coga/coga.toml") for p in tracked)
-    assert not any(".coga/" in p for p in tracked)
-    assert not any(p.endswith("coga.local.toml") for p in tracked)
-    assert not any("/bootstrap/" in p for p in tracked)
-    assert not any("/skills/retro/" in p for p in tracked)
-    assert not any("/_template" in p for p in tracked)
-
-
-def test_init_fails_loud_when_target_is_not_git_repo(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """coga is git-backed: a target outside any git work tree is a hard error
-    (not a silent skip), and nothing is written to disk — the user runs
-    `git init` here and re-runs."""
-    target = tmp_path / "company"
-    target.mkdir()  # exists, but is not a git repo (nor inside one)
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 2
-    assert "not inside a git repository" in result.output
-    assert "git init" in result.output
-    assert not (target / "coga").exists()
 
 
 # --- git identity check --------------------------------------------------------
@@ -1561,7 +1435,6 @@ def test_init_fails_loud_when_target_is_not_git_repo(
 # argument 'HEAD'`). Captured before the autouse `_stub_init_identity_check`
 # fixture replaces the module attribute, so these tests exercise the real
 # implementation.
-_real_identity_check = init_cmd._check_git_identity
 
 
 def _force_missing_git_identity(
@@ -1587,150 +1460,8 @@ def _force_missing_git_identity(
         monkeypatch.delenv(var, raising=False)
 
 
-def test_init_fails_loud_when_git_has_no_identity(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A truly fresh machine has no `user.email`/`user.name`: init probes git
-    identity up front and fails loud with the remedy, before writing anything."""
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    _force_missing_git_identity(target, monkeypatch)
-    monkeypatch.setattr(init_cmd, "_check_git_identity", _real_identity_check)
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 2
-    assert "git has no identity configured" in result.output
-    assert 'git config --global user.email "you@example.com"' in result.output
-    assert not (target / "coga").exists()
 
 
-def test_init_fails_up_front_when_only_committer_identity_exists(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Git requires author and committer identities independently; a CI-style
-    committer-only environment must fail before init writes anything."""
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    _force_missing_git_identity(target, monkeypatch)
-    monkeypatch.setenv("GIT_COMMITTER_NAME", "Coga CI")
-    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "coga@example.com")
-    monkeypatch.setattr(init_cmd, "_check_git_identity", _real_identity_check)
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 2
-    assert "Author identity unknown" in result.output
-    assert not (target / "coga").exists()
-
-
-def test_identity_check_passes_with_repo_local_identity(tmp_path: Path) -> None:
-    """Repo-local `user.email`/`user.name` is enough — the probe runs from the
-    target, so per-repo config counts and the check stays quiet."""
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-
-    _real_identity_check(target)  # must not raise
-
-
-def test_identity_check_probes_nearest_ancestor_for_missing_target(
-    tmp_path: Path,
-) -> None:
-    """A nested init (`coga init tools/ops`) may name a target that doesn't
-    exist yet — the probe falls back to the nearest existing ancestor, where
-    the host repo's identity config applies."""
-    host = tmp_path / "monorepo"
-    host.mkdir()
-    subprocess.run(["git", "init", "-q", str(host)], check=True)
-    subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
-
-    _real_identity_check(host / "tools" / "ops")  # must not raise
-
-
-def test_init_warns_loud_when_commit_fails(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The backstop for commit failures the identity check can't see (here a
-    failing pre-commit hook): init still succeeds — coga/ is written and
-    staged — but the skipped commit is a loud warning naming git's error and
-    the manual commit remedy, never a silent absence of the "Committed" line."""
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-    hook = target / ".git" / "hooks" / "pre-commit"
-    hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n", encoding="utf-8", newline="\n")
-    hook.chmod(0o755)
-    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-    assert "Committed coga/ as" not in result.output
-    assert "NOT committed" in result.output
-    assert "git commit failed" in result.output
-    assert "hook says no" in result.output  # git's own stderr is surfaced
-    # Recovery re-stages and commits the complete generated path set, not just
-    # coga/, so following it leaves the same clean tree as the success path.
-    assert "git -C" in result.output
-    assert "add -- coga .gitignore CLAUDE.md AGENTS.md" in result.output
-    assert (
-        "commit -m 'Create coga via `coga init`' -- coga .gitignore "
-        "CLAUDE.md AGENTS.md"
-    ) in result.output
-    # coga/ survived on disk and is staged, ready to commit once fixed.
-    staged = subprocess.run(
-        ["git", "-C", str(target), "diff", "--cached", "--name-only"],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    ).stdout
-    assert "coga/coga.toml" in staged
-
-
-def test_init_add_failure_warns_without_claiming_files_are_staged(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A failed `git add` gets an honest warning plus safely quoted, complete
-    stage-and-commit recovery commands."""
-    target = tmp_path / "company repo"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-    real_run = subprocess.run
-
-    def fail_generated_path_add(args, *run_args, **run_kwargs):
-        if (
-            args[:3] == ["git", "-C", str(target)]
-            and len(args) > 3
-            and args[3] == "add"
-        ):
-            raise subprocess.CalledProcessError(
-                128, args, stderr="fatal: Unable to create '.git/index.lock'"
-            )
-        return real_run(args, *run_args, **run_kwargs)
-
-    monkeypatch.setattr(init_cmd.subprocess, "run", fail_generated_path_add)
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-    assert "written but NOT committed" in result.output
-    assert "written and staged" not in result.output
-    assert "git add failed" in result.output
-    assert "index.lock" in result.output
-    expected_prefix = f"git -C '{target}'"
-    assert (
-        f"{expected_prefix} add -- coga .gitignore CLAUDE.md AGENTS.md"
-        in result.output
-    )
-    assert (
-        f"{expected_prefix} commit -m 'Create coga via `coga init`' -- "
-        "coga .gitignore CLAUDE.md AGENTS.md"
-        in result.output
-    )
 
 
 # --- nested init (coga/ in a subdir of a host repo) ---------------------------
@@ -1758,15 +1489,15 @@ def test_init_into_subdir_of_git_repo(
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
-    assert "Committed coga/ as" in result.output
+    assert "Commit `coga/` when ready." in result.output
 
     assert (target / "coga" / "coga.toml").is_file()
-    # Committed into the *host* repo, with paths below the git root.
+    # The scaffold is ready to commit in the host repository.
     tracked = subprocess.run(
         ["git", "-C", str(host), "ls-files"],
         capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
-    assert "tools/ops/coga/coga.toml" in tracked
+    assert "tools/ops/coga/coga.toml" not in tracked
     # The coga-managed ignore block lands at the nested target — git scopes a
     # nested .gitignore to its own dir, where the symlinks and .coga/ live.
     host_gi = (target / ".gitignore").read_text(encoding="utf-8")
@@ -1818,29 +1549,6 @@ def test_init_refuses_sibling_subdir_of_root_level_coga(
     assert not (target / "coga").exists()
 
 
-def test_init_refuses_target_gitignored_by_host_repo(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """If the host repo gitignores the target subtree, `git add` would refuse
-    coga/ and the commit would be silently skipped. Init fails loud up front
-    instead — nothing is written to disk."""
-    host = tmp_path / "monorepo"
-    host.mkdir()
-    subprocess.run(["git", "init", "-q", str(host)], check=True)
-    subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
-    (host / ".gitignore").write_text("build/\n", encoding="utf-8", newline="\n")
-    subprocess.run(["git", "-C", str(host), "add", ".gitignore"], check=True)
-    subprocess.run(["git", "-C", str(host), "commit", "-qm", "host"], check=True)
-    target = host / "build" / "ops"
-    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 2, result.output
-    assert "gitignored by the host repo" in result.output
-    assert not (target / "coga").exists()
 
 
 def test_init_into_subdir_leaves_unrelated_staged_files_alone(
@@ -1872,7 +1580,7 @@ def test_init_into_subdir_leaves_unrelated_staged_files_alone(
         capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.split()
     assert "wip.py" not in committed
-    assert "tools/ops/coga/coga.toml" in committed
+    assert "tools/ops/coga/coga.toml" not in committed
     # The user's staged file is untouched — still staged, not committed.
     staged = subprocess.run(
         ["git", "-C", str(host), "diff", "--cached", "--name-only"],
@@ -2109,29 +1817,6 @@ def test_init_preserves_existing_agent_guides(
     assert "CLAUDE.md" not in result.output.split("Wrote ", 1)[1].splitlines()[0]
 
 
-def test_init_commits_agent_guides_in_git_repo(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-    monkeypatch.setenv("PATH", os.environ["PATH"])
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    tracked = subprocess.run(
-        ["git", "-C", str(target), "ls-files"],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    ).stdout.splitlines()
-    assert "CLAUDE.md" in tracked
-    assert "AGENTS.md" in tracked
-
-
 def _make_real_git_repo(target: Path, branch: str) -> Path:
     """A real, committed git repo on `branch` — init's branch detection needs
     a working ref database, which `_make_git_repo`'s bare `.git` dir isn't."""
@@ -2144,288 +1829,8 @@ def _make_real_git_repo(target: Path, branch: str) -> Path:
     return target
 
 
-def test_init_records_current_branch_when_control_branch_is_absent(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """On a repo whose `git init` made `master`, init records that branch
-    rather than scaffolding the `main` default it would then nag about."""
-    target = _make_real_git_repo(tmp_path / "company", "master")
-    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert load_config(target / "coga").git_control_branch == "master"
-    assert '[git]\ncontrol_branch = "master"' in (
-        target / "coga" / "coga.toml"
-    ).read_text(encoding="utf-8")
-    assert 'Set [git] control_branch = "master"' in result.output
 
 
-def test_init_keeps_unborn_configured_branch_implicit(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An unborn `main` HEAD becomes a real `main` on init's first commit;
-    init must not claim it is absent or write a redundant `[git]` table."""
-    target = _make_real_git_repo(tmp_path / "company", "main")
-    monkeypatch.setenv("PATH", os.environ["PATH"])
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert load_config(target / "coga").git_control_branch == "main"
-    assert "\n[git]\n" not in (target / "coga" / "coga.toml").read_text(encoding="utf-8")
-    assert "Set [git] control_branch" not in result.output
-    assert "could not safely select a control branch" not in result.output
-
-
-def test_init_keeps_default_when_control_branch_exists(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Running init from a feature branch of a `main` repo must not pin the
-    feature branch — the configured default is already correct there."""
-    target = _make_real_git_repo(tmp_path / "company", "main")
-    subprocess.run(
-        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
-        check=True,
-    )
-    subprocess.run(["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True)
-    monkeypatch.setenv("PATH", os.environ["PATH"])
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert load_config(target / "coga").git_control_branch == "main"
-    assert "control_branch = \"feature\"" not in (
-        target / "coga" / "coga.toml"
-    ).read_text(encoding="utf-8")
-    assert "Set [git] control_branch" not in result.output
-
-
-def test_init_uses_confirmed_remote_default_in_established_repo(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An established master-based repo initialized from a feature branch
-    records the cached remote default, never the disposable current branch."""
-    origin = tmp_path / "origin.git"
-    subprocess.run(
-        ["git", "init", "-q", "--bare", "-b", "master", str(origin)], check=True
-    )
-    target = _make_real_git_repo(tmp_path / "company", "master")
-    subprocess.run(
-        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(target), "remote", "add", "origin", str(origin)],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(target), "push", "-q", "-u", "origin", "master"],
-        check=True,
-    )
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(target),
-            "symbolic-ref",
-            "refs/remotes/origin/HEAD",
-            "refs/remotes/origin/master",
-        ],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True
-    )
-    monkeypatch.setenv("PATH", os.environ["PATH"])
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert load_config(target / "coga").git_control_branch == "master"
-    assert 'control_branch = "feature"' not in (
-        target / "coga" / "coga.toml"
-    ).read_text(encoding="utf-8")
-    assert 'Set [git] control_branch = "master"' in result.output
-
-
-def test_init_warns_instead_of_pinning_ambiguous_established_branch(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Without a remote default, an established feature HEAD is ambiguous and
-    must not become the shared control branch merely because `main` is absent."""
-    target = _make_real_git_repo(tmp_path / "company", "master")
-    subprocess.run(
-        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True
-    )
-    monkeypatch.setenv("PATH", os.environ["PATH"])
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert load_config(target / "coga").git_control_branch == "main"
-    assert 'control_branch = "feature"' not in (
-        target / "coga" / "coga.toml"
-    ).read_text(encoding="utf-8")
-    assert "could not safely select a control branch" in result.output
-    assert "established repository" in result.output
-    assert 'control_branch = "<your-branch>"' in result.output
-
-
-def test_init_warns_when_no_branch_can_be_detected(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A detached HEAD with no `main` leaves nothing safe to record, so init
-    succeeds but prints the exact one-line coga.toml fix."""
-    target = _make_real_git_repo(tmp_path / "company", "master")
-    subprocess.run(
-        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
-        check=True,
-    )
-    subprocess.run(["git", "-C", str(target), "checkout", "-q", "--detach"], check=True)
-    monkeypatch.setenv("PATH", os.environ["PATH"])
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert load_config(target / "coga").git_control_branch == "main"
-    assert "detached HEAD" in result.output
-    assert 'control_branch = "<your-branch>"' in result.output
-
-
-def test_detect_control_branch_soft_skips_an_unreadable_repo(
-    tmp_path: Path,
-) -> None:
-    """A synthetic `.git` marker Git cannot read leaves the scaffold on its
-    default; real init rejects this shape before branch detection."""
-    target = _make_git_repo(tmp_path / "company")  # bare `.git` dir, no refs
-
-    assert init_cmd._detect_control_branch(
-        target, control_branch="main", remote="origin"
-    ) == (None, None)
-
-
-def test_detect_control_branch_reports_cached_ref_probe_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An unreadable ref database must not look like a valid `main` default
-    and silently recreate the mismatch init is meant to prevent."""
-    target = _make_real_git_repo(tmp_path / "company", "master")
-
-    def fail_probe(*_args, **_kwargs) -> bool:
-        raise init_cmd.GitError("ref database is unreadable")
-
-    monkeypatch.setattr(init_cmd, "control_branch_present", fail_probe)
-
-    branch, reason = init_cmd._detect_control_branch(
-        target, control_branch="main", remote="origin"
-    )
-
-    assert branch is None
-    assert reason is not None
-    assert "could not verify configured control branch 'main'" in reason
-    assert "ref database is unreadable" in reason
-
-
-def test_detect_control_branch_never_probes_the_remote(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Init's branch choice is bounded by local and cached refs even when a
-    configured remote could block forever."""
-    target = _make_real_git_repo(tmp_path / "company", "master")
-    subprocess.run(
-        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
-        check=True,
-    )
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(target),
-            "remote",
-            "add",
-            "origin",
-            "ssh://slow.invalid/repo",
-        ],
-        check=True,
-    )
-
-    def reject_remote_probe(*_args, **_kwargs) -> bool:
-        raise AssertionError("init must not run a live remote branch probe")
-
-    monkeypatch.setattr(git_module, "remote_branch_oid", reject_remote_probe)
-
-    branch, reason = init_cmd._detect_control_branch(
-        target, control_branch="main", remote="origin"
-    )
-
-    assert branch is None
-    assert reason is not None
-    assert "no cached default branch" in reason
-
-
-def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A scaffold shipping a real `[git]` table stated its own choice. Init
-    reports the mismatch instead of writing a second table into it (which
-    would not even parse)."""
-    target = _make_real_git_repo(tmp_path / "company", "master")
-    monkeypatch.setenv("PATH", os.environ["PATH"])
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
-    real_copy = update_cmd.copy_fresh_templates
-
-    def copy_with_git_table(template_root, coga_os: Path) -> None:
-        real_copy(template_root, coga_os)
-        config = coga_os / "coga.toml"
-        config.write_text(
-            config.read_text(encoding="utf-8") + '\n[git]\ncontrol_branch = "trunk"\n',
-            encoding="utf-8", newline="\n",
-        )
-
-    monkeypatch.setattr(init_cmd, "copy_fresh_templates", copy_with_git_table)
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert load_config(target / "coga").git_control_branch == "trunk"
-    assert "already declares its own [git] table" in result.output
-    assert "Set [git] control_branch" not in result.output
-
-
-def test_packaged_config_leaves_the_git_table_to_init(tmp_path: Path) -> None:
-    """The shipped template documents `[git]` in comments only, so a fresh
-    init is free to record the detected branch there."""
-    scaffold = tmp_path / "coga"
-    scaffold.mkdir()
-    shutil.copy(_PACKAGED_COGA_TOML, scaffold / "coga.toml")
-
-    control_branch, remote, declared = init_cmd._scaffolded_git_defaults(scaffold)
-    assert (control_branch, remote, declared) == ("main", "origin", False)
-
-
-def test_packaged_config_carries_the_control_branch_anchor() -> None:
-    """`_pin_control_branch` inserts above the aliases heading. Keep the
-    shipped template and that anchor from drifting apart."""
-    assert init_cmd._GIT_TABLE_ANCHOR in _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
 
 
 def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2468,12 +1873,39 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     assert ".claude/skills/coga" in host_gi
     assert ".codex/skills/coga" in host_gi
 
-    # Block was committed alongside coga/ in the init commit.
+    # The generated block is ready to commit.
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files"],
         capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
-    assert ".gitignore" in tracked
+    assert ".gitignore" not in tracked
+
+
+def test_init_creates_ignored_run_state_areas(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    state = target / "coga" / ".coga"
+    assert (state / "data").is_dir()
+    assert (state / "tmp").is_dir()
+    # Both areas sit under the already-ignored `.coga/`.
+    (state / "data" / "probe").write_text("x", encoding="utf-8")
+    (state / "tmp" / "probe").write_text("x", encoding="utf-8")
+    untracked = subprocess.run(
+        ["git", "-C", str(target), "status", "--porcelain", "--untracked-files=all"],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout
+    assert ".coga/" not in untracked
+    for gitignore in (target / ".gitignore", target / "coga" / ".gitignore"):
+        text = gitignore.read_text(encoding="utf-8")
+        assert "`.coga/data/`" in text and "`.coga/tmp/`" in text
 
 
 def test_init_appends_to_existing_host_gitignore(
@@ -2575,18 +2007,15 @@ def test_refresh_coga_gitignore_replaces_existing_block(tmp_path: Path) -> None:
 # coga.toml, asking nothing.
 # Captured before the autouse `_stub_init_dep_check` fixture replaces
 # the module attributes, so these tests exercise the real implementation.
-_real_require_tools = init_cmd._require_init_tools
 _real_offer_tools = init_cmd._offer_optional_tools
 
 
 def _real_dep_check() -> None:
     """Both phases in order, as a fresh init runs them."""
-    _real_require_tools()
     _real_offer_tools()
 
 
 def _restore_real_dep_checks(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(init_cmd, "_require_init_tools", _real_require_tools)
     monkeypatch.setattr(init_cmd, "_offer_optional_tools", _real_offer_tools)
 
 
@@ -2631,14 +2060,6 @@ def test_dep_check_ignores_missing_gh(
     _real_dep_check()  # must not raise
 
 
-def test_dep_check_crashes_on_missing_git(
-    monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"git"}))
-    with pytest.raises(SystemExit) as exc:
-        _real_dep_check()
-    assert exc.value.code == 2
-    assert "git" in capsys.readouterr().err
 
 
 def test_dep_check_warns_but_does_not_crash_on_optional_tools(
@@ -2660,19 +2081,6 @@ def test_dep_check_warns_but_does_not_crash_on_optional_tools(
     assert "claude" not in err  # agent CLIs belong to the next steps
 
 
-def test_dep_check_crash_lists_only_required_tools(
-    monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    monkeypatch.setattr(
-        "coga.commands.init.shutil.which", _which_missing({"git", "gh", "op"})
-    )
-    with pytest.raises(SystemExit):
-        _real_dep_check()
-    err = capsys.readouterr().err
-    required = err[err.index("coga needs these") :]
-    assert "git" in required
-    assert "gh" not in required
-    assert "op:" not in required
 
 
 def _interactive(
@@ -2755,20 +2163,13 @@ def test_dep_check_never_offers_to_install_op(
     that used to prompt, so all three platforms are covered."""
     calls = _interactive(monkeypatch, missing={"op"}, answers=[], platform=platform)
     _real_dep_check()  # must not raise
-    assert calls == [
-        ["/usr/bin/gh", "auth", "status", "--active", "--hostname", "github.com"]
-    ]
+    assert calls == []
     out = capsys.readouterr()
     assert "1password-cli" not in out.out  # never a "Will run: …" command
     assert "Install it now?" not in out.out
     assert "init does not install it" in out.err  # the note takes its place
 
 
-def test_dep_check_git_declined_still_crashes(monkeypatch: pytest.MonkeyPatch) -> None:
-    _interactive(monkeypatch, missing={"git"}, answers=[False])
-    with pytest.raises(SystemExit) as exc:
-        _real_dep_check()
-    assert exc.value.code == 2
 
 
 def test_dep_check_git_installed_on_yes_passes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2777,12 +2178,6 @@ def test_dep_check_git_installed_on_yes_passes(monkeypatch: pytest.MonkeyPatch) 
     assert ["brew", "install", "git"] in calls
 
 
-def test_dep_check_offers_gh_login_when_logged_out(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = _interactive(monkeypatch, missing=set(), answers=[True], gh_logged_in=False)
-    _real_dep_check()
-    assert ["/usr/bin/gh", "auth", "login"] in calls
 
 
 def test_dep_check_never_prompts_without_a_tty(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2791,71 +2186,8 @@ def test_dep_check_never_prompts_without_a_tty(monkeypatch: pytest.MonkeyPatch) 
     _real_dep_check()  # an exhausted `answers` iterator would raise
 
 
-def test_dep_check_gh_login_checks_only_the_active_github_account(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A stale second account makes plain `gh auth status` exit 1; init must
-    ask only about the active github.com account and not offer a login."""
-    calls = _interactive(monkeypatch, missing=set(), answers=[])
-    _real_dep_check()  # an exhausted `answers` iterator would raise
-    assert calls == [
-        ["/usr/bin/gh", "auth", "status", "--active", "--hostname", "github.com"]
-    ]
 
 
-def test_dep_check_gh_login_falls_back_without_active_flag(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A `gh` older than 2.40 rejects `--active`; retry per host, no prompt."""
-    calls = _interactive(
-        monkeypatch, missing=set(), answers=[], gh_supports_active=False
-    )
-    _real_dep_check()
-    assert calls[-1] == ["/usr/bin/gh", "auth", "status", "--hostname", "github.com"]
-    assert ["/usr/bin/gh", "auth", "login"] not in calls
-
-
-@pytest.mark.parametrize(
-    "case", ["no_user", "not_git", "initialized", "clone_without_user"]
-)
-def test_init_offers_nothing_when_preflight_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
-) -> None:
-    """A malformed or redundant `coga init` exits before any install or login
-    offer, so it never changes the machine."""
-    target = tmp_path / "repo"
-    argv = ["init", str(target), "--user", "tester"]
-    if case == "no_user":
-        _make_git_repo(target)
-        argv = ["init", str(target)]
-    elif case == "not_git":
-        target.mkdir()
-    else:
-        _make_git_repo(target)
-        (target / "coga").mkdir()
-        (target / "coga" / "coga.toml").write_text("", encoding="utf-8", newline="\n")
-        if case == "initialized":
-            (target / "coga" / "coga.local.toml").write_text('user = "tester"\n', encoding="utf-8", newline="\n")
-        else:
-            argv = ["init", str(target)]
-    _restore_real_dep_checks(monkeypatch)
-    offers: list[str] = []
-    real_which = shutil.which
-    # CliRunner swaps sys.stdin/stdout, so fake the terminal at init's probe.
-    monkeypatch.setattr(init_cmd, "_interactive", lambda: True)
-    monkeypatch.setattr(
-        "coga.commands.init.shutil.which",
-        lambda name: None if name in {"gh", "op"} else real_which(name),
-    )
-    monkeypatch.setattr(
-        init_cmd, "_offer_install", lambda dep, manager: offers.append(dep.name)
-    )
-    monkeypatch.setattr(
-        init_cmd, "_offer_gh_login", lambda: offers.append("gh auth login")
-    )
-    result = CliRunner().invoke(app, argv)
-    assert result.exit_code == 2, result.output
-    assert offers == []
 
 
 def test_init_offers_optional_tools_once_preflight_passes(
@@ -3477,20 +2809,6 @@ def test_configure_agent_tables_leaves_the_file_whole_when_the_write_fails(
     assert sorted(p.name for p in tmp_path.iterdir()) == ["coga.toml"]
 
 
-def test_init_bails_before_scaffolding_when_required_dep_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A missing required dep (git) stops `coga init` before it writes anything."""
-    # Restore the real checks (autouse no-ops them), then make `git` absent.
-    _restore_real_dep_checks(monkeypatch)
-    monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"git"}))
-
-    target = tmp_path / "fresh"
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-
-    assert result.exit_code == 2
-    assert "git" in result.output
-    assert not (target / "coga").exists()  # bailed before scaffolding
 
 
 def test_init_ships_phone_home_disclosure_without_running_it(tmp_path, fake_vendor, monkeypatch):

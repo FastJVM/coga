@@ -14,18 +14,11 @@ from typing import Protocol, TextIO, cast
 
 import typer
 
-from coga.autoclose import run_autoclose_recipe
 from coga.blackboard import append_blackboard_report
-from coga.branchsweep import run_branch_sweep_recipe
-from coga.checkouts import run_prepare_checkout_recipe
 from coga.config import Config, load_config
 from coga.delete_task import run_delete_task_recipe
-from coga.git import RETRY_WITHOUT_SWEEP_EXIT_CODE
-from coga.open_pr import run_open_pr_recipe
-from coga.publish_state import run_publish_state_recipe
 from coga.recurring_autofix import run_autofix_analyze_recipe
 from coga.recurring_runner import run_recurring_scan_recipe
-from coga.state_sweep import sweep_root, sweep_suppressed
 from coga.task_env import (
     SCRIPT_TASK_ENV,
     RootResolver,
@@ -41,14 +34,9 @@ class RecipeFn(Protocol):
 
 
 RECIPES: dict[str, RecipeFn] = {
-    "autoclose": run_autoclose_recipe,
-    "branch-sweep": run_branch_sweep_recipe,
     "recurring-scan": run_recurring_scan_recipe,
     "autofix-analyze": run_autofix_analyze_recipe,
-    "open-pr": run_open_pr_recipe,
     "delete-task": run_delete_task_recipe,
-    "publish-state": run_publish_state_recipe,
-    "prepare-checkout": run_prepare_checkout_recipe,
 }
 
 # Registered workers whose operating root is not the invoking config's: each
@@ -235,56 +223,12 @@ def run_entry(
     scheduled: bool = False,
     cfg: Config | None = None,
 ) -> int:
-    """The report → publish → bump sequence an edge entrypoint runs.
-
-    ``worker`` runs under `run_reported`'s failure floor. Then, on success,
-    ordinary failure and an escaping exception alike, the operating root's
-    eligible state is published, so a worker that never bumps (a manual run, a
-    Dream invocation) still reaches control. A publication problem only warns.
-
-    Only a ``scheduled`` entry (a recurring `ticket.py`) advances its task, and
-    only after successful work, when launch named this exact task as its
-    script; the bump's own exit is the result. An inherited `COGA_TASK_SLUG`
-    alone never completes anything.
-    """
+    """Run and report the worker, then bump a successful scheduled step."""
     cfg = cfg if cfg is not None else load_config()
-    try:
-        code = run_reported(cfg, name, worker, argv, root=root)
-    except BaseException as exc:
-        _publish_after(cfg, name, argv, root, _escaping_exit_code(exc) or 0)
-        raise
-    _publish_after(cfg, name, argv, root, code)
+    code = run_reported(cfg, name, worker, argv, root=root)
     if code or not scheduled:
         return code
     return _bump_script_task(cfg, name)
-
-
-def _publish_after(
-    cfg: Config,
-    name: str,
-    argv: list[str],
-    resolver: RootResolver | None,
-    exit_code: int,
-) -> None:
-    """The CLI's end-of-command exclusions, applied to one worker run."""
-    if exit_code == RETRY_WITHOUT_SWEEP_EXIT_CODE:
-        return
-    if "--help" in argv or "-h" in argv:
-        return
-    if sweep_suppressed():
-        return
-    try:
-        target = (resolver or _invoking_root)(cfg, argv)
-    except Exception as exc:
-        sys.stderr.write(f"[git] {name}: target root unavailable ({exc}); state sweep skipped\n")
-        return
-    if target is None:
-        sys.stderr.write(f"[git] {name}: target root unknown; state sweep skipped\n")
-        return
-    try:
-        sweep_root(target)
-    except Exception as exc:  # never outrank the worker's own result
-        sys.stderr.write(f"Warning: could not publish {name} state under {target}: {exc}\n")
 
 
 def _bump_script_task(cfg: Config, name: str) -> int:

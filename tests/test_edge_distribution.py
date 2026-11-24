@@ -140,7 +140,7 @@ from coga.recurring import create_named
 subprocess.run(["git", "init", "-b", "main"], check=True, capture_output=True)
 subprocess.run(["git", "config", "user.name", "Test"], check=True)
 subprocess.run(["git", "config", "user.email", "test@example.test"], check=True)
-with patch("coga.commands.init._require_init_tools"), patch("coga.commands.init._offer_optional_tools"):
+with patch("coga.commands.init._offer_optional_tools"):
     result = CliRunner().invoke(app, ["init", ".", "--user", "tester"])
 assert result.exit_code == 0, result.output
 local = Path("coga/coga.local.toml")
@@ -329,7 +329,7 @@ def _operator_command(name, root, env, *, success=True, runbook=RUNBOOK):
     return result.stdout
 
 
-@pytest.mark.parametrize("failure", [None, "conversion", "publication"])
+@pytest.mark.parametrize("failure", [None, "conversion"])
 @windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
 def test_documented_package_cutover_preserves_state_and_stops_on_failure(tmp_path, failure):
     import shlex
@@ -394,9 +394,7 @@ def test_documented_package_cutover_preserves_state_and_stops_on_failure(tmp_pat
     assert worklist.read_bytes() == b"Keep this worklist.\r\n"
     assert not (parent / "ticket.py").exists()
     assert (parent / "operations.md").exists() == (failure == "conversion")
-    expected = [] if failure == "conversion" else ["run publish-state"]
-    if failure is None:
-        expected += ["recurring list", "validate --json"]
+    expected = [] if failure == "conversion" else ["recurring list", "validate --json"]
     assert (calls.read_text().splitlines() if calls.exists() else []) == expected
 
 
@@ -705,7 +703,7 @@ assert create_named(cfg,"trim-log").created
     assert ("archived old event" in (coga_os / "log.md").read_text()) is (retention_days == 0)
     subjects = subprocess.run(["git", "log", "--format=%s"], cwd=root, capture_output=True, text=True,
                               encoding="utf-8", check=True).stdout
-    assert ("Log: recurring/trim-log — retained" in subjects) is (retention_days == 30)
+    assert "Log: recurring/trim-log — retained" not in subjects
     assert not (guard / "called").exists()
 
 
@@ -727,8 +725,13 @@ def test_installed_trim_adoption_preserves_custom_or_parked_files(tmp_path, edge
     before = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file()}
     result = subprocess.run([sys.executable, "-m", "coga_edge.trim_log", "--install"], cwd=coga_os,
                             env=env, capture_output=True, text=True, timeout=30)
-    assert result.returncode == 2 and "review" in result.stderr
-    assert before == {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file()}
+    if obstacle == "attribute":
+        assert result.returncode == 0, result.stderr
+        attrs = coga_os / ".gitattributes"
+        assert attrs.read_bytes() == before[attrs]
+    else:
+        assert result.returncode == 2 and "review" in result.stderr
+        assert before == {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file()}
     assert not (guard / "called").exists()
 
 

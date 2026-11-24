@@ -61,12 +61,6 @@ is their hand-run counterpart: a first-time user installs on a fresh
   (`src/coga/resources/templates/coga/...`). The inverse inventory in
   `test_packaging` rejects unapproved live copies, including identical ones;
   required package resources are pinned independently of local state. The
-  publication regressions in `test_git` run the control tree's own imports
-  and packaging/navigation/runtime checks: the first conversion uses the
-  pinned Stage A merge, and final-state dirty/committed package edits must
-  stay on the feature branch during a mutating CLI exit sweep. The historical
-  transition test needs Git history containing that merge; a shallow checkout
-  reports an explicit skip and cannot supply that transition receipt. The
   suite creates many temporary repos and can fill a small `/tmp` tmpfs, so
   on Linux and macOS point `TMPDIR` at a roomy volume for full runs, for
   example `mkdir -p ~/.cache/coga-pytest && TMPDIR=~/.cache/coga-pytest
@@ -82,10 +76,7 @@ is their hand-run counterpart: a first-time user installs on a fresh
   `~/Code/<name>`) fills the swept tree with fixture repos that `--all` then
   services (observed 2026-11-16). Copy anything you must keep out of the temp
   root before the run is pruned. On Windows, use `--basetemp` with a short
-  root such as `C:\ct`; nested control checks and wheel copies can otherwise
-  exceed MAX_PATH. Control clones disable `core.autocrlf` to preserve pinned
-  definition bytes. The Stage A check backports one explicit-LF test-fixture
-  write; its product code and assertions remain pinned to the historical tree.
+  root such as `C:\ct` so nested fixture paths fit within MAX_PATH.
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
   primary checkout.** In-process imports are safe: `pyproject.toml` sets
@@ -226,6 +217,16 @@ Rule these out before blaming the change under test.
   runner (package on `D:`, temporary repos on `C:`) failed 228 tests this
   way; the Windows AWS harness's default layout keeps both on `C:`, so it
   does not exercise this split.
+- **`tests/test_repl_supervisor.py::test_terminal_ticket_backstop_waits_for_a_live_pending_command`
+  failed once under full-suite load** (2026-11-18, Linux, docs-only diff):
+  `assert seen and all(seen)` failed, then the test passed 3/3 in isolation
+  and the next full run did not reproduce it. It drives a real POSIX PTY
+  child that writes a `.pending-$$` witness, sleeps one second, then marks
+  `released`; the assertion says the terminal-status probe was never
+  consulted while the pending witness was live. The likely cause is a timing
+  window under load, but the cause is unconfirmed and no fix or ticket
+  exists. Rerun it in isolation before blaming an unrelated change; a
+  repeatable failure is a real backstop regression.
 
 ## Verification tiers and receipts
 

@@ -20,8 +20,6 @@ listed; done and canceled tickets keep their old numbers until deleted.
 
 | # | Ticket |
 | --- | --- |
-| | **Urgent** |
-| 01 | [Roll out the 04b edge shims on this repo's blocker-reminders period](01-urgent-roll-out-the-04b-edge-shims-on-this-repo-s-blocker.md): the recurring job fails with "unknown recipe" since PR #1272 |
 | | **Security** |
 | 02 | [webhook for slack is public](02-webhook-for-slack-is-public.md) |
 | | **Architecture: plain Git and one executor model** |

@@ -1,136 +1,53 @@
-"""Recurring scan and launch orchestration shared by command heads and recipes."""
+"""Run locally scheduled and on-demand recurring work."""
 
 from __future__ import annotations
 
-from coga.session_limits import resolve_idle_timeout, resolve_max_session
-
 import argparse
 import json
-import os
-import re
-import shlex
-import shutil
-import signal
 import subprocess
 import sys
-import tempfile
-import tomllib
-from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path, PurePosixPath
-from urllib.parse import unquote, urlsplit
+from pathlib import Path
 
 import typer
 
-from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
-from coga.launch import LaunchBail, interactive_stdio_has_tty, settle_delegated_period
-from coga.launch_script import script_entry_point as resolve_script_entry_point
-from coga import oscompat
-from coga.oscompat import ProcessTree
 from coga.compose import LaunchContext
-from coga.config import (
-    LOCAL_CONFIG_ENV,
-    Config,
-    ConfigError,
-    ConfigParseError,
-    load_config,
-    local_config_path,
-    parse_owner,
+from coga.config import Config, ConfigError, ConfigParseError, load_config
+from coga.launch import LaunchBail, interactive_stdio_has_tty
+from coga.lifecycle import TERMINAL_STATUSES
+from coga.logfile import append_log, task_log_lines
+from coga.mark import PREPARE_ACTIVE_ERRORS, mark_active, mark_done, mark_in_progress, mark_paused
+from coga.notification import notify
+from coga.launch_script import script_entry_point
+from coga.paths import RepoResourceUnreadable
+from coga.workflow import WorkflowError
+from coga.mark import RequiredExtensionMissing, WorkflowMissing, MainAgentUnavailable
+from coga.period_state import SNAPSHOT_FILE, parse_keys
+from coga.recurring import (
+    _AGENT_NEEDS_TTY, _AGENT_NEEDS_TTY_LABEL, _declares_clone_scope,
+    DueScan, DueTask, PAUSE_WATCHDOG, RecurringError, SWEEP_ACTOR, SWEEP_PAUSE_SUFFIX,
+    WATCHDOG_ACTOR, assert_frozen_delegation, create_named,
+    format_serviced_log, frozen_task_delegate, load_effective_template,
+    resolve_agent_delegate, resolve_template_source, resumable_pause, recurring_dir,
+    scan_clone_due, scan_due,
 )
 from coga.recurring_activity import RepoActivity, check_activity
-from coga.lifecycle import TERMINAL_STATUSES
-from coga.logfile import (
-    append_log,
-    decode_log_message,
-    log_lines,
-    ref_tag_for_path,
-    retract_log_lines,
-    task_log_lines,
-)
-from coga.paths import RepoResourceUnreadable, log_path
-from coga.taskfile import TaskFileError, read_blackboard, split_body
-from coga.recurring import (
-    _AGENT_NEEDS_TTY,
-    _AGENT_NEEDS_TTY_LABEL,
-    _declares_clone_scope,
-    DueTask,
-    DueScan,
-    PAUSE_WATCHDOG,
-    PeriodLease as _PeriodLease,
-    SWEEP_ACTOR,
-    SWEEP_PAUSE_SUFFIX,
-    WATCHDOG_ACTOR,
-    RecurringError,
-    Template,
-    frozen_task_delegate,
-    format_serviced_log,
-    local_period_lease as _local_period_lease,
-    parse_serviced_period_entries,
-    parse_serviced_period_entries_reverse,
-    period_generation_from_ticket_bytes as _period_generation_from_ticket_bytes,
-    period_key_at_least,
-    read_serviced_ledger,
-    recurring_dir,
-    assert_frozen_delegation,
-    resolve_agent_delegate,
-    same_period_lease as _same_period_lease,
-    same_ticket_bytes as _same_ticket_bytes,
-    create_named,
-    load_effective_template,
-    resolve_template_source,
-    resumable_pause,
-    scan_clone_due,
-    scan_due,
-)
-from coga.recurring_clone import run_clone_template
 from coga.recurring_autofix import (
-    RunRecord,
-    TaskOutcome,
-    blackboard_for_ref,
-    outcome_for_ref,
-    run_autofix,
+    RunRecord, TaskOutcome, blackboard_for_ref, outcome_for_ref, run_autofix,
     scan_lines_for_record,
 )
-from coga.period_state import (
-    SNAPSHOT_FILE,
-    parent_ticket_path,
-    parse_keys,
-    read_snapshot,
-)
-from coga.mark import (
-    BlackboardNeedsSynthesis,
-    MainAgentUnavailable,
-    RequiredExtensionMissing,
-    StrandedProductCode,
-    WorkflowMissing,
-    format_blackboard_synthesis_refusal,
-    mark_active,
-    mark_done,
-    mark_in_progress,
-    mark_paused,
-    prepare_active,
-)
-from coga.notification import notify
+from coga.recurring_clone import run_clone_template
 from coga.repl_supervisor import _TIMEOUT_EXIT_CODE
+from coga.session_limits import resolve_idle_timeout, resolve_max_session
+from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
-from coga.workflow import WorkflowError
-from coga.workspace_discovery import (
-    CONTROL_WORKTREE_DIR_PREFIX as _CONTROL_WORKTREE_PREFIX,
-    CONTROL_WORKTREE_OWNER_FILE as _CONTROL_WORKTREE_OWNER_FILE,
-    discover_coga_repos,
-)
+from coga.workspace_discovery import discover_coga_repos
 
-# Default idle-timeout backstop (seconds) the sweep arms on the interactive
-# REPLs it spawns: one that stalls or crashes before signalling done would
-# otherwise block the sequential sweep forever — the hang this command was seen
-# to hit. Generous enough that a slow-but-progressing agent (which streams PTY
-# output) never trips it; only a genuinely silent REPL does. `--interactive`
-# (a human driving by hand) leaves it off; `COGA_REPL_IDLE_TIMEOUT` overrides
-# the window or, at `<= 0` / non-finite, disarms it.
+
 _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 
 
@@ -153,6 +70,7 @@ def recurring_owner_refusal(cfg: Config) -> str | None:
     return _recurring_owner_refusal(cfg, cfg.owner)
 
 
+
 def _recurring_owner_refusal(cfg: Config, owner: str) -> str | None:
     """Apply the owner policy using an explicitly resolved committed value."""
     if not owner or cfg.current_user == owner:
@@ -170,597 +88,6 @@ def _recurring_owner_refusal(cfg: Config, owner: str) -> str | None:
     )
 
 
-def _refuse_non_owner(cfg: Config) -> bool:
-    """Authorize from the control tip and print any refusal."""
-    refusal = _launch_owner_refusal(cfg)
-    if refusal is None:
-        return False
-    typer.secho(refusal, fg=typer.colors.RED, err=True)
-    return True
-
-
-def _refuse_non_control_branch(
-    cfg: Config,
-    *,
-    no_control_worktree: bool = False,
-    unusable_control_worktree: Path | None = None,
-) -> bool:
-    """Require recurring mutations to start on the configured control branch.
-
-    Git-disabled and non-git workspaces have no Coga-managed control checkout,
-    so they retain their existing local behavior. This gate is about the
-    *branch* and nothing else — it refuses outright when the branch is wrong,
-    and it is only *freshness* (fetch/rebase reachability of the remote tip)
-    that stays best-effort for interactive runs and becomes mandatory for
-    ``coga recurring --all``.
-
-    `no_control_worktree` and `unusable_control_worktree` are set by the
-    single-repo entry points, which look for an existing control worktree
-    before refusing (see `_relay_off_control_single_repo_run`). The first
-    names the absence as the reason and adds the `git worktree add` remedy;
-    the second names a worktree that *does* hold the branch but cannot be
-    relayed into, so the remedy is to repair or remove that worktree — Git
-    will refuse a second checkout of the branch, so suggesting `git worktree
-    add` there would send the operator to a command that fails. The gate
-    itself is unchanged, and callers that have no relay — `coga launch
-    recurring/<name>` — leave both off so the message does not promise
-    behavior they do not implement.
-    """
-    if not cfg.git_enabled:
-        return False
-
-    location = cfg.repo_root
-    try:
-        # Only a confirmed non-git workspace is exempt. The best-effort local
-        # helper used by discovery collapses every probe failure to ``None``;
-        # this mutation gate must preserve inspection errors and fail closed.
-        root = git.toplevel(cfg.repo_root)
-        if root is None:
-            return False
-        location = root
-        current = _current_branch(root)
-    except git.GitError as exc:
-        typer.secho(
-            "Recurring launch refused: could not determine the current branch "
-            f"in {location}: {exc}. Check out the configured control branch "
-            f"{cfg.git_control_branch!r} with `git switch "
-            f"{cfg.git_control_branch}` and retry.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return True
-
-    if current == cfg.git_control_branch:
-        return False
-
-    where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
-    if unusable_control_worktree is not None:
-        absence = (
-            f"The linked worktree {unusable_control_worktree} already has "
-            f"{cfg.git_control_branch!r} checked out, but it is not a usable "
-            "Coga workspace to run from (no `coga.toml` at the position this "
-            "workspace occupies in its checkout, or its directory is gone). "
-            "Git will not check that branch out a second time, so either "
-            "bring that worktree up to date, or remove it with `git worktree "
-            f"remove {unusable_control_worktree}` (`git worktree prune` if the "
-            "directory no longer exists) and recreate it with `git worktree "
-            f"add ../{location.name}-{cfg.git_control_branch} "
-            f"{cfg.git_control_branch}`; recurring will then run there by "
-            "itself. "
-        )
-    elif no_control_worktree:
-        absence = (
-            f"No linked worktree has {cfg.git_control_branch!r} checked out "
-            "either, so there is no control checkout to run from — create one "
-            f"with `git worktree add ../{location.name}-{cfg.git_control_branch} "
-            f"{cfg.git_control_branch}` and recurring will run there by itself. "
-        )
-    else:
-        absence = ""
-    typer.secho(
-        f"Recurring launch refused: the current checkout is on {where}, not "
-        f"the configured control branch {cfg.git_control_branch!r}. "
-        f"{absence}"
-        f"Check out the control branch with `git switch "
-        f"{cfg.git_control_branch}` and retry. `--force` does not override "
-        "this gate.",
-        fg=typer.colors.RED,
-        err=True,
-    )
-    return True
-
-
-def _control_remote_present_at_admission(cfg: Config) -> bool:
-    """Whether this launch admission has a shared remote control plane.
-
-    A Git checkout with no configured remote deliberately treats local HEAD as
-    authoritative.  Freeze the distinction before a recurring child owns the
-    terminal so a remote that disappears during that child cannot silently
-    turn a remote-backed sweep into the local-only class.
-    """
-    if not cfg.git_enabled:
-        return False
-    root = git.toplevel(cfg.repo_root)
-    return root is not None and git.remote_configured(root, cfg.git_remote)
-
-
-# Set on the relayed child so an off-control run can hop into the control
-# worktree exactly once. One hop is already all the design needs — the child
-# starts on the control branch and takes the ordinary path — but a branch that
-# moves between the parent's probe and the child's would otherwise let two
-# processes bounce between checkouts.
-_CONTROL_RELAY_ENV = "COGA_RECURRING_CONTROL_RELAY"
-
-# Owned by `coga.git` so `cli.main` can scope it without importing this module.
-control_relay_started = git.control_relay_started
-
-
-def _control_branch_holder(cfg: Config) -> Path | None:
-    """The linked worktree that has the control branch checked out, if any.
-
-    This is the raw holder — nothing about whether it can be relayed into —
-    and it excludes this checkout itself (relaying into ourselves would be a
-    loop; the env sentinel already caps it at one hop, but a listing that
-    raced a branch move should not get that far in the first place). None
-    also covers a relayed child, a git-disabled or non-git workspace, a
-    checkout already on control, and every inspection failure: the branch
-    gate re-probes and owns the error message, so a failure surfaces there
-    rather than silently becoming a relay.
-    """
-    if os.environ.get(_CONTROL_RELAY_ENV):
-        return None
-    if not cfg.git_enabled:
-        return None
-    try:
-        root = git.toplevel(cfg.repo_root)
-        if root is None:
-            return None
-        if _current_branch(root) == cfg.git_control_branch:
-            return None
-        worktree = git.worktree_holding_branch(root, cfg.git_control_branch)
-    except git.GitError:
-        return None
-    if worktree is None or worktree.resolve() == root.resolve():
-        return None
-    return worktree
-
-
-def _existing_control_worktree(cfg: Config) -> Path | None:
-    """The Coga workspace of a worktree that already holds the control branch.
-
-    What comes back is the *workspace* directory — the control worktree's
-    counterpart of this run's own `repo_root` — not the checkout root, because
-    that is where the relayed child has to start. Mirroring the workspace's
-    position relative to the checkout is also what makes a monorepo keeping
-    Coga in a subdirectory work, and checking `coga.toml` at exactly that
-    mirrored path is what proves the other checkout really is the same Coga
-    workspace rather than a checkout that predates the install.
-
-    None means "run here, or let `_refuse_non_control_branch` speak": no
-    worktree holds the branch (see `_control_branch_holder` for everything
-    that collapses to that), or one does but is unusable. The caller that
-    refuses asks `_control_branch_holder` again to tell those two apart, so
-    an unusable holder is named rather than reported as absent.
-    """
-    worktree = _control_branch_holder(cfg)
-    if worktree is None:
-        return None
-    try:
-        root = git.toplevel(cfg.repo_root)
-        if root is None:
-            return None
-        workspace_rel = cfg.repo_root.resolve().relative_to(root.resolve())
-    except (git.GitError, ValueError):
-        return None
-    workspace = worktree / workspace_rel
-    if not (workspace / "coga.toml").is_file():
-        return None
-    return workspace
-
-
-def _relay_to_control_worktree(
-    cfg: Config, workspace: Path, argv: list[str]
-) -> int:
-    """Re-run this recurring command as a child rooted in `workspace`.
-
-    The run only *starts from* the control checkout; nothing is re-pointed
-    in-process. The child is an ordinary on-control run, so every existing
-    scan, sync, ledger, and push path applies unmodified — and it reads
-    templates and period tasks from the control tip rather than from the
-    operator's feature tree, which is the intended semantics.
-
-    stdio is inherited, so the operator's terminal reaches the child unchanged:
-    agent-backed templates keep their TTY admission, and a `delegate:` template
-    still performs its delegated launch in that same terminal. `coga.local.toml`
-    is gitignored and so absent from a plain `git worktree add` checkout;
-    `LOCAL_CONFIG_ENV` hands the child this operator's copy instead of writing
-    anything into a checkout Coga does not own.
-    """
-    typer.secho(
-        f"Not on the control branch {cfg.git_control_branch!r}; running from "
-        f"the worktree that already holds it: {workspace}",
-        fg=typer.colors.BRIGHT_BLACK,
-    )
-    env = os.environ.copy()
-    env[_CONTROL_RELAY_ENV] = "1"
-    local = local_config_path(cfg.repo_root)
-    if local.is_file():
-        env[LOCAL_CONFIG_ENV] = str(local.resolve())
-
-    control_relay_started.set(True)
-    from coga.process_relay import run_foreground_child
-
-    code, terminated = run_foreground_child(
-        [sys.executable, "-m", "coga.cli", *argv], cwd=workspace, env=env,
-    )
-    return 128 + signal.SIGTERM if terminated else code
-
-
-def _relay_off_control_single_repo_run(cfg: Config, argv: list[str]) -> int | None:
-    """Branch precondition for the single-repo entry points.
-
-    Returns None to proceed in this checkout, or the exit code the caller must
-    return — either the relayed child's, or `2` for the refusal that stands
-    when no worktree holds the control branch.
-    """
-    workspace = _existing_control_worktree(cfg)
-    if workspace is not None:
-        return _relay_to_control_worktree(cfg, workspace, argv)
-    # A worktree may hold the branch without being a place to run from; the
-    # refusal has to say which, because `git worktree add` fails on the former.
-    unusable = _control_branch_holder(cfg)
-    if _refuse_non_control_branch(
-        cfg,
-        no_control_worktree=unusable is None,
-        unusable_control_worktree=unusable,
-    ):
-        return 2
-    return None
-
-
-def _launch_owner_refusal(cfg: Config) -> str | None:
-    """Resolve recurring authorization from the latest reachable control tip.
-
-    A stale local checkout may predate an owner addition or transfer, and the
-    working tree may contain an uncommitted owner edit. Neither is
-    authoritative: read the shared config blob from the fetched control commit
-    instead.
-
-    Fetch failure retains compatibility for repos whose local committed config
-    has never opted into an owner. Once an owner is present locally, however,
-    an apparent owner may not launch until the latest value can be confirmed;
-    otherwise an offline stale clone could bypass an owner transfer.
-    """
-    owner, error, control_reached = _control_tip_owner(cfg)
-    if owner is not None:
-        return _recurring_owner_refusal(cfg, owner)
-
-    local_owner, local_error = _local_committed_owner(cfg)
-    if local_owner is None:
-        return (
-            "Recurring launch refused: could not read the committed local "
-            f"`owner` after control-tip lookup failed ({error}): {local_error}."
-        )
-    local_refusal = _recurring_owner_refusal(cfg, local_owner)
-    if local_refusal is not None:
-        return local_refusal
-    if not local_owner and not control_reached:
-        # No local opt-in: preserve the pre-owner best-effort behavior when the
-        # configured remote is unavailable.
-        return None
-
-    local_note = (
-        f" The local commit names {local_owner!r}, but that value may be stale."
-        if local_owner
-        else ""
-    )
-    return (
-        "Recurring launch refused: could not confirm the latest committed "
-        f"`owner` from {cfg.git_remote}/{cfg.git_control_branch}: {error}."
-        f"{local_note} Retry when the control branch is reachable; `--force` "
-        "does not override the owner gate."
-    )
-
-
-def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
-    """Return (owner, error, control_reached) for committed control config.
-
-    ``owner`` is ``""`` when the fetched config deliberately leaves the gate
-    unset and ``None`` only when it could not be resolved. ``control_reached``
-    distinguishes an unavailable remote from a fetched but unreadable/invalid
-    config, which must fail closed even for a locally owner-less checkout.
-
-    Local `HEAD` is authoritative only for a checkout with **no configured
-    remote**. `[git].enabled = false` does not qualify: it is the sync opt-out
-    documented for a remote-less repo, and honoring it here would make a
-    machine-local, uncommitted setting an override of a committed policy — a
-    stale clone would read no owner at all, and a former owner would stay
-    authorized after a transfer, while the sweep still created period state and
-    launched real work.
-    """
-    root = git.toplevel(cfg.repo_root)
-    if root is None:
-        # A non-git local repo has no distinct control tip; its shared config is
-        # the only committed-policy source available.
-        return cfg.owner, "", True
-
-    reached = False
-    try:
-        if not git.remote_configured(root, cfg.git_remote):
-            return _owner_at_ref(cfg, root, "HEAD"), "", True
-        # Authorize from the destination the sweep will actually mutate.
-        # `publish` lands period state with `git push <remote>`, and git
-        # distinguishes a remote's push URLs from its fetch URL — reading the
-        # owner from the fetch repository would let an operator it authorizes
-        # create and launch work in a push repository owned by someone else. A
-        # multi-push remote has no single such repository, so it fails closed
-        # rather than picking one.
-        push_urls = [
-            line.strip()
-            for line in git.run_git(
-                root, "remote", "get-url", "--push", "--all", cfg.git_remote
-            ).splitlines()
-            if line.strip()
-        ]
-        if len(push_urls) != 1:
-            return (
-                None,
-                f"remote {cfg.git_remote!r} has {len(push_urls)} effective "
-                "push URLs, so recurring state has no single owning "
-                "repository to authorize against",
-                True,
-            )
-        # Fetch the push destination into the remote-tracking ref, so the
-        # owner is read from exactly the commit later publishes build on.
-        git.run_git(
-            root,
-            "fetch",
-            "--quiet",
-            push_urls[0],
-            f"+refs/heads/{cfg.git_control_branch}:"
-            f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}",
-        )
-        reached = True
-        target = git.run_git(
-            root,
-            "rev-parse",
-            f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}",
-        ).strip()
-        return _owner_at_ref(cfg, root, target), "", True
-    except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
-        return None, str(exc), reached
-
-
-def _local_committed_owner(cfg: Config) -> tuple[str | None, str]:
-    """Read owner from HEAD, falling back to config only outside git."""
-    root = git.toplevel(cfg.repo_root)
-    if root is None:
-        return cfg.owner, ""
-    try:
-        return _owner_at_ref(cfg, root, "HEAD"), ""
-    except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
-        return None, str(exc)
-
-
-def _owner_at_ref(cfg: Config, root: Path, ref: str) -> str:
-    """Parse the shared recurring owner from one exact committed config."""
-    target = git.run_git(root, "rev-parse", ref).strip()
-    config_rel = git.relative_to_root(root, cfg.repo_root / "coga.toml")
-    shared_text = _show_path(root, target, config_rel)
-    if not shared_text:
-        raise ConfigError(f"commit {target} has no readable {config_rel}")
-    shared = tomllib.loads(shared_text)
-    return parse_owner(shared.get("owner"))
-
-
-def run_recurring_all_repos(
-    scan_root: Path,
-    *,
-    force: bool = False,
-    interactive: bool = False,
-    agent_override: str | None = None,
-) -> int:
-    """Run one normal recurring sweep in every Coga repo below ``scan_root``.
-
-    Each repo runs in a fresh CLI process so config discovery, aliases, launch
-    supervision, and the end-of-command Coga-state sync have exactly their
-    ordinary single-repo behavior. Workspaces rejected by Coga's intentional
-    config guards are summarized as unconfigured instead of dispatched.
-    Failures from dispatched repos are isolated: the sweep continues through
-    later repos and returns non-zero after reporting the aggregate.
-
-    A repo whose checkout is parked off the control branch is no longer one of
-    those failures: its child services deterministic phases from a temporary
-    control worktree instead. Those repos are reported separately from ordinary
-    sweeps because no agent phase may run there.
-    """
-    root = scan_root.expanduser().resolve()
-    if not root.is_dir():
-        typer.secho(f"{root} is not a directory.", fg=typer.colors.RED, err=True)
-        return 2
-
-    repos = discover_coga_repos(root)
-    if not repos:
-        typer.secho(
-            f"No Coga repos found under {root} "
-            "(looked for coga/ directories with a coga.toml).",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        return 1
-
-    typer.echo(f"Found {len(repos)} Coga repo(s) under {root}:")
-    for coga_os in repos:
-        typer.echo(f"  {_repo_label(coga_os, root)}")
-
-    serviceable: list[Path] = []
-    skipped_unconfigured: list[str] = []
-    skipped_not_owner: list[str] = []
-    for coga_os in repos:
-        label = _repo_label(coga_os, root)
-        if not _has_serviceable_config(coga_os):
-            skipped_unconfigured.append(label)
-            continue
-        # Per-repo, before duplicate grouping: a repo this operator does not own
-        # is not a sweep target at all, so it must not be picked as the keeper
-        # for a remote whose other checkout *is* runnable.
-        refusal = _repo_owner_refusal(coga_os)
-        if refusal is not None:
-            skipped_not_owner.append(f"{label} — {refusal}")
-            continue
-        serviceable.append(coga_os)
-
-    duplicate_of = _duplicate_remote_checkouts(serviceable)
-    failed: list[str] = []
-    clone_only_duplicates: list[str] = []
-    serviced_from_worktree: list[str] = []
-    for index, coga_os in enumerate(serviceable, 1):
-        label = _repo_label(coga_os, root)
-        typer.secho(
-            f"\n[{index}/{len(serviceable)}] {label}",
-            fg=typer.colors.CYAN,
-            bold=True,
-        )
-        original = duplicate_of.get(coga_os)
-        clone_only = original is not None
-        if clone_only:
-            original_label = _repo_label(original, root)
-            clone_only_duplicates.append(label)
-            # Shared period work belongs to the one checkout that services
-            # this remote; clone-local state (branches, worktrees, local
-            # config) belongs to every clone, so it still runs here.
-            typer.secho(
-                f"  ⚠ {label} — same git remote as {original_label}; "
-                "running clone-scoped templates only",
-                fg=typer.colors.YELLOW,
-                err=True,
-            )
-        # Observed before dispatch, because the child may put the control
-        # branch back within its own run. A repo that was off-control here and
-        # still exited 0 can only have been serviced through the temporary
-        # control worktree — every other outcome of that state is non-zero.
-        off_control = _off_control_branch(coga_os)
-        process_started = True
-        try:
-            code = _run_repo_recurring(
-                coga_os,
-                force=force,
-                interactive=interactive,
-                agent_override=agent_override,
-                clone_only=clone_only,
-            )
-        except OSError as exc:
-            process_started = False
-            code = 1
-            typer.secho(f"  ✗ {label} — {exc}", fg=typer.colors.RED, err=True)
-        if not code and off_control:
-            serviced_from_worktree.append(label)
-            typer.secho(
-                f"  ✓ {label} — serviced from a temporary control worktree",
-                fg=typer.colors.GREEN,
-            )
-        if code:
-            failed.append(label)
-            if process_started:
-                if code == git.STALE_CONTROL_EXIT_CODE:
-                    # The child already printed the conflict and the exact
-                    # resolve command; keep the parent line short but name the
-                    # cause instead of a bare exit code.
-                    typer.secho(
-                        f"  ✗ {label} — control checkout could not integrate "
-                        "the latest control tip; resolve the conflict shown "
-                        "above in that checkout, then re-run",
-                        fg=typer.colors.RED,
-                        err=True,
-                    )
-                else:
-                    typer.secho(
-                        f"  ✗ {label} — recurring exited {code}",
-                        fg=typer.colors.RED,
-                        err=True,
-                    )
-
-    swept = (
-        len(repos)
-        - len(failed)
-        - len(skipped_unconfigured)
-        - len(skipped_not_owner)
-    )
-    typer.echo(f"\nSwept {swept} of {len(repos)} Coga repo(s).")
-    if skipped_unconfigured:
-        count = len(skipped_unconfigured)
-        repo_word = "repo" if count == 1 else "repos"
-        typer.secho(
-            f"Skipped {count} unconfigured {repo_word}.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-    if skipped_not_owner:
-        count = len(skipped_not_owner)
-        repo_word = "repo" if count == 1 else "repos"
-        # Named individually, not just counted: an operator who owns none of
-        # the repos they scanned would otherwise see an empty sweep with no
-        # clue which name to ask for.
-        listed = "\n".join(f"  {entry}" for entry in skipped_not_owner)
-        typer.secho(
-            f"Skipped {count} {repo_word} owned by someone else:\n{listed}",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-    if clone_only_duplicates:
-        typer.secho(
-            f"Ran only clone-scoped templates in {len(clone_only_duplicates)} "
-            "duplicate checkout(s) that share a configured git remote.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-    if serviced_from_worktree:
-        count = len(serviced_from_worktree)
-        repo_word = "repo" if count == 1 else "repos"
-        # Named, not just counted: only deterministic phases run in this mode,
-        # so an operator needs to know which repos to put back on the control
-        # branch to run parked hybrid agent handoffs. A due agent-only template
-        # refused there is a problem the child exits 2 on, so its repo is
-        # listed with the failed ones instead.
-        listed = "\n".join(f"  {entry}" for entry in serviced_from_worktree)
-        typer.secho(
-            f"Serviced {count} {repo_word} from a temporary control worktree "
-            "(checkout is on another branch; deterministic phases only, "
-            f"agent handoffs parked):\n{listed}",
-            fg=typer.colors.YELLOW,
-        )
-    if failed:
-        typer.secho(
-            f"{len(failed)} repo(s) failed: {', '.join(failed)} — see each "
-            "repo's section above for the error and fix.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        return 1
-    return 0
-
-
-def _off_control_branch(coga_os: Path) -> bool:
-    """Whether this workspace's checkout is on something other than control.
-
-    Best-effort and deliberately conservative: every inspection failure reports
-    False. The child process is the authoritative gate, and an unverified guess
-    must not let the summary claim a repo took the temp-worktree path.
-    """
-    try:
-        cfg = load_config(coga_os, require_user=False)
-    except Exception:
-        return False
-    if not cfg.git_enabled:
-        return False
-    try:
-        root = git.toplevel(coga_os)
-        if root is None:
-            return False
-        return _current_branch(root) != cfg.git_control_branch
-    except (git.GitError, OSError):
-        return False
-
 
 def _repo_label(coga_os: Path, root: Path) -> str:
     host_repo = coga_os.parent
@@ -770,1886 +97,6 @@ def _repo_label(coga_os: Path, root: Path) -> str:
         return str(host_repo)
     return host_repo.name if relative == Path(".") else str(relative)
 
-
-def _has_serviceable_config(coga_os: Path) -> bool:
-    """Whether a discovered workspace is a configured scheduler target."""
-    try:
-        cfg = load_config(coga_os)
-        validate_aliases({**DEFAULT_ALIASES, **cfg.aliases})
-    except ConfigParseError:
-        # Malformed TOML is a failure for the child to report, not a guard.
-        return True
-    except ConfigError:
-        return False
-    except Exception:
-        # The child process remains authoritative for malformed TOML, I/O
-        # failures, and unexpected loader bugs. Only Coga's intentional config
-        # guards identify an unconfigured checkout that the parent may skip.
-        return True
-    return True
-
-
-def _repo_owner_refusal(coga_os: Path) -> str | None:
-    """The owner refusal for a discovered workspace, or None if it may sweep.
-
-    The gate is per-repo under `--all`: each repo names its own `owner`, so an
-    operator sweeping a directory of clones runs the ones they own and skips
-    the rest rather than failing the whole sweep. Config that fails to load
-    here is left to the child process, which is the authoritative loader —
-    exactly as `_configured_remote_identity` does.
-    """
-    try:
-        cfg = load_config(coga_os, require_user=False)
-        owner, _reason, _control_reached = _control_tip_owner(cfg)
-        if owner is None:
-            # Never pre-skip on an unconfirmed value. The selected child is the
-            # authoritative freshness gate and fails before scanning if the
-            # control tip cannot be integrated.
-            return None
-    except Exception:
-        return None
-    return _recurring_owner_refusal(cfg, owner)
-
-
-def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
-    """Map repeated remote workspaces to one usable control checkout."""
-    by_remote: dict[tuple[str, str], list[tuple[Path, bool, bool]]] = {}
-    duplicates: dict[Path, Path] = {}
-    for coga_os in repos:
-        resolved = _configured_remote_identity(coga_os)
-        if resolved is None:
-            continue
-        remote_identity, workspace_identity, has_user, on_control_branch = resolved
-        by_remote.setdefault((remote_identity, workspace_identity), []).append(
-            (coga_os, has_user, on_control_branch)
-        )
-
-    for checkouts in by_remote.values():
-        keeper = next(
-            (
-                path
-                for path, has_user, on_control in checkouts
-                if has_user and on_control
-            ),
-            None,
-        )
-        if keeper is None:
-            keeper = next(
-                (path for path, _has_user, on_control in checkouts if on_control),
-                None,
-            )
-        if keeper is None:
-            keeper = next(
-                (path for path, has_user, _on_control in checkouts if has_user),
-                checkouts[0][0],
-            )
-        for path, _has_user, _on_control in checkouts:
-            if path != keeper:
-                duplicates[path] = keeper
-    return duplicates
-
-
-def _configured_remote_identity(
-    coga_os: Path,
-) -> tuple[str, str, bool, bool] | None:
-    """Return remote/workspace identity and checkout eligibility signals."""
-    try:
-        cfg = load_config(coga_os, require_user=False)
-    except Exception:
-        # Classification is best-effort. The repo's child process is the
-        # authoritative config loader, so every failure still surfaces there
-        # without starving later repos in the parent sweep.
-        return None
-    if not cfg.git_enabled:
-        return None
-
-    try:
-        root = git.toplevel(coga_os)
-    except OSError:
-        return None
-    if root is None:
-        return None
-    try:
-        on_control_branch = _current_branch(root) == cfg.git_control_branch
-    except git.GitError:
-        on_control_branch = False
-
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(root), "remote", "get-url", cfg.git_remote],
-            capture_output=True,
-            text=True, encoding="utf-8",
-            check=False,
-            env=git._git_env(),
-        )
-    except OSError:
-        return None
-    if result.returncode != 0:
-        return None
-    url = result.stdout.strip().splitlines()
-    if not url:
-        return None
-    try:
-        identity = _normalize_remote_identity(root, url[0])
-    except OSError:
-        return None
-    if identity is None:
-        return None
-
-    # One git checkout may intentionally contain several independent Coga
-    # workspaces. Only equal workspace paths across separate checkouts of the
-    # remote are duplicates; siblings inside one monorepo must all run.
-    try:
-        workspace_identity = (
-            coga_os.resolve().relative_to(root.resolve()).as_posix()
-        )
-    except (OSError, ValueError):
-        return None
-    return identity, workspace_identity, bool(cfg.current_user), on_control_branch
-
-
-def _normalize_remote_identity(root: Path, url: str) -> str | None:
-    """Canonicalize local remote paths; preserve resolved network URLs."""
-    value = url.strip()
-    if not value:
-        return None
-
-    if value.startswith("file://"):
-        parsed = urlsplit(value)
-        if parsed.netloc not in {"", "localhost"}:
-            return f"url:{value.rstrip('/')}"
-        return f"file:{Path(unquote(parsed.path)).resolve()}"
-
-    # A scp-style remote (`git@host:org/repo.git`) has no `://` but is not a
-    # filesystem path. Everything else without a URL scheme is the local-path
-    # form git resolves relative to the checkout.
-    if "://" not in value and not (
-        ":" in value and not value.startswith(("/", "./", "../", "~"))
-    ):
-        path = Path(value).expanduser()
-        if not path.is_absolute():
-            path = root / path
-        return f"file:{path.resolve()}"
-    return f"url:{value.rstrip('/')}"
-
-
-def _recurring_scan_relay_argv(
-    *,
-    force: bool,
-    interactive: bool,
-    agent_override: str | None,
-    clone_only: bool = False,
-) -> list[str]:
-    """The `coga run recurring-scan` argv that reproduces this sweep elsewhere.
-
-    A fixed recipe name with a repository-independent argv contract, so the
-    relayed child is spelled the same way `coga recurring --all` already spells
-    its per-repo dispatch. `--require-fresh-control` is deliberately absent: a
-    relay only ever happens on the non-`--all` path.
-    """
-    argv = ["run", "recurring-scan"]
-    if force:
-        argv.append("--force")
-    if interactive:
-        argv.append("--interactive")
-    if agent_override:
-        argv.extend(("--agent", agent_override))
-    if clone_only:
-        argv.append("--clone-only")
-    return argv
-
-
-def _run_repo_recurring(
-    coga_os: Path,
-    *,
-    force: bool,
-    interactive: bool,
-    agent_override: str | None,
-    clone_only: bool = False,
-    control_worktree: bool = False,
-    control_worktree_host: str = "",
-    control_worktree_parent: Path | None = None,
-    cwd: Path | None = None,
-) -> int:
-    """Dispatch the registered recurring recipe from its Coga workspace.
-
-    `cwd` overrides the directory the child runs from. The parent sweep leaves
-    it unset and runs from `coga_os` itself;
-    `_service_from_control_worktree` names the mirrored Coga workspace itself
-    so config discovery works for both root and deeply nested layouts.
-    """
-    # `cli._is_recurring_all_child` recognises this exact argv shape to skip
-    # the host-checkout exit sweep when the child services the repo from a
-    # temporary control worktree. Keep the two in step.
-    command = [
-        sys.executable,
-        "-m",
-        "coga.cli",
-        "run",
-        "recurring-scan",
-        "--require-fresh-control",
-    ]
-    if force:
-        command.append("--force")
-    if interactive:
-        command.append("--interactive")
-    if agent_override:
-        command.extend(("--agent", agent_override))
-    if clone_only:
-        command.append("--clone-only")
-    if control_worktree:
-        command.append("--control-worktree")
-        if control_worktree_host:
-            command.extend(("--control-worktree-host", control_worktree_host))
-
-    child_cwd = cwd if cwd is not None else coga_os
-    child_env = os.environ.copy()
-    if control_worktree:
-        if control_worktree_parent is None:
-            raise ValueError(
-                "a control-worktree dispatch requires its owner-marker parent"
-            )
-        # `starting` closes the unsafe half of the spawn window. If this
-        # wrapper is SIGKILLed before it can publish the child's process-group
-        # identity, a later sweep retains the checkout rather than guessing
-        # that no descendant exists.
-        _transition_control_worktree_inner(
-            control_worktree_parent,
-            expected="not-started",
-            state="starting",
-        )
-        try:
-            process = _start_repo_recurring_process(
-                command, child_cwd, child_env
-            )
-        except Exception:
-            # A normal Popen refusal returns no child. Mark that known-safe
-            # outcome so the caller may clean up; BaseException is deliberately
-            # excluded because an asynchronous signal can land after fork but
-            # before the process handle is assigned.
-            try:
-                _transition_control_worktree_inner(
-                    control_worktree_parent,
-                    expected="starting",
-                    state="not-started",
-                )
-            except OSError:
-                # An unverifiable marker makes the outer cleanup retain the
-                # checkout. Preserve the original process-start diagnosis.
-                pass
-            raise
-        try:
-            _transition_control_worktree_inner(
-                control_worktree_parent,
-                expected="starting",
-                state="running",
-                pgid=process.identity,
-            )
-            return process.process.wait()
-        except BaseException:
-            # From the moment a handle exists, every interruption is
-            # actionable: terminate the isolated group before the caller's
-            # `finally` considers removing its checkout. One try spans marker
-            # publication and wait so there is no uncovered signal window
-            # between them.
-            _terminate_repo_recurring_process(process)
-            try:
-                # If publication never reached `running`, termination makes
-                # the ambiguous window known-safe again. A completed atomic
-                # write already says `running` and intentionally fails this
-                # CAS; cleanup verifies that published group is gone.
-                _transition_control_worktree_inner(
-                    control_worktree_parent,
-                    expected="starting",
-                    state="not-started",
-                )
-            except OSError:
-                pass
-            raise
-        finally:
-            process.close()
-
-    result = subprocess.run(
-        command,
-        cwd=child_cwd,
-        env=child_env,
-        check=False,
-    )
-    return result.returncode
-
-
-_CONTROL_WORKTREE_STOP_TIMEOUT = 10.0
-
-
-def _start_repo_recurring_process(
-    command: list[str], cwd: Path, env: dict[str, str]
-) -> ProcessTree:
-    """Start the inner scan in a session whose whole process tree we own."""
-    return ProcessTree(command, cwd=cwd, env=env)
-
-
-def _signal_repo_recurring_process_group(
-    process: ProcessTree, signum: int
-) -> None:
-    """Signal the isolated inner scan and every recipe descendant."""
-    if signum == signal.SIGTERM:
-        process.terminate()
-    else:
-        process.kill()
-
-
-def _repo_recurring_process_group_exists(
-    process: ProcessTree,
-) -> bool:
-    """Whether any descendant still occupies the isolated process group."""
-    return process.exists()
-
-
-def _process_group_is_running(pgid: int | str) -> bool:
-    """Conservatively report whether a process group may still be alive."""
-    return oscompat.process_tree_is_running(pgid)
-
-
-def _terminate_repo_recurring_process(
-    process: ProcessTree,
-) -> None:
-    """Terminate and reap an interrupted inner scan before checkout cleanup."""
-    child = process.process
-    if os.name == "nt":
-        process.kill()
-        child.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
-        if not process.wait_empty(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT):
-            raise TimeoutError("Recurring Windows process job did not stop")
-        return
-    if child.poll() is not None:
-        return
-    try:
-        _signal_repo_recurring_process_group(process, signal.SIGTERM)
-    except ProcessLookupError:
-        child.wait()
-        return
-    try:
-        child.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        _signal_repo_recurring_process_group(process, signal.SIGKILL)
-        child.wait()
-        return
-    # The leader can obey SIGTERM before a recipe descendant does. Once it is
-    # reaped, kill any process still occupying the isolated group so no user
-    # code can outlive the checkout this wrapper is about to remove.
-    if _repo_recurring_process_group_exists(process):
-        try:
-            _signal_repo_recurring_process_group(process, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-
-
-# The shared discovery layer owns the prefix/marker pair and prunes any parent
-# carrying both, even when an explicit scan root contains the system temp dir.
-# The remaining state is the private marker protocol used by stale recovery.
-_CONTROL_WORKTREE_INNER_STATES = {"not-started", "starting", "running"}
-
-
-@dataclass(frozen=True)
-class _ControlWorktreeOwner:
-    pid: int
-    workspace_rel: Path
-    inner_state: str
-    inner_pgid: int | str | None
-
-
-def _is_positive_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value > 0
-
-
-def _is_process_tree_identity(value: object) -> bool:
-    if os.name == "posix":
-        return _is_positive_int(value)
-    return isinstance(value, str) and re.fullmatch(
-        r"Global\\coga-process-[0-9a-f]{32}", value
-    ) is not None
-
-
-def _safe_control_worktree_workspace(
-    root: Path, workspace: str | Path
-) -> Path | None:
-    """Return a workspace relative to ``root``, or None for an escape."""
-    workspace_rel = Path(workspace)
-    resolved_root = root.resolve()
-    if (
-        workspace_rel.is_absolute()
-        or ".." in workspace_rel.parts
-        or not (resolved_root / workspace_rel)
-        .resolve()
-        .is_relative_to(resolved_root)
-    ):
-        return None
-    return workspace_rel
-
-
-def _atomic_write_control_worktree_owner(
-    marker: Path, payload: Mapping[str, object]
-) -> None:
-    """Replace an ownership marker without exposing a partial state."""
-    temporary: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            newline="\n",
-            dir=marker.parent,
-            prefix=f".{marker.name}.",
-            delete=False,
-        ) as handle:
-            temporary = Path(handle.name)
-            handle.write(json.dumps(payload, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        temporary.chmod(0o600)
-        os.replace(temporary, marker)
-        temporary = None
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-
-
-def _write_control_worktree_owner(
-    parent: Path,
-    root: Path,
-    control: str,
-    workspace_rel: Path,
-    *,
-    pid: int | None = None,
-    inner_state: str = "not-started",
-    inner_pgid: int | str | None = None,
-) -> None:
-    """Mark a temp directory as this process's narrowly owned checkout."""
-    owner_pid = os.getpid() if pid is None else pid
-    if not _is_positive_int(owner_pid):
-        raise ValueError(f"invalid control-worktree owner pid: {owner_pid}")
-    requested_workspace = workspace_rel
-    workspace_rel = _safe_control_worktree_workspace(root, requested_workspace)
-    if workspace_rel is None:
-        raise ValueError(
-            f"unsafe control-worktree workspace: {requested_workspace}"
-        )
-    resolved_root = root.resolve()
-    if inner_state not in _CONTROL_WORKTREE_INNER_STATES:
-        raise ValueError(f"unknown control-worktree inner state: {inner_state}")
-    if inner_state == "running":
-        if not _is_process_tree_identity(inner_pgid):
-            raise ValueError("a running control worktree requires an inner pgid")
-    elif inner_pgid is not None:
-        raise ValueError(f"{inner_state} cannot carry an inner pgid")
-
-    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
-    _atomic_write_control_worktree_owner(
-        marker,
-        {
-            "version": 2 if os.name == "posix" else 3,
-            "pid": owner_pid,
-            "root": str(resolved_root),
-            "control": control,
-            "workspace": workspace_rel.as_posix(),
-            "inner_state": inner_state,
-            "inner_pgid": inner_pgid,
-        },
-    )
-
-
-def _transition_control_worktree_inner(
-    parent: Path,
-    *,
-    expected: str,
-    state: str,
-    pgid: int | str | None = None,
-) -> None:
-    """Durably advance the marker around the isolated child spawn."""
-    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
-    try:
-        payload = json.loads(marker.read_text(encoding="utf-8"))
-    except (OSError, TypeError, ValueError, UnicodeError) as exc:
-        raise OSError(
-            f"could not read control-worktree owner marker: {exc}"
-        ) from exc
-    if (
-        not isinstance(payload, dict)
-        or payload.get("version") != (2 if os.name == "posix" else 3)
-        or payload.get("pid") != os.getpid()
-        or payload.get("inner_state") != expected
-        or state not in _CONTROL_WORKTREE_INNER_STATES
-        or (state == "running" and not _is_process_tree_identity(pgid))
-        or (state != "running" and pgid is not None)
-    ):
-        raise OSError("control-worktree owner marker changed unexpectedly")
-    payload["inner_state"] = state
-    payload["inner_pgid"] = pgid
-    _atomic_write_control_worktree_owner(marker, payload)
-
-
-def _process_is_running(pid: int) -> bool:
-    """Conservatively report whether an owner PID may still be alive."""
-    return oscompat.process_is_running(pid)
-
-
-def _read_control_worktree_owner(
-    root: Path, control: str, checkout: Path
-) -> _ControlWorktreeOwner | None:
-    """Read a marker only for this repo's exact Coga-owned temp checkout."""
-    try:
-        temp_root = Path(tempfile.gettempdir()).resolve()
-        checkout = checkout.resolve()
-        parent = checkout.parent
-        if (
-            checkout.name != "checkout"
-            or parent.parent != temp_root
-            or not parent.name.startswith(
-                f"{_CONTROL_WORKTREE_PREFIX}{root.name}-"
-            )
-        ):
-            return None
-        payload = json.loads(
-            (parent / _CONTROL_WORKTREE_OWNER_FILE).read_text(encoding="utf-8")
-        )
-        if not isinstance(payload, dict):
-            return None
-        pid = payload.get("pid")
-        workspace = payload.get("workspace")
-        inner_state = payload.get("inner_state")
-        inner_pgid = payload.get("inner_pgid")
-        if (
-            payload.get("version") != (2 if os.name == "posix" else 3)
-            or payload.get("root") != str(root.resolve())
-            or payload.get("control") != control
-            or not _is_positive_int(pid)
-            or not isinstance(workspace, str)
-            or not workspace
-            or not isinstance(inner_state, str)
-            or inner_state not in _CONTROL_WORKTREE_INNER_STATES
-            or (
-                inner_state == "running"
-                and not _is_process_tree_identity(inner_pgid)
-            )
-            or (inner_state != "running" and inner_pgid is not None)
-        ):
-            return None
-        workspace_rel = _safe_control_worktree_workspace(root, workspace)
-        if workspace_rel is None:
-            return None
-    except (OSError, ValueError, TypeError, UnicodeError):
-        return None
-    return _ControlWorktreeOwner(
-        pid=pid,
-        workspace_rel=workspace_rel,
-        inner_state=inner_state,
-        inner_pgid=inner_pgid,
-    )
-
-
-def _stale_owned_control_worktree(
-    root: Path, control: str, checkout: Path
-) -> _ControlWorktreeOwner | None:
-    """Return ownership only when wrapper and any known child are both dead."""
-    owner = _read_control_worktree_owner(root, control, checkout)
-    if owner is None or _process_is_running(owner.pid):
-        return None
-    if owner.inner_state == "not-started":
-        return owner
-    if (
-        owner.inner_state == "running"
-        and owner.inner_pgid is not None
-        and not _process_group_is_running(owner.inner_pgid)
-    ):
-        return owner
-    # `starting` means the wrapper died inside the one window where a child
-    # may exist but its pgid was not yet publishable. Retain the checkout and
-    # force a human to establish that it is safe.
-    return None
-
-
-def _copy_control_worktree_run_log(source: Path, destination_dir: Path) -> Path:
-    """Copy one run record without replacing any durable local record."""
-    data = source.read_bytes()
-    collision = 0
-    while True:
-        destination = (
-            destination_dir / source.name
-            if collision == 0
-            else destination_dir
-            / f"{source.stem}.worktree-{collision:03d}{source.suffix}"
-        )
-        try:
-            descriptor = os.open(
-                destination,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                0o600,
-            )
-        except FileExistsError:
-            if (
-                not destination.is_symlink()
-                and destination.is_file()
-                and destination.read_bytes() == data
-            ):
-                return destination
-            collision += 1
-            continue
-        try:
-            with os.fdopen(descriptor, "wb") as handle:
-                handle.write(data)
-                handle.flush()
-                os.fsync(handle.fileno())
-        except BaseException:
-            destination.unlink(missing_ok=True)
-            raise
-        return destination
-
-
-def _persist_control_worktree_run_logs(
-    source_coga_os: Path, destination_coga_os: Path
-) -> None:
-    """Move temp-checkout run records into the operator's durable checkout."""
-    source_runs = source_coga_os / ".coga" / "recurring-runs"
-    if not source_runs.exists():
-        return
-    source_root = source_coga_os.resolve()
-    if (
-        source_runs.parent.is_symlink()
-        or source_runs.is_symlink()
-        or not source_runs.is_dir()
-        or not source_runs.resolve().is_relative_to(source_root)
-    ):
-        raise OSError(f"unsafe temporary recurring-run directory: {source_runs}")
-
-    if not destination_coga_os.is_dir():
-        raise OSError(
-            f"durable Coga workspace is unavailable: {destination_coga_os}"
-        )
-    destination_root = destination_coga_os.resolve()
-    destination_state = destination_coga_os / ".coga"
-    destination_runs = destination_state / "recurring-runs"
-    if destination_state.is_symlink() or destination_runs.is_symlink():
-        raise OSError(
-            f"unsafe durable recurring-run directory: {destination_runs}"
-        )
-    destination_runs.mkdir(parents=True, exist_ok=True)
-    if not destination_runs.resolve().is_relative_to(destination_root):
-        raise OSError(
-            f"durable recurring-run directory escapes its workspace: "
-            f"{destination_runs}"
-        )
-
-    for source in sorted(source_runs.glob("*.md")):
-        if source.is_symlink() or not source.is_file():
-            continue
-        _copy_control_worktree_run_log(source, destination_runs)
-
-
-def _reap_stale_control_worktree(root: Path, control: str) -> None:
-    """Remove a dead, marker-proven Coga holder without touching live/user trees."""
-    try:
-        holder = git.worktree_holding_branch(root, control)
-    except git.GitError:
-        return
-    if holder is None:
-        return
-    owner = _stale_owned_control_worktree(root, control, holder)
-    if owner is None:
-        return
-    try:
-        _persist_control_worktree_run_logs(
-            holder / owner.workspace_rel,
-            root / owner.workspace_rel,
-        )
-    except OSError as exc:
-        typer.secho(
-            "Recurring control-worktree recovery retained "
-            f"{holder}: could not preserve its run logs in "
-            f"{root / owner.workspace_rel}: {exc}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return
-    git.run_git(root, "worktree", "remove", "--force", str(holder))
-    shutil.rmtree(holder.parent, ignore_errors=True)
-
-
-def _cleanup_control_worktree(
-    root: Path,
-    control: str,
-    checkout: Path,
-    workspace_rel: Path,
-    durable_coga_os: Path,
-) -> None:
-    """Remove a completed temp checkout, retaining every ambiguous one."""
-    owner = _read_control_worktree_owner(root, control, checkout)
-    if owner is None:
-        typer.secho(
-            "Recurring control worktree retained at "
-            f"{checkout}: its ownership marker could not be verified during "
-            "cleanup.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return
-    if owner.inner_state == "starting":
-        # Popen may have forked immediately before an asynchronous signal
-        # interrupted assignment of its handle. With no trustworthy PGID, the
-        # only safe cleanup is to leave the registered checkout in place.
-        typer.secho(
-            "Recurring control worktree retained at "
-            f"{checkout}: child startup was interrupted before its process "
-            "group could be published; verify no process still uses it "
-            "before removing it.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return
-    if (
-        owner.inner_state == "running"
-        and owner.inner_pgid is not None
-        and _process_group_is_running(owner.inner_pgid)
-    ):
-        # A second signal or an OS error can interrupt group termination. The
-        # published PGID lets this path fail closed instead of unlinking a
-        # checkout beneath a child that still has it open.
-        typer.secho(
-            "Recurring control worktree retained at "
-            f"{checkout}: child process group {owner.inner_pgid} may still "
-            "be running; retry after it exits.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return
-
-    try:
-        _persist_control_worktree_run_logs(
-            checkout / workspace_rel,
-            durable_coga_os,
-        )
-    except OSError as exc:
-        # The temp checkout is now the only durable copy. Keep both its
-        # directory and Git registration so the next sweep can retry the
-        # marker-proven transfer before reaping it.
-        typer.secho(
-            "Recurring control worktree retained at "
-            f"{checkout}: could not preserve its run logs in "
-            f"{durable_coga_os}: {exc}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return
-
-    try:
-        git.run_git(root, "worktree", "remove", "--force", str(checkout))
-    except git.GitError:
-        # The directory removal below plus `prune` still clears it.
-        pass
-    shutil.rmtree(checkout.parent, ignore_errors=True)
-    try:
-        git.run_git(root, "worktree", "prune")
-    except git.GitError:
-        pass
-
-
-# Scan-row label for an agent template a control-worktree run refused.
-_CONTROL_WORKTREE_AGENT_LABEL = "control branch not checked out"
-
-
-def _control_worktree_agent_refusal(cfg: Config, host: str) -> str:
-    """Why every agent phase is refused in a control-worktree run.
-
-    Says the phase did not run: the run record lists these refusals, and
-    "serviced" there read as success for work that never happened.
-    """
-    where = host or "the host checkout"
-    control = cfg.git_control_branch
-    return (
-        "agent phases are not run from a temporary control worktree: "
-        f"{where} does not have {control!r} checked out, and agent phases "
-        f"need a durable checkout on the control branch. Check out {control!r} "
-        f"in {where} so a later sweep runs it."
-    )
-
-
-def _service_from_control_worktree(
-    cfg: Config,
-    *,
-    force: bool,
-    interactive: bool,
-    agent_override: str | None,
-    clone_only: bool = False,
-) -> tuple[int, None] | tuple[None, str]:
-    """Run this repo's deterministic phases from a temp control worktree.
-
-    Hybrid scripts may run, but their agent handoff is refused and parked.
-    Returns `(exit_code, None)`, or `(None, why_unavailable)`.
-
-    The caller reaches this only when the control branch is *not* checked out
-    anywhere in this repo, which is what makes the shape safe: the temporary
-    worktree checks the branch out, so the inner scan is an ordinary
-    on-control run from a different directory and every existing sync, ledger,
-    and push path applies unmodified. A detached worktree at the remote tip
-    would also publish, but the inner scan's catch-up (`git.refresh`) only
-    moves a checked-out control branch, so a detached worktree could
-    never be proven level with control before scanning.
-
-    `git worktree add` is also the concurrency lock: git refuses to check one
-    branch out twice, so a second sweep (or an unrelated worktree already
-    holding the branch) fails here and the caller keeps today's loud refusal.
-
-    The operator's checkout is never touched — no stash, no switch, no
-    restore. The one shared thing that moves is the local control ref, which
-    advances exactly as it does in any on-control sweep.
-    """
-    if not cfg.git_enabled:
-        return None, "[git].enabled = false"
-    root = git.toplevel(cfg.repo_root)
-    if root is None:
-        return None, "workspace is not inside a git checkout"
-    try:
-        workspace_rel = cfg.repo_root.resolve().relative_to(root.resolve())
-    except (OSError, ValueError):
-        return None, f"{cfg.repo_root} is not inside the git checkout at {root}"
-
-    control = cfg.git_control_branch
-    try:
-        host_branch = _current_branch(root)
-    except git.GitError as exc:
-        return None, f"could not read the current branch of {root}: {exc}"
-
-    try:
-        # Prune missing checkouts, then explicitly reap a still-present
-        # checkout only when its repo/branch marker identifies this feature
-        # and its owning process is gone. A live concurrent sweep and every
-        # unrelated user worktree remain the branch-lock refusal below.
-        git.run_git(root, "worktree", "prune")
-        _reap_stale_control_worktree(root, control)
-        git.run_git(root, "worktree", "prune")
-        control_ref_exists = _local_branch_exists(root, control)
-        control_seed: str | None = None
-        if not control_ref_exists:
-            # A narrow clone may never have checked the control branch out
-            # locally; seed it from the freshly fetched remote-tracking ref.
-            control_seed = git.fetch_control(cfg, root)
-    except git.GitError as exc:
-        return None, str(exc)
-
-    parent = Path(
-        tempfile.mkdtemp(prefix=f"{_CONTROL_WORKTREE_PREFIX}{root.name}-")
-    )
-    _write_control_worktree_owner(parent, root, control, workspace_rel)
-    # `git worktree add` refuses a directory that already exists with content,
-    # so the checkout is a fresh subpath of the temp parent, not the parent.
-    checkout = parent / "checkout"
-    # A repo that has never checked the control branch out locally has no
-    # `refs/heads/<control>` to add a worktree for, so the ref is created from
-    # the exact command-owned fetched OID. This does not depend on a
-    # remote-tracking ref that a narrow clone may not have. Where the local ref
-    # does exist it is used as-is: the inner scan runs its own catch-up against
-    # origin, which is where that integration belongs.
-    if control_ref_exists:
-        add_args = [str(checkout), control]
-    else:
-        assert control_seed is not None
-        add_args = ["-b", control, str(checkout), control_seed]
-    try:
-        git.run_git(root, "worktree", "add", *add_args)
-    except git.GitError as exc:
-        shutil.rmtree(parent, ignore_errors=True)
-        try:
-            holder = git.worktree_holding_branch(root, control)
-        except git.GitError:
-            holder = None
-        blocker = (
-            f"{control!r} is already checked out at {holder}"
-            if holder is not None
-            else str(exc)
-        )
-        return None, (
-            f"could not check {control!r} out at {checkout}: {blocker}. "
-            f"Free that branch, or check it out in {root} yourself, "
-            "then re-run."
-        )
-
-    previous_sigterm: object = None
-    installed_sigterm = False
-    try:
-        # SIGINT already unwinds through this `finally` as KeyboardInterrupt.
-        # A cron kill arrives as SIGTERM, whose default action would skip the
-        # cleanup entirely and strand a worktree registration.
-        previous_sigterm = signal.signal(signal.SIGTERM, _raise_on_sigterm)
-        installed_sigterm = True
-    except (OSError, ValueError):
-        # Not the main thread, or a platform without SIGTERM. The next run's
-        # `git worktree prune` is the backstop.
-        installed_sigterm = False
-
-    try:
-        mirrored_coga_os = checkout / workspace_rel
-        local_config = cfg.repo_root / "coga.local.toml"
-        if local_config.is_file():
-            # Required, not a nicety: `coga.local.toml` is gitignored, so a
-            # fresh worktree has no `user` and `load_config` raises before the
-            # scan starts. It carries secret *references*, never values, and
-            # the copy is mode 0600 in a directory only this run knows.
-            mirrored = mirrored_coga_os / local_config.name
-            mirrored.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(local_config, mirrored)
-            mirrored.chmod(0o600)
-
-        where = (
-            "a detached HEAD"
-            if host_branch == "HEAD"
-            else f"branch {host_branch!r}"
-        )
-        typer.secho(
-            f"{root} is on {where}; servicing deterministic phases from a "
-            f"temporary {control!r} worktree at {checkout}.",
-            fg=typer.colors.CYAN,
-        )
-        return (
-            _run_repo_recurring(
-                mirrored_coga_os,
-                force=force,
-                interactive=interactive,
-                agent_override=agent_override,
-                clone_only=clone_only,
-                control_worktree=True,
-                control_worktree_host=str(root),
-                control_worktree_parent=parent,
-                cwd=mirrored_coga_os,
-            ),
-            None,
-        )
-    finally:
-        if installed_sigterm:
-            signal.signal(signal.SIGTERM, previous_sigterm)
-        _cleanup_control_worktree(
-            root,
-            control,
-            checkout,
-            workspace_rel,
-            cfg.repo_root,
-        )
-
-
-def _raise_on_sigterm(signum: int, _frame: object) -> None:
-    """Turn a scheduler's SIGTERM into an exception so `finally` blocks run."""
-    raise KeyboardInterrupt(f"terminated by signal {signum}")
-
-
-def _local_branch_exists(root: Path, branch: str) -> bool:
-    try:
-        git.run_git(root, "rev-parse", "--verify", f"refs/heads/{branch}")
-    except git.GitError:
-        return False
-    return True
-
-
-def run_recurring_scan(
-    cfg: Config,
-    *,
-    force: bool = False,
-    interactive: bool = False,
-    agent_override: str | None = None,
-    require_fresh_control: bool = False,
-    clone_only: bool = False,
-    control_worktree: bool = False,
-    control_worktree_host: str = "",
-) -> int:
-    """Scan every recurring template and launch any due tasks, sequentially.
-
-    Bare `coga recurring` is the default action. For each template under
-    `coga/recurring/` it get-or-creates the current period's task, then
-    launches every one still `active` or orphaned `in_progress` —
-    most-overdue first, one at a time. A period task left `in_progress` by a
-    sweep whose supervisor died mid-run (laptop sleep, SSH drop) is **resumed**
-    from its current step on the next sweep. If an interactive launch returns
-    unfinished, the sweep pauses it before continuing, so a frozen
-    `in_progress` can still mean "dead run's orphan". A period the sweep or
-    the liveness watchdog paused is resumed from its recorded step on the next
-    sweep — a sweep pause only once its open asks are resolved (`coga
-    unblock`). `done`, `canceled`, and human-`paused` tasks are skipped.
-    Current period only: running this once a month for a weekly
-    template produces one run, not a backlog. It does not install or manage
-    system cron; nothing runs unless you invoke it.
-
-    `--force` forces a real, full run: the only difference from the bare sweep is
-    that it ignores the schedule and the status filter, so every template is
-    launched — including ones already serviced this period (re-launched) and
-    `done`/`paused` ones (the runner reactivates them). Canceled tasks are
-    included in discovery but refused rather than reactivated; the sweep
-    reports each refusal, continues with later templates, and returns non-zero
-    after the remaining work finishes. Everything else — Slack, git task-state
-    sync, and the serviced-period ledger advance — is identical to a normal
-    run.
-
-    `agent_override` temporarily selects the configured agent for agent-backed
-    tasks. It never rewrites the ticket, and a period task carrying `ticket.py`
-    keeps its deterministic execution path.
-
-    A git-backed interactive run happens on the configured control branch, but
-    does not require its remote tip to be reachable. Off that branch it does
-    not refuse outright: if another worktree of this repo already has the
-    control branch checked out, the sweep re-runs itself from there and returns
-    that child's exit code. Only when no worktree holds the branch does the
-    refusal stand. A child
-    dispatched by `coga recurring --all` sets
-    `require_fresh_control`: failure to fetch and integrate the configured
-    control tip returns non-zero before `scan_due` can mutate period state.
-    Bare single-repo sweeps retain the established best-effort catch-up.
-
-    When that gate fails only because the control branch is not checked out
-    here, the run does not give up: the branch is free by definition, so
-    `_service_from_control_worktree` checks it out in a temporary linked
-    worktree and re-dispatches this scan there, leaving the operator's tree and
-    branch untouched. `control_worktree` marks that inner run. It stops the
-    recursion and restricts execution to deterministic `ticket.py` phases — a
-    throwaway worktree is the wrong place to spawn an agent REPL that composes
-    prompts, edits files, and opens PRs — with `control_worktree_host` naming
-    the operator's checkout so each skipped or refused agent phase says why.
-    Because a `ticket.py` can be one half of a hybrid period, the same refusal
-    is carried through shared launch: if the script leaves agent work open, its
-    output is kept, the exact period is parked, and no agent setup or spawn is
-    attempted.
-
-    `coga recurring launch <name>` force-runs one named template now.
-
-    After the shared launches, every due `scope: clone` template runs in this
-    clone (`_run_clone_scoped`). `clone_only` skips the shared scan entirely:
-    `--all` uses it for a duplicate checkout of a remote another checkout
-    already services, so per-clone work still reaches every clone.
-
-    A repo with a committed `owner` refuses this for every other operator —
-    including under `--force` — before anything is scanned or created; see
-    `recurring_owner_refusal`.
-    """
-    # `--all` retains its existing stricter combined branch/freshness gate and
-    # distinct stale-control exit code. Interactive entry points need only the
-    # local branch precondition, so an offline control checkout may proceed —
-    # and when this checkout is elsewhere, they relay into the worktree that
-    # already holds the control branch instead of refusing.
-    if not require_fresh_control:
-        relayed = _relay_off_control_single_repo_run(
-            cfg, _recurring_scan_relay_argv(
-                force=force,
-                interactive=interactive,
-                agent_override=agent_override,
-                clone_only=clone_only,
-            )
-        )
-        if relayed is not None:
-            return relayed
-
-    control_remote_expected = _control_remote_present_at_admission(cfg)
-    catchup = _sync_control_checkout_ahead(
-        cfg, announce_failure=not require_fresh_control
-    )
-    fresh = catchup.fresh
-    if require_fresh_control and not fresh:
-        if catchup.off_control_branch and not control_worktree:
-            # The control branch is free — nothing holds it here. Service the
-            # repo from a temporary worktree that checks it out instead of
-            # failing the whole repo until a human runs `git checkout`.
-            serviced, unavailable = _service_from_control_worktree(
-                cfg,
-                force=force,
-                interactive=interactive,
-                agent_override=agent_override,
-                clone_only=clone_only,
-            )
-            if serviced is not None:
-                return serviced
-            typer.secho(
-                "Could not service this repo from a temporary control "
-                f"worktree: {unavailable}",
-                fg=typer.colors.YELLOW,
-                err=True,
-            )
-        typer.secho(
-            "Recurring scan skipped: could not confirm this checkout includes "
-            f"the latest {cfg.git_remote}/{cfg.git_control_branch}: "
-            f"{catchup.reason}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        # Distinct exit code: the refusal happened before any period state
-        # was touched, so the layers wrapping this launch skip their post-run
-        # git catch-up instead of re-failing (and re-printing) the same
-        # divergence — see `git.STALE_CONTROL_EXIT_CODE`.
-        return git.STALE_CONTROL_EXIT_CODE
-    if _refuse_non_owner(cfg):
-        return 2
-    if not _valid_agent_override(cfg, agent_override):
-        return 2
-    # The refusal and its scan-row label are chosen together so they agree.
-    agent_refusal_label = _AGENT_NEEDS_TTY_LABEL
-    if control_worktree:
-        agent_spawn_refusal = _control_worktree_agent_refusal(
-            cfg, control_worktree_host
-        )
-        agent_refusal_label = _CONTROL_WORKTREE_AGENT_LABEL
-    elif not interactive_stdio_has_tty():
-        agent_spawn_refusal = _AGENT_NEEDS_TTY
-    else:
-        agent_spawn_refusal = None
-    today = datetime.now().date()
-    activity = RepoActivity() if force else check_activity(cfg, today)
-    if clone_only:
-        record = RunRecord(
-            started=datetime.now(),
-            repo=cfg.repo_root.name,
-            force=force,
-            interactive=interactive,
-            agent_override=agent_override,
-        )
-        record.note("clone-only sweep: shared period templates not scanned")
-        problem = _run_clone_scoped(
-            cfg, record, force=force, inactive_since=activity.inactive_since
-        )
-        if record.outcomes or record.scan_errors:
-            run_autofix(cfg, record, agent_override=agent_override)
-        return 2 if problem else 0
-    if activity.error:
-        typer.secho(
-            f"Recurring activity unknown ({activity.error}); treating repo as active.",
-            fg=typer.colors.YELLOW, err=True,
-        )
-    if activity.inactive:
-        idle = str((today - activity.last_human).days) if activity.last_human else "unknown"
-        typer.echo(
-            f"Repo inactive: last human commit {activity.inactive_since}; "
-            f"{idle} days idle; window {cfg.recurring_idle_days} days."
-        )
-    scan = scan_due(
-        cfg,
-        allow_interactive=agent_spawn_refusal is None,
-        force=force,
-        inactive_since=activity.inactive_since,
-        agent_unavailable_reason=agent_spawn_refusal,
-        agent_unavailable_label=agent_refusal_label,
-    )
-    _broadcast_scan(
-        cfg,
-        scan,
-        respect_handled_period=not force,
-        sync_existing=force,
-        control_is_fresh=fresh,
-        control_revision=catchup.revision,
-    )
-    _print_table(scan, force=force)
-
-    # The autofix loop's view of this sweep. Built as we go rather than scraped
-    # from the console: fd 1 must stay a TTY or every interactive launch below
-    # would refuse itself. See `coga/recurring_autofix.py`.
-    record = RunRecord(
-        started=datetime.now(),
-        repo=cfg.repo_root.name,
-        force=force,
-        interactive=interactive,
-        agent_override=agent_override,
-        scan_lines=scan_lines_for_record(scan, force=force),
-        scan_errors=list(scan.errors),
-        scan_problems=list(scan.sync_problems),
-    )
-    if control_worktree:
-        # A headless sweep's TTY skip is a documented warning; this is not.
-        # The template was due, the operator's checkout is merely parked on
-        # another branch, and nothing else will run it this period.
-        record.scan_problems.extend(
-            (f"recurring/{name}", f"due but not run: {reason}")
-            for name, _last_fire, reason in scan.agent_refusals
-        )
-    # Forced preparation mutates each DueTask's status. Remember admitted
-    # watchdog recoveries so an unsuccessful retry cannot report success.
-    # A bare sweep also retries every watchdog pause, but keeps reporting it as
-    # a problem: a timeout that recurs each sweep must stay loud.
-    watchdog_recoveries: set[str] = set()
-    for task in scan.tasks:
-        if not task.watchdog_paused or task.ref is None:
-            continue
-        if force and not task.launch_refusal:
-            watchdog_recoveries.add(task.ref.id_slug)
-            continue
-        paused_ticket = read_ticket(task.ref)
-        if task.launch_refusal:
-            resume = (
-                f"Resume with `coga launch {task.ref.id_slug}` or a sweep "
-                "from a terminal"
-            )
-        else:
-            resume = "This sweep retries it"
-        detail = (
-            "watchdog timeout left this run paused. "
-            f"{resume}; its recorded step and blackboard are retained. "
-            f"Audit: {task.watchdog_pause}"
-        )
-        if task.launch_refusal:
-            typer.secho(
-                f"{task.ref.id_slug}: {task.launch_refusal}",
-                fg=typer.colors.YELLOW,
-                err=True,
-            )
-            kind = "Forced recovery" if force else "Recovery"
-            detail = f"{kind} refused: {task.launch_refusal} {detail}"
-        record.scan_problems.append((task.ref.id_slug, detail))
-        notify(
-            cfg,
-            f"⚠️ *{task.ref.id_slug}*: {detail}",
-            kind="recurring-error",
-            owner=paused_ticket.owner or cfg.current_user,
-            task_path=task.ref.path,
-            important=True,
-            fatal=False,
-        )
-
-    # `force` launches every materialized task regardless of status; the bare
-    # sweep launches the launchable (active/in_progress) ones plus the
-    # non-human pauses it resumes (`DueTask.resumes_pause`).
-    due = scan.forced if force else scan.due
-    if not due:
-        if force:
-            message = "No recurring templates to launch."
-        elif scan.agent_refusals:
-            # They were due; saying otherwise hid a refused period.
-            message = "No due recurring tasks could be launched."
-        elif scan.errors:
-            # An errored template may or may not be due; don't claim either.
-            message = "No recurring tasks launched; see template errors."
-        else:
-            message = "No recurring tasks due."
-        typer.echo(message)
-        record.note(message)
-        _record_unlaunched_creates(scan, record)
-        clone_problem = _run_clone_scoped(
-            cfg, record, force=force, inactive_since=activity.inactive_since
-        )
-        if not activity.inactive or record.outcomes:
-            run_autofix(cfg, record, agent_override=agent_override)
-        return 2 if record.scan_problems or clone_problem else 0
-
-    label = "task(s)" if force else "due task(s)"
-    typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
-    record.note(f"launching {len(due)} {label} sequentially")
-
-    # `finally`, not a trailing call: a sweep that dies partway through — a
-    # `ticket.py` exiting non-zero, `_stop_if_unfinished_after_launch` exiting
-    # on an invalid ticket — is exactly the run most worth analyzing.
-    try:
-        code = _launch_due_tasks(
-            cfg,
-            due,
-            record,
-            force=force,
-            interactive=interactive,
-            agent_override=agent_override,
-            control_remote_expected=control_remote_expected,
-            agent_spawn_refusal=agent_spawn_refusal,
-        )
-        _record_unlaunched_creates(scan, record)
-        clone_problem = _run_clone_scoped(
-            cfg, record, force=force, inactive_since=activity.inactive_since
-        )
-        # An admitted watchdog recovery must prove it completed. Checking only
-        # for a *problem* outcome misses every path that records a note and
-        # continues without an outcome at all — a lease change after
-        # admission, a `kind == "skipped"` control refresh, a removed period.
-        # Those leave the task watchdog-paused with no recovery run, and the
-        # sweep would report success. Absence of a completed outcome is the
-        # failure signal, so new skip paths are covered without being listed.
-        recovered = {
-            outcome.slug for outcome in record.outcomes if not outcome.is_problem
-        }
-        failed_recoveries = {
-            outcome.slug for outcome in record.outcomes if outcome.is_problem
-        }
-        unrecovered = sorted(
-            (watchdog_recoveries - recovered) | (watchdog_recoveries & failed_recoveries)
-        )
-        for slug in unrecovered:
-            detail = (
-                f"{slug} was admitted as a watchdog recovery but no completed "
-                "run was recorded; it is still paused"
-            )
-            typer.secho(detail, fg=typer.colors.RED, err=True)
-            record.note(detail)
-        return code or (
-            2 if record.scan_problems or unrecovered or clone_problem else 0
-        )
-    finally:
-        if not activity.inactive or record.outcomes:
-            run_autofix(cfg, record, agent_override=agent_override)
-
-
-# Admission skip reason for a create whose period control had already
-# serviced. Another checkout got there first, so the skip is reported but is
-# not lost work.
-_ALREADY_HANDLED_ON_CONTROL = "already handled on control"
-
-
-def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
-    """Flag every period this sweep created but never launched.
-
-    A create refused at admission because control changed it, or skipped by a
-    launch-loop path that records only a note, leaves no outcome behind. The
-    sweep would otherwise report `problems: 0` over lost work, so absence of an
-    outcome is the signal, as with admitted watchdog recoveries above.
-    """
-    ran = {outcome.slug for outcome in record.outcomes}
-    # Every admission skip is a create already removed from `scan.tasks`.
-    unlaunched = [
-        (task.ref.id_slug, reason)
-        for task, reason in scan.admission_skips
-        if task.ref is not None and reason != _ALREADY_HANDLED_ON_CONTROL
-    ]
-    unlaunched += [
-        (
-            task.ref.id_slug,
-            task.period_contradiction or "no launch outcome was recorded",
-        )
-        for task in scan.tasks
-        if task.ref is not None
-        and (task.created or task.replaced_done)
-        and task.ref.id_slug not in ran
-    ]
-    for slug, reason in unlaunched:
-        detail = f"created this sweep but never launched ({reason})"
-        typer.secho(f"{slug}: {detail}", fg=typer.colors.RED, err=True)
-        record.scan_problems.append((slug, detail))
-
-
-def _record_abandoned_due(
-    record: RunRecord, due: list[DueTask], reached: int, reason: str
-) -> None:
-    """Record the stopping task and every admitted due task left behind.
-
-    `reached` is the 1-based position the loop was at, as it prints them. The
-    loop in `_launch_due_tasks` keeps sweeping past a template failure, so the
-    only way it stops short is an exception escaping it: exit 75's retained
-    state, a process signal, an error out of a launch or its lifecycle
-    bookkeeping. On 2026-09-08 an early return left the report reading `tasks
-    run: 3` against 7 due with no line about the other four; the tasks a stop
-    never reached are lost work this run has to own, so each one is a problem
-    the header counts, as with a period created but never launched.
-    """
-    stopped = due[reached - 1]
-    stopped_slug = stopped.ref.id_slug if stopped.ref else stopped.template
-    stop_detail = f"{reason} stopped the sweep at {stopped_slug}"
-    record.note(stop_detail)
-    if not any(outcome.slug == stopped_slug for outcome in record.outcomes):
-        # No later task is needed to expose an incomplete run. Keep this
-        # in-memory: a retained-state refusal must not touch task files again.
-        detail = f"no launch outcome was recorded; {stop_detail}"
-        typer.secho(f"{stopped_slug}: {detail}", fg=typer.colors.RED, err=True)
-        record.scan_problems.append((stopped_slug, detail))
-    remaining = due[reached:]
-    if not remaining:
-        return
-    slugs = [task.ref.id_slug if task.ref else task.template for task in remaining]
-    detail = f"admitted as due but never launched: {stop_detail}"
-    for slug in slugs:
-        typer.secho(f"{slug}: {detail}", fg=typer.colors.RED, err=True)
-        record.scan_problems.append((slug, detail))
-    record.note(
-        f"{len(remaining)} of {len(due)} due task(s) never launched after "
-        f"{stopped_slug}: {', '.join(slugs)}"
-    )
-
-
-def _sweep_stopping_exit(code: int) -> str | None:
-    """Why a launch exit must stop the sweep where it happened, or None.
-
-    Two exit classes are not template failures: aggregating them would let the
-    sweep start work the operator or the launch contract just forbade, and
-    returning them after the fact is too late.
-    """
-    if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
-        # An aligned-assist publication or teardown refused and deliberately
-        # left dirty retained state for the operator to reconcile. No later
-        # template may run a refresh, sync, or agent that could disturb or
-        # publish those bytes first.
-        return f"a retained-state refusal (exit {code})"
-    if code >= 128:
-        # Process-level interrupt: the `launch.py` public boundary translates
-        # SIGINT/SIGTERM to `LaunchBail(128 + signum)`. An explicit
-        # cancellation must never initiate additional work.
-        return f"a signal (exit {code})"
-    return None
-
-
-def _sweep_stop_reason(exc: BaseException) -> str:
-    """Describe, for the run record, what escaped `_launch_due_tasks`' loop."""
-    if isinstance(exc, SystemExit):
-        code = _exit_status(exc)
-        return _sweep_stopping_exit(code) or (
-            f"an unhandled launch exit (exit {code})"
-        )
-    return f"an unhandled {type(exc).__name__}"
-
-
-def _launch_due_tasks(
-    cfg: Config,
-    due: list[DueTask],
-    record: RunRecord,
-    *,
-    force: bool,
-    interactive: bool,
-    agent_override: str | None,
-    control_remote_expected: bool,
-    agent_spawn_refusal: str | None = None,
-) -> int:
-    """Run each due period task in order, recording what each one did.
-
-    Split out of `run_recurring_scan` so the sweep has one place to hand the
-    finished `RunRecord` to the autofix loop, however the loop ends — including
-    the early return on a failed `ticket.py`.
-    """
-    # `--interactive` is a human stepping through by hand, so leave the spawned
-    # REPL unbounded; an automatic sweep arms the liveness backstops so one stuck
-    # agent can't block the tasks behind it.
-    idle_timeout = None if interactive else resolve_idle_timeout(cfg, default=_RECURRING_IDLE_TIMEOUT_SECONDS)
-    max_session = None if interactive else resolve_max_session(cfg)
-    launch_context = _recurring_launch_context(interactive)
-    from coga.launch import (
-        RecurringPeriodLaunchResult,
-        launch_recurring_period as launch_cmd,
-    )
-
-    # Freeze every stable-path generation before the first child runs. Child
-    # teardown can refresh the shared control checkout, so capturing lazily in
-    # the loop would silently admit a replacement generation that appeared
-    # while an earlier child owned the terminal.
-    admitted_period_leases = {
-        task.ref.id_slug: _local_period_lease(cfg, task.ref)
-        for task in due
-        if task.ref is not None
-    }
-
-    refusals = 0
-    # One template's failure must not starve the templates behind it. Record
-    # each failure, keep sweeping, and surface the first non-zero code at the
-    # end — the same isolate-and-aggregate shape `coga recurring --all` already
-    # uses across repos.
-    failures: list[tuple[str, int]] = []
-    # Whatever leaves the loop, name the due tasks it never reached first.
-    try:
-        for i, task in enumerate(due, 1):
-            if task.ref is None:
-                detail = (
-                    f"{task.template} has no materialized period to launch; skipped"
-                )
-                typer.secho(detail, fg=typer.colors.YELLOW)
-                record.note(detail)
-                continue
-            typer.secho(
-                f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
-            )
-            admitted_period_lease = admitted_period_leases[task.ref.id_slug]
-            if force:
-                if not _same_period_lease(
-                    _local_period_lease(cfg, task.ref), admitted_period_lease
-                ):
-                    detail = (
-                        f"{task.ref.id_slug} changed after sweep admission; skipped"
-                    )
-                    typer.secho(detail, fg=typer.colors.YELLOW)
-                    record.note(detail)
-                    continue
-                try:
-                    _prepare_forced_launch(cfg, task)
-                except RecurringError as exc:
-                    refusals += 1
-                    typer.secho(str(exc), fg=typer.colors.RED, err=True)
-                    _record_outcome(
-                        record,
-                        TaskOutcome(
-                            template=task.template,
-                            slug=task.ref.id_slug if task.ref else task.template,
-                            result="refused",
-                            detail=str(exc),
-                        )
-                    )
-                    continue
-                # Forced preparation may deliberately activate or rematerialize the
-                # admitted generation. The resulting lease, not its pre-mutation
-                # snapshot, is what the child is allowed to launch.
-                admitted_period_lease = _local_period_lease(cfg, task.ref)
-            elif task.resumes_pause:
-                if not _same_period_lease(
-                    _local_period_lease(cfg, task.ref), admitted_period_lease
-                ):
-                    detail = (
-                        f"{task.ref.id_slug} changed after sweep admission; skipped"
-                    )
-                    typer.secho(detail, fg=typer.colors.YELLOW)
-                    record.note(detail)
-                    continue
-                try:
-                    _resume_paused_period(
-                        cfg, task.ref, watchdog=task.watchdog_paused
-                    )
-                except RecurringError as exc:
-                    refusals += 1
-                    typer.secho(str(exc), fg=typer.colors.RED, err=True)
-                    _record_outcome(
-                        record,
-                        TaskOutcome(
-                            template=task.template,
-                            slug=task.ref.id_slug,
-                            result="refused",
-                            detail=str(exc),
-                        )
-                    )
-                    continue
-                task.status = "active"
-                # Same as forced preparation: the reactivated generation is
-                # what the child is allowed to launch.
-                admitted_period_lease = _local_period_lease(cfg, task.ref)
-            current_period_lease = _local_period_lease(cfg, task.ref)
-            if not _same_period_lease(current_period_lease, admitted_period_lease):
-                detail = f"{task.ref.id_slug} changed after sweep admission; skipped"
-                typer.secho(detail, fg=typer.colors.YELLOW)
-                record.note(detail)
-                continue
-            if current_period_lease.ticket_bytes is None:
-                detail = f"{task.ref.id_slug} no longer exists on control; skipped"
-                typer.secho(detail, fg=typer.colors.YELLOW)
-                record.note(detail)
-                continue
-            # Reconciliation can refresh or replace the materialized period after
-            # `scan_due` cached its dispatch field. Route only from the durable
-            # ticket that now owns this launch; otherwise a restored delegate could
-            # run as an ordinary wrapper, or a removed delegate could still spawn
-            # obsolete bootstrap work. Like the forced refusal above, this is one
-            # period's problem: refuse it and keep sweeping.
-            try:
-                current_ticket = Ticket.parse(
-                    current_period_lease.ticket_bytes.decode()
-                )
-                task.status = current_ticket.status
-                task.delegate = frozen_task_delegate(task.ref, current_ticket)
-            except (RecurringError, UnicodeError, TicketError) as exc:
-                detail = (
-                    f"cannot classify recurring period {task.ref.id_slug} after "
-                    f"reconciliation: {exc}"
-                )
-                typer.secho(detail, fg=typer.colors.RED, err=True)
-                _record_outcome(
-                    record,
-                    TaskOutcome(
-                        template=task.template,
-                        slug=task.ref.id_slug,
-                        result="refused",
-                        detail=detail,
-                    )
-                )
-                refusals += 1
-                continue
-            # Baseline for the post-firing template check. Captured here — after
-            # every skip path, immediately before dispatch — so it reflects the
-            # bytes this run was actually composed from.
-            template_description_before = _template_description(cfg, task.template)
-            # One dispatch for every template: `coga launch` classifies the period
-            # task from its own directory, so a `ticket.py` template runs
-            # deterministically and an agent template composes a prompt, without
-            # this sweep holding a second copy of that rule.
-            #
-            if task.delegate:
-                if agent_spawn_refusal is not None:
-                    detail = (
-                        f"{task.ref.id_slug} needs its delegated agent after "
-                        f"reconciliation, but {agent_spawn_refusal} No agent was "
-                        "started."
-                    )
-                    typer.secho(detail, fg=typer.colors.YELLOW, err=True)
-                    _record_outcome(
-                        record,
-                        TaskOutcome(
-                            template=task.template,
-                            slug=task.ref.id_slug,
-                            result="refused",
-                            final_status=current_ticket.status,
-                            detail=detail,
-                        ),
-                    )
-                    continue
-                # A delegating template's period task never runs its own agent
-                # session: the sweep launches the declared bootstrap target
-                # directly — in this operator's terminal, under the same liveness
-                # bounds and queue posture as any sweep launch — and does the
-                # period task's lifecycle bookkeeping itself.
-                delegated = _run_delegated_task(
-                    cfg,
-                    task.ref,
-                    agent_override=agent_override,
-                    idle_timeout=idle_timeout,
-                    max_session=max_session,
-                    launch_context=launch_context,
-                    continue_after_timeout=True,
-                    admitted_period_lease=admitted_period_lease,
-                )
-                if delegated.kind == "skipped":
-                    record.note(
-                        f"{task.ref.id_slug} changed after sweep admission; skipped"
-                    )
-                    continue
-                # The period's return half (`coga/checkouts`): the delegated
-                # bootstrap session is exempt from normalization, the period
-                # that dispatched it is not. A refusal stops the sweep here.
-                settled = settle_delegated_period(cfg, task.ref)
-                # Main's sweep records every run it performed; `run_autofix` fires
-                # only when `record.outcomes` is non-empty, so a delegated run that
-                # returned without recording would be invisible to the analyst.
-                _record_outcome(
-                    record,
-                    _task_outcome(
-                        cfg,
-                        task.template,
-                        task.ref,
-                        kind=delegated.kind,
-                        result=(
-                            "failed"
-                            if delegated.exit_code and delegated.kind != "timeout"
-                            else ""
-                        ),
-                        exit_code=delegated.exit_code or None,
-                        template_damage=_damage_since(
-                            cfg, task.template, template_description_before
-                        ),
-                    )
-                )
-                if delegated.exit_code:
-                    failures.append((task.ref.id_slug, delegated.exit_code))
-                    detail = (
-                        f"{task.ref.id_slug} failed (exit {delegated.exit_code}); "
-                        "continuing with the remaining due templates"
-                    )
-                    typer.secho(detail, fg=typer.colors.RED, err=True)
-                    record.note(detail)
-                if not settled:
-                    raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
-                continue
-            # Sequential by design: each launch blocks until the session exits
-            # before the next begins. `scan_due` filters periods with no executable
-            # phase in the current context. A ticket.py may still be hybrid, so the
-            # same admission refusal is passed into shared launch and enforced
-            # before agent-only setup. For admitted agents, liveness backstops
-            # release any that launch but then stall. `launch` returns "timeout"
-            # when a backstop fired so we record the wedge honestly below instead
-            # of pausing it as a human would.
-            try:
-                raw_launch_result = launch_cmd(
-                    task.ref.id_slug,
-                    expected_period_lease=admitted_period_lease,
-                    control_remote_expected=control_remote_expected,
-                    agent_override=agent_override,
-                    prompt_report=False,
-                    idle_timeout=idle_timeout,
-                    max_session=max_session,
-                    return_timeout=True,
-                    script_failure_important=True,
-                    # An automatic sweep's agent must announce-and-continue and end
-                    # owner decisions in `coga block` — a conversational ask hangs
-                    # the queue until a liveness timeout fails the task.
-                    # `--interactive` is a human stepping through by hand, so it
-                    # selects the attended contract instead.
-                    launch_context=launch_context,
-                    agent_spawn_refusal=agent_spawn_refusal,
-                )
-                if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
-                    raise RecurringError(
-                        f"internal recurring launch for {task.ref.id_slug} did not "
-                        "return its typed child-generation lease"
-                    )
-                launch_result = raw_launch_result
-            except (SystemExit, LaunchBail) as exc:
-                if isinstance(exc, LaunchBail) and exc.reason:
-                    typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-                # A failed `ticket.py` exits the launch. Catch it rather than
-                # unwinding the process, so the command still reaches its
-                # exit-boundary git sync. The task is deliberately left unfinished,
-                # not paused — but the templates *behind* it are not this task's to
-                # cancel, so record the failure and keep sweeping. The aggregate
-                # non-zero code is returned once every due template has had its
-                # turn.
-                code = _exit_status(exc)
-                if _sweep_stopping_exit(code):
-                    # Not a template failure: stop where it happened. The
-                    # `except` around the loop names the tasks left behind.
-                    if isinstance(exc, LaunchBail):
-                        raise SystemExit(code) from exc
-                    raise
-                if code:
-                    _record_outcome(
-                        record,
-                        _task_outcome(
-                            cfg,
-                            task.template,
-                            task.ref,
-                            result="failed",
-                            exit_code=code,
-                            template_damage=_damage_since(
-                                cfg, task.template, template_description_before
-                            ),
-                            # A launch refusal before `ticket.py` ran leaves
-                            # the blackboard blank; its message is the record.
-                            detail=getattr(exc, "reason", ""),
-                        )
-                    )
-                    failures.append((task.ref.id_slug, code))
-                    detail = (
-                        f"{task.ref.id_slug} failed (exit {code}); continuing with "
-                        "the remaining due templates"
-                    )
-                    typer.secho(detail, fg=typer.colors.RED, err=True)
-                    record.note(detail)
-                    continue
-                launch_result = RecurringPeriodLaunchResult(None, None, False)
-            kind = launch_result.kind
-            if kind == "skipped":
-                record.note(
-                    f"{task.ref.id_slug} changed on control before launch; skipped"
-                )
-                continue
-            if launch_result.period_lease is None:
-                detail = (
-                    f"cannot finalize recurring period {task.ref.id_slug}: the "
-                    "launch established no child-generation lease"
-                )
-                typer.secho(detail, fg=typer.colors.RED, err=True)
-                _record_outcome(
-                    record,
-                    _task_outcome(
-                        cfg,
-                        task.template,
-                        task.ref,
-                        result="refused",
-                        exit_code=2,
-                        template_damage=_damage_since(
-                            cfg, task.template, template_description_before
-                        ),
-                    )
-                )
-                failures.append((task.ref.id_slug, 2))
-                continue
-            _stop_if_unfinished_after_launch(
-                cfg,
-                task.ref,
-                timed_out=(kind == "timeout"),
-                script_stopped=(kind == "script"),
-                expected_period_lease=launch_result.period_lease,
-                require_period_publication=(
-                    launch_result.require_period_publication
-                    and launch_result.period_lease is not None
-                ),
-            )
-            _record_outcome(
-                record,
-                _task_outcome(
-                    cfg,
-                    task.template,
-                    task.ref,
-                    kind=kind,
-                    template_damage=_damage_since(
-                        cfg, task.template, template_description_before
-                    ),
-                )
-            )
-    except BaseException as exc:
-        _record_abandoned_due(record, due, i, _sweep_stop_reason(exc))
-        raise
-    if failures:
-        # Name every failure. The old early return left the templates behind a
-        # failure unmentioned, so the report read as a clean sweep with one
-        # problem rather than one problem plus N abandoned jobs.
-        summary = ", ".join(f"{slug} (exit {code})" for slug, code in failures)
-        detail = f"{len(failures)} of {len(due)} due template(s) failed: {summary}"
-        typer.secho(detail, fg=typer.colors.RED, err=True)
-        record.note(detail)
-        return failures[0][1]
-    return 2 if refusals else 0
-
-
-def _template_description(cfg: Config, template: str) -> str | None:
-    """A recurring template's body above its blackboard fence, or None.
-
-    That region is the template's *instructions*: `create_template` copies it
-    into every period task, so it is what the next firing composes as its own
-    prompt. A firing legitimately rewrites its template's blackboard — that is
-    where cross-run state lives — but never the region above the fence.
-
-    None means "nothing to compare": the file is unreadable, or it carries no
-    single fence, so the body and the blackboard cannot be told apart. Callers
-    read None-before as "no baseline" and None-after as damage.
-    """
-    # Compare the *selected definition*. For a package-backed job the repo
-    # parent is a state-only carrier: its above-fence region (the reserved
-    # marker) is compared too, so a firing that writes prose above the
-    # carrier's fence is still damage while ordinary state updates are not.
-    src = resolve_template_source(cfg, template)
-    definition = src.ticket_path or (recurring_dir(cfg) / template / "ticket.md")
-    paths = [definition]
-    state = src.state_dir / "ticket.md"
-    if state != definition and (state.exists() or state.is_symlink()):
-        paths.append(state)
-    regions: list[str] = []
-    for path in paths:
-        try:
-            above, _ = split_body(Ticket.read(path).body)
-        except (OSError, UnicodeError, TicketError, TaskFileError):
-            # `UnicodeError` alongside the rest, as the four sibling
-            # `Ticket.read` call sites in this module do: `read_text` raises
-            # `UnicodeDecodeError` on a non-UTF-8 file, and a corrupt template
-            # must not abort the sweep with a traceback from a check that only
-            # observes.
-            return None
-        regions.append(above)
-    return "\n".join(regions)
-
-
-def _template_damage(before: str | None, after: str | None) -> str | None:
-    """Return how a firing damaged its own recurring template, or None.
-
-    The failure this exists for: a run told to "replace the `## Run Summary`
-    section" resolved that section by plain-text search, wrote from there to end
-    of file, and pasted its own notes over the template's instructions and its
-    blackboard fence. The run still reached `done`, so the sweep called it
-    `completed` and reported `problems: 0` — nothing had ever looked at the
-    template file. Compare the bytes instead of trusting the lifecycle status.
-    """
-    if before is None:
-        # No baseline — a template that was already fence-less or unreadable
-        # before this firing is `coga validate`'s finding, not this run's.
-        return None
-    if after is None:
-        return (
-            "the firing left its recurring template without exactly one "
-            "readable blackboard fence — it now has none, or more than one — "
-            "so its Description is no longer separable from the run's own "
-            "notes; the next firing would compose this run's output as its "
-            "instructions. Check which case it is before repairing: a run "
-            "whose notes quote the fence on its own line duplicates it, which "
-            "is a different repair from one that overwrote it"
-        )
-    if after != before:
-        return (
-            "the firing rewrote its recurring template's Description (the "
-            "region above the blackboard fence); a firing may only write below "
-            "the fence. Confirm against git history before restoring anything: "
-            "both reads come from the live working tree, so a run that left the "
-            "checkout on another branch, or that fast-forwarded repo state "
-            "mid-run, can surface a legitimate edit here"
-        )
-    return None
-
-
-def _damage_since(cfg: Config, template: str, before: str | None) -> str | None:
-    """`_template_damage` against the template's bytes as they are right now.
-
-    Every call site is the same pair — the baseline captured before dispatch,
-    re-read after the run — so it is spelled once here rather than five times.
-    """
-    return _template_damage(before, _template_description(cfg, template))
 
 
 def _task_outcome(
@@ -2733,6 +180,7 @@ def _task_outcome(
     )
 
 
+
 def _record_outcome(record: RunRecord, outcome: TaskOutcome) -> None:
     """Record one run and surface template damage without the analyst.
 
@@ -2751,6 +199,7 @@ def _record_outcome(record: RunRecord, outcome: TaskOutcome) -> None:
         fg=typer.colors.RED,
         err=True,
     )
+
 
 
 def _run_clone_scoped(
@@ -2842,35 +291,6 @@ def _run_clone_scoped(
     return problem
 
 
-def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
-    """Parse the recurring scanner's ordinary argv recipe contract."""
-    parser = argparse.ArgumentParser(
-        prog="coga run recurring-scan",
-        description="Scan recurring templates and launch due period tasks.",
-    )
-    parser.add_argument("--force", action="store_true")
-    parser.add_argument("--interactive", action="store_true")
-    parser.add_argument("--agent")
-    parser.add_argument("--require-fresh-control", action="store_true")
-    # Run only `scope: clone` templates. `--all` sets it for a clone whose
-    # remote another checkout already services; it is also usable directly.
-    parser.add_argument("--clone-only", action="store_true")
-    # Internal dispatch flags. `_service_from_control_worktree` sets them on the
-    # scan it re-dispatches into the temporary checkout; nothing else does.
-    parser.add_argument("--control-worktree", action="store_true")
-    parser.add_argument("--control-worktree-host", default="")
-    args = parser.parse_args(argv)
-    return run_recurring_scan(
-        cfg,
-        force=args.force,
-        interactive=args.interactive,
-        agent_override=args.agent,
-        require_fresh_control=args.require_fresh_control,
-        clone_only=args.clone_only,
-        control_worktree=args.control_worktree,
-        control_worktree_host=args.control_worktree_host,
-    )
-
 
 @dataclass(frozen=True)
 class DelegatedRunResult:
@@ -2880,1189 +300,90 @@ class DelegatedRunResult:
     kind: str | None
 
 
-@dataclass(frozen=True)
-class _ParentStateLease:
-    """Exact recurring-parent ticket state observed before a child starts."""
 
-    path: Path
-    ticket_bytes: bytes | None
+def _template_description(cfg: Config, template: str) -> str | None:
+    """A recurring template's body above its blackboard fence, or None.
 
+    That region is the template's *instructions*: `create_template` copies it
+    into every period task, so it is what the next firing composes as its own
+    prompt. A firing legitimately rewrites its template's blackboard — that is
+    where cross-run state lives — but never the region above the fence.
 
-def _revision_period_lease(
-    cfg: Config, ref: TaskRef, revision: str
-) -> _PeriodLease:
-    root = git.toplevel(cfg.repo_root)
-    if root is None:
-        return _local_period_lease(cfg, ref)
-    ticket_rel = git.relative_to_root(root, ref.ticket_path)
-    ticket_bytes = git.tree_bytes(root, revision, ticket_rel)
-    return _PeriodLease(
-        ticket_bytes=ticket_bytes,
-        generation=_period_generation_from_ticket_bytes(ticket_bytes),
-    )
-
-
-def _local_parent_state_lease(
-    cfg: Config, ref: TaskRef
-) -> _ParentStateLease | None:
-    """Capture the parent ticket named by this period's state snapshot."""
-    snapshot = read_snapshot(ref.path)
-    if snapshot is None:
-        return None
-    path = parent_ticket_path(cfg, snapshot)
-    return _ParentStateLease(
-        path=path,
-        ticket_bytes=path.read_bytes() if path.is_file() else None,
-    )
-
-
-def _revision_parent_state_lease(
-    cfg: Config, expected: _ParentStateLease, revision: str
-) -> _ParentStateLease:
-    root = git.toplevel(cfg.repo_root)
-    if root is None:
-        return _ParentStateLease(
-            path=expected.path,
-            ticket_bytes=(
-                expected.path.read_bytes() if expected.path.is_file() else None
-            ),
-        )
-    parent_rel = git.relative_to_root(root, expected.path)
-    return _ParentStateLease(
-        path=expected.path,
-        ticket_bytes=git.tree_bytes(root, revision, parent_rel),
-    )
-
-
-def _verify_period_on_control(
-    cfg: Config,
-    ref: TaskRef,
-    expected: _PeriodLease,
-    *,
-    boundary: str,
-    expected_parent: _ParentStateLease | None = None,
-    require_control: bool,
-) -> None:
-    """Refuse unless control's period ticket (and parent) still match `expected`.
-
-    The delegated run's compare-and-set against control: every lifecycle
-    boundary re-reads the freshly fetched control copy, so a stable-path
-    replacement can neither start obsolete work nor receive the prior child's
-    result. `expected` is usually captured from this checkout's disk, which a
-    line-ending-converting checkout holds CRLF while the tree stays LF, hence
-    the byte-normalizing comparison. An unreachable control is a refusal only
-    when `require_control` (push auth preflighted); otherwise it is noted.
+    None means "nothing to compare": the file is unreadable, or it carries no
+    single fence, so the body and the blackboard cannot be told apart. Callers
+    read None-before as "no baseline" and None-after as damage.
     """
-    if not cfg.git_enabled:
-        return
-    root = git.toplevel(cfg.repo_root)
-    try:
-        if root is None:
-            raise git.GitError("control verification requires a Git checkout")
-        base = git.fetch_control(cfg, root)
-    except git.GitError as exc:
-        if require_control:
-            raise RecurringError(
-                f"cannot lease delegated period {ref.id_slug} at {boundary}: {exc}"
-            ) from exc
-        if root is not None:
-            sys.stderr.write(
-                f"[git] note: control lease check skipped at {boundary}: {exc}\n"
-            )
-        return
-    actual = _revision_period_lease(cfg, ref, base)
-    if not _same_period_lease(actual, expected):
-        changed: list[str] = []
-        if not _same_ticket_bytes(actual.ticket_bytes, expected.ticket_bytes):
-            changed.append("ticket bytes")
-        if actual.generation != expected.generation:
-            changed.append("period generation")
-        raise RecurringError(
-            f"cannot lease delegated period {ref.id_slug} at {boundary}: "
-            f"delegated period lease changed on control "
-            f"({', '.join(changed) or 'unknown state'}); refusing stale "
-            "lifecycle publication"
-        )
-    if expected_parent is not None:
-        actual_parent = _revision_parent_state_lease(cfg, expected_parent, base)
-        if not _same_ticket_bytes(
-            actual_parent.ticket_bytes, expected_parent.ticket_bytes
-        ):
-            raise RecurringError(
-                f"cannot lease delegated period {ref.id_slug} at {boundary}: "
-                "recurring parent state changed on control after delegated "
-                "child admission; refusing stale completion publication"
-            )
-
-
-def _require_period_bytes(
-    ref: TaskRef, expected_ticket_bytes: bytes | None, *, action: str
-) -> None:
-    """Refuse a lifecycle write whose leased ticket bytes are no longer on disk."""
-    current = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
-    if current != expected_ticket_bytes:
-        raise RecurringError(
-            f"{ref.id_slug}: period ticket changed after its lifecycle lease "
-            f"was sampled; refusing stale {action}"
-        )
-
-
-def _restore_period_bytes(
-    cfg: Config,
-    ref: TaskRef,
-    ticket_bytes: bytes | None,
-    *,
-    log_before: bytes | None,
-    parent: _ParentStateLease | None = None,
-) -> None:
-    """Undo a period write whose publication definitely did not land.
-
-    The leased pre-write bytes go back (parent ticket included for a
-    completion) and the audit lines the write appended are retracted.
-    """
-    with git.state_lock(cfg):
-        for path, data in (
-            (ref.ticket_path, ticket_bytes),
-            *(((parent.path, parent.ticket_bytes),) if parent is not None else ()),
-        ):
-            if data is None:
-                path.unlink(missing_ok=True)
-            else:
-                path.write_bytes(data)
-        retract_log_lines(cfg, ref.id_slug, log_before)
-
-
-def _log_bytes(cfg: Config) -> bytes | None:
-    path = log_path(cfg)
-    return path.read_bytes() if path.is_file() else None
-
-
-def _run_delegated_task(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    agent_override: str | None = None,
-    idle_timeout: float | None = None,
-    max_session: float | None = None,
-    launch_context: LaunchContext = "recurring",
-    continue_after_timeout: bool,
-    activate_if_needed: bool = False,
-    admitted_period_lease: _PeriodLease | None = None,
-) -> DelegatedRunResult:
-    """Run one delegating period task by launching its bootstrap target.
-
-    A `delegate:` template owns only the schedule; the real work is a
-    stateless `bootstrap/<name>` command ticket. The sweep is a foreground
-    command in the operator's own terminal, so it performs that agent launch
-    in-process — TTY admission was already decided before the period task was
-    created (`scan_due` refuses agent-backed templates, delegating ones
-    included, without a TTY) — and owns the period task's lifecycle
-    bookkeeping exactly as `_run_recipe_task` does around a recipe
-    subprocess. No agent session ever runs on the period task itself, so no
-    wrapper has to shell out to a nested `coga launch` or manufacture a pty.
-
-    Only the bootstrap target's done sentinel marks the period task done; a
-    natural or crashed REPL exit leaves it `in_progress` and fails loud. A
-    liveness timeout pauses and continues only for a multi-task sweep and only
-    after that pause is verified on control. A failed or stale pause is a loud
-    refusal, not successful continuation. A named launch instead returns the
-    timeout code and leaves the task retryable as `in_progress`. Start, final
-    spawn, completion, and timeout each lease both the exact ticket and its
-    creator-owned period generation. The control guard observes that lease as a
-    compare-and-set, so a stable-path replacement can neither start obsolete
-    work nor receive the prior child's result.
-
-    ``activate_if_needed`` belongs only to direct ``coga launch``: the typed
-    command is the documented readiness signal for a paused/draft task. Sweeps
-    and named recurring runs retain their stricter active/orphan admission.
-    """
-    initial_period_lease = _local_period_lease(cfg, ref)
-    if (
-        admitted_period_lease is not None
-        and not _same_period_lease(initial_period_lease, admitted_period_lease)
-    ):
-        typer.secho(
-            f"{ref.id_slug} belongs to a different ticket/period generation; "
-            "not launching.",
-            fg=typer.colors.YELLOW,
-        )
-        return DelegatedRunResult(0, "skipped")
-    try:
-        if initial_period_lease.ticket_bytes is None:
-            raise TicketError("period ticket disappeared")
-        ticket = Ticket.parse(initial_period_lease.ticket_bytes.decode())
-        delegate = frozen_task_delegate(ref, ticket)
-        if delegate is None:
-            raise RecurringError(
-                f"delegating recurring task {ref.id_slug} is missing its "
-                "frozen target"
-            )
-        allowed_statuses = {"active", "in_progress"}
-        if activate_if_needed:
-            allowed_statuses.update({"draft", "paused"})
-        if ticket.status not in allowed_statuses:
-            expected = "'active' or 'in_progress'"
-            if activate_if_needed:
-                expected += " (or 'draft'/'paused' for direct launch)"
-            raise RecurringError(
-                f"cannot launch delegated period {ref.id_slug}: task is "
-                f"{ticket.status!r}, expected {expected}"
-            )
-        # Re-check the frozen target immediately before every run. Validation
-        # catches drift repo-wide; this runtime gate keeps a later bootstrap
-        # edit from turning an agent delegation into repeated script work.
-        resolve_agent_delegate(cfg, delegate)
-        # And re-check the delegated workflow bound. A period whose snapshot was
-        # edited into a peer step, a later owner gate, an extra step, or a
-        # completion requirement must refuse here — before the target spawns —
-        # because whole-period sentinel completion would otherwise skip whatever
-        # that snapshot promised. The position is checked again once a
-        # draft/paused direct launch has prospectively activated.
-        assert_frozen_delegation(ref, ticket, require_step=False)
-    except (RecurringError, UnicodeError, TicketError) as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return DelegatedRunResult(2, "refused")
-
-    expected_period_lease: _PeriodLease | None = None
-    expected_parent_state_lease: _ParentStateLease | None = None
-
-    # Bootstrap tickets are deliberately stateless and self-skip push auth.
-    # Delegation still owns a materialized period task, so preflight that real
-    # publication target before any bootstrap work can begin.
-    from coga.launch import _preflight_push_auth
-
-    try:
-        require_period_publication = bool(
-            _preflight_push_auth(cfg, ref, is_bootstrap=False)
-        )
-    except LaunchBail as exc:
-        if exc.reason:
-            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        raise SystemExit(exc.code) from exc
-
-    def ticket_for_lease(
-        lease: _PeriodLease, *, boundary: str, expected_status: str
-    ) -> Ticket:
+    # Compare the *selected definition*. For a package-backed job the repo
+    # parent is a state-only carrier: its above-fence region (the reserved
+    # marker) is compared too, so a firing that writes prose above the
+    # carrier's fence is still damage while ordinary state updates are not.
+    src = resolve_template_source(cfg, template)
+    definition = src.ticket_path or (recurring_dir(cfg) / template / "ticket.md")
+    paths = [definition]
+    state = src.state_dir / "ticket.md"
+    if state != definition and (state.exists() or state.is_symlink()):
+        paths.append(state)
+    regions: list[str] = []
+    for path in paths:
         try:
-            if lease.ticket_bytes is None:
-                raise TicketError("period ticket disappeared")
-            current = Ticket.parse(lease.ticket_bytes.decode())
-            current_delegate = frozen_task_delegate(ref, current)
-        except (OSError, UnicodeError, TicketError, RecurringError) as exc:
-            raise RecurringError(
-                f"cannot lease delegated period {ref.id_slug} at {boundary}: "
-                f"{exc}"
-            ) from exc
-        if current.status != expected_status:
-            raise RecurringError(
-                f"cannot launch delegated target {delegate}: period task "
-                f"{ref.id_slug} changed to {current.status!r} at {boundary}"
-            )
-        if current_delegate != delegate:
-            raise RecurringError(
-                f"cannot launch delegated period {ref.id_slug}: frozen target "
-                f"changed from {delegate!r} to {current_delegate!r} at "
-                f"{boundary}"
-            )
-        # Every leased boundary re-checks the bound, so a workflow edited while
-        # the child runs cannot reach completion. The `completion` boundary is
-        # the one that matters most: refusing there leaves the period
-        # `in_progress` for an explicit retry rather than marking a gated
-        # workflow done.
-        assert_frozen_delegation(ref, current)
-        return current
-
-    def confirm_control_lease(
-        lease_cfg: Config,
-        lease: _PeriodLease,
-        *,
-        boundary: str,
-        parent_lease: _ParentStateLease | None = None,
-    ) -> None:
-        _verify_period_on_control(
-            lease_cfg,
-            ref,
-            lease,
-            boundary=boundary,
-            expected_parent=parent_lease,
-            require_control=require_period_publication,
-        )
-
-    def start_period() -> None:
-        """Publish lifecycle after preflight; launch will then re-compose."""
-        nonlocal expected_period_lease
-        # The bootstrap launch audit is made durable immediately before this
-        # callback and may integrate a newer control tip. Use that tip's config
-        # for the period transition; the following launch pass will independently
-        # reload it again before composing the child.
-        start_cfg = load_config(cfg.repo_root)
-        current_lease = _local_period_lease(start_cfg, ref)
-        if not _same_period_lease(current_lease, initial_period_lease):
-            raise RecurringError(
-                f"cannot start delegated period {ref.id_slug}: its ticket or "
-                "period generation changed during preflight"
-            )
-        if current_lease.ticket_bytes is None:
-            raise RecurringError(
-                f"cannot start delegated period {ref.id_slug}: ticket disappeared"
-            )
-        try:
-            current = Ticket.parse(current_lease.ticket_bytes.decode())
-            current_delegate = frozen_task_delegate(ref, current)
-        except (UnicodeError, TicketError, RecurringError) as exc:
-            raise RecurringError(
-                f"cannot start delegated period {ref.id_slug}: {exc}"
-            ) from exc
-        if current_delegate != delegate:
-            raise RecurringError(
-                f"cannot start delegated period {ref.id_slug}: frozen target "
-                f"changed from {delegate!r} to {current_delegate!r}"
-            )
-        assert_frozen_delegation(ref, current, require_step=False)
-
-        prior_status = current.status
-        if activate_if_needed and prior_status in {"draft", "paused"}:
-            try:
-                prepare_active(start_cfg, ref, current)
-            except WorkflowMissing as exc:
-                raise RecurringError(
-                    f"cannot activate delegated period {ref.id_slug}: it has "
-                    "no workflow to advance"
-                ) from exc
-            except WorkflowError as exc:
-                raise RecurringError(
-                    f"cannot activate delegated period {ref.id_slug}: its "
-                    f"workflow could not be frozen — {exc}"
-                ) from exc
-            except RequiredExtensionMissing as exc:
-                fields = ", ".join(repr(name) for name in exc.fields)
-                raise RecurringError(
-                    f"cannot activate delegated period {ref.id_slug}: required "
-                    f"extension field(s) empty: {fields}"
-                ) from exc
-            except BlackboardNeedsSynthesis as exc:
-                raise RecurringError(
-                    format_blackboard_synthesis_refusal(
-                        ref.id_slug, action="launch", reason=exc.reason
-                    )
-                ) from exc
-            except RepoResourceUnreadable as exc:
-                raise RecurringError(
-                    f"cannot activate delegated period {ref.id_slug}: {exc}"
-                ) from exc
-            except MainAgentUnavailable as exc:
-                raise RecurringError(
-                    f"cannot activate delegated period {ref.id_slug}: {exc}"
-                ) from exc
-            # Prospective activation has now frozen the snapshot and seeded a
-            # position; the full bound, step included, must hold before the
-            # transition is committed.
-            assert_frozen_delegation(ref, current)
-
-        if current.status == "active":
-            cur = current.current_step()
-            step_note = (
-                f" (step {current.step_index()}: {cur['name']})" if cur else ""
-            )
-            transition = (
-                "active → in_progress"
-                if prior_status == "active"
-                else f"{prior_status} → active → in_progress"
-            )
-            _require_period_bytes(
-                ref, current_lease.ticket_bytes, action="delegated start"
-            )
-            with git.state_lock(start_cfg):
-                log_before = _log_bytes(start_cfg)
-                try:
-                    mark_in_progress(
-                        start_cfg,
-                        ref,
-                        current,
-                        actor="system",
-                        log_message=(
-                            f"started ({transition}) via recurring delegation "
-                            f"to {delegate}"
-                        ),
-                        slack_text=(
-                            f"▶️ delegated run started *{ref.id_slug}* "
-                            f"\"{current.title}\"{step_note}"
-                        ),
-                        echo=f"{ref.id_slug}: in_progress",
-                        strict=True,
-                    )
-                except git.UncertainPublishError as exc:
-                    raise RecurringError(
-                        f"cannot start delegated period {ref.id_slug}: publication "
-                        f"outcome is uncertain; generated local state was retained "
-                        f"for reconciliation — {exc}"
-                    ) from exc
-                except git.GitError as exc:
-                    # A refusal always unwinds; a transport miss only when push
-                    # auth was preflighted (control is then required to hold it).
-                    if require_period_publication or isinstance(
-                        exc, git.StateRegressionError
-                    ):
-                        _restore_period_bytes(
-                            start_cfg, ref, current_lease.ticket_bytes, log_before=log_before
-                        )
-                        raise RecurringError(
-                            f"cannot start delegated period {ref.id_slug}: {exc}"
-                        ) from exc
-        elif current.status != "in_progress":
-            raise RecurringError(
-                f"cannot launch delegated target {delegate}: period task "
-                f"{ref.id_slug} changed to {current.status!r} during preflight"
-            )
-        else:
-            confirm_control_lease(
-                start_cfg, initial_period_lease, boundary="orphan resume"
-            )
-
-        started_lease = _local_period_lease(start_cfg, ref)
-        ticket_for_lease(
-            started_lease,
-            boundary="start publication",
-            expected_status="in_progress",
-        )
-        append_log(
-            start_cfg,
-            ref.id_slug,
-            "system",
-            f"launched delegated target {delegate}",
-        )
-        git.sync_log(start_cfg, message=f"Log: {ref.id_slug}")
-        expected_period_lease = _local_period_lease(start_cfg, ref)
-        if not _same_period_lease(expected_period_lease, started_lease):
-            raise RecurringError(
-                f"cannot launch delegated period {ref.id_slug}: its ticket or "
-                "period generation changed while publishing the launch audit"
-            )
-        ticket_for_lease(
-            expected_period_lease,
-            boundary="launch audit publication",
-            expected_status="in_progress",
-        )
-
-    def revalidate_period_before_spawn(
-        _target_ticket: Ticket | None = None,
-    ) -> None:
-        """Refuse if publication/recomposition moved the period's lease."""
-        nonlocal expected_parent_state_lease
-        if expected_period_lease is None:
-            raise RecurringError(
-                f"cannot launch delegated period {ref.id_slug}: its start "
-                "publication did not establish a spawn lease"
-            )
-        current_lease = _local_period_lease(cfg, ref)
-        if not _same_period_lease(current_lease, expected_period_lease):
-            raise RecurringError(
-                f"cannot launch delegated period {ref.id_slug}: its ticket or "
-                "period generation changed after start publication; "
-                "retry from fresh state"
-            )
-        ticket_for_lease(
-            current_lease,
-            boundary="final spawn",
-            expected_status="in_progress",
-        )
-        parent_lease = _local_parent_state_lease(cfg, ref)
-        confirm_control_lease(
-            cfg,
-            expected_period_lease,
-            boundary="final spawn",
-            parent_lease=parent_lease,
-        )
-        expected_parent_state_lease = parent_lease
-
-    from coga.launch import launch_with_before_spawn as launch_cmd
-
-    try:
-        launch_result = launch_cmd(
-            delegate,
-            agent_override=agent_override,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=True,
-            launch_context=launch_context,
-            before_spawn=start_period,
-            revalidate_before_spawn=revalidate_period_before_spawn,
-        )
-        kind = launch_result.kind
-    except LaunchBail as exc:
-        if exc.reason:
-            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        raise SystemExit(exc.code) from exc
-    except (ConfigError, RecurringError, TaskValidationError, TicketError) as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return DelegatedRunResult(2, "refused")
-
-    # The bootstrap launch may have changed coga.toml itself, and its teardown
-    # may have refreshed a concurrent control-plane edit into this checkout.
-    # Re-read configuration before any post-child lifecycle write so validation,
-    # git publication, and notifications use the state that now owns the task.
-    try:
-        cfg = load_config(cfg.repo_root)
-    except ConfigError as exc:
-        typer.secho(
-            f"cannot finalize delegated period {ref.id_slug}: configuration "
-            f"is invalid after the bootstrap session: {exc}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(2, kind or "refused")
-
-    if kind not in {"done", "timeout"}:
-        typer.secho(
-            f"{ref.id_slug}: delegated target {delegate} ended without "
-            f"its done signal (termination={kind or 'unknown'}); task left "
-            "in_progress.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(2, kind or "unknown")
-
-    if expected_period_lease is None:
-        typer.secho(
-            f"cannot finalize delegated period {ref.id_slug}: no child lease "
-            "was established",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(2, "refused")
-
-    current_lease = _local_period_lease(cfg, ref)
-    if not _same_period_lease(current_lease, expected_period_lease):
-        current_ticket: Ticket | None = None
-        if current_lease.ticket_bytes is not None:
-            try:
-                current_ticket = Ticket.parse(current_lease.ticket_bytes.decode())
-            except (UnicodeError, TicketError):
-                current_ticket = None
-        if kind == "done" and (
-            current_lease.ticket_bytes is None
-            or (
-                current_ticket is not None
-                and current_ticket.status in TERMINAL_STATUSES
-            )
-        ):
-            return DelegatedRunResult(0, "done")
-        typer.secho(
-            f"{ref.id_slug}: delegated target {delegate} returned {kind}, but "
-            "the stable task path now belongs to a different ticket/audit "
-            "generation; its lifecycle was left unchanged.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        if kind == "timeout":
-            return DelegatedRunResult(2, "refused")
-        return DelegatedRunResult(2, "refused")
-
-    if kind == "timeout":
-        if continue_after_timeout:
-            try:
-                _stop_if_unfinished_after_launch(
-                    cfg,
-                    ref,
-                    timed_out=True,
-                    expected_period_lease=expected_period_lease,
-                    require_period_publication=require_period_publication,
-                )
-            except RecurringError as exc:
-                typer.secho(str(exc), fg=typer.colors.RED, err=True)
-                return DelegatedRunResult(2, "refused")
-            return DelegatedRunResult(0, "timeout")
-        typer.secho(
-            f"{ref.id_slug}: delegated target {delegate} timed out; "
-            "task left in_progress for an explicit retry.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(_TIMEOUT_EXIT_CODE, "timeout")
-
-    after_delegate = ticket_for_lease(
-        current_lease,
-        boundary="completion",
-        expected_status="in_progress",
-    )
-    with git.state_lock(cfg):
-        parent_before = _local_parent_state_lease(cfg, ref)
-        log_before = _log_bytes(cfg)
-        try:
-            _require_period_bytes(
-                ref, current_lease.ticket_bytes, action="delegated completion"
-            )
-            confirm_control_lease(
-                cfg,
-                expected_period_lease,
-                boundary="completion",
-                parent_lease=expected_parent_state_lease,
-            )
-            mark_done(
-                cfg,
-                ref,
-                after_delegate,
-                actor="system",
-                log_message=(
-                    f"completed (delegated {delegate} run finished) "
-                    "via coga recurring"
-                ),
-                slack_text=(
-                    f"✅ delegated run completed *{ref.id_slug}* "
-                    f"\"{after_delegate.title}\""
-                ),
-                echo=f"{ref.id_slug}: done",
-                strict=True,
-            )
-        except git.UncertainPublishError as exc:
-            typer.secho(
-                f"cannot complete delegated period {ref.id_slug}: publication "
-                f"outcome is uncertain; generated local state was retained for "
-                f"reconciliation — {exc}",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            return DelegatedRunResult(2, "refused")
-        except (git.GitError, RecurringError) as exc:
-            if (
-                isinstance(exc, git.GitError)
-                and not isinstance(exc, git.StateRegressionError)
-                and not require_period_publication
-            ):
-                return DelegatedRunResult(0, "done")
-            if isinstance(exc, git.GitError):
-                _restore_period_bytes(
-                    cfg,
-                    ref,
-                    current_lease.ticket_bytes,
-                    log_before=log_before,
-                    parent=parent_before,
-                )
-            typer.secho(
-                f"cannot complete delegated period {ref.id_slug}: {exc}",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            return DelegatedRunResult(2, "refused")
-        except StrandedProductCode as exc:
-            listed = "\n".join(f"    {path}" for path in exc.paths)
-            typer.secho(
-                f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
-                "has no push/PR step, but this checkout committed tracked product "
-                f"code not on the control branch:\n{listed}",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            return DelegatedRunResult(2, "done")
-        except TaskValidationError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            return DelegatedRunResult(2, "done")
-    return DelegatedRunResult(0, "done")
+            above, _ = split_body(Ticket.read(path).body)
+        except (OSError, UnicodeError, TicketError, TaskFileError):
+            # `UnicodeError` alongside the rest, as the four sibling
+            # `Ticket.read` call sites in this module do: `read_text` raises
+            # `UnicodeDecodeError` on a non-UTF-8 file, and a corrupt template
+            # must not abort the sweep with a traceback from a check that only
+            # observes.
+            return None
+        regions.append(above)
+    return "\n".join(regions)
 
 
-def run_recurring_named(
-    cfg: Config,
-    name: str,
-    *,
-    rerun: bool = False,
-    interactive: bool = False,
-    agent_override: str | None = None,
-) -> int:
-    """Create a named recurring template now and launch it.
 
-    Ignores the template's schedule — the on-demand entry point behind
-    aliases like `coga dream`. The task slug is the stable qualified
-    `recurring/<name>`, so this and a bare `coga recurring` converge on one
-    instantiated task directory. `rerun` replaces a completed task even in
-    the current period, using the same guarded replacement as an older run.
+def _template_damage(before: str | None, after: str | None) -> str | None:
+    """Return how a firing damaged its own recurring template, or None.
 
-    `agent_override` has the same ephemeral, agent-only semantics as the full
-    recurring sweep. A git-backed run happens on the configured control branch;
-    off it, the launch relays into an existing control worktree exactly as the
-    bare sweep does, and refuses only when no worktree holds the branch. The
-    same committed-`owner` gate applies — this is a launch, so either refusal
-    happens before the template is created.
+    The failure this exists for: a run told to "replace the `## Run Summary`
+    section" resolved that section by plain-text search, wrote from there to end
+    of file, and pasted its own notes over the template's instructions and its
+    blackboard fence. The run still reached `done`, so the sweep called it
+    `completed` and reported `problems: 0` — nothing had ever looked at the
+    template file. Compare the bytes instead of trusting the lifecycle status.
     """
-    relayed = _relay_off_control_single_repo_run(
-        cfg,
-        [
-            "recurring",
-            "launch",
-            name,
-            *(["--rerun"] if rerun else []),
-            *(["--interactive"] if interactive else []),
-            *(["--agent", agent_override] if agent_override else []),
-        ],
-    )
-    if relayed is not None:
-        return relayed
-    control_remote_expected = _control_remote_present_at_admission(cfg)
-    catchup = _sync_control_checkout_ahead(cfg)
-    fresh = catchup.fresh
-    if _refuse_non_owner(cfg):
-        return 2
-    if not _valid_agent_override(cfg, agent_override):
-        return 2
-    named_source = resolve_template_source(cfg, name)
-    if named_source.definition_dir is not None and _declares_clone_scope(
-        named_source.definition_dir
-    ):
-        # No period task to create: run it in this clone now, ignoring the
-        # clone ledger the way a named launch ignores the shared one.
-        record = RunRecord(
-            started=datetime.now(),
-            repo=cfg.repo_root.name,
-            on_demand=name,
-            interactive=interactive,
-            agent_override=agent_override,
-        )
-        problem = _run_clone_scoped(cfg, record, only=name)
-        if record.outcomes or record.scan_errors:
-            run_autofix(cfg, record, agent_override=agent_override)
-        return 2 if problem else 0
-    try:
-        outcome = create_named(cfg, name, rerun=rerun)
-    except RecurringError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return 2
-
-    ref = outcome.ref
-    created_period_lease = (
-        _local_period_lease(cfg, ref) if outcome.created else None
-    )
-    control_ledger: dict[str, str] | None = None
-    if fresh and catchup.revision is not None:
-        # `create_named` captured this target-aware answer before it could
-        # append its own record. The successful catch-up makes that local view
-        # the pinned control snapshot, so no whole-blob `git show` is needed.
-        template_ref = _recurring_ref(name)
-        control_ledger = {
-            _LEDGER_LOADED: "yes",
-            _LEDGER_REVISION: catchup.revision,
-            _control_ledger_target_key(template_ref): outcome.period_key,
-        }
-        if outcome.prior_serviced_period is not None:
-            control_ledger[template_ref] = outcome.prior_serviced_period
-    try:
-        if outcome.created:
-            created_on_control = _sync_recurring_create(
-                cfg,
-                name,
-                ref,
-                respect_handled_period=False,
-                # A replacement may overwrite only the stale completed
-                # generation observed before `run_delete_task`. A concurrent
-                # checkout that has already reactivated or replaced the stable
-                # path remains the owner of that new generation.
-                replaced_done_ticket_bytes=outcome.replaced_done_ticket_bytes,
-                expected_period_key=outcome.period_key,
-                control_ledger=control_ledger,
-            )
-        else:
-            _validate_control_serviced_period(
-                cfg,
-                name,
-                control_ledger,
-                expected_period_key=outcome.period_key,
-            )
-    except RecurringError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return 2
-
-    if outcome.created:
-        if not _same_period_lease(_local_period_lease(cfg, ref), created_period_lease):
-            typer.secho(
-                f"{ref.id_slug} changed on the control branch during recurring "
-                "admission; not launching.",
-                fg=typer.colors.BRIGHT_BLACK,
-            )
-            return 0
-        if not (ref.ticket_path).is_file():
-            typer.secho(
-                f"{ref.id_slug} was already handled on the control branch; "
-                "not launching.",
-                fg=typer.colors.BRIGHT_BLACK,
-            )
-            return 0
-        if created_on_control:
-            typer.echo(f"Created {ref.id_slug}")
-    else:
-        typer.echo(f"{ref.id_slug} already created for this period")
-        resumed = _resume_named_pause(cfg, ref)
-        if resumed is not None:
-            return resumed
-
-    # An on-demand `coga recurring launch <name>` (the `coga dream`,
-    # `coga autoclose`, and `coga skill-update` aliases) is a real run of a real
-    # template, so it closes the same loop the scheduled sweep does.
-    record = RunRecord(
-        started=datetime.now(),
-        repo=cfg.repo_root.name,
-        on_demand=name,
-        interactive=interactive,
-        agent_override=agent_override,
-    )
-    try:
-        return _launch_created(
-            cfg,
-            ref,
-            interactive=interactive,
-            agent_override=agent_override,
-            record=record,
-            template=name,
-            control_remote_expected=control_remote_expected,
-        )
-    finally:
-        # Only when something actually ran: `_launch_created` records the run
-        # it performed, so an empty record means a gate refused to launch —
-        # a closed or human-parked template, or one already handled on control.
-        if record.outcomes:
-            run_autofix(cfg, record, agent_override=agent_override)
-
-
-def _resume_named_pause(cfg: Config, ref: TaskRef) -> int | None:
-    """Reactivate a non-human-paused period before a named launch.
-
-    The named counterpart of the sweep's `DueTask.resumes_pause`: a watchdog
-    pause, or a sweep pause whose asks are resolved, is resumed from its
-    recorded step. A human pause is left for `_launch_created` to report. An
-    agent-backed resume needs an agent-capable terminal, so refuse before
-    reactivating rather than leave the period active with nothing to run it.
-    Returns an exit code to stop with, or None to continue to the launch.
-    """
-    try:
-        ticket = read_ticket(ref)
-    except TicketError:
-        return None  # `_launch_created` reports the unreadable ticket.
-    if ticket.status != "paused":
+    if before is None:
+        # No baseline — a template that was already fence-less or unreadable
+        # before this firing is `coga validate`'s finding, not this run's.
         return None
-    try:
-        origin = resumable_pause(cfg, ref)
-    except RecurringError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return 2
-    if not origin:
-        return None
-    if resolve_script_entry_point(ref) is None:
-        if not interactive_stdio_has_tty():
-            typer.secho(
-                f"cannot resume {ref.id_slug}: {_AGENT_NEEDS_TTY}",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            return 2
-    try:
-        _resume_paused_period(cfg, ref, watchdog=origin == PAUSE_WATCHDOG)
-    except RecurringError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return 2
+    if after is None:
+        return (
+            "the firing left its recurring template without exactly one "
+            "readable blackboard fence — it now has none, or more than one — "
+            "so its Description is no longer separable from the run's own "
+            "notes; the next firing would compose this run's output as its "
+            "instructions. Check which case it is before repairing: a run "
+            "whose notes quote the fence on its own line duplicates it, which "
+            "is a different repair from one that overwrote it"
+        )
+    if after != before:
+        return (
+            "the firing rewrote its recurring template's Description (the "
+            "region above the blackboard fence); a firing may only write below "
+            "the fence. Confirm against git history before restoring anything: "
+            "both reads come from the live working tree, so a run that left the "
+            "checkout on another branch, or that fast-forwarded repo state "
+            "mid-run, can surface a legitimate edit here"
+        )
     return None
 
 
-@dataclass(frozen=True)
-class _ControlCatchup:
-    """Outcome of the pre-scan control-branch catch-up.
 
-    `fresh` and `reason` are what every caller has always needed. The third
-    field exists because "not fresh" collapsed two very different situations:
-    the control branch is not checked out here at all (recoverable — the branch
-    is free, so this run can check it out somewhere else), and the control
-    branch is checked out but its tip could not be integrated (a human has to
-    reconcile it). Only the first is a candidate for the temporary control
-    worktree, so the distinction has to survive the return.
+def _damage_since(cfg: Config, template: str, before: str | None) -> str | None:
+    """`_template_damage` against the template's bytes as they are right now.
+
+    Every call site is the same pair — the baseline captured before dispatch,
+    re-read after the run — so it is spelled once here rather than five times.
     """
+    return _template_damage(before, _template_description(cfg, template))
 
-    fresh: bool
-    reason: str
-    off_control_branch: bool = False
-    revision: str | None = None
-
-
-def _sync_control_checkout_ahead(
-    cfg: Config, *, announce_failure: bool = True
-) -> _ControlCatchup:
-    """Catch the checked-out control branch up to origin before scanning.
-
-    The scan decides what is due from working-tree templates and period tasks;
-    starting from origin's tip means those reads see runs another machine
-    already serviced. Runs while the tree is still clean of scan writes, so
-    the integration is `git.refresh`: a fast-forward, or a realignment over
-    local commits of Coga state control already carries. Only applies when
-    this checkout holds the control branch. Returns a `_ControlCatchup`: a
-    confirmation flag, an actionable reason, and whether the refusal was merely
-    "the control branch is not checked out here". Bare and named sweeps keep
-    misses best-effort because each create still reconciles against control;
-    the `--all` child treats a false result as an entry-gate failure.
-
-    `announce_failure=False` suppresses the stderr note for a caller about to
-    fail loud with the returned reason itself.
-    """
-    if not cfg.git_enabled:
-        return _ControlCatchup(fresh=False, reason="[git].enabled = false")
-    root = git.toplevel(cfg.repo_root)
-    if root is None:
-        return _ControlCatchup(
-            fresh=False, reason="workspace is not inside a git checkout"
-        )
-    try:
-        current = _current_branch(root)
-    except git.GitError as exc:
-        return _ControlCatchup(fresh=False, reason=str(exc))
-    if current != cfg.git_control_branch:
-        where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
-        return _ControlCatchup(
-            fresh=False,
-            reason=(
-                f"configured control branch {cfg.git_control_branch!r} is "
-                f"not checked out ({where})."
-                f"\nCheck that branch out — `git -C {root} checkout "
-                f"{cfg.git_control_branch}` — then re-run."
-            ),
-            off_control_branch=True,
-        )
-    if git.refresh(cfg):
-        # The scan's local ledger read is a snapshot *of this commit*; the
-        # create guard re-reads control whenever it finds a newer one.
-        return _ControlCatchup(
-            fresh=True,
-            reason="",
-            revision=git.run_git(root, "rev-parse", "HEAD").strip(),
-        )
-    reason = (
-        f"local {cfg.git_control_branch!r} could not be brought level with "
-        f"{cfg.git_remote}/{cfg.git_control_branch}."
-        f"\nResolve it in {root} as the [git] note above says, then re-run."
-    )
-    reason += _stranded_log_recovery_hint(cfg, root)
-    if announce_failure:
-        sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {reason}\n")
-    return _ControlCatchup(fresh=False, reason=reason)
-
-
-def _stranded_log_recovery_hint(cfg: Config, root: Path) -> str:
-    """Offer recovery for a lone unstaged log append on behind control.
-
-    This is evidence for a useful remedy, not proof of who wrote the tail or
-    permission to publish it during admission. Any failed probe keeps the
-    original catch-up diagnostic; no checkout contents or refs are changed.
-    """
-    path = log_path(cfg)
-    rel = git.relative_to_root(root, path)
-    control = f"{cfg.git_remote}/{cfg.git_control_branch}"
-    try:
-        if git.symlink_component(path) is not None:
-            return ""
-        status = git.run_git(root, "status", "--porcelain", "-z", "--untracked-files=all")
-        if status != f" M {rel}\x00":
-            return ""
-        if git.run_git(root, "diff", "--summary", "HEAD", "--", rel):
-            return ""  # A mode change is more than a log append.
-        git.run_git(root, "merge-base", "--is-ancestor", "HEAD", control)
-        if git.run_git(root, "rev-parse", "HEAD") == git.run_git(root, "rev-parse", control):
-            return ""
-        before = git.tree_bytes(root, "HEAD", rel)
-        after = path.read_bytes()
-        if (
-            before is None
-            or (before and not before.endswith(b"\n"))
-            or not after.startswith(before)
-            or len(after) == len(before)
-            or not after.endswith(b"\n")
-        ):
-            return ""
-    except (git.GitError, OSError):
-        return ""
-    return (
-        f"\nA possible unpublished log tail in {path} may be blocking catch-up. "
-        f"Review `git -C {shlex.quote(str(root))} diff -- {shlex.quote(rel)}`, "
-        f"then run `coga run publish-state {shlex.quote(str(path))}` from "
-        f"{shlex.quote(str(cfg.repo_root))} and retry. This publishes all eligible "
-        "Coga state; inspect any new changes before running it. "
-        "The tail was preserved; no recovery was attempted."
-    )
-
-
-def _launch_created(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    interactive: bool = False,
-    agent_override: str | None = None,
-    record: RunRecord | None = None,
-    template: str = "",
-    control_remote_expected: bool,
-) -> int:
-    """Launch (or resume) a created recurring task.
-
-    Recurring tasks create straight to `active` — machine-authored ready
-    jobs, no separate activation step. An `in_progress` task is a *resume*: a
-    past sweep died mid-run and left it frozen (`coga recurring` is a
-    foreground command with no concurrent sweep, so it can only be an orphan),
-    and `coga launch` re-composes it from its current `step:`.
-    `done`/`canceled`/`paused` are left alone — re-launching closed or
-    human-parked work would be wrong, and saying so beats silently doing nothing.
-    (A sweep- or watchdog-paused period was already reactivated by the caller;
-    see `_resume_named_pause`.)
-
-    `record`, when given, collects this run's outcome for the autofix loop. It
-    is filled in here rather than by the caller because this is where the two
-    "nothing actually ran" gates live: a task already handled on the control
-    branch, and a closed or human-parked one. Neither is a run, and analyzing a
-    sweep that never happened would only burn a call.
-    """
-    if not (ref.ticket_path).is_file():
-        typer.secho(
-            f"{ref.id_slug} was already handled on the control branch; not launching.",
-            fg=typer.colors.BRIGHT_BLACK,
-        )
-        return 0
-
-    admitted_period_lease = _local_period_lease(cfg, ref)
-    if admitted_period_lease.ticket_bytes is None:
-        typer.secho(
-            f"{ref.id_slug} was already handled on the control branch; not launching.",
-            fg=typer.colors.BRIGHT_BLACK,
-        )
-        return 0
-    try:
-        ticket = Ticket.parse(admitted_period_lease.ticket_bytes.decode())
-    except (UnicodeError, TicketError) as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return 2
-    if ticket.status not in {"active", "in_progress"}:
-        typer.secho(
-            f"{ref.id_slug} is {ticket.status}; not launching.",
-            fg=typer.colors.YELLOW,
-        )
-        return 0
-
-    verb = "Resuming" if ticket.status == "in_progress" else "Launching"
-    typer.echo(f"{verb} {ref.id_slug}")
-    idle_timeout = None if interactive else resolve_idle_timeout(cfg, default=_RECURRING_IDLE_TIMEOUT_SECONDS)
-    max_session = None if interactive else resolve_max_session(cfg)
-    launch_context = _recurring_launch_context(interactive)
-    # Same post-firing template check the sweep runs, captured here — after
-    # every "nothing ran" gate, immediately before dispatch. An on-demand
-    # launch is a real firing of a real template (`coga dream` is the one that
-    # rewrote a template's Description in the first place), and it feeds the
-    # same analyst, so it must not be the path where damage goes unreported.
-    # `template` is "" only when the caller had no name to give; that reads as
-    # no baseline rather than a lookup on the wrong directory.
-    template_description_before = _template_description(cfg, template)
-    if "delegate" in ticket.frontmatter:
-        # An on-demand named launch delegates exactly as the sweep does: the
-        # runner launches the bootstrap target in this operator's terminal
-        # and keeps the period task's bookkeeping to itself.
-        delegated = _run_delegated_task(
-            cfg,
-            ref,
-            agent_override=agent_override,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            launch_context=launch_context,
-            continue_after_timeout=False,
-            admitted_period_lease=admitted_period_lease,
-        )
-        if delegated.kind == "skipped":
-            if record is not None:
-                record.note(
-                    f"{ref.id_slug} changed after recurring admission; skipped"
-                )
-            return 0
-        settled = settle_delegated_period(cfg, ref)
-        if record is not None:
-            _record_outcome(
-                record,
-                _task_outcome(
-                    cfg,
-                    template or ref.slug,
-                    ref,
-                    kind=delegated.kind,
-                    result=(
-                        "failed"
-                        if delegated.exit_code and delegated.kind != "timeout"
-                        else ""
-                    ),
-                    exit_code=delegated.exit_code or None,
-                    template_damage=_damage_since(
-                        cfg, template, template_description_before
-                    ),
-                )
-            )
-        if not settled:
-            return git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-        return delegated.exit_code
-
-    from coga.launch import launch_recurring_period as launch_cmd
-
-    try:
-        raw_launch_result = launch_cmd(
-            ref.id_slug,
-            expected_period_lease=admitted_period_lease,
-            control_remote_expected=control_remote_expected,
-            agent_override=agent_override,
-            prompt_report=False,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=False,
-            script_failure_important=True,
-            # Same queue posture as the full sweep: automatic launches select
-            # the announce-and-continue / block-don't-ask contract;
-            # `--interactive` human-stepped runs select attended conduct.
-            launch_context=launch_context,
-        )
-        # Keep test/in-process shims written against the historical scalar
-        # seam harmless; the real launch function always returns the typed
-        # result with its pre-spawn generation lease.
-        launch_result = getattr(raw_launch_result, "kind", raw_launch_result)
-    except (SystemExit, LaunchBail) as exc:
-        if isinstance(exc, LaunchBail) and exc.reason:
-            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        # A failed `ticket.py` is this command's result, not a process abort:
-        # returning the code keeps the caller's exit-boundary git sync.
-        code = _exit_status(exc)
-        if record is not None:
-            _record_outcome(
-                record,
-                _task_outcome(
-                    cfg,
-                    template or ref.slug,
-                    ref,
-                    result="failed" if code else "",
-                    exit_code=code or None,
-                    template_damage=_damage_since(
-                        cfg, template, template_description_before
-                    ),
-                )
-            )
-        return code
-    kind = launch_result
-    if kind == "skipped":
-        return 0
-    if record is not None:
-        _record_outcome(
-            record,
-            _task_outcome(
-                cfg,
-                template or ref.slug,
-                ref,
-                template_damage=_damage_since(
-                    cfg, template, template_description_before
-                ),
-            )
-        )
-    return 0
-
-
-def _exit_status(exc: SystemExit | LaunchBail) -> int:
-    """The integer result of a launch that exited instead of returning.
-
-    `SystemExit.code` is `None` for a clean exit and may be a message string;
-    a non-integer code is a failure by CPython's own convention.
-    """
-    if exc.code is None:
-        return 0
-    return exc.code if isinstance(exc.code, int) else 2
 
 
 def _valid_agent_override(cfg: Config, agent_override: str | None) -> bool:
@@ -4076,1058 +397,6 @@ def _valid_agent_override(cfg: Config, agent_override: str | None) -> bool:
         return False
     return True
 
-
-def _sync_recurring_create(
-    cfg: Config,
-    template_name: str,
-    ref: TaskRef,
-    *,
-    respect_handled_period: bool = True,
-    respect_existing_task: bool = True,
-    replaced_done_ticket_bytes: bytes | None = None,
-    restore_existing_control_task: bool = False,
-    overwrite_dirty_control_task: bool = False,
-    force_period_key: str | None = None,
-    force_snapshot_is_fresh: bool = False,
-    force_record_period: bool = False,
-    expected_period_key: str | None = None,
-    control_ledger: dict[str, str] | None = None,
-    sync_failures: list[str] | None = None,
-) -> bool:
-    """Sync the period task and ledger record that make deletion idempotent.
-
-    `expected_period_key` bounds both the local reverse ledger read and any
-    fallback control-snapshot read after they find a record sufficient for
-    this sync's at-least comparison. Callers that cannot prove the period leave
-    it unset and get the exact whole-ledger read.
-    `control_ledger` is the caller's per-run snapshot of control's serviced
-    periods; see `_control_serviced_period_cached` for why a sweep must share
-    one.
-    `sync_failures`, when given, collects the text of every git failure this
-    sync swallows, so a sweep can count what it otherwise only prints.
-    """
-    template_dir = recurring_dir(cfg) / template_name
-    message = f"Ticket: {ref.id_slug} — recurring create"
-    if not template_dir.is_dir():
-        try:
-            git.sync_task_state(
-                cfg, ref.path, message=message, strict=sync_failures is not None
-            )
-        except git.GitError as exc:
-            # Already reported and logged by `sync_task_state`.
-            assert sync_failures is not None
-            sync_failures.append(str(exc))
-        return True
-    # The serviced-period ledger is the repo-global, event-reconciled `coga/log.md`
-    # (appended by `_record_run`), which never rides the cross-branch overlay —
-    # so this sync reconciles no scheduler state at all. The template ticket
-    # stays in the overlay only for the *run* cursors it carries
-    # (`state_keys` values).
-    template_ticket = template_dir / "ticket.md"
-    original_ticket = template_ticket.read_text(encoding="utf-8") if template_ticket.is_file() else ""
-    local_ticket = original_ticket
-    template_ref = _recurring_ref(template_name)
-    if control_ledger is None:
-        control_ledger = {}
-    if expected_period_key is not None:
-        # `_broadcast_scan` seeds every template before the first sync so the
-        # shared snapshot resolves them in one reverse pass. Direct callers
-        # still contribute their own target here.
-        control_ledger.setdefault(
-            _control_ledger_target_key(template_ref), expected_period_key
-        )
-    resolve_at = (
-        {template_ref: expected_period_key}
-        if expected_period_key is not None
-        else None
-    )
-    ledger = read_serviced_ledger(cfg, resolve_at)
-    ledger_error = ledger.errors.get(template_ref)
-    if ledger_error is not None:
-        raise RecurringError(ledger_error)
-    period_key = ledger.periods.get(template_ref)
-    state_keys: list[str] = []
-    if force_period_key is not None:
-        try:
-            template = load_effective_template(cfg, template_name)
-        except RecurringError:
-            template = None
-        if template is not None:
-            state_keys = list(template.frontmatter.get("state_keys") or [])
-    restore_ticket = original_ticket
-    created_on_control = True
-    try:
-        (
-            restore_ticket,
-            created_on_control,
-        ) = _sync_recurring_create_paths(
-            cfg,
-            anchor_path=ref.path,
-            paths=[ref.path, template_ticket],
-            template_ticket=template_ticket,
-            original_ticket=original_ticket,
-            local_ticket=local_ticket,
-            period_key=period_key,
-            message=message,
-            respect_handled_period=respect_handled_period,
-            respect_existing_task=respect_existing_task,
-            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-            restore_existing_control_task=restore_existing_control_task,
-            overwrite_dirty_control_task=overwrite_dirty_control_task,
-            force_period_key=force_period_key,
-            force_snapshot_is_fresh=force_snapshot_is_fresh,
-            force_record_period=force_record_period,
-            state_keys=state_keys,
-            control_ledger=control_ledger,
-            sync_failures=sync_failures,
-        )
-    except RecurringError:
-        raise
-    except Exception as exc:
-        # `_sync_recurring_create_paths` already degrades on GitError. This
-        # backstop keeps any *other* failure (subprocess, OS, racing control
-        # pushes) from aborting the caller between task creation and launch —
-        # the created task on disk is the source of truth, so a sync miss is
-        # non-fatal: report + log, keep the task launchable.
-        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        _append_sync_failure(cfg, ref.path, exc, sink=sync_failures)
-    finally:
-        if restore_ticket:
-            template_ticket.write_text(restore_ticket, encoding="utf-8", newline="\n")
-    return created_on_control
-
-
-def _sync_recurring_create_paths(
-    cfg: Config,
-    *,
-    anchor_path: Path,
-    paths: list[Path],
-    template_ticket: Path,
-    original_ticket: str,
-    local_ticket: str,
-    period_key: str | None,
-    message: str,
-    respect_handled_period: bool,
-    respect_existing_task: bool,
-    replaced_done_ticket_bytes: bytes | None,
-    restore_existing_control_task: bool,
-    overwrite_dirty_control_task: bool,
-    force_period_key: str | None,
-    force_snapshot_is_fresh: bool,
-    force_record_period: bool,
-    state_keys: list[str],
-    control_ledger: dict[str, str] | None = None,
-    sync_failures: list[str] | None = None,
-) -> tuple[str, bool]:
-    """Publish a period create, or adopt control's copy when it already ran.
-
-    Fetches control first: when control already holds this period (its
-    serviced-period record in the retained `coga/log.md`, or the task
-    itself), the local create is unwound to control's copy and only the log
-    line is published. Otherwise the period task, the template's run cursors,
-    and the log land in one `git.publish`, whose provenance check refuses to
-    overlay a task a peer created meanwhile — that refusal is treated as
-    "already handled" too. Every git miss is non-fatal: the created task on
-    disk is the source of truth and the next sweep retries the publish.
-    """
-    if not cfg.git_enabled:
-        sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
-        return original_ticket, True
-
-    try:
-        root = git.toplevel(anchor_path)
-    except git.GitError as exc:
-        sys.stderr.write(f"[git] {exc} (sync skipped): {message}\n")
-        return original_ticket, True
-    if root is None:
-        sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
-        return original_ticket, True
-
-    try:
-        rels = [git.relative_to_root(root, path) for path in paths]
-        ticket_rel = git.relative_to_root(root, template_ticket)
-        task_rel = git.relative_to_root(root, anchor_path)
-        log_file = log_path(cfg)
-        log_rel = git.relative_to_root(root, log_file)
-        template_ref = _template_ref_from_ticket_rel(ticket_rel)
-
-        def already_handled(at: str) -> bool:
-            return _control_already_has_period(
-                root,
-                at,
-                task_rel,
-                log_rel=log_rel,
-                template_ref=template_ref,
-                period_key=period_key,
-                control_ledger=control_ledger,
-                include_ledger=respect_handled_period,
-                include_task=respect_existing_task,
-                replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-            )
-
-        def refuse_if_serviced(at: str) -> None:
-            # The ledger half of `already_handled`, re-run at every base the
-            # publish pushes on. `expect` cannot carry it: the shared audit log
-            # is only a candidate while it is dirty, and on a control checkout
-            # the first create of a sweep already landed every line this sweep
-            # appended — so a peer's record arriving before a later create is
-            # invisible to a blob pin but not to this read. Two outcomes: a
-            # period a peer serviced before this sweep published anything is
-            # adopted (the refusal below makes the loop re-read and take
-            # control's copy); a ledger line that changed *after* this sweep's
-            # own publication is the ambiguous case the cache itself refuses.
-            serviced = _control_serviced_period_cached(
-                root, at, log_rel, template_ref, control_ledger,
-                resolve_at={template_ref: period_key} if period_key is not None else None,
-                deduplicate=respect_handled_period,
-            )
-            if (
-                respect_handled_period
-                and period_key is not None
-                and serviced is not None
-                and period_key_at_least(serviced, period_key)
-            ):
-                raise git.StateRegressionError(
-                    f"{log_rel}: control already records {template_ref} "
-                    f"serviced for {serviced}"
-                )
-
-        def bind_published() -> None:
-            # This publication carried every pending sweep record. Keep the
-            # competitor snapshot, but advance its known revision past our own
-            # write so later templates cannot collide with themselves.
-            if control_ledger is None:
-                return
-            revision = git.known_control_revision(cfg, root)
-            if revision is not None:
-                control_ledger[_LEDGER_REVISION] = revision
-                control_ledger[_LEDGER_PUBLISHED] = "yes"
-
-        try:
-            base = git.fetch_control(cfg, root)
-        except git.GitError as exc:
-            # Offline: publish what we have (it fails loud on its own) and let
-            # the next sweep reconcile against control. The publish still
-            # guards at whatever base it ends up pushing on — a rejected push
-            # re-fetches, and a peer may have serviced the period meanwhile.
-            sys.stderr.write(
-                f"[git] control fetch failed; publishing without a control "
-                f"check: {exc}. Message was: {message}\n"
-            )
-            if local_ticket:
-                template_ticket.write_text(local_ticket, encoding="utf-8", newline="\n")
-
-            def guard_fallback(at: str) -> None:
-                if already_handled(at):
-                    raise _ControlLedgerChanged(
-                        at, "period already handled on control during fallback sync"
-                    )
-
-            if git.publish(cfg, [*paths, log_file], message, guard=guard_fallback):
-                bind_published()
-            return original_ticket, True
-
-        if restore_existing_control_task:
-            restored_control_task, restored_snapshot = _restore_control_task_if_present(
-                root,
-                base,
-                task_rel,
-                preserve_local_changes=not overwrite_dirty_control_task,
-            )
-            if restored_control_task and force_period_key is not None:
-                local_ticket = _reconcile_forced_period_after_control_restore(
-                    cfg,
-                    root,
-                    base,
-                    task_rel=task_rel,
-                    template_ref=_template_ref_from_ticket_rel(ticket_rel),
-                    template_ticket=template_ticket,
-                    ticket_rel=ticket_rel,
-                    task_id_slug=_task_id_slug_from_rel(task_rel),
-                    force_period_key=force_period_key,
-                    snapshot_text_is_fresh=force_snapshot_is_fresh,
-                    snapshot_text=restored_snapshot,
-                    snapshot_ticket_text=local_ticket,
-                    record_period=force_record_period,
-                    state_keys=state_keys,
-                )
-                if force_record_period:
-                    period_key = force_period_key
-                original_ticket = local_ticket
-                if not force_record_period:
-                    return local_ticket, False
-        for _attempt in range(git.MAX_PUBLISH_ATTEMPTS):
-            if already_handled(base):
-                return _adopt_control_period(
-                    cfg, root, base, rels, ticket_rel, original_ticket, message,
-                    template_ref=template_ref,
-                    period_key=period_key,
-                    control_ledger=control_ledger,
-                    deduplicate=respect_handled_period,
-                    bind_published=bind_published,
-                    anchor_path=anchor_path,
-                    sync_failures=sync_failures,
-                )
-            _adopt_control_template(
-                root, template_ticket, ticket_rel, base, local_ticket
-            )
-            control_rels = _control_create_rels(root, base, rels, ticket_rel)
-            # The decision above was made from control's exact ledger and
-            # template: pin both, so a peer that serviced the period between
-            # this fetch and the push refuses the publish and the loop
-            # re-reads control instead of landing a duplicate period.
-            expect = {
-                root / rel: git.tree_bytes(root, base, rel)
-                for rel in (log_rel, *(r for r in control_rels if r == ticket_rel))
-            }
-            try:
-                published = git.publish(
-                    cfg,
-                    [*(root / rel for rel in control_rels), log_file],
-                    message,
-                    expect=expect,
-                    guard=refuse_if_serviced,
-                )
-            except git.StateRegressionError as exc:
-                sys.stderr.write(f"[git] note: {exc}; re-reading control\n")
-                # The cache is revision-bound: the next `already_handled(base)`
-                # sees the newer commit and re-reads (or diffs) the ledger.
-                base = git.fetch_control(cfg, root)
-                continue
-            if published:
-                bind_published()
-            break
-        else:
-            raise git.GitError(
-                f"could not land {task_rel} after "
-                f"{git.MAX_PUBLISH_ATTEMPTS} attempts — contention"
-            )
-        committed_ticket = template_ticket.read_text(encoding="utf-8") if template_ticket.is_file() else ""
-        return committed_ticket or original_ticket, True
-    except _ControlLedgerChanged as exc:
-        # A refused local create must not become an orphan that the next scan
-        # resumes without create-sync. Restore control's task (or its absence),
-        # leaving any peer generation intact. Unlike a transport miss, this is
-        # an admission refusal and must never reach the launchable fallback.
-        if restore_existing_control_task and not overwrite_dirty_control_task:
-            # A forced reuse can carry operator edits. It is not a new local
-            # candidate, and the existing restore policy must still protect it.
-            raise
-        try:
-            _restore_selected_paths_from_ref(root, exc.revision, [task_rel])
-        except (git.GitError, OSError) as cleanup_error:
-            raise RecurringError(
-                f"{exc}; could not discard local create: {cleanup_error}"
-            ) from exc
-        raise
-    except git.GitError as exc:
-        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        _append_sync_failure(cfg, anchor_path, exc, sink=sync_failures)
-        return original_ticket, True
-
-
-def _adopt_control_period(
-    cfg: Config,
-    root: Path,
-    base: str,
-    rels: list[str],
-    ticket_rel: str,
-    original_ticket: str,
-    message: str,
-    *,
-    template_ref: str,
-    period_key: str | None,
-    control_ledger: dict[str, str] | None,
-    deduplicate: bool,
-    bind_published: Callable[[], None],
-    anchor_path: Path,
-    sync_failures: list[str] | None = None,
-) -> tuple[str, bool]:
-    """Unwind a local create to control's copy; publish only the log line.
-
-    The create appended its record to the global log before the sync found
-    the period already handled on control, so that line is published (event-reconciled) and the task paths are restored from control. In a control
-    checkout the restored paths are staged so the fast-forward that follows
-    the log publish leaves the tree clean. Even this rejected create publishes
-    the other pending sweep targets' records, so the publish is guarded like
-    a create and the cache is bound to the revision it lands.
-
-    The adoption is decided once the restore has run: a failed log
-    publication is reported and counted in `sync_failures`, but the period is
-    still returned as handled on control. Letting that `GitError` reach the
-    caller's transport handler would report `created_on_control=True` over the
-    peer's restored task, which admission then reads as a contradiction.
-    """
-    _restore_selected_paths_from_ref(root, base, rels)
-    if _current_branch(root) == cfg.git_control_branch:
-        present = [rel for rel in rels if (root / rel).exists()]
-        if present:
-            git.run_git(root, "add", "--all", "--", *present)
-
-    def guard_log_publication(at: str) -> None:
-        _control_serviced_period_cached(
-            root, at, git.relative_to_root(root, log_path(cfg)), template_ref,
-            control_ledger,
-            resolve_at={template_ref: period_key} if period_key is not None else None,
-            deduplicate=deduplicate,
-        )
-
-    try:
-        if git.publish(cfg, [log_path(cfg)], message, guard=guard_log_publication):
-            bind_published()
-    except git.GitError as exc:
-        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        _append_sync_failure(cfg, anchor_path, exc, sink=sync_failures)
-    return _control_template_or_local(root, base, ticket_rel, original_ticket), False
-
-
-def _append_sync_failure(
-    cfg: Config,
-    anchor_path: Path,
-    exc: Exception,
-    *,
-    sink: list[str] | None = None,
-) -> None:
-    """Best-effort global-log note for non-fatal git sync failures.
-
-    `sink` receives the failure first, before the anchor check: a restore can
-    already have removed the task directory, and the caller still needs to
-    count the failure even when there is nothing left to tag the log line to.
-    """
-    if sink is not None:
-        sink.append(str(exc))
-    if not anchor_path.is_dir():
-        return
-    try:
-        append_log(cfg, ref_tag_for_path(cfg, anchor_path), "git", f"sync failed: {exc}")
-    except OSError:
-        return
-
-
-def _control_template_or_local(
-    root: Path, ref: str, ticket_rel: str, local_ticket: str
-) -> str:
-    """Control's template `ticket.md`, falling back to the local copy.
-
-    The template no longer carries scheduler state — the serviced-period ledger
-    is the repo-global log — but it still carries *run* cursors
-    (`state_keys` values). Control wins because
-    its copy holds whichever cursor advanced most recently, so a stale checkout
-    adopts it instead of re-running from a stale cursor.
-    """
-    return _show_path(root, ref, ticket_rel) or local_ticket
-
-
-def _control_create_rels(
-    root: Path, ref: str, rels: list[str], ticket_rel: str
-) -> list[str]:
-    if _ref_has_path(root, ref, ticket_rel):
-        return rels
-    from coga.recurring_state import CARRIER, inspect_parent_dir
-
-    # A first-use carrier is new mutable state, not a feature-only template.
-    # Publish it with the period and ledger, including an absence CAS, so
-    # the first writer can reserve its cursor against that control copy.
-    if inspect_parent_dir((root / ticket_rel).parent).kind == CARRIER:
-        return rels
-    return rels[:1]
-
-
-def _control_already_has_period(
-    root: Path,
-    ref: str,
-    task_rel: str,
-    *,
-    log_rel: str,
-    template_ref: str,
-    period_key: str | None,
-    control_ledger: dict[str, str] | None = None,
-    include_ledger: bool = True,
-    include_task: bool = True,
-    replaced_done_ticket_bytes: bytes | None = None,
-) -> bool:
-    # An override disables the *dedup decision*, not ledger validation. Always
-    # parse control's record so `--force` / named launches cannot run through a
-    # malformed high-water mark merely because its value will not be compared.
-    serviced = _control_serviced_period_cached(
-        root,
-        ref,
-        log_rel,
-        template_ref,
-        control_ledger,
-        resolve_at=(
-            {template_ref: period_key} if period_key is not None else None
-        ),
-        deduplicate=include_ledger,
-    )
-    if include_ledger and period_key is not None and serviced is not None:
-        try:
-            if period_key_at_least(serviced, period_key):
-                return True
-        except ValueError as exc:
-            raise RecurringError(
-                f"invalid serviced-period comparison for {template_ref}: {exc}"
-            ) from exc
-    if not include_task or not _ref_has_path(root, ref, task_rel):
-        return False
-    if replaced_done_ticket_bytes is not None:
-        control_ticket = git.tree_bytes(
-            root, ref, f"{task_rel.rstrip('/')}/ticket.md"
-        )
-        # The replaced ticket was read from disk, which a line-ending-converting
-        # checkout holds CRLF while control's blob stays LF.
-        if _same_ticket_bytes(control_ticket, replaced_done_ticket_bytes):
-            return False
-    return True
-
-
-def _control_serviced_period_cached(
-    root: Path,
-    ref: str,
-    log_rel: str,
-    template_ref: str,
-    control_ledger: dict[str, str] | None,
-    *,
-    resolve_at: Mapping[str, str] | None = None,
-    deduplicate: bool = True,
-) -> str | None:
-    """A revision-bound competitor snapshot, shared by every sweep target.
-
-    `control_ledger` is a per-run cache owned by the caller, resolved for every
-    target in one pass (or preloaded from a successful pre-scan catch-up) and
-    bound to the control revision it describes. The repo-global log holds all
-    templates' records in one file, so the first publish of a sweep pushes the
-    whole file — including the lines this same sweep just wrote for templates
-    it has not synced yet. Reading control per template would let a later
-    template mistake its own pending record for another checkout's and delete
-    the task it just created.
-
-    So the cache answers by revision: *before* this sweep has published,
-    a newer control commit means the snapshot is stale and is re-read whole.
-    *After* it has published, our own records are on control too, so the diff
-    between the known published revision and the new one is parsed instead,
-    and only templates whose ledger lines changed *externally* are refused
-    (`_ControlLedgerChanged`); every other template keeps its decision.
-    """
-    if control_ledger is None:
-        control_ledger = {}
-    previous = control_ledger.get(_LEDGER_REVISION)
-    if previous != ref and control_ledger.get(_LEDGER_PUBLISHED) and deduplicate:
-        try:
-            diff = git.run_git(
-                root, "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-                "--text", "--unified=0",
-                previous, ref, "--", log_rel,
-            )
-        except (git.GitError, OSError, UnicodeError) as exc:
-            raise _ControlLedgerChanged(
-                ref, f"cannot verify control ledger: {exc}"
-            ) from exc
-        entries: list[tuple[str, str]] = []
-        for line in log_lines(diff):
-            if not line.startswith(("+", "-")):
-                continue
-            match = _CONTROL_LOG_ENTRY_RE.match(line[1:])
-            if match is not None:
-                entries.append(
-                    (match.group("ref"), (
-                        decode_log_message(match.group("message"))
-                        if match.group("version") else match.group("message")
-                    ))
-                )
-        changed = parse_serviced_period_entries(entries)
-        added_entries: list[tuple[str, str]] = []
-        for line in log_lines(diff):
-            if line.startswith("+"):
-                match = _CONTROL_LOG_ENTRY_RE.match(line[1:])
-                if match:
-                    added_entries.append((match["ref"], decode_log_message(match["message"]) if match["version"] else match["message"]))
-        added = parse_serviced_period_entries(added_entries)
-        affected = changed.periods.keys() | changed.errors.keys()
-        # A trim may delete obsolete valid ledger evidence. Prove the complete
-        # high-water/error state at both revisions; bounded readers deliberately
-        # do not expose older errors and cannot supply this proof.
-        old_state = _read_control_ledger(root, previous, log_rel) if affected else {}
-        new_state = _read_control_ledger(root, ref, log_rel) if affected else {}
-        for changed_ref in affected:
-            benign = (changed_ref not in added.periods and changed_ref not in added.errors
-                      and changed_ref not in changed.errors
-                      and old_state.get(changed_ref) == new_state.get(changed_ref)
-                      and old_state.get(_control_ledger_error_key(changed_ref)) == new_state.get(_control_ledger_error_key(changed_ref)))
-            if not benign:
-                control_ledger[f"{_LEDGER_REFUSAL_PREFIX}{changed_ref}"] = ref
-        control_ledger[_LEDGER_REVISION] = ref
-    elif not control_ledger.get(_LEDGER_LOADED) or previous != ref:
-        targets = _control_ledger_targets(control_ledger)
-        try:
-            ledger = _read_control_ledger(root, ref, log_rel, targets or resolve_at)
-        except (git.GitError, OSError, UnicodeError) as exc:
-            raise _ControlLedgerChanged(
-                ref, f"cannot refresh control ledger: {exc}"
-            ) from exc
-        control_ledger.clear()
-        control_ledger.update(
-            {_control_ledger_target_key(key): value for key, value in targets.items()}
-        )
-        control_ledger.update(ledger)
-        control_ledger[_LEDGER_LOADED] = "yes"
-        control_ledger[_LEDGER_REVISION] = ref
-    if f"{_LEDGER_REFUSAL_PREFIX}{template_ref}" in control_ledger:
-        raise _ControlLedgerChanged(
-            ref, f"control ledger changed for {template_ref} after this sweep's "
-            "publication; refusing ambiguous period admission"
-        )
-    error = control_ledger.get(_control_ledger_error_key(template_ref))
-    if error is not None:
-        raise RecurringError(error)
-    return control_ledger.get(template_ref)
-
-
-def _validate_control_serviced_period(
-    cfg: Config,
-    template_name: str,
-    control_ledger: dict[str, str] | None = None,
-    *,
-    expected_period_key: str | None = None,
-    deduplicate: bool = True,
-) -> None:
-    """Fail on malformed control-ledger state without changing task state.
-
-    A prior sweep can leave a locally created task behind after its control
-    sync discovers a malformed record. Reused tasks skip create-sync, so they
-    pass through this read-only gate on every later sweep instead of launching
-    after the first warning. The shared cache follows the same revision and
-    own-publication checks as the create guard.
-
-    Control freshness remains best-effort for bare/named single-repo launches,
-    matching their existing sync contract. A reachable malformed record is a
-    hard template error; an unreachable remote keeps the existing loud Git
-    warning and local behavior.
-    """
-    if not cfg.git_enabled:
-        return
-    root = git.toplevel(cfg.repo_root)
-    if root is None:
-        return
-
-    try:
-        ref = git.fetch_control(cfg, root)
-    except git.GitError as exc:
-        sys.stderr.write(
-            f"[git] control serviced-ledger validation skipped: {exc}\n"
-        )
-        return
-
-    _control_serviced_period_cached(
-        root,
-        ref,
-        git.relative_to_root(root, log_path(cfg)),
-        _recurring_ref(template_name),
-        control_ledger,
-        resolve_at=(
-            {_recurring_ref(template_name): expected_period_key}
-            if expected_period_key is not None
-            else None
-        ),
-        deduplicate=deduplicate,
-    )
-
-
-def _restore_selected_paths_from_ref(root: Path, ref: str, rels: list[str]) -> None:
-    for rel in rels:
-        if _ref_has_path(root, ref, rel):
-            git.run_git(
-                root, "restore", "--source", ref, "--staged", "--worktree", "--", rel
-            )
-            continue
-        git.run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel)
-        path = Path(rel) if Path(rel).is_absolute() else root / rel
-        if path.is_dir():
-            shutil.rmtree(path)
-        elif path.exists():
-            path.unlink()
-
-
-def _restore_control_task_if_present(
-    root: Path, ref: str, task_rel: str, *, preserve_local_changes: bool
-) -> tuple[bool, str | None]:
-    if not _ref_has_path(root, ref, task_rel):
-        return False, None
-    if preserve_local_changes and _path_has_local_changes(root, task_rel):
-        return False, None
-    snapshot = root / task_rel / ".state-snapshot.json"
-    snapshot_text = snapshot.read_text(encoding="utf-8") if snapshot.is_file() else None
-    _restore_selected_paths_from_ref(root, ref, [task_rel])
-    return True, snapshot_text
-
-
-def _path_has_local_changes(root: Path, rel: str) -> bool:
-    result = subprocess.run(
-        ["git", "-C", str(root), "status", "--porcelain", "--", rel],
-        capture_output=True,
-        text=True, encoding="utf-8",
-        check=False,
-        env=git._git_env(),
-    )
-    lines = [line for line in result.stdout.splitlines() if line.strip()]
-    return any(not _is_generated_snapshot_status(line, rel) for line in lines)
-
-
-def _is_generated_snapshot_status(line: str, rel: str) -> bool:
-    snapshot_rel = f"{Path(rel).as_posix().rstrip('/')}/.state-snapshot.json"
-    path = line[3:].strip()
-    if " -> " in path:
-        path = path.rsplit(" -> ", 1)[1]
-    return path == snapshot_rel
-
-
-def _reconcile_forced_period_after_control_restore(
-    cfg: Config,
-    root: Path,
-    ref: str,
-    *,
-    task_rel: str,
-    ticket_rel: str,
-    template_ref: str,
-    template_ticket: Path,
-    task_id_slug: str,
-    force_period_key: str,
-    snapshot_text_is_fresh: bool,
-    snapshot_text: str | None,
-    snapshot_ticket_text: str,
-    record_period: bool,
-    state_keys: list[str],
-) -> str:
-    """Recompute forced-run bookkeeping after local task state is current.
-
-    Returns the template text to keep locally. The serviced-period ledger is
-    the repo-global log, so nothing scheduler-owned is merged here; the
-    template is touched only for the *run* cursors it carries.
-    """
-    control_ticket = _show_path(root, ref, ticket_rel)
-    if not record_period:
-        # Discovery only. The local template already holds its own cursors and
-        # there is no mark to adopt from control, so leave it as it stands.
-        return snapshot_ticket_text
-
-    template_ticket.write_text(control_ticket or snapshot_ticket_text, encoding="utf-8", newline="\n")
-    _append_forced_reused_log(cfg, template_ref, task_id_slug, force_period_key)
-
-    snapshot = root / task_rel / SNAPSHOT_FILE
-    if snapshot_text is not None and snapshot_text_is_fresh:
-        snapshot.write_text(snapshot_text, encoding="utf-8", newline="\n")
-    elif state_keys:
-        _write_snapshot_from_text(
-            root / task_rel,
-            Path(task_id_slug).name,
-            snapshot_ticket_text,
-            state_keys,
-        )
-
-    return template_ticket.read_text(encoding="utf-8") if template_ticket.is_file() else ""
-
-
-def _append_forced_reused_log(
-    cfg: Config, template_ref: str, task_id_slug: str, period_key: str
-) -> None:
-    """Record a forced reuse in the repo-global ledger, idempotently.
-
-    Skipped when the same line is already present, so repeated `--force` runs
-    inside one period leave one record rather than one per invocation.
-    """
-    needle = format_serviced_log("reused", task_id_slug, period_key)
-    if any(needle in line for line in task_log_lines(cfg, template_ref)):
-        return
-    append_log(cfg, template_ref, "system", needle)
-
-
-def _write_snapshot_from_text(
-    task_dir: Path, parent: str, blackboard_text: str, state_keys: list[str]
-) -> None:
-    keys = parse_keys(blackboard_text, list(state_keys))
-    payload = {"parent": parent, "keys": keys}
-    (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
-
-
-def _task_id_slug_from_rel(rel: str) -> str:
-    parts = Path(rel).parts
-    if "tasks" not in parts:
-        return Path(rel).name
-    i = len(parts) - 1 - list(reversed(parts)).index("tasks")
-    return "/".join(parts[i + 1 :])
-
-
-def _ref_has_path(root: Path, ref: str, rel: str) -> bool:
-    result = subprocess.run(
-        ["git", "-C", str(root), "cat-file", "-e", f"{ref}:{rel}"],
-        capture_output=True,
-        text=True, encoding="utf-8",
-        check=False,
-        env=git._git_env(),
-    )
-    return result.returncode == 0
-
-
-def _adopt_control_template(
-    root: Path,
-    template_ticket: Path,
-    ticket_rel: str,
-    ref: str,
-    local_ticket: str,
-) -> None:
-    """Point the local template at control's copy of its run cursors."""
-    template_ticket.write_text(
-        _control_template_or_local(root, ref, ticket_rel, local_ticket),
-        encoding="utf-8", newline="\n",
-    )
-
-
-# Sentinel key marking a per-run control-ledger cache as populated.
-_LEDGER_LOADED = "\0loaded"
-_LEDGER_REVISION = "\0revision"
-_LEDGER_PUBLISHED = "\0published"
-_LEDGER_REFUSAL_PREFIX = "\0refused:"
-_LEDGER_ERROR_PREFIX = "\0error:"
-_LEDGER_TARGET_PREFIX = "\0target:"
-
-
-class _ControlLedgerChanged(RecurringError):
-    """Reachable control invalidated admission, rather than a sync transport miss."""
-
-    def __init__(self, revision: str, message: str) -> None:
-        super().__init__(message)
-        self.revision = revision
-
-_CONTROL_LOG_ENTRY_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} (?P<version>v1 )?\[(?P<ref>[^\]]*)\] \[[^\]]*\] "
-    r"(?P<message>.*)$"
-)
-
-
-def _recurring_ref(template_name: str) -> str:
-    """The log tag for a template — `recurring/<name>`."""
-    return f"recurring/{template_name}"
-
-
-def _template_ref_from_ticket_rel(ticket_rel: str) -> str:
-    """`.../recurring/<name>/ticket.md` → the `recurring/<name>` log tag."""
-    return _recurring_ref(PurePosixPath(ticket_rel).parent.name)
-
-
-def _control_ledger_error_key(template_ref: str) -> str:
-    return f"{_LEDGER_ERROR_PREFIX}{template_ref}"
-
-
-def _control_ledger_target_key(template_ref: str) -> str:
-    return f"{_LEDGER_TARGET_PREFIX}{template_ref}"
-
-
-def _control_ledger_targets(control_ledger: Mapping[str, str]) -> dict[str, str]:
-    return {
-        key.removeprefix(_LEDGER_TARGET_PREFIX): value
-        for key, value in control_ledger.items()
-        if key.startswith(_LEDGER_TARGET_PREFIX)
-    }
-
-
-def _read_control_ledger(
-    root: Path,
-    ref: str,
-    log_rel: str,
-    resolve_at: Mapping[str, str] | None = None,
-) -> dict[str, str]:
-    """Read serviced periods from the pinned control log at `ref`.
-
-    `resolve_at` applies the same per-template target proof as the working-tree
-    reader. A sweep supplies all of its targets together, so even this fallback
-    captures one shared pre-publication snapshot rather than reading lazily per
-    template. Without targets the exact whole-ledger parse remains available
-    to callers that cannot state an at-least question.
-    """
-    # A missing file is an empty ledger; a failed read is not. In particular,
-    # never turn a failed freshness repair into permission to publish.
-    if not git.run_git(root, "ls-tree", ref, "--", log_rel).strip():
-        return {}
-    text = git.run_git(root, "show", f"{ref}:{log_rel}")
-    if not text:
-        return {}
-
-    lines = log_lines(text)
-
-    def entries(source: Iterable[str]) -> Iterable[tuple[str, str]]:
-        for line in source:
-            match = _CONTROL_LOG_ENTRY_RE.match(line)
-            if match is not None:
-                yield match.group("ref"), (
-                    decode_log_message(match.group("message"))
-                    if match.group("version") else match.group("message")
-                )
-
-    ledger = (
-        parse_serviced_period_entries(entries(iter(lines)))
-        if resolve_at is None
-        else parse_serviced_period_entries_reverse(
-            entries(reversed(lines)), resolve_at
-        )
-    )
-    out = dict(ledger.periods)
-    for template_ref, error in ledger.errors.items():
-        out[_control_ledger_error_key(template_ref)] = error
-    return out
-
-
-def _show_path(root: Path, ref: str, rel: str) -> str:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(root), "show", f"{ref}:{rel}"],
-            capture_output=True,
-            text=True, encoding="utf-8",
-            check=False,
-            env=git._git_env(),
-        )
-    except FileNotFoundError:
-        return ""
-    if result.returncode != 0:
-        return ""
-    return result.stdout
-
-
-def _current_branch(root: Path) -> str:
-    # `rev-parse --abbrev-ref HEAD` returns `heads/<name>` when a tag shadows
-    # the branch. `branch --show-current` is unambiguous and empty when detached.
-    current = git.run_git(root, "branch", "--show-current").strip()
-    return current or "HEAD"
-
-
-def _stop_if_unfinished_after_launch(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    timed_out: bool = False,
-    script_stopped: bool = False,
-    expected_period_lease: _PeriodLease | None = None,
-    require_period_publication: bool = False,
-) -> None:
-    """Pause a recurring task when its agent launch returns unfinished.
-
-    Exiting an agent without a terminal transition parks that run. Make it
-    durable by pausing the task, then continue; otherwise the next scan would
-    treat the leftover `in_progress` state as a dead supervisor's orphan and
-    relaunch it.
-
-    `timed_out` is set when `launch` reported a liveness teardown (idle /
-    max-session) — the agent wedged and never signalled done. That must NOT be
-    recorded as an ordinary pause: it isn't a deliberate park, it's a stuck
-    run. We pause it (so the next scan doesn't relaunch the orphan) but log and
-    broadcast it as a watchdog *timeout*, with a system actor, then continue the
-    sweep so one wedge can't starve the tasks behind it.
-
-    A script that deliberately records `blocked` has also completed its
-    deterministic phase: preserve that supported lifecycle signal. An agent
-    session that blocks is still paused by the scheduled-run contract, so this
-    exception is gated on the launcher's script-only stop kind.
-    """
-    if not (ref.ticket_path).exists():
-        return
-
-    if expected_period_lease is not None:
-        current_period_lease = _local_period_lease(cfg, ref)
-        if current_period_lease.generation != expected_period_lease.generation:
-            raise RecurringError(
-                f"cannot pause recurring period {ref.id_slug}: its stable-path "
-                "generation changed after the child exited"
-            )
-        try:
-            if current_period_lease.ticket_bytes is None:
-                raise TicketError("period ticket disappeared")
-            ticket = Ticket.parse(current_period_lease.ticket_bytes.decode())
-        except (UnicodeError, TicketError) as exc:
-            raise RecurringError(
-                f"cannot pause recurring period {ref.id_slug}: invalid leased "
-                f"ticket state — {exc}"
-            ) from exc
-        # Ticket edits belong to this same child generation. Lease the exact
-        # post-session bytes and derive the pause from those same bytes, so any
-        # race after this check still loses the CAS and no earlier read can
-        # overwrite a concurrent same-generation edit.
-        expected_period_lease = current_period_lease
-    else:
-        ticket = read_ticket(ref)
-
-    if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
-        return
-    if script_stopped and ticket.status == "blocked":
-        return
-
-    if timed_out:
-        suffix = "liveness watchdog: REPL timed out before signalling done"
-        actor = WATCHDOG_ACTOR
-        slack_text = f"⏱️ *{ref.id_slug}* \"{ticket.title}\" timed out — {suffix}"
-        outcome = (
-            f"{ref.id_slug}: timed out (status={ticket.status!r}); paused as a "
-            "watchdog timeout and continuing to next due task."
-        )
-    else:
-        suffix = SWEEP_PAUSE_SUFFIX
-        # The sweep's own pause, not a human's: the next sweep resumes it once
-        # its open asks (if any) are resolved. See `recurring._pause_origins`.
-        actor = SWEEP_ACTOR
-        slack_text = None
-        outcome = (
-            f"{ref.id_slug}: ended with status={ticket.status!r}; "
-            "paused and continuing to next due task."
-        )
-
-    with git.state_lock(cfg):
-        log_before = _log_bytes(cfg)
-        try:
-            if expected_period_lease is not None:
-                _require_period_bytes(
-                    ref, expected_period_lease.ticket_bytes, action="pause"
-                )
-                _verify_period_on_control(
-                    cfg,
-                    ref,
-                    expected_period_lease,
-                    boundary="pause",
-                    require_control=require_period_publication,
-                )
-            mark_paused(
-                cfg,
-                ref,
-                ticket,
-                actor=actor,
-                log_message=f"paused ({ticket.status} → paused) — {suffix}",
-                slack_text=slack_text,
-                echo=None,
-                strict=expected_period_lease is not None,
-            )
-        except git.UncertainPublishError as exc:
-            raise RecurringError(
-                f"cannot pause recurring period {ref.id_slug}: publication "
-                f"outcome is uncertain; generated local state was retained for "
-                f"reconciliation — {exc}"
-            ) from exc
-        except git.GitError as exc:
-            if not require_period_publication and not isinstance(
-                exc, git.StateRegressionError
-            ):
-                typer.secho(outcome, fg=typer.colors.YELLOW)
-                return
-            if expected_period_lease is not None:
-                _restore_period_bytes(
-                    cfg, ref, expected_period_lease.ticket_bytes, log_before=log_before
-                )
-            raise RecurringError(
-                f"cannot pause recurring period {ref.id_slug}: {exc}"
-            ) from exc
-        except TaskValidationError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            sys.exit(2)
-    typer.secho(outcome, fg=typer.colors.YELLOW)
-
-
-# --- scan reporting -----------------------------------------------------------
 
 
 def _recurring_launch_context(interactive: bool) -> LaunchContext:
@@ -5145,370 +414,31 @@ def _recurring_launch_context(interactive: bool) -> LaunchContext:
     return "attended" if interactive else "recurring"
 
 
-def _resume_paused_period(cfg: Config, ref: TaskRef, *, watchdog: bool) -> None:
-    """Reactivate a non-human-paused period so launch resumes its saved step.
 
-    Only for a pause `recurring._pause_origins` attributed to the sweep or the
-    watchdog; a human pause is never reactivated here. `coga launch` then
-    re-composes the period from its retained `step:` and blackboard.
-    """
-    cause = "watchdog-paused" if watchdog else "sweep-paused"
-    try:
-        mark_active(
-            cfg,
-            ref,
-            read_ticket(ref),
-            actor=SWEEP_ACTOR,
-            log_message=f"activated (paused → active) to resume a {cause} run",
-            echo=f"{ref.id_slug}: active (resuming {cause} run)",
-        )
-    except (
-        TicketError,
-        WorkflowMissing,
-        WorkflowError,
-        MainAgentUnavailable,
-        RepoResourceUnreadable,
-        RequiredExtensionMissing,
-        TaskValidationError,
-    ) as exc:
-        raise RecurringError(
-            f"cannot resume {cause} period {ref.id_slug}: {exc}"
-        ) from exc
+def _firing_label(last_fire: datetime, now: datetime) -> str:
+    """Human label for a scheduled firing — 'ready' or 'overdue Nd'."""
+    delta = now - last_fire
+    stamp = last_fire.strftime("%a %H:%M")
+    if delta.total_seconds() < 86400:
+        return f"ready ({stamp})"
+    return f"overdue {delta.days}d ({stamp})"
 
 
-def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
-    """Record a forced rerun only once the sweep reaches this task.
 
-    `coga recurring --force` includes existing `done`/`canceled`/`paused`
-    period tasks. Those tasks must not advance the parent high-water during
-    scan: a prior task might stop the sequential sweep first. Once we reach the
-    task, refuse it if canceled; otherwise flip it back to `active`, then record
-    the forced period and sync the real task.
-    If the later launch preflight fails, the task is at least live for a future
-    normal sweep instead of being silently skipped as already serviced.
-    """
-    if task.ref is None:
-        return
-
-    if not (task.ref.ticket_path).is_file():
-        outcome = create_named(cfg, task.template)
-        task.ref = outcome.ref
-        task.created = outcome.created
-
-    if not task.created:
-        _sync_recurring_create(
-            cfg,
-            task.template,
-            task.ref,
-            respect_handled_period=False,
-            respect_existing_task=False,
-            restore_existing_control_task=True,
-            overwrite_dirty_control_task=False,
-            force_period_key=task.period_key,
-            force_snapshot_is_fresh=False,
-            force_record_period=False,
-            expected_period_key=task.period_key,
-        )
-
-    ticket = read_ticket(task.ref)
-    task.status = ticket.status
-    if ticket.status == "canceled":
-        raise RecurringError(
-            f"cannot force-run {task.ref.id_slug}: its task is canceled and "
-            "cannot be reactivated; delete it before starting a fresh run"
-        )
-    if not task.created and ticket.status in {"active", "in_progress"}:
-        return
-
-    if ticket.status not in {"active", "in_progress"}:
-        prior = ticket.status
-        mark_active(
-            cfg,
-            task.ref,
-            ticket,
-            actor=f"human:{cfg.current_user}",
-            log_message=f"activated ({prior} → active) for forced recurring run",
-            echo=f"{task.ref.id_slug}: active (forced recurring run)",
-        )
-        task.status = "active"
-    _record_forced_period_locally(cfg, task)
-    _sync_recurring_create(
-        cfg,
-        task.template,
-        task.ref,
-        respect_handled_period=False,
-        respect_existing_task=False,
-        restore_existing_control_task=False,
-        overwrite_dirty_control_task=False,
-        expected_period_key=task.period_key,
-    )
-
-
-def _record_forced_period_locally(cfg: Config, task: DueTask) -> None:
-    if task.ref is None or not task.period_key:
-        return
-
-    template = load_effective_template(cfg, task.template)
-    blackboard_text = (
-        read_blackboard(template.state_path, blackboard_required=False)
-        if template.state_path.is_file()
-        else ""
-    )
-    state_keys = list(template.frontmatter.get("state_keys") or [])
-    if state_keys:
-        _write_snapshot_from_text(
-            task.ref.path,
-            template.name,
-            blackboard_text,
-            state_keys,
-        )
-
-    _append_forced_reused_log(
-        cfg, _recurring_ref(template.name), task.ref.id_slug, task.period_key
-    )
-
-
-def _broadcast_scan(
-    cfg,
-    scan: DueScan,
-    *,
-    respect_handled_period: bool = True,
-    sync_existing: bool = False,
-    control_is_fresh: bool = False,
-    control_revision: str | None = None,
-) -> None:
-    """Post Slack lines for newly created tasks and skipped templates.
-
-    In `--all` mode, also refresh existing task status from the control branch
-    before the launch list is sorted. A stale local `done` copy may be an
-    `in_progress` orphan on control, and resume-first ordering depends on the
-    current status. The actual restore/sync still happens when the launch loop
-    reaches that task, so an unreached task is not mutated during the scan.
-    """
-    # One control-ledger snapshot for the whole sweep: the first sync publishes
-    # the shared log, so a per-task read would see this sweep's own pending
-    # records as another checkout's.
-    targets = scan.period_targets or {
-        _recurring_ref(task.template): task.period_key
-        for task in scan.tasks
-        if task.period_key
-    }
-    control_ledger: dict[str, str] = {
-        _control_ledger_target_key(ref): period
-        for ref, period in targets.items()
-    }
-    if control_is_fresh and control_revision is not None:
-        # `scan_due` took this target-bounded snapshot immediately after the
-        # successful pre-scan catch-up and before any create appended to the
-        # shared log. Reusing it is both the self-collision guard and the only
-        # way a normal git-backed sweep can retain the local reverse reader's
-        # bounded I/O; reading the Git blob would materialize the whole log.
-        # It is bound to the caught-up revision: the create guard fetches
-        # control again, and a newer commit there means the snapshot is stale.
-        control_ledger.update(scan.ledger_periods)
-        control_ledger.update(
-            {
-                _control_ledger_error_key(ref): error
-                for ref, error in scan.ledger_errors.items()
-            }
-        )
-        control_ledger[_LEDGER_LOADED] = "yes"
-        control_ledger[_LEDGER_REVISION] = control_revision
-    for task in list(scan.tasks):
-        sync_failures: list[str] = []
-        try:
-            if not task.created and not task.replaced_done:
-                _validate_control_serviced_period(
-                    cfg,
-                    task.template,
-                    control_ledger,
-                    expected_period_key=task.period_key,
-                    deduplicate=respect_handled_period,
-                )
-                if sync_existing:
-                    _refresh_forced_status_from_control(cfg, task)
-                continue
-            if task.ref is None:
-                continue
-            created_period_lease = (
-                _local_period_lease(cfg, task.ref) if task.created else None
-            )
-            created_on_control = _sync_recurring_create(
-                cfg,
-                task.template,
-                task.ref,
-                respect_handled_period=respect_handled_period,
-                # `--all` deliberately reconciles an existing task. A normal
-                # replacement remains guarded, except for the exact stale done
-                # ticket captured before its canonical local deletion.
-                respect_existing_task=not sync_existing,
-                replaced_done_ticket_bytes=task.replaced_done_ticket_bytes,
-                restore_existing_control_task=sync_existing,
-                overwrite_dirty_control_task=sync_existing and task.created,
-                force_period_key=task.period_key if sync_existing else None,
-                force_snapshot_is_fresh=False,
-                force_record_period=False,
-                expected_period_key=task.period_key,
-                control_ledger=control_ledger,
-                sync_failures=sync_failures,
-            )
-        except RecurringError as exc:
-            scan.tasks.remove(task)
-            sys.stderr.write(f"[recurring] skipping {task.template}: {exc}\n")
-            scan.errors.append((task.template, str(exc)))
-            continue
-        if sync_failures:
-            # Recorded before any exit below: the task on disk stays the source
-            # of truth and may still launch, but the run must not read clean.
-            scan.sync_problems.append(
-                (
-                    task.ref.id_slug,
-                    "create sync to the control branch failed: "
-                    + "; ".join(sync_failures),
-                )
-            )
-        if not (task.ref.ticket_path).is_file():
-            scan.tasks.remove(task)
-            scan.admission_skips.append((task, _ALREADY_HANDLED_ON_CONTROL))
-            typer.secho(
-                f"{task.ref.id_slug} was already handled on the control branch; "
-                "not launching.",
-                fg=typer.colors.BRIGHT_BLACK,
-            )
-            continue
-        current_period_lease = (
-            _local_period_lease(cfg, task.ref)
-            if created_period_lease is not None
-            else None
-        )
-        lease_changed = created_period_lease is not None and not _same_period_lease(
-            current_period_lease, created_period_lease
-        )
-        # An adopted control copy (`created_on_control` is False) is a
-        # different lease by construction — a peer's `done` or `active` copy of
-        # the same generation — and is only a skip. A copy under *another*
-        # generation replaced this sweep's create outright, which is lost work
-        # and reported as such below.
-        replaced = (
-            lease_changed
-            and current_period_lease.generation != created_period_lease.generation
-        )
-        if respect_handled_period and not created_on_control and not replaced:
-            scan.tasks.remove(task)
-            scan.admission_skips.append((task, _ALREADY_HANDLED_ON_CONTROL))
-            typer.secho(
-                f"{task.ref.id_slug} was already handled on the control branch; "
-                "not launching.",
-                fg=typer.colors.BRIGHT_BLACK,
-            )
-            continue
-        if lease_changed and sync_failures and not sync_existing:
-            # A peer's generation replacing ours is an admission skip. The same
-            # change after our own sync failed is that sync leaving some other
-            # copy — once, the prior period's `done` ticket — in place
-            # of the create. Every post-create byte change lands here, so this
-            # is the one site that can see it; the status is not trusted as a
-            # skip (the `_template_damage` rule). `--force` reconciles existing
-            # tasks, so it keeps the ordinary admission skip.
-            task.status = read_ticket(task.ref).status
-            _flag_period_contradiction(
-                cfg,
-                task,
-                f"created this period but its failed create sync left a "
-                f"{task.status} ticket in its place",
-            )
-            continue
-        if lease_changed:
-            scan.tasks.remove(task)
-            scan.admission_skips.append(
-                (task, "changed on control during admission")
-            )
-            typer.secho(
-                f"{task.ref.id_slug} changed on the control branch during "
-                "recurring admission; not launching.",
-                fg=typer.colors.BRIGHT_BLACK,
-            )
-            continue
-        ticket = read_ticket(task.ref)
-        task.status = ticket.status
-        if sync_existing and not created_on_control:
-            task.created = False
-        if task.replaced_done and created_on_control:
-            typer.echo(f"Replaced completed {task.ref.id_slug}")
-        elif task.created and created_on_control:
-            typer.echo(f"Created {task.ref.id_slug}")
-
-    skipped = scan.errors + [
-        (name, reason) for name, _last_fire, reason in scan.agent_refusals
-    ]
-    if skipped:
-        n = len(skipped)
-        plural = "" if n == 1 else "s"
-        bullets = "\n".join(f"• {name}: {msg}" for name, msg in skipped)
-        # `fatal=False`: every skipped template above is already on stderr and
-        # in the scan table, so this alert is a second channel for a report
-        # that has already landed. It runs before the launch loop, so letting a
-        # repo with no resolved `important_webhook` crash here took down the
-        # whole sweep — no period task ran — over a notification sink.
-        notify(
-            cfg,
-            f"⚠️ recurring scan skipped {n} template{plural}\n{bullets}",
-            kind="recurring-error",
-            important=True,
-            fatal=False,
-        )
-
-
-def _flag_period_contradiction(cfg: Config, task: DueTask, reason: str) -> None:
-    """Refuse a period this sweep created but cannot have launched as created.
-
-    The task stays in `scan.tasks` so both renderers print the error, and
-    `_record_unlaunched_creates` counts it: it has no launch outcome, and
-    `DueScan.due` and `forced` never admit it.
-    """
+def _watchdog_row_detail(task: DueTask) -> str:
+    """Scan-row text for a watchdog-paused period (console and run record)."""
     assert task.ref is not None
-    task.period_contradiction = reason
-    detail = (
-        f"{task.template} was created for period {task.period_key} but its "
-        f"ticket is now {task.status}; the create did not land as written and "
-        "another copy is standing in for it. The period did not run."
-    )
-    typer.secho(f"{task.ref.id_slug}: {detail}", fg=typer.colors.RED, err=True)
-    # `fatal=False`: this runs before the launch loop; see the scan-errors
-    # alert in `_broadcast_scan`.
-    notify(
-        cfg,
-        f"⚠️ *{task.ref.id_slug}*: {detail}",
-        kind="recurring-error",
-        task_path=task.ref.path,
-        important=True,
-        fatal=False,
-    )
+    if task.launch_refusal:
+        return f"watchdog timeout; coga launch {task.ref.id_slug}"
+    return "watchdog timeout; resuming"
 
 
-def _refresh_forced_status_from_control(cfg: Config, task: DueTask) -> None:
-    """Best-effort read-only status refresh for `--all` launch ordering."""
-    if task.ref is None or not cfg.git_enabled:
-        return
-    root = git.toplevel(task.ref.path)
-    if root is None:
-        return
-    task_rel = git.relative_to_root(root, task.ref.path)
-    if _path_has_local_changes(root, task_rel):
-        return
-    try:
-        base = git.fetch_control(cfg, root)
-    except git.GitError as exc:
-        sys.stderr.write(f"[git] forced status refresh skipped: {exc}\n")
-        return
-    text = _show_path(root, base, f"{task_rel}/ticket.md")
-    if not text:
-        return
-    try:
-        ticket = Ticket.parse(text)
-    except TicketError:
-        return
-    task.status = ticket.status
+
+def _open_asks_row_detail(task: DueTask) -> str:
+    """Scan-row text for a sweep-paused period still waiting on its asks."""
+    assert task.ref is not None
+    return f"paused; open asks — coga unblock {task.ref.id_slug}"
+
 
 
 def _print_table(scan: DueScan, *, force: bool = False) -> None:
@@ -5582,24 +512,552 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
         typer.echo(f"  {name:<20} {'':<26} {bad}")
 
 
-def _watchdog_row_detail(task: DueTask) -> str:
-    """Scan-row text for a watchdog-paused period (console and run record)."""
-    assert task.ref is not None
-    if task.launch_refusal:
-        return f"watchdog timeout; coga launch {task.ref.id_slug}"
-    return "watchdog timeout; resuming"
+
+def _resume_named_pause(cfg: Config, ref: TaskRef) -> int | None:
+    """Reactivate a non-human-paused period before a named launch.
+
+    The named counterpart of the sweep's `DueTask.resumes_pause`: a watchdog
+    pause, or a sweep pause whose asks are resolved, is resumed from its
+    recorded step. A human pause is left for `_launch_created` to report. An
+    agent-backed resume needs an agent-capable terminal, so refuse before
+    reactivating rather than leave the period active with nothing to run it.
+    Returns an exit code to stop with, or None to continue to the launch.
+    """
+    try:
+        ticket = read_ticket(ref)
+    except TicketError:
+        return None  # `_launch_created` reports the unreadable ticket.
+    if ticket.status != "paused":
+        return None
+    try:
+        origin = resumable_pause(cfg, ref)
+    except RecurringError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+    if not origin:
+        return None
+    if script_entry_point(ref, ticket, cfg=cfg) is None:
+        if not interactive_stdio_has_tty():
+            typer.secho(
+                f"cannot resume {ref.id_slug}: {_AGENT_NEEDS_TTY}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            return 2
+    try:
+        _resume_paused_period(cfg, ref, watchdog=origin == PAUSE_WATCHDOG)
+    except RecurringError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+    return None
 
 
-def _open_asks_row_detail(task: DueTask) -> str:
-    """Scan-row text for a sweep-paused period still waiting on its asks."""
-    assert task.ref is not None
-    return f"paused; open asks — coga unblock {task.ref.id_slug}"
+
+def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
+    """Flag every period this sweep created but never launched.
+
+    A create refused at admission because control changed it, or skipped by a
+    launch-loop path that records only a note, leaves no outcome behind. The
+    sweep would otherwise report `problems: 0` over lost work, so absence of an
+    outcome is the signal, as with admitted watchdog recoveries above.
+    """
+    ran = {outcome.slug for outcome in record.outcomes}
+    unlaunched = [
+        (
+            task.ref.id_slug,
+            task.period_contradiction or "no launch outcome was recorded",
+        )
+        for task in scan.tasks
+        if task.ref is not None
+        and (task.created or task.replaced_done)
+        and task.ref.id_slug not in ran
+    ]
+    for slug, reason in unlaunched:
+        detail = f"created this sweep but never launched ({reason})"
+        typer.secho(f"{slug}: {detail}", fg=typer.colors.RED, err=True)
+        record.scan_problems.append((slug, detail))
 
 
-def _firing_label(last_fire: datetime, now: datetime) -> str:
-    """Human label for a scheduled firing — 'ready' or 'overdue Nd'."""
-    delta = now - last_fire
-    stamp = last_fire.strftime("%a %H:%M")
-    if delta.total_seconds() < 86400:
-        return f"ready ({stamp})"
-    return f"overdue {delta.days}d ({stamp})"
+
+def _resume_paused_period(cfg: Config, ref: TaskRef, *, watchdog: bool) -> None:
+    """Reactivate a non-human-paused period so launch resumes its saved step.
+
+    Only for a pause `recurring._pause_origins` attributed to the sweep or the
+    watchdog; a human pause is never reactivated here. `coga launch` then
+    re-composes the period from its retained `step:` and blackboard.
+    """
+    cause = "watchdog-paused" if watchdog else "sweep-paused"
+    try:
+        mark_active(
+            cfg,
+            ref,
+            read_ticket(ref),
+            actor=SWEEP_ACTOR,
+            log_message=f"activated (paused → active) to resume a {cause} run",
+            echo=f"{ref.id_slug}: active (resuming {cause} run)",
+        )
+    except (
+        TicketError,
+        WorkflowMissing,
+        WorkflowError,
+        MainAgentUnavailable,
+        RepoResourceUnreadable,
+        RequiredExtensionMissing,
+        TaskValidationError,
+    ) as exc:
+        raise RecurringError(
+            f"cannot resume {cause} period {ref.id_slug}: {exc}"
+        ) from exc
+
+
+
+def _record_forced_period_locally(cfg: Config, task: DueTask) -> None:
+    if task.ref is None or not task.period_key:
+        return
+
+    template = load_effective_template(cfg, task.template)
+    blackboard_text = (
+        read_blackboard(template.state_path, blackboard_required=False)
+        if template.state_path.is_file()
+        else ""
+    )
+    state_keys = list(template.frontmatter.get("state_keys") or [])
+    if state_keys:
+        _write_snapshot_from_text(
+            task.ref.path,
+            template.name,
+            blackboard_text,
+            state_keys,
+        )
+
+    _append_forced_reused_log(
+        cfg, _recurring_ref(template.name), task.ref.id_slug, task.period_key
+    )
+
+
+
+def _write_snapshot_from_text(
+    task_dir: Path, parent: str, blackboard_text: str, state_keys: list[str]
+) -> None:
+    keys = parse_keys(blackboard_text, list(state_keys))
+    payload = {"parent": parent, "keys": keys}
+    (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
+
+def _recurring_ref(template_name: str) -> str:
+    """The log tag for a template — `recurring/<name>`."""
+    return f"recurring/{template_name}"
+
+
+
+def _append_forced_reused_log(
+    cfg: Config, template_ref: str, task_id_slug: str, period_key: str
+) -> None:
+    """Record a forced reuse in the repo-global ledger, idempotently.
+
+    Skipped when the same line is already present, so repeated `--force` runs
+    inside one period leave one record rather than one per invocation.
+    """
+    needle = format_serviced_log("reused", task_id_slug, period_key)
+    if any(needle in line for line in task_log_lines(cfg, template_ref)):
+        return
+    append_log(cfg, template_ref, "system", needle)
+
+
+
+def _refuse_non_owner(cfg: Config) -> bool:
+    refusal = recurring_owner_refusal(cfg)
+    if refusal is None:
+        return False
+    typer.secho(refusal, fg=typer.colors.RED, err=True)
+    return True
+
+
+def run_recurring_all_repos(
+    scan_root: Path, *, force: bool = False, interactive: bool = False,
+    agent_override: str | None = None,
+) -> int:
+    """Run the single-repo command in each discovered checkout."""
+    root = scan_root.expanduser().resolve()
+    if not root.is_dir():
+        typer.secho(f"{root} is not a directory.", fg=typer.colors.RED, err=True)
+        return 2
+    repos = discover_coga_repos(root)
+    if not repos:
+        typer.echo(f"No Coga repos found under {root}.")
+        return 1
+    typer.echo(f"Found {len(repos)} Coga repo(s) under {root}.")
+    failed: list[str] = []
+    unconfigured = 0
+    not_owner = 0
+    swept = 0
+    for index, repo in enumerate(repos, 1):
+        label = _repo_label(repo, root)
+        try:
+            cfg = load_config(repo)
+            validate_aliases({**DEFAULT_ALIASES, **cfg.aliases})
+        except ConfigParseError as exc:
+            typer.echo(f"{label}: {exc}", err=True)
+            failed.append(label)
+            continue
+        except ConfigError:
+            unconfigured += 1
+            continue
+        refusal = recurring_owner_refusal(cfg)
+        if refusal is not None:
+            typer.echo(f"{label} — {refusal}", err=True)
+            not_owner += 1
+            continue
+        typer.echo(f"\n[{index}/{len(repos)}] {label}")
+        try:
+            status = _run_repo_recurring(
+                repo, force=force, interactive=interactive,
+                agent_override=agent_override, clone_only=False,
+            )
+        except OSError as exc:
+            typer.echo(f"{label}: {exc}", err=True)
+            status = 1
+        if status:
+            failed.append(label)
+            typer.echo(f"{label} — recurring exited {status}", err=True)
+        else:
+            swept += 1
+    typer.echo(f"Swept {swept} of {len(repos)} Coga repo(s).")
+    if unconfigured:
+        typer.echo(f"Skipped {unconfigured} unconfigured repos.")
+    if not_owner:
+        typer.echo(f"Skipped {not_owner} repo(s) owned by another operator.")
+    if failed:
+        typer.echo(f"Recurring failed in {', '.join(failed)}.", err=True)
+    return int(bool(failed))
+
+
+def _run_repo_recurring(
+    repo: Path, *, force: bool, interactive: bool,
+    agent_override: str | None, clone_only: bool,
+) -> int:
+    argv = [sys.executable, "-m", "coga.cli", "run", "recurring-scan"]
+    if force:
+        argv.append("--force")
+    if interactive:
+        argv.append("--interactive")
+    if agent_override:
+        argv.extend(("--agent", agent_override))
+    if clone_only:
+        argv.append("--clone-only")
+    return subprocess.run(argv, cwd=repo, check=False).returncode
+
+
+def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="coga run recurring-scan")
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--agent")
+    parser.add_argument("--clone-only", action="store_true")
+    args = parser.parse_args(argv)
+    return run_recurring_scan(
+        cfg, force=args.force, interactive=args.interactive,
+        agent_override=args.agent, clone_only=args.clone_only,
+    )
+
+
+def _report_scan_notes(cfg: Config, scan: DueScan) -> None:
+    for task in scan.tasks:
+        if task.ref is not None and task.replaced_done:
+            typer.echo(f"Replaced completed {task.ref.id_slug}")
+        elif task.ref is not None and task.created:
+            typer.echo(f"Created {task.ref.id_slug}")
+    skipped = scan.errors + [(name, reason) for name, _, reason in scan.agent_refusals]
+    if skipped:
+        bullets = "\n".join(f"• {name}: {reason}" for name, reason in skipped)
+        notify(
+            cfg, f"⚠️ recurring scan skipped {len(skipped)} template(s)\n{bullets}",
+            kind="recurring-error", important=True, fatal=False,
+        )
+
+
+def run_recurring_scan(
+    cfg: Config, *, force: bool = False, interactive: bool = False,
+    agent_override: str | None = None, clone_only: bool = False,
+) -> int:
+    """Read due work and execute it sequentially in this checkout."""
+    if _refuse_non_owner(cfg) or not _valid_agent_override(cfg, agent_override):
+        return 2
+    today = datetime.now().date()
+    activity = RepoActivity() if force else check_activity(cfg, today)
+    if activity.error:
+        typer.echo(f"Recurring activity unknown ({activity.error}); treating repo as active.", err=True)
+    if activity.inactive:
+        typer.echo(
+            f"Local ticket activity last recorded {activity.inactive_since} "
+            f"(window {cfg.recurring_idle_days} days)."
+        )
+    record = RunRecord(
+        started=datetime.now(), repo=cfg.repo_root.name, force=force,
+        interactive=interactive, agent_override=agent_override,
+    )
+    agent_refusal = None if interactive_stdio_has_tty() else _AGENT_NEEDS_TTY
+    failure = 0
+    try:
+        if not clone_only:
+            scan = scan_due(
+                cfg, force=force, allow_interactive=agent_refusal is None,
+                inactive_since=activity.inactive_since,
+                agent_unavailable_reason=agent_refusal,
+                agent_unavailable_label=_AGENT_NEEDS_TTY_LABEL,
+            )
+            _report_scan_notes(cfg, scan)
+            _print_table(scan, force=force)
+            record.scan_lines.extend(scan_lines_for_record(scan, force=force))
+            record.scan_errors.extend(scan.errors)
+            record.scan_problems.extend(scan.sync_problems)
+            for task in scan.tasks:
+                if not task.watchdog_paused or task.ref is None or (force and not task.launch_refusal):
+                    continue
+                detail = "A watchdog timeout left the period paused."
+                if task.launch_refusal:
+                    recovery = "Forced recovery" if force else "Recovery"
+                    detail += (
+                        f" {recovery} refused: {task.launch_refusal} "
+                        f"Resume with `coga launch {task.ref.id_slug}`."
+                    )
+                else:
+                    detail += " This sweep retries it."
+                paused_ticket = read_ticket(task.ref)
+                record.scan_problems.append((task.ref.id_slug, detail))
+                notify(
+                    cfg, f"⚠️ *{task.ref.id_slug}*: {detail}",
+                    kind="recurring-error", important=True, fatal=False,
+                    owner=paused_ticket.owner or cfg.current_user, task_path=task.ref.path,
+                )
+            due = scan.forced if force else scan.due
+            if not due:
+                if force:
+                    typer.echo("No recurring templates to launch.")
+                elif scan.agent_refusals:
+                    typer.echo("No due recurring tasks could be launched.")
+                elif scan.errors:
+                    typer.echo("No recurring tasks launched; see template errors.")
+                else:
+                    typer.echo("No recurring tasks due.")
+            for task in due:
+                if task.ref is None:
+                    continue
+                if not task.ref.ticket_path.is_file():
+                    record.note(f"{task.ref.id_slug} was removed during the sweep")
+                    continue
+                try:
+                    if force:
+                        _prepare_forced_launch(cfg, task)
+                    elif task.resumes_pause:
+                        _resume_paused_period(cfg, task.ref, watchdog=task.watchdog_paused)
+                    code = _launch_created(
+                        cfg, task.ref, interactive=interactive, agent_override=agent_override,
+                        record=record, template=task.template, agent_spawn_refusal=agent_refusal,
+                        scheduled=True,
+                    )
+                    failure = failure or code
+                    if force and task.watchdog_paused and task.ref.ticket_path.is_file():
+                        if read_ticket(task.ref).status not in TERMINAL_STATUSES:
+                            failure = failure or 2
+                except (RecurringError, TicketError, TaskValidationError, OSError, *PREPARE_ACTIVE_ERRORS) as exc:
+                    typer.echo(f"{task.ref.id_slug}: {exc}", err=True)
+                    _record_outcome(
+                        record, _task_outcome(cfg, task.template, task.ref, result="refused", detail=str(exc)),
+                    )
+                    failure = failure or 2
+            _record_unlaunched_creates(scan, record)
+        clone_problem = _run_clone_scoped(cfg, record, force=force, inactive_since=activity.inactive_since)
+        return failure or (2 if record.scan_problems or clone_problem else 0)
+    finally:
+        if not activity.inactive or record.outcomes:
+            run_autofix(cfg, record, agent_override=agent_override)
+
+
+def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
+    ref = task.ref
+    if ref is None:
+        return
+    ticket = read_ticket(ref)
+    if ticket.status == "canceled":
+        raise RecurringError(f"{ref.id_slug}: task is canceled and cannot be reactivated")
+    if ticket.status == "blocked":
+        raise RecurringError(f"Cannot force-run {ref.id_slug} while it is {ticket.status}")
+    if ticket.status not in {"active", "in_progress"}:
+        mark_active(
+            cfg, ref, ticket, actor=f"human:{cfg.current_user}",
+            log_message=f"activated ({ticket.status} → active) for forced recurring run",
+            echo=f"{ref.id_slug}: active (forced recurring run)",
+        )
+        _record_forced_period_locally(cfg, task)
+
+
+def _stop_if_unfinished_after_launch(cfg: Config, ref: TaskRef, *, timed_out: bool) -> None:
+    if not ref.ticket_path.is_file():
+        return
+    ticket = read_ticket(ref)
+    if ticket.status not in {"active", "in_progress"}:
+        return
+    suffix = "liveness watchdog: REPL timed out before signalling done" if timed_out else SWEEP_PAUSE_SUFFIX
+    mark_paused(
+        cfg, ref, ticket, actor=WATCHDOG_ACTOR if timed_out else SWEEP_ACTOR,
+        log_message=f"paused ({ticket.status} → paused) — {suffix}",
+        slack_text=f"⏱️ *{ref.id_slug}* timed out — {suffix}" if timed_out else None,
+        echo=f"{ref.id_slug}: paused — {suffix}",
+    )
+
+
+def _run_delegated_task(
+    cfg: Config, ref: TaskRef, *, agent_override: str | None = None,
+    idle_timeout: float | None = None, max_session: float | None = None,
+    launch_context: LaunchContext = "recurring", continue_after_timeout: bool,
+    activate_if_needed: bool = False,
+) -> DelegatedRunResult:
+    from coga.launch import launch_with_before_spawn
+
+    try:
+        ticket = read_ticket(ref)
+        delegate = frozen_task_delegate(ref, ticket)
+        if delegate is None:
+            raise RecurringError(f"{ref.id_slug} has no frozen delegate")
+        resolve_agent_delegate(cfg, delegate)
+        assert_frozen_delegation(ref, ticket, require_step=False)
+        if ticket.status not in {"active", "in_progress"} and not (
+            activate_if_needed and ticket.status in {"draft", "paused"}
+        ):
+            raise RecurringError(f"{ref.id_slug} is {ticket.status}; cannot start its delegate")
+
+        def start_period() -> None:
+            if ticket.status in {"draft", "paused"}:
+                mark_active(cfg, ref, ticket, actor="system", log_message="activated delegated period")
+            assert_frozen_delegation(ref, ticket)
+            if ticket.status == "active":
+                mark_in_progress(cfg, ref, ticket, actor="system", log_message=f"started delegate {delegate}")
+
+        result = launch_with_before_spawn(
+            delegate, agent_override=agent_override, idle_timeout=idle_timeout,
+            max_session=max_session, return_timeout=True, launch_context=launch_context,
+            before_spawn=start_period,
+        )
+        cfg = load_config(cfg.repo_root)
+        if result.kind == "timeout":
+            if continue_after_timeout:
+                _stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+                return DelegatedRunResult(0, "timeout")
+            return DelegatedRunResult(result.exit_code or _TIMEOUT_EXIT_CODE, result.kind)
+        if result.kind != "done" or result.exit_code:
+            typer.echo(
+                f"{delegate} ended without its done signal ({result.kind or 'unknown'}). "
+                f"{ref.id_slug} remains in progress.",
+                err=True,
+            )
+            return DelegatedRunResult(2, result.kind or "unknown")
+        if ref.ticket_path.is_file():
+            try:
+                current = read_ticket(ref)
+            except (OSError, UnicodeError, TicketError) as exc:
+                typer.echo(f"Cannot finalize delegated period {ref.id_slug}: {exc}", err=True)
+                return DelegatedRunResult(2, "refused")
+            if current.status == "in_progress":
+                assert_frozen_delegation(ref, current)
+                mark_done(
+                    cfg, ref, current, actor="system", log_message=f"task done (via {delegate})",
+                    slack_text=f"🎉 {ref.id_slug} finished via {delegate}",
+                )
+        return DelegatedRunResult(0, "done")
+    except LaunchBail as exc:
+        typer.echo(exc.reason or str(exc), err=True)
+        return DelegatedRunResult(exc.code, "refused")
+    except (ConfigError, RecurringError, TicketError, TaskValidationError, *PREPARE_ACTIVE_ERRORS) as exc:
+        typer.echo(str(exc), err=True)
+        return DelegatedRunResult(2, "refused")
+
+
+def _launch_created(
+    cfg: Config, ref: TaskRef, *, interactive: bool, agent_override: str | None,
+    record: RunRecord, template: str, agent_spawn_refusal: str | None = None,
+    scheduled: bool = False,
+) -> int:
+    ticket = read_ticket(ref)
+    if ticket.status not in {"active", "in_progress"}:
+        typer.echo(f"{ref.id_slug} is {ticket.status}; not launching")
+        return 0
+    before = _template_description(cfg, template)
+    idle_timeout = resolve_idle_timeout(cfg, default=None if interactive else _RECURRING_IDLE_TIMEOUT_SECONDS)
+    max_session = resolve_max_session(cfg)
+    kind = None
+    detail = ""
+    try:
+        if frozen_task_delegate(ref, ticket):
+            if agent_spawn_refusal:
+                raise RecurringError(agent_spawn_refusal)
+            result = _run_delegated_task(
+                cfg, ref, agent_override=agent_override, idle_timeout=idle_timeout,
+                max_session=max_session, launch_context=_recurring_launch_context(interactive),
+                continue_after_timeout=scheduled,
+            )
+        else:
+            from coga.launch import launch_recurring_period
+
+            result = launch_recurring_period(
+                ref.id_slug, agent_override=agent_override, idle_timeout=idle_timeout,
+                max_session=max_session, launch_context=_recurring_launch_context(interactive),
+                agent_spawn_refusal=agent_spawn_refusal,
+            )
+        kind, code = result.kind, result.exit_code
+        if scheduled and (not code or kind == "timeout"):
+            _stop_if_unfinished_after_launch(cfg, ref, timed_out=kind == "timeout")
+            if kind == "timeout":
+                code = 0
+    except LaunchBail as exc:
+        code, detail = exc.code, exc.reason
+        if detail:
+            typer.echo(detail, err=True)
+    _record_outcome(
+        record,
+        _task_outcome(
+            cfg, template, ref, kind=kind, result="failed" if code and kind != "timeout" else "",
+            exit_code=code or None, template_damage=_damage_since(cfg, template, before),
+            detail=detail,
+        ),
+    )
+    return code
+
+
+def run_recurring_named(
+    cfg: Config, name: str, *, rerun: bool = False, interactive: bool = False,
+    agent_override: str | None = None,
+) -> int:
+    """Run a named template on demand, with the current checkout's state."""
+    if _refuse_non_owner(cfg) or not _valid_agent_override(cfg, agent_override):
+        return 2
+    record = RunRecord(
+        started=datetime.now(), repo=cfg.repo_root.name, on_demand=name,
+        interactive=interactive, agent_override=agent_override,
+    )
+    try:
+        source = resolve_template_source(cfg, name)
+        if source.definition_dir is not None and _declares_clone_scope(source.definition_dir):
+            return 2 if _run_clone_scoped(cfg, record, only=name) else 0
+        outcome = create_named(cfg, name, rerun=rerun)
+        ref = outcome.ref
+        if outcome.created:
+            typer.echo(f"Created {ref.id_slug}")
+        else:
+            typer.echo(f"{ref.id_slug} already created for this period")
+            resumed = _resume_named_pause(cfg, ref)
+            if resumed is not None:
+                return resumed
+            if read_ticket(ref).status == "in_progress":
+                typer.echo(f"Resuming {ref.id_slug}")
+        return _launch_created(
+            cfg, ref, interactive=interactive, agent_override=agent_override,
+            record=record, template=name,
+        )
+    except RecurringError as exc:
+        typer.echo(str(exc), err=True)
+        return 2
+    finally:
+        if record.outcomes or record.scan_errors:
+            run_autofix(cfg, record, agent_override=agent_override)

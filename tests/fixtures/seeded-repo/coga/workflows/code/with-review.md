@@ -1,47 +1,28 @@
 ---
 name: code/with-review
-description: Standard code workflow with PR and approval gate.
+description: Code changes with deterministic Git steps and an owner review.
 steps:
+  - name: open-branch
+    run: git/open-branch
+    assignee: agent
+    requires: branch
   - name: implement
     skills:
       - infra/testing-conventions
     assignee: agent
     requires: branch
-    checkout: manual
-  - name: pr
+  - name: peer-review
+    skills:
+      - code/peer-review
+    assignee: other-agent
+  - name: push-and-open-pr
+    run: git/push-and-open-pr
     assignee: agent
     requires: pr
-  - name: approve
-    assignee: owner
-  - name: merge
+  - name: review
     assignee: owner
 ---
 
-## implement
-From a clean `main`, create the feature branch, record it under `## Dev` as a
-`branch:` line, and work on it in the same checkout; push it and return to
-`main` before bumping. `requires: branch` refuses the bump until the line is
-present in the ticket copy of the checkout you bump from.
+## review
 
-## pr
-Prepare `## PR` using the `coga/pr-publication/preparation` topic's rubric and
-schema: actual authorship, review identity or absence, current head/base,
-implementation, per-file reasons, and checks with outcomes or omission reasons.
-Run `coga open-pr <slug>` to publish the presentation and verbatim ticket
-snapshot. It reports missing evidence honestly and preserves external human
-notes on reruns. Test obligations remain those selected by this workflow.
-
-For example, a PR summary can contain an H2 without ending these instructions:
-
-```markdown
-## Summary
-Describe the resulting behavior.
-```
-
-Keep verification receipts current after preparing the summary.
-
-## approve
-Review the PR. If changes are needed, comment and wait. If approved, advance.
-
-## merge
-Merge the PR and clean up the branch.
+Review the PR and record completion on the branch before merging.

@@ -2,29 +2,25 @@
 
 from __future__ import annotations
 
+import os
 import sys
+from pathlib import Path
 
 import typer
 
-from coga import git
 from coga.blackboard import open_blockers, parse_blockers_text, resolve_open_blockers_text
-from coga.commands.common import prepare_lifecycle_ticket, reconcile_lifecycle_ticket
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log
-from coga.mark import RequiredExtensionMissing, WorkflowMissing, mark_active
+from coga.mark import RequiredExtensionMissing, WorkflowMissing, prepare_active
 from coga.taskfile import TaskFileError, split_body, with_blackboard
 from coga.tasks import TaskNotFoundError, TaskRef, list_tasks, read_ticket, resolve_task
 from coga.ticket import Ticket, TicketError
-from coga.validate import TaskValidationError
+from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import WorkflowError
 
 
 class _UnblockError(Exception):
     """A single ticket could not be unblocked (reported, loop continues)."""
-
-
-class _UnblockConflict(_UnblockError):
-    """Preparation could not reconcile the ticket with control (exit 75)."""
 
 
 def unblock(
@@ -43,7 +39,7 @@ def unblock(
         "answer per ticket (blank to skip).",
     ),
 ) -> None:
-    """Resolve open blockers; move `blocked -> active` (in_progress stays put).
+    """Resolve open blockers and resume work locally.
 
     A paused recurring period with open asks has them resolved and stays
     `paused`; the next sweep or named launch resumes it.
@@ -72,37 +68,25 @@ def unblock(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    # `blocked` is the normal case (resolve the asks + reactivate). An
-    # `in_progress` ticket with open asks is the interactive-launch-of-blocked
-    # session recording its resolution mid-step: launch already reactivated the
-    # ticket, so unblock resolves the asks only and leaves status and step
-    # untouched. A `paused` recurring period with open asks was parked by the
-    # sweep after its run blocked; resolving the asks is what lets the next
-    # sweep resume it, so it too stays put.
-    if not ref.ticket_path.is_file():
-        read_ticket(ref)  # the ordinary missing-ticket error
-    prepared = prepare_lifecycle_ticket(cfg, ref)
+    ticket = read_ticket(ref)
     try:
-        _check_unblockable(ref, prepared.ticket)
+        _check_unblockable(ref, ticket)
     except _UnblockError as exc:
         _bail(str(exc))
 
     if answer is None:
         typer.echo(f"Open blocker(s) for {ref.id_slug}:")
-        for blocker in _open_asks(prepared.ticket):
+        for blocker in _open_asks(ticket):
             typer.echo(f"- {blocker.reason}")
         answer = typer.prompt("Answer/resolution").strip()
-        # The prompt held no lock; the write prepares and rechecks afresh.
-        prepared = None
+        ticket = None
     else:
         answer = answer.strip()
     if not answer:
         _bail("--answer cannot be empty")
 
     try:
-        _apply_unblock(cfg, ref, answer, prepared=prepared)
-    except _UnblockConflict as exc:
-        _bail(str(exc), exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+        _apply_unblock(cfg, ref, answer, ticket=ticket)
     except _UnblockError as exc:
         _bail(str(exc))
 
@@ -125,7 +109,6 @@ def _unblock_all(cfg: Config) -> None:
     typer.echo(f"{len(blocked)} blocked task(s). Blank answer skips a task.")
     unblocked = 0
     skipped = 0
-    conflicted = False
     for ref in blocked:
         typer.echo("")
         typer.echo(f"=== {ref.id_slug} ===")
@@ -150,14 +133,9 @@ def _unblock_all(cfg: Config) -> None:
         except _UnblockError as exc:
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             skipped += 1
-            conflicted = conflicted or isinstance(exc, _UnblockConflict)
 
     typer.echo("")
     typer.echo(f"Unblocked {unblocked}, skipped {skipped}.")
-    if conflicted:
-        # A refused ticket keeps its local bytes; the generic sweep must not
-        # publish them behind the refusal.
-        sys.exit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
 
 
 def _paused_period(ref: TaskRef, status: str) -> bool:
@@ -186,88 +164,31 @@ def _check_unblockable(ref: TaskRef, ticket: Ticket) -> None:
 
 
 def _apply_unblock(
-    cfg: Config, ref: TaskRef, answer: str, *, prepared: git.PreparedTicket | None = None
+    cfg: Config, ref: TaskRef, answer: str, *, ticket: Ticket | None = None
 ) -> None:
-    """Resolve open blockers on one ticket; reactivate it unless mid-step.
-
-    A `blocked` ticket is marked active. An `in_progress` ticket (interactive
-    launch already reactivated it) or a paused recurring period (the next
-    sweep resumes it) gets its asks resolved with status and `step:`
-    untouched. Raises `_UnblockError` (never exits) so `--all` can report and
-    continue.
-
-    Eligibility is (re)checked on a ticket prepared against fresh control
-    (`git.prepare_ticket`), and the resolved asks plus any status change
-    are one prepared write.
-    """
+    """Resolve asks and update the ticket in one local write."""
     actor = f"human:{cfg.current_user}"
     try:
-        if prepared is None:
-            try:
-                prepared = reconcile_lifecycle_ticket(cfg, ref)
-            except git.TicketConflictError as exc:
-                raise _UnblockConflict(f"Refusing to unblock {ref.id_slug}: {exc}.") from exc
-            except git.GitError as exc:
-                sys.stderr.write(
-                    f"[git] could not prepare {ref.id_slug} against control ({exc}); "
-                    "using this checkout's copy\n"
-                )
-                prepared = git.local_ticket_preparation(ref.ticket_path)
-        ticket = prepared.ticket
+        ticket = ticket if ticket is not None else read_ticket(ref)
         _check_unblockable(ref, ticket)
+        prior = ticket.status
         region = split_body(ticket.body)[1] or ""
         ticket.body = with_blackboard(ticket.body, resolve_open_blockers_text(region, actor, answer))
 
-        if ticket.status == "in_progress" or _paused_period(ref, ticket.status):
-            git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
-
-        if ticket.status == "in_progress":
-            # Launch already reactivated the ticket (blocked → active →
-            # in_progress); the session is recording its resolution mid-step.
-            # Resolve-only: no status flip, `step:` untouched.
-            append_log(
-                cfg,
-                ref.id_slug,
-                actor,
-                f"unblocked (asks resolved, still in_progress): {answer}",
-            )
-            git.sync_task_state(
-                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved",
-                prepared=prepared,
-            )
-            typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
-            return
-
-        if _paused_period(ref, ticket.status):
-            # Pause provenance stays on the earlier `paused` audit line, so the
-            # sweep still recognizes its own pause and now resumes it.
-            append_log(
-                cfg,
-                ref.id_slug,
-                actor,
-                f"unblocked (asks resolved, still paused): {answer}",
-            )
-            git.sync_task_state(
-                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved",
-                prepared=prepared,
-            )
-            typer.echo(
-                f"{ref.id_slug}: open asks resolved (still paused; the next "
-                "recurring sweep resumes it)"
-            )
-            return
-
-        mark_active(
-            cfg,
-            ref,
-            ticket,
-            actor=actor,
-            log_message=f"unblocked ({ticket.status} → active): {answer}",
-            echo=f"{ref.id_slug}: active (unblocked)",
-            prepared=prepared,
-        )
-    except git.TicketChangedError as exc:
-        raise _UnblockConflict(str(exc)) from exc
+        if prior == "blocked":
+            prepare_active(cfg, ref, ticket)
+            session_ticket = os.environ.get("COGA_TASK_TICKET")
+            if session_ticket and Path(session_ticket).resolve() == ref.ticket_path.resolve():
+                ticket.frontmatter["status"] = "in_progress"
+            assert_task_valid(cfg, ref, action="unblock", ticket_override=ticket)
+        ticket.write(ref.ticket_path)
+        status = ticket.status
+        detail = f"{prior} → {status}" if prior != status else f"asks resolved, still {status}"
+        append_log(cfg, ref.id_slug, actor, f"unblocked ({detail}): {answer}")
+        if prior == status:
+            typer.echo(f"{ref.id_slug}: open asks resolved (still {status})")
+        else:
+            typer.echo(f"{ref.id_slug}: {status} (unblocked)")
     except WorkflowMissing:
         raise _UnblockError(
             f"Cannot unblock {ref.id_slug}: ticket has no workflow. Set "

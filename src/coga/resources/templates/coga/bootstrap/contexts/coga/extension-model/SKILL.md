@@ -67,16 +67,9 @@ the known set. Every token after the name is forwarded as an ordinary
 argument, stdout and stderr pass through, inherited `COGA_TASK_*` metadata is
 preserved, and the command exits with the recipe's integer code. A non-zero
 exit also records a `## Recipe Failure` section; that reporting contract belongs
-to [coga/recurring](../recurring/SKILL.md). `open-pr` and `delete-task` take a
-task ref; see [PR publication](../pr-publication/SKILL.md) and
-[coga/checkout-cleanup](../checkout-cleanup/SKILL.md#coga-delete-slug). `autofix-analyze` is covered
-in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
-is the strict, exit-coded form of the state sweep for a handoff that must know
-its files reached control (`build/onboarding`); its contract is in
-[coga/state-publication](../state-publication/SKILL.md#strict-publication-on-demand).
-`prepare-checkout` prepares a ticket's branch from inside a chat session,
-using the same preparation as ordinary launch; its contract is in
-[coga/checkouts/chat](../checkouts/chat/SKILL.md).
+to [coga/recurring](../recurring/SKILL.md). `delete-task` takes a task ref. `autofix-analyze` is covered in
+[coga/recurring/autofix](../recurring/autofix/SKILL.md). Git workflow scripts
+are covered in [coga/git](../git/SKILL.md).
 
 ## Aliases
 

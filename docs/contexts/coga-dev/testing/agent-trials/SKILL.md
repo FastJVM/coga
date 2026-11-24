@@ -73,9 +73,8 @@ The general test tiers are in [testing](../SKILL.md).
   `developer_instructions` to an inspectability probe: its output contract
   overrides the question.
 - **Evidence.** Each trial produced about 35–40 MB. Codex rollouts carry
-  account/user IDs and encrypted reasoning, and a concurrent state sweep
-  publishes the ticket directory, so decide publication with the owner before
-  the first run. The harness is disposable and lives beside its ticket, never
+  account/user IDs and encrypted reasoning. Decide with the owner what
+  may be committed or shared before the first run. The harness is disposable and lives beside its ticket, never
   in `src/coga/`. Reuse the reference harness from its commit permalinks:
   the rule-compliance
   [protocol](https://github.com/FastJVM/coga/blob/7a40b520f248e715fb78c03e9124e48d11b5e098/coga/tasks/v1/microkernel/03-prompt-assembly/01-define-prompt-candidates-and-trial-protocol/protocol.md),

@@ -1,11 +1,7 @@
 """The single implementation of Coga task deletion.
 
-Two spellings, one body: `coga delete <task>` (which adds the resolution
-flags and the control-branch sync every other state mutation performs) and the
-`delete-task` registered recipe, `coga run delete-task <task>` (the bare
-working-tree removal, which is also what the `bootstrap/delete-task` skill
-contract names). Recovery is via `git restore`; git history is the audit
-trail, so deletion posts no Slack broadcast.
+Both `coga delete` and `coga run delete-task` remove the resolved local
+task. Recovery is via `git restore` when the task was committed.
 
 Both task shapes are handled, keyed off the resolved ticket path:
 
@@ -22,7 +18,6 @@ import shutil
 import sys
 from pathlib import Path
 
-from coga import git
 from coga.config import Config
 from coga.tasks import TaskNotFoundError, TaskRef, resolve_task
 
@@ -32,40 +27,17 @@ class DeleteTaskError(RuntimeError):
 
 
 def run_delete_task(cfg: Config, ref: TaskRef) -> str:
-    """Delete one resolved task and return the report line.
-
-    The filesystem removal owns the checkout-local spawn-admission barrier.
-    Callers own Git publication: `coga delete` lands the removal immediately;
-    recurring replacement recreates the task at the same path and syncs that
-    replacement as one state transition.
-
-    `DeleteTaskError` is the *only* failure this raises. Deletion used to run
-    behind a subprocess, where a filesystem error surfaced as a non-zero exit
-    and became one; in-process, `rmtree`/`unlink` raise `OSError` directly, so
-    it is translated here. Every caller — `coga delete`, the recipe, and
-    recurring replacement, which runs unattended — catches that one type, and a
-    read-only file or a held handle must not abort them with a traceback.
-    """
+    """Delete one resolved task and return the report line."""
     ticket = ref.ticket_path
     try:
-        with git.state_lock(cfg):
-            if not ticket.is_file():
-                raise DeleteTaskError(
-                    f"{ticket} is not a file — refusing to delete"
-                )
-            if ticket.name == "ticket.md":
-                # Directory form: remove the whole task directory (ticket + siblings).
-                shutil.rmtree(ticket.parent)
-                target: Path = ticket.parent
-            else:
-                # File form: remove just the single-file ticket; leave the parent
-                # (a shared tasks/ subtree) untouched.
-                ticket.unlink()
-                target = ticket
-    except git.GitError as exc:
-        raise DeleteTaskError(
-            f"could not serialize deletion of {ticket}: {exc}"
-        ) from exc
+        if not ticket.is_file():
+            raise DeleteTaskError(f"{ticket} is not a file — refusing to delete")
+        if ticket.name == "ticket.md":
+            target = ticket.parent
+            shutil.rmtree(target)
+        else:
+            target = ticket
+            ticket.unlink()
     except OSError as exc:
         raise DeleteTaskError(f"could not delete {ticket}: {exc}") from exc
 
@@ -73,10 +45,7 @@ def run_delete_task(cfg: Config, ref: TaskRef) -> str:
 
 
 def run_delete_task_recipe(cfg: Config, argv: list[str]) -> int:
-    """`coga run delete-task <task>` — remove one task from the working tree.
-
-    The removal only; landing it on the control branch is `coga delete`'s job.
-    """
+    """Remove one task from the working tree."""
     if len(argv) != 1 or not argv[0].strip():
         sys.stderr.write(
             "Usage: coga run delete-task <task> — exactly one task ref is "

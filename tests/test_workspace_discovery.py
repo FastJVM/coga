@@ -7,8 +7,6 @@ import pytest
 from conftest import windows_skip
 
 from coga.workspace_discovery import (
-    CONTROL_WORKTREE_DIR_PREFIX,
-    CONTROL_WORKTREE_OWNER_FILE,
     discover_coga_repos,
 )
 
@@ -55,31 +53,6 @@ def test_underscore_and_tool_state_trees_are_skipped(tmp_path: Path) -> None:
     assert discover_coga_repos(tmp_path) == [live]
 
 
-def test_owned_temporary_control_worktrees_are_skipped_from_any_root(
-    tmp_path: Path,
-) -> None:
-    parent = tmp_path / f"{CONTROL_WORKTREE_DIR_PREFIX}project-token"
-    hidden = _workspace(parent / "checkout" / "coga")
-    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}\n", encoding="utf-8", newline="\n")
-    live = _workspace(tmp_path / "live" / "coga")
-
-    assert discover_coga_repos(tmp_path) == [live]
-    assert discover_coga_repos(parent) == []
-    assert discover_coga_repos(hidden) == []
-
-
-def test_control_worktree_prefix_without_ownership_marker_is_visible(
-    tmp_path: Path,
-) -> None:
-    lookalike = _workspace(
-        tmp_path
-        / f"{CONTROL_WORKTREE_DIR_PREFIX}user-project"
-        / "checkout"
-        / "coga"
-    )
-    assert discover_coga_repos(tmp_path) == [lookalike]
-
-
 @windows_skip("POSIX filesystem mode bits and permissions")
 def test_strict_mode_raises_on_an_unreadable_directory(tmp_path: Path) -> None:
     _workspace(tmp_path / "live" / "coga")
@@ -91,16 +64,3 @@ def test_strict_mode_raises_on_an_unreadable_directory(tmp_path: Path) -> None:
             discover_coga_repos(tmp_path, strict=True)
     finally:
         blocked.chmod(0o755)
-
-
-def test_explicit_control_checkout_inspection_keeps_scheduler_exclusions(
-    tmp_path: Path,
-) -> None:
-    parent = tmp_path / f"{CONTROL_WORKTREE_DIR_PREFIX}inspection"
-    root = parent / "checkout"
-    first = _workspace(root / "one" / "coga")
-    second = _workspace(root / "two" / "coga")
-    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}", encoding="utf-8", newline="\n")
-    assert discover_coga_repos(root) == []
-    assert discover_coga_repos(tmp_path) == []
-    assert discover_coga_repos(root, strict=True, allow_control_worktree_root=True) == [first, second]

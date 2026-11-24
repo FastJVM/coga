@@ -36,40 +36,10 @@ durable-file model (`coga/architecture`).
 - **Stay correct by shape under concurrent writers.** Coga allows several
   processes and clones to write state at once. Atomic file replacement is
   crash-safety, not a lock; `merge=union` resolves only pure appends. A
-  composition needs append-only regions, disjoint hunks, or an explicit
-  publish guard — see `coga-dev/internals/spool-merge`.
+  composition needs append-only regions or disjoint hunks — see `coga-dev/internals/spool-merge`.
 
-## Sync for new commands
+## Notifications for new commands
 
-A command that changes state others need to know about reaches both sync
-layers:
-
-1. Make the three notification decisions — surface, destination, preflight
-   policy — described in
-   [notification internals](../internals/notifications/SKILL.md#adding-a-notifying-command).
-2. Publish its task through `git.sync_task_state` at the logic boundary where
-   the write, validation, log append, and notification post have all
-   finalized ([publication implementation](../internals/state-publication/publish/SKILL.md)).
-   The end-of-command sweep is a backstop with a generic message, not a
-   substitute for the readable, individually attributed publish. It is
-   opt-in: a new state-changing top-level command gets that backstop only
-   once it is added to the sweeping allowlist
-   ([the end-of-command sweep](../internals/state-publication/SKILL.md#the-end-of-command-sweep)).
-3. Echo the local outcome to stdout before posting, so it stays visible
-   above any notification error.
-
-Never bypass both layers when the team needs awareness; never post chatter
-that is not an outcome, urgent exception, or explicit FYI.
-
-Owner decision (2026-10-01): the base prompt carries no rule forbidding
-agents to commit Coga state, though a hand commit on local control diverges
-it from origin and blocks launch. Prevention in the prompt would let agents
-hide the divergence; the remedy belongs in a deterministic CLI guard that
-detects it. Reopen only if such a guard proves insufficient.
-
-## Not covered here
-
-- The primitives themselves — `coga/architecture` and `coga/recurring`.
-- How state lands on control across checkouts — `coga/state-publication`.
-- The checkout-local admission and publication barrier used by launches —
-  `coga-dev/internals/launch-claims`.
+Print the local outcome before posting, so it stays visible if notification
+fails. Choose the surface, destination, and preflight policy in
+[notification internals](../internals/notifications/SKILL.md#adding-a-notifying-command).
