@@ -36,10 +36,11 @@ does not ship.
 - One owner per fact (`coga/knowledge`). A shipped topic may not depend on a
   coga-dev topic as required reading; linking to coga-dev for optional depth
   is fine.
-- Edit `docs/contexts/<ref>/SKILL.md` and its packaged twin
-  `src/coga/resources/templates/coga/bootstrap/contexts/<ref>/SKILL.md`
-  together; `tests/test_packaging.py` enforces byte-identity.
-- When deleting a topic: remove both copies, drop it from
+- Edit the package copy only:
+  `src/coga/resources/templates/coga/bootstrap/contexts/<ref>/SKILL.md`.
+  The package-definition cutover is complete, and `tests/test_packaging.py`
+  rejects any unapproved live counterpart, even a byte-identical one.
+- When deleting a topic: remove the package copy, drop it from
   `REQUIRED_BOOTSTRAP_CONTEXT_REFS` in `tests/test_packaging.py` if listed,
   and repoint every link (`grep -rn '<ref>' docs src tests coga README.md
   AGENTS.md`, excluding `docs/archive/` and `coga/log.md`). Old tickets that
