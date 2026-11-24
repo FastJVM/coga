@@ -29,7 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (push-and-open-pr)
+step: 5 (review)
 agent: claude
 ---
 
@@ -130,6 +130,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1287
 branch: coga/stop-the-test-suite-from-deleting-files-in-the-r-2cc57b
 base: fix-read-only-tmp-sweep
 remote: origin
