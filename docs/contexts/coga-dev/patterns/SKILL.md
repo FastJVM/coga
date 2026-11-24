@@ -12,12 +12,9 @@ durable-file model (`coga/architecture`).
 
 ## Rules of thumb for a new composition
 
-- **No hidden files or directories.** Paths that Coga or its development tools
-  choose must appear in an ordinary directory listing. This includes durable
-  state, run reports, worktrees, and temporary files. Keep shared durable
-  state under the Coga root in human-readable, Git-tracked files that people
-  can open mid-run. Use Git ignore rules for visible machine-local files that
-  should stay out of commits.
+- **Keep work visible.** Follow the [Coga filesystem policy](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md#keep-work-visible)
+  for product and development files. Keep shared durable state under the
+  Coga root in human-readable, Git-tracked files that people can open mid-run.
 - **No hidden queue.** Prefer posting or recording an event the moment it
   happens. Coga once batched outcomes into a daily digest spool and removed
   it (#786): at Coga's volume a queue only added a consumer, a drain step,
