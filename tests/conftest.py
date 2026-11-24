@@ -47,10 +47,8 @@ LAUNCH_OWNED_ENV = (
 )
 
 
-_TEMPLATES_COGA_OS = (
-    Path(__file__).resolve().parents[1]
-    / "src" / "coga" / "resources" / "templates" / "coga"
-)
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_TEMPLATES_COGA_OS = _REPO_ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 
 
 def windows_skip(reason: str):
@@ -161,13 +159,22 @@ def pytest_configure(config: pytest.Config) -> None:
     an in-checkout temp root is moved to the system temp
     (`COGA_SYSTEM_TMPDIR`, else `/tmp`) through pytest's lazily read
     `PYTEST_DEBUG_TEMPROOT`, which keeps pytest's numbered runs and the
-    `failed` retention policy. An explicit in-checkout `--basetemp` is
-    refused because the operator named it. `coga-dev/testing` owns the rule.
+    `failed` retention policy. Refuse an explicit `--basetemp` inside a
+    checkout or containing the checkout under test. Pytest removes an
+    existing basetemp before creating fixtures. `coga-dev/testing` owns the
+    rule.
     """
     global _REDIRECTED_TEMPROOT
     given = config.option.basetemp
     if given:
-        checkout = enclosing_checkout(Path(given))
+        basetemp = Path(given).resolve()
+        if _REPO_ROOT.is_relative_to(basetemp):
+            raise pytest.UsageError(
+                f"--basetemp {given} contains the checkout under test "
+                f"({_REPO_ROOT}); pytest would delete the checkout. "
+                "Use a dedicated basetemp directory outside the checkout."
+            )
+        checkout = enclosing_checkout(basetemp)
         if checkout is not None:
             raise pytest.UsageError(
                 f"--basetemp {given} is inside the checkout {checkout}; tests "

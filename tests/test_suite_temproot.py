@@ -11,6 +11,7 @@ in-checkout `TMPDIR`, the only way to exercise a session-start hook.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -72,6 +73,7 @@ def _child_pytest(
     system_tmp.mkdir(exist_ok=True)
     env = os.environ.copy()
     env.pop("PYTEST_DEBUG_TEMPROOT", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     for name in ("TMPDIR", "TMP", "TEMP"):
         env[name] = str(launch_tmp)
     env["COGA_SYSTEM_TMPDIR"] = str(system_tmp)
@@ -121,3 +123,25 @@ def test_in_checkout_basetemp_is_refused(tmp_path: Path) -> None:
     assert "inside the checkout" in result.stdout + result.stderr
     assert _host_files(host) == before
     assert not (launch_tmp / "bt").exists()
+
+
+def test_basetemp_containing_checkout_under_test_is_refused(tmp_path: Path) -> None:
+    parent = tmp_path / "checkout-parent"
+    host, launch_tmp = _seed_host(parent)
+    test_dir = host / "tests"
+    test_dir.mkdir()
+    shutil.copyfile(_REPO_ROOT / "tests" / "conftest.py", test_dir / "conftest.py")
+    probe = test_dir / "test_probe.py"
+    probe.write_text(
+        "def test_probe(tmp_path):\n    assert tmp_path.is_dir()\n",
+        encoding="utf-8",
+    )
+    before = _host_files(host)
+
+    # Run from outside the stand-in checkout so pytest's cwd check allows
+    # the argument and our own guard must catch it.
+    result, _ = _child_pytest(tmp_path, launch_tmp, "--basetemp", str(parent), str(probe))
+
+    assert result.returncode == 4, result.stdout + result.stderr
+    assert "contains the checkout under test" in result.stdout + result.stderr
+    assert _host_files(host) == before

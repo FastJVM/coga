@@ -80,7 +80,10 @@ is their hand-run counterpart: a first-time user installs on a fresh
   Git checkout marker (a `.git` file, or a `.git` directory with `HEAD`), a
   `coga.toml` or a `coga/coga.toml`, it moves the root to
   `$COGA_SYSTEM_TMPDIR` (else `/tmp`) and says so in the report header, and
-  it refuses an in-checkout `--basetemp` (`tests/test_suite_temproot.py`).
+  it refuses an explicit `--basetemp` inside a checkout or containing
+  the checkout under test (`tests/test_suite_temproot.py`). Pytest deletes
+  an existing `--basetemp` before creating its fixtures, so use a dedicated
+  directory.
   Under `coga launch`, run plain `python -m pytest`; for a full run on a
   small `/tmp`, set `TMPDIR` to a roomy directory outside the checkout
   instead. A root beside checkouts (for example
