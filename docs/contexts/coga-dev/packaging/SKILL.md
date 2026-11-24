@@ -102,8 +102,10 @@ holds local Coga-dev knowledge. There are no forwarding files or symlink mirrors
   reasons fail. Repo-only jobs and attachments have no packaged counterpart
   and stay local.
 - Authoring starters may exist only as ignored, untracked materializations.
-  `.coga/`, `.venv/`, generated agent views, bytecode caches and local config
-  are machine-local artifacts outside the definition inventory.
+  `.coga/` (run records, the megalaunch selection, durable agent state in
+  `.coga/data/` and per-launch temporaries in `.coga/tmp/`), `.venv/`,
+  generated agent views, bytecode caches and local config are machine-local
+  artifacts outside the definition inventory.
 - Navigation reads actual package-relative links and inbound links from local
   development topics, repo-authored skills/workflows/jobs, indexes and release
   notes. Frozen task histories and archives are excluded; archives are never

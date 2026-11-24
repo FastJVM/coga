@@ -218,6 +218,16 @@ def _isolate_tmpdir(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _quiet_run_state_socket_warning(monkeypatch):
+    # pytest's basetemp paths exceed the 64-byte socket warning threshold, so
+    # every in-process launch would add a stderr line that output-parsing tests
+    # do not expect. `tests/test_run_state.py` exercises the warning itself.
+    from coga import run_state
+
+    monkeypatch.setattr(run_state, "SOCKET_WARN_BYTES", 1 << 20)
+
+
+@pytest.fixture(autouse=True)
 def _stub_init_dep_check(monkeypatch):
     """No-op `coga init`'s external-CLI dependency checks by default.
 

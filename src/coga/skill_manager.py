@@ -21,6 +21,7 @@ from typing import Any
 
 import yaml
 
+from coga.oscompat import system_tmpdir
 from coga.config import Config
 from coga.github_source import github_owner_repo
 from coga.paths import packaged_template_path
@@ -160,7 +161,7 @@ def install_url_skill(
 ) -> SkillResult:
     ensure_gh_skill(runner=runner)
     data = (downloader or download_url)(url)
-    with tempfile.TemporaryDirectory(prefix="coga-skill-url-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="coga-skill-url-", dir=system_tmpdir()) as tmp:
         materialized = materialize_url_skill(url, data, Path(tmp), selector)
         skill_ref = materialized.skill_ref
         target = _skill_target(cfg, skill_ref)
@@ -1076,7 +1077,7 @@ def _update_url_skill_dir(
 
     try:
         data = (downloader or download_url)(url)
-        with tempfile.TemporaryDirectory(prefix="coga-skill-update-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="coga-skill-update-", dir=system_tmpdir()) as tmp:
             materialized = materialize_url_skill(url, data, Path(tmp), selector)
             previous_source_tree = metadata.get("source_tree_digest")
 
@@ -1266,7 +1267,7 @@ def _status_url_skill(
             raise SkillManagerError("selector in Coga skill metadata is not a string")
         include = parse_include_allowlist(metadata)
         data = (downloader or download_url)(url)
-        with tempfile.TemporaryDirectory(prefix="coga-skill-status-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="coga-skill-status-", dir=system_tmpdir()) as tmp:
             materialized = materialize_url_skill(url, data, Path(tmp), selector)
             # Same comparison `update` makes, for the same reason: an
             # allowlisted install is legitimately smaller than upstream, so a

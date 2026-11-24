@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from coga.config import Config, load_config
+from coga.oscompat import system_tmpdir
 from coga.skill_manager import (
     Runner, SkillManagerError, SkillUpdateSummary, VerificationResult,
     render_update_pr_body, run_subprocess, skills_root, update_skills,
@@ -610,7 +611,9 @@ def open_or_update_pr(
                 "Could not determine current git branch for skill update PR."
             )
         branch = branch_result.stdout.strip()
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="\n", delete=False) as fh:
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", newline="\n", delete=False, dir=system_tmpdir()
+    ) as fh:
         fh.write(body)
         body_file = fh.name
     try:

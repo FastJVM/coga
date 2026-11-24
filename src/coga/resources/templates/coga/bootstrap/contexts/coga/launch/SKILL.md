@@ -97,6 +97,62 @@ It resolves the next executor from the current ticket file. Owner-held
 steps, terminal states, blocked states and paused states stop the chain.
 Agent sessions also stop on process failure or a liveness limit.
 
+## Run state
+
+A launch provides ignored, repo-local storage for unversioned state under
+`<coga root>/.coga/` (`src/coga/run_state.py`):
+
+- `data/tasks/<id_slug>/` (a task) or `data/bootstrap/<name>/` (a bootstrap
+  target) is durable and exported as `COGA_TASK_DATA_DIR`. Each carries a
+  `.coga-owner` record naming its target, so attribution never depends on how
+  task paths nest. Files with unreadable ownership metadata are attributed to
+  the nearest readable owner, if one exists. `data/_shared/` holds cross-ticket state; `COGA_DATA_DIR`
+  names `data/`. In a linked Git worktree `data/` resolves to the primary
+  checkout, so durable state survives `git worktree remove`. Nothing deletes
+  durable state automatically.
+- `tmp/<token>/` is one launch's temp area. `TMPDIR`, `TMP` and `TEMP` point
+  at it, so `mktemp`, Python `tempfile` and most tools land there.
+  `COGA_SYSTEM_TMPDIR` keeps the original system temp (inherited if already
+  set), and Coga's own short-lived files (per-user locks, prompt files,
+  `coga-done-*` sentinels, skill scratch) resolve through it via
+  `oscompat.system_tmpdir()`, so locks keep excluding each other across
+  checkouts and nothing live is purged.
+
+Every `_launch` (attended, recurring period, delegated) opens exactly one
+tmp scope once its config is known and holds it for the whole step chain;
+megalaunch opens one per child chain and recurring clone scripts one per
+run. Guided `coga ticket` opens one per interview and creates the durable
+directory for the selected task, or for `bootstrap/ticket` when no target is
+given. A clone script gets `COGA_DATA_DIR` but no task identity. Read-only
+dispatch gets a tmp scope but no data variables, creates no `data/`, and
+never sweeps. `--prompt-report` and parser-only script help create nothing.
+A nested launch creates its own sibling token and never touches its
+parent's.
+
+The scope holds an exclusive lock on `tmp/<token>.lock` from before the
+directory exists until after it is deleted. When the launch ends, normally,
+on failure or on interrupt, it removes its own directory while still holding
+the lock, then retires the lock file (POSIX unlinks it while held; Windows
+closes, then unlinks). A removal it cannot complete warns once on stderr and
+leaves the rest for the sweep; it never fails the launch. On POSIX a file a
+background process still holds open is unlinked but keeps its disk space
+until that process exits.
+
+A launch first sweeps sibling tokens whose lock it can take without blocking,
+including lock files with no directory. It claims a lock before removing a
+lockless directory older than 60 seconds and rechecks the age under the lock.
+On POSIX launch and sweep both verify that the acquired lock still names the
+same file. `coga validate`
+reports the same orphans read-only as `orphan-tmp`, and only a repo-wide
+`coga validate --fix` removes them. A linked worktree created under a
+purged tmp area leaves stale metadata that `git worktree prune` clears.
+
+If the absolute tmp path exceeds 64 bytes, every launch warns once on stderr
+with the path and the ~108-byte Unix socket limit, and still uses it: a
+silent fallback to `/tmp` would break the rule. The prompt rule agents follow
+is in the base prompt's "Unversioned state" section, including the cleanup
+requirement for disposable scratch outside the checkout.
+
 ## Options and exits
 
 - `--prompt-report` prints each composed layer, exact refs, bytes, and

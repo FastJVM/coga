@@ -11,6 +11,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from report_helpers import RUN_STATE_PATH_WARNING
 from conftest import windows_skip, derived_operator, hold_by_agent, hold_by_owner, seed_direct_body_workflow
 from coga import compose as compose_module
 from coga.blackboard import append_blocker
@@ -1257,9 +1258,15 @@ def test_read_only_script_preserves_streams_argv_authority_and_dirty_checkout(
     )
     assert result.returncode == exit_code, result.stderr
     assert result.stdout == b"stdin bytes\n" + (json.dumps(operands) + "\n").encode()
-    assert result.stderr.endswith(b"reader stderr\n")
+    # Launch's one run-state warning (pytest's tmp path is long) is the only
+    # framing read-only dispatch may add, and only on stderr.
+    stderr = b"".join(
+        line for line in result.stderr.splitlines(keepends=True)
+        if not line.startswith(RUN_STATE_PATH_WARNING.encode())
+    )
+    assert stderr.endswith(b"reader stderr\n")
     if not alias:
-        assert result.stderr == b"reader stderr\n"
+        assert stderr == b"reader stderr\n"
     assert {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
     assert git_command("status", "--porcelain=v1") == status
     assert git_command("rev-parse", "HEAD") == head
@@ -1819,3 +1826,182 @@ def test_local_unblock_uses_the_launched_ticket_environment(script_repo, monkeyp
     assert answered.exit_code == 0, answered.output
     assert Ticket.read(ref.ticket_path).status == target
     assert "Five minutes" in read_blackboard(ref.ticket_path)
+
+
+# --- run state (`coga/launch` "Run state") -----------------------------------
+
+
+_RUN_STATE_SCRIPT = """
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+fd, name = tempfile.mkstemp()
+os.close(fd)
+data = Path(os.environ["COGA_TASK_DATA_DIR"])
+(data / "keep.txt").write_text("evidence")
+Path({observed!r}).write_text(json.dumps({{
+    "tmpdir": os.environ["TMPDIR"],
+    "tmp": os.environ["TMP"],
+    "temp": os.environ["TEMP"],
+    "system": os.environ["COGA_SYSTEM_TMPDIR"],
+    "data": os.environ["COGA_DATA_DIR"],
+    "task_data": str(data),
+    "mkstemp": name,
+}}))
+raise SystemExit({code})
+"""
+
+
+def _patch_agent_spawn(monkeypatch: pytest.MonkeyPatch, fake_repl) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(launch_module, "run_with_done_marker", fake_repl)
+    monkeypatch.setattr(launch_module, "interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(launch_module.shutil, "which", lambda cli: f"/usr/bin/{cli}")
+    monkeypatch.setattr(launch_module, "_refresh_agent_skills_for_launch", lambda coga_os: None)
+
+
+def test_launch_gives_script_and_agent_one_purged_tmp_and_durable_data(
+    script_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from coga.validate import emit_report, run as validate_run
+
+    observed = script_repo.parent / "observed.json"
+    ref = _create_script_task(
+        script_repo, _RUN_STATE_SCRIPT.format(observed=str(observed), code=0),
+    )
+    system = os.environ["TMPDIR"]
+    agent_seen: dict[str, object] = {}
+
+    def fake_repl(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        tmpdir = Path(env["TMPDIR"])
+        agent_seen.update(
+            tmpdir=tmpdir, exists=tmpdir.is_dir(),
+            task_data=env["COGA_TASK_DATA_DIR"], system=env["COGA_SYSTEM_TMPDIR"],
+        )
+        (tmpdir / "agent-scratch").write_text("x")
+        return ReplOutcome(exit_code=0, kind="natural")
+
+    _patch_agent_spawn(monkeypatch, fake_repl)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    seen = json.loads(observed.read_text(encoding="utf-8"))
+    tmp_root = (script_repo / ".coga" / "tmp").resolve()
+    tmpdir = Path(seen["tmpdir"])
+    assert tmpdir.parent == tmp_root
+    assert seen["tmp"] == seen["temp"] == seen["tmpdir"]
+    assert Path(seen["mkstemp"]).parent == tmpdir
+    assert seen["system"] == system
+    data_root = (script_repo / ".coga" / "data").resolve()
+    assert seen["data"] == str(data_root)
+    assert seen["task_data"] == str(data_root / "tasks" / ref.id_slug)
+    # The agent session shares the launch's one scope.
+    assert agent_seen == {
+        "tmpdir": tmpdir, "exists": True,
+        "task_data": seen["task_data"], "system": system,
+    }
+    # Temporaries are purged; durable data survives and is reported.
+    assert not tmpdir.exists()
+    assert list(tmp_root.iterdir()) == []
+    keep = data_root / "tasks" / ref.id_slug / "keep.txt"
+    assert keep.read_text() == "evidence"
+
+    capsys.readouterr()
+    emit_report(validate_run(load_config(script_repo)), json_output=True)
+    state = json.loads(capsys.readouterr().out)["state"]
+    entries = [e for e in state["entries"] if e["owner"] == ref.id_slug]
+    assert entries == [{
+        "owner": ref.id_slug, "path": str(keep.parent), "bytes": len("evidence"),
+        "files": 1, "kind": "data",
+    }]
+
+
+def test_failing_script_launch_still_purges_its_tmp(
+    script_repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed = script_repo.parent / "observed.json"
+    ref = _create_script_task(
+        script_repo, _RUN_STATE_SCRIPT.format(observed=str(observed), code=3),
+    )
+    monkeypatch.setattr(launch_module, "spawn_agent_session", _fail("agent spawned"))
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 3, result.output
+    seen = json.loads(observed.read_text(encoding="utf-8"))
+    assert not Path(seen["tmpdir"]).exists()
+    assert list((script_repo / ".coga" / "tmp").iterdir()) == []
+    assert Path(seen["task_data"], "keep.txt").is_file()
+
+
+def test_launch_raising_in_the_agent_phase_still_purges_its_tmp(
+    script_repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _create_script_task(script_repo, "pass\n")
+    created: list[Path] = []
+
+    def exploding_repl(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        created.append(Path(env["TMPDIR"]))
+        (created[0] / "partial").write_text("x")
+        raise RuntimeError("agent crashed")
+
+    _patch_agent_spawn(monkeypatch, exploding_repl)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code != 0
+    assert created and not created[0].exists()
+    assert list((script_repo / ".coga" / "tmp").iterdir()) == []
+
+
+def test_prompt_report_creates_no_run_state(script_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = load_config(script_repo)
+    created = create_task(
+        cfg=cfg, title="Report only", workflow_name="direct/body", contexts=[],
+        owner="marc", agent="claude", status="active",
+    )
+    monkeypatch.setattr(launch_module, "_refresh_agent_skills_for_launch", lambda coga_os: None)
+    result = CliRunner().invoke(app, ["launch", "--prompt-report", created["slug"]])
+    assert result.exit_code == 0, result.output
+    assert not (script_repo / ".coga").exists()
+
+
+def test_read_only_dispatch_gets_tmp_but_no_data_and_never_sweeps(read_only_repo: Path) -> None:
+    script = read_only_repo / "bootstrap" / "inspect" / "ticket.py"
+    _write(
+        script,
+        '''
+        import json, os, tempfile
+        fd, name = tempfile.mkstemp()
+        os.close(fd)
+        print(json.dumps({
+            "tmpdir": os.environ.get("TMPDIR"),
+            "data": os.environ.get("COGA_DATA_DIR"),
+            "task_data": os.environ.get("COGA_TASK_DATA_DIR"),
+            "mkstemp": name,
+        }))
+        ''',
+    )
+    crashed = read_only_repo / ".coga" / "tmp" / "aaaaaaaa"
+    crashed.mkdir(parents=True)
+    (crashed / "left").write_text("x")
+    (crashed.parent / "aaaaaaaa.lock").write_text("")
+    env = os.environ.copy()
+    env.update({"PYTHONPATH": str(_SOURCE_ROOT / "src"), "PATH": "/agents-absent"})
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "launch", "--read-only", "bootstrap/inspect"],
+        cwd=read_only_repo, env=env, capture_output=True, check=False, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    seen = json.loads(result.stdout)
+    assert Path(seen["tmpdir"]).parent == (read_only_repo / ".coga" / "tmp").resolve()
+    assert Path(seen["mkstemp"]).parent == Path(seen["tmpdir"])
+    assert not Path(seen["tmpdir"]).exists()
+    assert seen["data"] is None and seen["task_data"] is None
+    assert not (read_only_repo / ".coga" / "data").exists()
+    assert (crashed / "left").is_file()

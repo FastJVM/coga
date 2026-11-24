@@ -14,3 +14,9 @@ In an existing Coga workspace without a configured machine-local user,
 the same invocation writes the local identity and repairs agent skill
 links. It preserves the shared configuration. If the project directory
 is empty, the scaffold supplies the first-run `coga build` ticket.
+
+Init also creates the machine-local run-state areas `coga/.coga/data/` and
+`coga/.coga/tmp/` (both idempotently). They live inside `.coga/`, which the
+managed ignore blocks in the host `.gitignore` and `coga/.gitignore` already
+list, so repos initialized earlier need no ignore change and Git never sees
+the state. [coga/launch](../launch/SKILL.md#run-state) owns their contract.

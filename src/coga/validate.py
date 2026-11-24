@@ -31,6 +31,9 @@ Checks (whole-repo):
 - Assignees referenced in tickets exist in coga.toml.
 - No two tasks in one directory claim the same `<n>-` drain position.
 - Skill scripts that declare a `#!` shebang carry the executable bit.
+- Managed run state: sizes per owner, `orphan-tmp` launch tmp areas whose
+  launch is gone (removed by repo-wide `--fix`), and `stale-state` durable
+  data whose ticket is done, canceled or gone (never removed).
 - (Opt-in) Slack webhook reachability via an empty-text probe.
 - (Opt-in) Git/GitHub auth readiness via `git`/`gh` preflight probes.
 """
@@ -47,6 +50,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+from coga import run_state
 from coga.atomicio import atomic_write_text
 from coga.compose import _extract_section
 from coga.blackboard import (
@@ -168,6 +172,7 @@ class Report:
     issues: list[Issue] = field(default_factory=list)
     fixes: list[Fix] = field(default_factory=list)
     ok_count: int = 0
+    state: run_state.StateReport | None = None
 
 
 # --- engine -------------------------------------------------------------------
@@ -241,6 +246,18 @@ def run(
 
     if fix:
         report.fixes.extend(apply_safe_fixes(cfg, only=refs))
+        # Orphan tmp repair is repo-wide only: `--task --fix` never deletes
+        # state it does not report.
+        swept = run_state.sweep_orphans(cfg)
+        report.fixes.extend(
+            Fix(kind="orphan-tmp", task="(state)", message="removed orphan launch tmp",
+                path=str(orphan.path))
+            for orphan in swept.removed
+        )
+        report.issues.extend(
+            Issue(kind="orphan-tmp", task="(state)", message=failure, severity="warn")
+            for failure in swept.failures
+        )
 
     if check_slack:
         report.issues.extend(_notification_issues(cfg))
@@ -263,9 +280,59 @@ def run(
     report.issues.extend(_check_recurring_templates(cfg))
     report.issues.extend(_check_shebang_executables(cfg))
     report.issues.extend(_check_repo_resources(cfg))
+    report.state = run_state.usage(cfg)
+    report.issues.extend(_check_run_state(cfg, report.state, orphans=True))
 
     report.ok_count = _ok_count(refs, report.issues)
     return report
+
+
+def _check_run_state(
+    cfg: Config, state: run_state.StateReport, *, orphans: bool
+) -> list[Issue]:
+    """Warn about launch tmp left by dead launches and data whose owner is gone."""
+    out: list[Issue] = []
+    if orphans:
+        for orphan in run_state.find_orphans(cfg):
+            out.append(Issue(
+                kind="orphan-tmp", task="(state)",
+                message=(
+                    f"launch tmp {orphan.path} has no live launch; "
+                    "`coga validate --fix` removes it"
+                ),
+            ))
+    for entry in run_state.owned_entries(state):
+        reason = _stale_owner_reason(cfg, entry)
+        if reason is not None:
+            out.append(Issue(
+                kind="stale-state", task=entry.owner,
+                message=(
+                    f"{run_state.human_size(entry.bytes)} of durable state in "
+                    f"{entry.path} belongs to a ticket that {reason}; delete it "
+                    "when it is no longer needed"
+                ),
+            ))
+    return out
+
+
+def _stale_owner_reason(cfg: Config, entry: run_state.StateEntry) -> str | None:
+    try:
+        if entry.target == "bootstrap":
+            resolve_bootstrap(cfg, entry.owner)
+            return None
+        ref = resolve_task(cfg, entry.owner)
+    except (TaskNotFoundError, DuplicateTaskSlugError):
+        return "no longer exists"
+    if ref.id_slug != entry.owner:
+        # A unique-prefix match is a different task.
+        return "no longer exists"
+    try:
+        status = Ticket.read(ref.ticket_path).status
+    except (TicketError, OSError):
+        return None
+    if status in {"done", "canceled"}:
+        return f"is {status}"
+    return None
 
 
 def validate_task(
@@ -311,6 +378,8 @@ def validate_task(
             now=datetime.now(timezone.utc),
         )
     )
+    report.state = run_state.usage(cfg, ref=ref)
+    report.issues.extend(_check_run_state(cfg, report.state, orphans=False))
     report.ok_count = _ok_count([ref], report.issues)
     return report
 
@@ -1913,6 +1982,18 @@ def execute_validation(
     )
 
 
+def _state_payload(state: run_state.StateReport) -> dict[str, Any]:
+    return {
+        "root": state.root,
+        "data_root": state.data_root,
+        "total_bytes": state.total_bytes,
+        "entries": [
+            {key: value for key, value in asdict(entry).items() if key != "target"}
+            for entry in state.entries
+        ],
+    }
+
+
 def emit_report(report: Report, *, json_output: bool) -> int:
     """Emit the stable validation payload or text and return its 0/1 verdict."""
     if json_output:
@@ -1922,11 +2003,21 @@ def emit_report(report: Report, *, json_output: bool) -> int:
             "fixes": [asdict(f) for f in report.fixes],
             "issues": [asdict(i) for i in report.issues],
         }
+        if report.state is not None:
+            payload["state"] = _state_payload(report.state)
         json.dump(payload, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
         for fix_item in report.fixes:
             print(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
+        if report.state is not None:
+            state = report.state
+            print(f"State: {state.root} {run_state.human_size(state.total_bytes)}")
+            for entry in state.entries:
+                print(
+                    f"  {entry.owner}  {entry.kind}  "
+                    f"{run_state.human_size(entry.bytes)}  {entry.files} files  {entry.path}"
+                )
         if not report.issues:
             print(f"All good ({report.ok_count} tasks checked).")
         else:

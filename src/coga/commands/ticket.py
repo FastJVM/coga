@@ -10,6 +10,7 @@ from typing import Callable
 
 import typer
 
+from coga import run_state
 from coga.authoring import (
     AUTHORING_AGENT_ENV,
     AuthoringError,
@@ -370,34 +371,39 @@ def _run_authoring_session(
     # (least privilege), and 1Password CLI auth is scrubbed so the interviewer
     # cannot `op read` either. The kickoff token makes `coga ticket` greet first.
     try:
-        session = spawn_agent_session(
-            cfg,
-            ref,
-            ticket,
-            agent,
-            env=scrub_op_auth_env(os.environ),
-            actor=f"human:{cfg.current_user}",
-            log_message=(
-                "ticket authoring launched "
-                f"(interviewer={launch_agent}, agent={agent.name})"
-            ),
-            discussion=True,
-            kickoff=kickoff,
-            label="Ticket",
-            # Publish the start line now, as `coga chat` and launch do, rather
-            # than leave the log dirty for the whole attended session; the
-            # teardown sync still carries the usage record.
-            commit_log=True,
-            secrets_are_scoped=False,
-            stateless_identity=(AUTHORING_SKILL, bootstrap_title),
-            include_blocker_preamble=False,
-        )
+        with run_state.launch_tmp_scope(cfg) as scope:
+            run_state.ensure_task_data_dir(cfg, ref)
+            env = run_state.apply_tmp_env(scrub_op_auth_env(os.environ), scope)
+            session = spawn_agent_session(
+                cfg,
+                ref,
+                ticket,
+                agent,
+                env=env,
+                actor=f"human:{cfg.current_user}",
+                log_message=(
+                    "ticket authoring launched "
+                    f"(interviewer={launch_agent}, agent={agent.name})"
+                ),
+                discussion=True,
+                kickoff=kickoff,
+                label="Ticket",
+                # Publish the start line now, as `coga chat` and launch do, rather
+                # than leave the log dirty for the whole attended session; the
+                # teardown sync still carries the usage record.
+                commit_log=True,
+                secrets_are_scoped=False,
+                stateless_identity=(AUTHORING_SKILL, bootstrap_title),
+                include_blocker_preamble=False,
+            )
     except ComposeError as exc:
         _bail(str(exc))
     except AgentCliNotFound:
         _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
     except FileNotFoundError as exc:
         _bail(missing_launch_file_message(exc))
+    except OSError as exc:
+        _bail(str(exc))
 
     if session.exit_code != 0:
         typer.secho(

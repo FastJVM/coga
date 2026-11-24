@@ -25,10 +25,9 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 import tomllib
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
@@ -97,6 +96,7 @@ from coga.repl_supervisor import (
     run_with_done_marker,
     unsignalled_advance_warning,
 )
+from coga import run_state
 from coga.task_env import apply_task_env
 from coga.taskfile import TaskFileError, split_body, uncomposed_sections_warning
 from coga.tasks import (
@@ -202,9 +202,13 @@ def launch(
             if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
                 _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
             ticket = read_ticket(ref)
-            result = run_script_phase(
-                cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
-            )
+            # Read-only dispatch may create only its own tmp area: it never
+            # sweeps other launches' state or creates the durable layout.
+            with run_state.launch_tmp_scope(cfg, sweep=False) as scope:
+                result = run_script_phase(
+                    cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
+                    tmp_scope=scope,
+                )
         except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
             _bail(str(exc))
         return LaunchResult(kind="script", exit_code=result.exit_code)
@@ -303,17 +307,28 @@ def _launch(
         recurring_authorized=recurring_authorized,
         agent_spawn_refusal=agent_spawn_refusal,
     )
-    for prepare in (
-        invocation._prepare_target,
-        invocation._classify_target,
-        invocation._run_initial_script,
-        invocation._prepare_agent,
-    ):
-        result = prepare()
-        if result is not None:
-            break
-    else:
-        result = invocation._supervise_steps()
+    result = invocation._prepare_target()
+    if result is not None:
+        # Admission finished the launch (including a delegated period, which
+        # ran its own `_launch` with its own scope).
+        return result
+    with ExitStack() as stack:
+        # One tmp scope covers the whole supervised step chain. A prompt
+        # report executes nothing, so it creates no run state.
+        if not invocation.prompt_report:
+            invocation.tmp_scope = stack.enter_context(
+                run_state.launch_tmp_scope(invocation.cfg)
+            )
+        for prepare in (
+            invocation._classify_target,
+            invocation._run_initial_script,
+            invocation._prepare_agent,
+        ):
+            result = prepare()
+            if result is not None:
+                break
+        else:
+            result = invocation._supervise_steps()
     return result
 
 
@@ -360,6 +375,8 @@ class _LaunchInvocation:
         self.record_launch = record_launch
         self.recurring_authorized = recurring_authorized
         self.agent_spawn_refusal = agent_spawn_refusal
+        self.tmp_scope: run_state.TmpScope | None = None
+
     def _prepare_target(self) -> LaunchResult | None:
         """Resolve and admit the current target, including delegated periods."""
         self.launch_args = list(self.args or [])
@@ -613,6 +630,7 @@ class _LaunchInvocation:
                     self.script_steps_run,
                     args=self.launch_args if self.is_bootstrap else (),
                     failure_important=self.script_failure_important,
+                    tmp_scope=self.tmp_scope,
                 )
                 self.cfg = self.script_outcome.cfg or self.cfg
                 self.ref = self.script_outcome.ref or self.ref
@@ -851,6 +869,7 @@ class _LaunchInvocation:
                         self.ticket,
                         self.script_steps_run,
                         failure_important=self.script_failure_important,
+                        tmp_scope=self.tmp_scope,
                     )
                 except (SecretError, TaskValidationError, FileNotFoundError) as exc:
                     _bail(str(exc))
@@ -1006,6 +1025,9 @@ class _LaunchInvocation:
                 step=spawn_ticket.step,
                 agent=step_agent or self.launch_agent,
             )
+            if self.tmp_scope is not None:
+                run_state.ensure_task_data_dir(self.cfg, self.ref)
+                step_env = run_state.apply_tmp_env(step_env, self.tmp_scope)
 
             try:
                 session = spawn_agent_session(
@@ -1580,7 +1602,7 @@ def agent_command_refusal(
     """
     if os.name != "nt":
         return None
-    placeholder = Path(tempfile.gettempdir()) / (
+    placeholder = Path(oscompat.system_tmpdir()) / (
         f"coga-{ref.id_slug.replace('/', '-')}-XXXXXXXX.md"
     )
     try:
@@ -1827,7 +1849,7 @@ def spawn_agent_session(
 
     Per-caller differences are arguments here, not forked command code:
     `env` carries the secrets policy (`coga launch` passes a launch env;
-    authoring passes the ambient process env with no Coga secret injection),
+    authoring passes a scrubbed process env with no Coga secret injection),
     `discussion` selects discussion-prompt argv, and `kickoff` appends an
     optional first user turn such as the `coga ticket` greet-first "Begin".
     `stateless_identity` lets an authoring surface compose against a real task

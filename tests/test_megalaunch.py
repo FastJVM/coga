@@ -2479,3 +2479,80 @@ def test_megalaunch_stops_the_ticket_after_a_workflow_script_error(repo, monkeyp
     assert row.outcome == "failed"
     assert row.detail == "script exited with code 7"
     assert Ticket.read(created["path"]).step == "1 (compute)"
+
+
+def test_megalaunch_child_chain_gets_one_tmp_scope_for_script_and_agent(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Megalaunch starts phases outside `_launch`; each child still gets run state."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title="Scoped child", workflow_name="code", contexts=[],
+        owner="marc", agent="claude", status="active",
+    )
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    seen: dict[str, object] = {}
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+        done_signalled = False
+
+    def fake_spawn(cfg, ref_obj, ticket, agent, *, env, **kwargs):  # type: ignore[no-untyped-def]
+        tmpdir = Path(env["TMPDIR"])
+        seen["tmpdir"] = tmpdir
+        seen["tmp_exists"] = tmpdir.is_dir()
+        # Task variables are re-derived inside the real spawn; the directory
+        # they name must already exist.
+        seen["data_exists"] = (
+            repo / ".coga" / "data" / "tasks" / ref_obj.id_slug / ".coga-owner"
+        ).is_file()
+        seen["system"] = env["COGA_SYSTEM_TMPDIR"]
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga_edge.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg, selection=[created["slug"]])
+
+    assert run.counts["completed"] == 1
+    tmp_root = (repo / ".coga" / "tmp").resolve()
+    assert seen["tmpdir"].parent == tmp_root and seen["tmp_exists"]
+    assert seen["data_exists"]
+    assert list(tmp_root.iterdir()) == []
+
+
+def test_megalaunch_script_phase_receives_the_child_scope(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga.launch_script import ScriptPhaseResult
+
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title="Scripted child", workflow_name="code", contexts=[],
+        owner="marc", agent="claude", status="active", force_directory=True,
+    )
+    from coga.tasks import resolve_task
+
+    task_dir = resolve_task(cfg, created["slug"]).task_dir
+    assert task_dir is not None
+    (task_dir / "ticket.py").write_text("raise SystemExit(0)\n")
+    _no_spawn(monkeypatch)
+    scopes: list[object] = []
+
+    def fake_phase(cfg, ref, ticket, **kwargs):  # type: ignore[no-untyped-def]
+        scope = kwargs["tmp_scope"]
+        scopes.append(scope)
+        assert scope.path.is_dir()
+        return ScriptPhaseResult(exit_code=3, ticket=ticket, cfg=cfg, ref=ref)
+
+    monkeypatch.setattr("coga_edge.megalaunch.run_script_phase", fake_phase)
+
+    run = run_megalaunch(cfg, selection=[created["slug"]])
+
+    assert run.counts["failed"] == 1
+    assert len(scopes) == 1
+    assert not scopes[0].path.exists()

@@ -477,3 +477,33 @@ def _frozen_datetime() -> type[datetime]:
             return NOW
 
     return Frozen
+
+
+def test_clone_script_gets_shared_data_and_a_purged_tmp_scope_without_task_identity(
+    repo: Path,
+) -> None:
+    observed = repo / "observed.json"
+    script = repo / "observe.py"
+    script.write_text(
+        "import json, os, tempfile\nfrom pathlib import Path\n"
+        "fd, name = tempfile.mkstemp()\nos.close(fd)\n"
+        f"Path({str(observed)!r}).write_text(json.dumps({{\n"
+        "    'tmpdir': os.environ.get('TMPDIR'), 'mkstemp': name,\n"
+        "    'data': os.environ.get('COGA_DATA_DIR'),\n"
+        "    'task_data': os.environ.get('COGA_TASK_DATA_DIR'),\n"
+        "    'system': os.environ.get('COGA_SYSTEM_TMPDIR'),\n"
+        "}))\n",
+        encoding="utf-8", newline="\n",
+    )
+    cfg = load_config(repo)
+    result = run_clone_template(cfg, "observe", script, "today", timeout=10)
+    assert result.exit_code == 0, result.output
+    seen = json.loads(observed.read_text(encoding="utf-8"))
+    tmp_root = (repo / ".coga" / "tmp").resolve()
+    assert Path(seen["tmpdir"]).parent == tmp_root
+    assert Path(seen["mkstemp"]).parent == Path(seen["tmpdir"])
+    assert not Path(seen["mkstemp"]).exists()
+    assert seen["data"] == str((repo / ".coga" / "data").resolve())
+    assert seen["task_data"] is None
+    assert seen["system"]
+    assert list(tmp_root.iterdir()) == []
