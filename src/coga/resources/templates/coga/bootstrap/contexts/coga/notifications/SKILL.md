@@ -6,8 +6,7 @@ description: How Coga decides whether an event posts (surface) and where it land
 # Notifications
 
 Notifications are the sync point between asynchronous agents and the humans
-approving, unblocking, or watching them. Slack is the first channel; Git is
-the other sync layer (`coga/sync`).
+approving, unblocking, or watching them. Slack is the supported channel.
 
 ## Surface and destination are separate decisions
 

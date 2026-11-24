@@ -22,60 +22,24 @@ the missing-definition placeholder.
 
 ## Definition format
 
-YAML frontmatter holds `name`, `description`, and a non-empty `steps:` list.
-Each step has a `name` and may declare `skills:` (a list; singular `skill:`
-is rejected), `assignee:` (a role token), `requires:` (a gate token), and
-`checkout:` (the entry checkout: `control`, `create-or-reuse`,
-`reuse-required` or `manual`; omitted means `manual`, any other value is
-rejected at load; meanings in
-[coga/checkouts](../checkouts/SKILL.md#which-checkout-a-step-starts-in)). The markdown body may carry a
-`## <step-name>` section of inline instructions per step.
+A workflow lists ordered steps in Markdown frontmatter. A step names its
+role with `assignee:`, can attach `skills:` for judgment work, and can use
+`run: <skill-ref>` to run the selected skill directory's `run.py`. The local
+directory takes precedence over the packaged copy. Declare an agent role for
+a script step. An inherited owner role cannot execute a script.
 
-Inline sections are fence-aware: closed backtick and tilde examples retain
-their `##` lines and subsequent prose inside the current section, so fenced
-headings cannot supply instructions for another step. A real H2 ends the
-current section even when its name is not a step; only headings matching a
-step name supply instructions. Headings may be indented up to three spaces
-and have a closing `#` run. Unmatched fence openers are ordinary text, so
-they cannot hide later real step headings.
-
-- A step **with** `skills:` composes those skill files; its inline section is
-  never read by the agent (human framing only).
-- A step **without** `skills:` composes its inline section, so that prose is
-  load-bearing. Adding `skills:` to a formerly skill-less step replaces the
-  prose, so restate any limit it carried inside the skill.
+A step with no script or skill can use an inline `## <step>` section. Owner
+steps hand work to the human. See [script tickets](../script-tickets/SKILL.md)
+for deterministic dispatch.
 
 ## Frozen snapshot, live content
 
-The step list is frozen into the ticket's `workflow:` (name plus each step's
-`skills`, `assignee`, `requires`, and `checkout`, written explicitly even when
-`manual`) at `coga create --workflow`, or at
-activation when a draft carries a bare-string `workflow:` ref (which also
-seeds `step: 1`). Nothing re-freezes an existing ticket. So a `steps:` edit
-reaches only tickets created afterwards and bare-ref drafts activated after; a draft created with `--workflow` stays on the old
-steps however late it is activated. `checkout:` is metadata too: a live edit
-of the definition, or of a step's skill, never changes the entry of an
-existing ticket.
-
-The freeze covers metadata, not content. Step skills resolve live at every
-composition (local `coga/skills/`, then package `bootstrap/skills/`), and a
-skill-less step's prose is read live from the current named definition.
-Editing a shared skill or prose therefore rewrites the prompt of every frozen
-ticket using it, including snapshots whose step sequence predates the edit;
-this applies to whichever copy resolves, including a bundled skill. Hence:
-
-- A shared step skill refers to "the next frozen step", never a step by name.
-- A newly introduced blackboard section is consumed conditionally ("if an
-  `## Evaluator review` section is present"), never required.
-- Regression-check a changed shared skill by composing it from a pre-change
-  snapshot too.
-
-For live tickets, validation requires the frozen `workflow.name` to still
-load and every skill-less frozen step to have non-empty inline instructions;
-otherwise launch would compose a "not found" or "no instructions" placeholder.
-Deleting or renaming a definition in use is therefore a validation error.
-Validation also resolves step skills of recurring templates before any period
-exists.
+Creation and activation freeze the ordered step names, roles, skills, run
+refs and requirements in the ticket. A later workflow edit affects newly
+frozen tickets. Attached skills, script files and inline instructions resolve
+from current definitions. Older snapshots retain their positions and step
+names. Legacy checkout-policy keys are ignored and validation reports them
+as obsolete.
 
 ## Roles are the routing
 
@@ -116,60 +80,24 @@ declares no workflow: there is no sanctioned workflow-less live task.
 
 ## Step completion gates (`requires:`)
 
-Before `coga bump` advances **off** a step with `requires: <token>`, it runs
-that token's predicate on the blackboard; a miss fails loud with the
-remediation, regardless of which agent owns the step. Unknown tokens fail. Human rewinds are never gated.
-
-- `branch`: a usable `branch:` under `## Dev` (`(`-prefixed placeholders
-  count as absent); `worktree:` is recorded only for the sandbox-clone
-  fallback and is not checked. Bump sees only the ticket copy
-  in its own checkout, and a stale `## Dev` from an earlier attempt passes
-  while stranding the current one.
-- `pr`: a PR URL under `## Dev`, written by `coga open-pr <ref>`; a skipped
-  command cannot be papered over with a bump.
-
-Tokens own their predicate and remediation; bump hardcodes no skill name, and
-gate transitions publish only to control. Branch and PR mechanics are
-[coga/checkouts](../checkouts/SKILL.md) and
-[coga/pr-publication](../pr-publication/SKILL.md).
-
-Gates are exit checks only: no gate, role, or step name says where a step
-starts. The step's own `checkout:` declaration does; snapshots frozen before
-that field use a legacy table. Both belong to
-[coga/checkouts](../checkouts/SKILL.md#which-checkout-a-step-starts-in).
+A forward `coga bump` checks the current step's requirement. The `branch`
+and `pr` gates read the ticket's `## Dev` record. The artifact must be
+recorded before the step can advance. See [Git](../git/SKILL.md).
 
 ## Code review gate
 
-Every shipped code-producing workflow has the other agent review the code:
-`code/with-review`, `code/agent-merge`, and `code/design-then-implement`
-freeze an `other-agent` `peer-review` step running `code/peer-review`
-(`docs/with-review` has its own prose review). `code/with-self-review` is
-the deliberate single-agent fallback for installs where `other-agent`
-cannot resolve. A workflow that
-produces no code says so under `## No other-agent code review` in its body.
-
-`code/with-review` and its siblings freeze `code/address-pr-comments` on an
-owner-assigned `review` step: the owner merges and resolves threads, and the
-skill is an on-demand assist that never resolves or bumps. Coga does not own
-GitHub merge policy, so an unresolved bot thread does not block a merge;
-when `autoclose-merged` closes a ticket it names every unresolved,
-non-outdated, reply-less review thread in the closure's `coga/log.md` line,
-its sweep report, and one Slack line, report-only
-(`coga/autoclose/sweep` skill, "The unanswered-thread follow-up").
-
-`code/agent-merge` is the exception: it has no owner gate. Its final agent
-`merge` step runs `code/merge-pr`, which owns the pre-merge re-checks, the
-refusal and escalation rules, and the merge itself, then bumps to close the
-ticket. The peer review is the review, and the owner audits after the merge
-and can revert. Choose it only when the owner has accepted that trade; it has
-no single-agent fallback.
+Code workflows can use a peer or self-review step before the PR workflow
+script. Where a final owner gate exists, the owner reviews the PR on GitHub
+and decides when to bump and merge. In `code/agent-merge` the final script
+verifies the recorded reviewed head and merges the approved change.
+[Git](../git/SKILL.md) owns the branch-to-merge sequence.
 
 ## Obligations the merge does not discharge
 
 Merge-triggered closure is unconditional: `autoclose-merged` marks a ticket
 `done` when it sits on its final step, is `active` or `in_progress`, and its
 recorded PR has merged. It never reads Done criteria, acceptance checklists,
-or a "still open" list on the blackboard. So, before `coga open-pr` runs, every obligation the
+or a "still open" list on the blackboard. So, before `git/push-and-open-pr` runs, every obligation the
 merge will not discharge — a release publication, an attended or
 post-release check, a proof on another platform — is filed as its own draft
 (`coga create`) and linked from the handoff, or the work is kept off a

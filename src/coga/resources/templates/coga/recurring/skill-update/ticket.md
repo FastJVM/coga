@@ -27,7 +27,7 @@ installs a pack that is absent. Once a week this ticket fires on its schedule
 and its `ticket.py` runs the installed `coga_edge.skill_update` job (by hand,
 `python -m coga_edge.skill_update`; a full local fork is that one module copied
 over `ticket.py`, see [coga/edge-code](context:coga/edge-code)). The job runs
-`coga skill update --all --pr`, which:
+`python -m coga_edge.skill_update_pr`, which:
 
 1. walks every installed skill under `coga/skills/`: a skill whose
    `SKILL.md` frontmatter carries `gh skill`'s `metadata.github-repo` is
@@ -42,8 +42,7 @@ over `ticket.py`, see [coga/edge-code](context:coga/edge-code)). The job runs
    what `gh` actually did — `updated`, `unchanged`, `fetch-failed`, or
    `skipped-pinned` — rather than one hardcoded hand-off row,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
-   and opens (or updates) one draft PR. This shared branch survives branch
-   sweep under [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep).
+   and opens or updates one draft PR.
    The branch is rebuilt each run, so before any update is applied the run
    refuses if its open PR carries hand-pushed commits, listing them (see
    [coga/skill-management](context:coga/skill-management)), and

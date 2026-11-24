@@ -205,7 +205,7 @@ window, either user works: `ec2-user`, or a walk user with its
 
 ## Full suite at a commit
 
-**Unverified (follow-up: `v1/44-verify-the-macos-full-suite-procedure-on-the-ec`).**
+**Unverified (follow-up: `v1/11-verify-the-macos-full-suite-procedure-on-the-ec`).**
 This procedure is modeled on the Windows harness's
 [fix loop](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#fix-loop-checkout-and-remote-commands)
 and [long native runs](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs)
@@ -225,7 +225,7 @@ arguments into one remote shell line; quote each line as a single argument.
 
    ```sh
    ./scripts/clean-install/aws-mac.sh ssh mac1 \
-     'test -d coga-work || git clone https://github.com/FastJVM/coga.git coga-work'
+     'test -d coga-work || git clone https://github.com/FastJVM/coga coga-work'
    ./scripts/clean-install/aws-mac.sh ssh mac1 \
      'cd coga-work && test -z "$(git status --porcelain)" && git fetch origin <full-sha> && git checkout --detach <full-sha> && ~/.local/bin/uv sync --python 3.11 --extra test'
    ```

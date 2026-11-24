@@ -8,7 +8,6 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from coga import git
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -149,35 +148,6 @@ def test_owner_unknown_task_errors(repo: Path) -> None:
     assert "no-such-task" in result.output
 
 
-def test_owner_lands_reassignment_and_audit_line_on_control(git_repo) -> None:
-    """The reassignment reaches control like any other lifecycle write."""
-    cfg = load_config(git_repo.coga_os)
-    ref = create_task(
-        cfg=cfg,
-        title="Hand this over",
-        workflow_name="code",
-        contexts=[],
-        owner="zach",
-        agent="claude",
-        status="paused",
-    )
-
-    git.sync_task_state(cfg, Path(ref["path"]), message="Seed ticket", strict=True)
-    result = CliRunner().invoke(app, ["owner", ref["slug"], "marc"])
-
-    assert result.exit_code == 0, result.output
-    task_rel = Path(ref["path"]).relative_to(git_repo.root).as_posix()
-    control_ticket = Ticket.parse(
-        git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
-    )
-    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    assert control_ticket.owner == "marc"
-    assert control_ticket.status == "paused"
-    assert f"[{ref['slug']}] [human:marc] owner 'zach' → 'marc'" in control_log
-    assert git_repo.origin_subjects()[0] == f"Ticket: {ref['slug']} — owner marc"
-    assert git_repo.git("status", "--short") == ""
-
-
 def _owner_gate(repo: Path) -> tuple[str, Path]:
     slug, path = _make_task(repo, status="in_progress")
     ticket = Ticket.read(path)
@@ -249,116 +219,3 @@ def test_owner_refuses_own_supervised_session(repo: Path, monkeypatch, other_che
     assert result.exit_code == 2
     assert "supervised session" in result.output
     assert path.read_bytes() == before
-
-
-@pytest.mark.parametrize("generation", ["pending:claim", "claim", "released:claim"])
-def test_owner_never_invalidates_launch_claim(repo: Path, generation: str) -> None:
-    slug, path = _owner_gate(repo)
-    ticket = Ticket.read(path)
-    ticket.frontmatter["launch_generation"] = generation
-    ticket.write(path)
-    before = path.read_bytes()
-    result = CliRunner().invoke(app, ["owner", slug, "marc", "--assist-stopped"])
-    assert result.exit_code == 2
-    assert "launch claim" in result.output
-    assert path.read_bytes() == before
-
-
-def test_owner_preserves_edit_during_validation(repo: Path, monkeypatch) -> None:
-    from coga.commands import owner as command
-
-    slug, path = _make_task(repo, status="paused")
-    original_validate = command.assert_task_valid
-    newer = Ticket.read(path)
-    newer.frontmatter.update(status="in_progress", launch_generation="new-launch")
-    newer.body += "\nNew concurrent notes.\n"
-
-    def concurrent_validation(*args, **kwargs):
-        original_validate(*args, **kwargs)
-        newer.write(path)
-
-    monkeypatch.setattr(command, "assert_task_valid", concurrent_validation)
-    result = CliRunner().invoke(app, ["owner", slug, "marc"])
-    assert result.exit_code == 75, result.output
-    assert path.read_text(encoding="utf-8") == newer.render()
-    assert "owner 'zach'" not in _read_log(repo)
-
-
-@pytest.mark.parametrize("status", ["in_progress", "blocked"])
-def test_owner_decides_from_fresh_control_copy(git_repo, monkeypatch, status) -> None:
-    """A stale feature checkout reassigns control's copy, never its own.
-
-    `owner` prepares the ticket against freshly fetched control: with no
-    unpublished local edit it adopts control's copy, rechecks eligibility
-    there (an in-progress agent step refuses), and publishes against the
-    exact control bytes it read, keeping control's notes.
-    """
-    from coga import cli
-
-    cfg = load_config(git_repo.coga_os)
-    ref = create_task(cfg=cfg, title="Stale owner", workflow_name="code",
-                      contexts=[], owner="zach", agent="claude", status="paused")
-    path = Path(ref["path"])
-    git.sync_task_state(cfg, path, message="Seed ticket", strict=True)
-    before = path.read_bytes()
-    git_repo.checkout_branch("feature")
-    newer = Ticket.read(path)
-    newer.frontmatter["status"] = status
-    newer.body += "\nNew control notes.\n"
-    rel = path.relative_to(git_repo.root).as_posix()
-    # Leave origin/main stale locally: preparation must fetch to see it.
-    git_repo.push_competing_commit(rel, newer.render())
-    monkeypatch.setattr("sys.argv", ["coga", "owner", ref["slug"], "marc"])
-    monkeypatch.setattr(cli, "_sweep_coga_state", lambda cfg: None)
-    with pytest.raises(SystemExit) as exc:
-        cli.main()
-    control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
-    if status == "in_progress":
-        assert exc.value.code == 2
-        assert path.read_bytes() == before
-        assert control.owner == "zach"
-        assert "owner 'zach'" not in _read_log(git_repo.coga_os)
-    else:
-        assert exc.value.code == 0
-        assert control.owner == "marc"
-        assert control.status == "blocked"
-        assert "New control notes." in control.body
-        assert Ticket.read(path).owner == "marc"
-
-
-@pytest.mark.parametrize("uncertain", [False, True])
-def test_owner_publication_failure_rollback(repo: Path, monkeypatch, uncertain) -> None:
-    from coga import git
-
-    slug, path = _make_task(repo, status="paused")
-    before = path.read_bytes()
-
-    def fail(*args, **kwargs):
-        assert kwargs["expect"] == {path: before}
-        assert kwargs["strict"] is True
-        if uncertain:
-            raise git.UncertainPublishError("unreadable control")
-        raise git.GitError("offline")
-
-    monkeypatch.setattr(git, "sync_task_state", fail)
-    result = CliRunner().invoke(app, ["owner", slug, "marc"])
-    assert result.exit_code == 75
-    assert Ticket.read(path).owner == ("marc" if uncertain else "zach")
-    assert ("owner 'zach'" in _read_log(repo)) == uncertain
-
-
-def test_owner_rollback_preserves_newer_local_edit(repo: Path, monkeypatch) -> None:
-    from coga import git
-
-    slug, path = _make_task(repo, status="paused")
-    newer = Ticket.read(path)
-    newer.body += "\nConcurrent editor.\n"
-
-    def fail(*args, **kwargs):
-        newer.write(path)
-        raise git.StateRegressionError("control moved")
-
-    monkeypatch.setattr(git, "sync_task_state", fail)
-    result = CliRunner().invoke(app, ["owner", slug, "marc"])
-    assert result.exit_code == 75
-    assert path.read_text(encoding="utf-8") == newer.render()

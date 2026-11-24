@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import PurePosixPath
 
 from coga.config import Config
-from coga.git import last_commit_times
 from coga.logfile import last_activity_map
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
@@ -44,34 +43,10 @@ def _git_updated_by_slug(
     return out
 
 def last_updated_map(cfg: Config, refs: list[TaskRef]) -> dict[str, datetime]:
-    """Each task's last-activity timestamp — the `Updated` column's source.
-
-    The primary source is the repo-global log (one pass builds every task's
-    last-activity stamp). The log only knows a task by its ref, so it goes
-    silent when a task directory is moved (append-only lines keep the old ref)
-    or when a ticket reached disk without passing through a logging command;
-    git saw both, so one `git log` pass backstops the blanks — see
-    `last_commit_times`. Tasks with no stamp from either source are absent.
-
-    Shared by `coga status` and the megalaunch picker so both views read one
-    clock.
-    """
+    """Read last activity from the local audit log."""
     activity = last_activity_map(cfg)
-    # Only tasks the log is silent on need git's history, and usually there
-    # are none or a handful — walking every commit under `tasks/` for them
-    # dominated `coga status` on a long-lived repo.
-    uncovered = [
-        f"{ref.id_slug}.md" if ref.file_form else ref.id_slug
-        for ref in refs
-        if ref.id_slug not in activity
-    ]
-    git_updated = _git_updated_by_slug(refs, last_commit_times(cfg, uncovered))
-    out: dict[str, datetime] = {}
-    for ref in refs:
-        stamp = activity.get(ref.id_slug) or git_updated.get(ref.id_slug)
-        if stamp is not None:
-            out[ref.id_slug] = stamp
-    return out
+    return {ref.id_slug: activity[ref.id_slug] for ref in refs if ref.id_slug in activity}
+
 
 def operator_cell(cfg: Config, ref: TaskRef, ticket: Ticket) -> str:
     """The derived-operator column for one row.

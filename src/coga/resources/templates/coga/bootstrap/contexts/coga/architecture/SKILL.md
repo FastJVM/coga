@@ -33,10 +33,8 @@ files.
 
 ## The correction loop
 
-An agent errs; the human fixes the owning file and commits; the next launch
-composes the fix. Dream proposes its corrections as PRs and never edits
-operating rules on control itself; a human's edit inside the Coga roots
-publishes directly ([coga/state-publication](../state-publication/SKILL.md)).
+An agent errs. The human fixes the owning file, and the next launch
+composes the fix. Use the repository’s normal Git workflow to share it.
 
 ## Who Coga acts as
 
@@ -66,16 +64,13 @@ owns it. A ticket's `secrets:` declares intent, not confinement
   [human-assist](../human-assist/SKILL.md),
   [recurring](../recurring/SKILL.md),
   [period-task](../period-task/SKILL.md).
-- **State**: [sync](../sync/SKILL.md),
+- **State**: [Git](../git/SKILL.md),
   [notifications](../notifications/SKILL.md),
   [important](../important/SKILL.md),
-  [state-publication](../state-publication/SKILL.md),
   [usage](../usage/SKILL.md).
 - **Extend and ship code**: [extension-model](../extension-model/SKILL.md),
   [skill-management](../skill-management/SKILL.md),
   [edge-code](../edge-code/SKILL.md), [sandboxes](../sandboxes/SKILL.md),
-  [checkouts](../checkouts/SKILL.md),
-  [checkout-cleanup](../checkout-cleanup/SKILL.md),
   [pr-publication](../pr-publication/SKILL.md).
 
 Each topic links its own children.

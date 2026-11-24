@@ -15,9 +15,7 @@ on the next launch. There is no follow-up loading.
 
 1. **Header**: task ref, title, exact task directory, status.
 2. **Base prompt** (resource `prompt.md`): the rules every session needs —
-   checkout start, ticket-file editing rules, boundaries; neutral on conduct.
-   Its shared reconciliation checkpoint directs agents to
-   [coga/checkouts/reconciliation](../checkouts/reconciliation/SKILL.md).
+   ticket-file editing rules, boundaries, and the [Git conventions](../git/SKILL.md).
    **Ticket loop** (resource `prompt-ticket.md`) follows it for a task ticket
    only: the blackboard, `bump`, and `block` loop. A stateless
    `bootstrap/<name>` target omits it, since it has no lifecycle; its own
@@ -35,14 +33,6 @@ on the next launch. There is no follow-up loading.
    workflow definition ([coga/workflows](../workflows/SKILL.md)).
 8. **The ticket**, contiguous in on-disk order: `## Description`, then
    `## Context`, then the live blackboard.
-9. **Checkout notice** (`## Checkout (runtime)`): generated, never a
-   resource. It states the branch launch observed, any ticket it projected,
-   who returns the checkout, and for a direct chat the exact
-   `coga run prepare-checkout` invocation. Without one (megalaunch,
-   recurring) it states that no preparation was supplied and points to
-   [coga/checkouts](../checkouts/SKILL.md). Being generated, it stays true
-   under a repo's older `resources/prompt.md` override.
-
 After the task layers, launch appends a `## Launch arguments` JSON block only
 when positional launch arguments were given ([coga/launch](../launch/SKILL.md)).
 The last line of every spawned prompt is a unique `coga-launch: <uuid>`
@@ -164,9 +154,7 @@ bytes, `approx_tokens` = ceil(chars/4)) and the total, all measured on the
 normalized text; the `session_conduct`
 line names the selected resource, the ticket's regions stay separate lines so
 an oversized blackboard is visible, and layers read from a repo override are
-listed under `Repo resource overrides:`. It works on drafts and skips the
-end-of-command state sweep
-([coga/launch](../launch/SKILL.md#options-and-exits)). A prompt too large for
+listed under `Repo resource overrides:`. It works on drafts. A prompt too large for
 one argv argument is delivered as a pointer to the prompt file;
 such a size usually means context bloat.
 
@@ -197,7 +185,7 @@ authoring, was **disqualified**:
 Reopening needs a materially revised candidate with a new owner-approved
 protocol and a new paired comparison; this evidence does not carry over. A
 revision should keep authoring free of execution-loop text without weakening
-the owner-assist and [reconciliation](../checkouts/reconciliation/SKILL.md)
+the owner-assist and [coga/git](../git/SKILL.md)
 guidance that keeps a read-only assist from merging into a prepared branch.
 Evidence: the
 [trial report](https://github.com/FastJVM/coga/blob/7a40b520f248e715fb78c03e9124e48d11b5e098/coga/tasks/v1/microkernel/03-prompt-assembly/02-compare-current-and-candidate-prompt-assembly/report.md)

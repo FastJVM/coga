@@ -16,7 +16,6 @@ from textwrap import dedent
 
 import pytest
 
-from coga import git
 from coga.compose import ComposeError, compose_prompt
 from coga.config import ConfigError, load_config
 from coga.create import create_task
@@ -116,79 +115,6 @@ def relocated_repo(tmp_path: Path) -> Path:
     return coga_os
 
 
-def test_relocated_contexts_resolve_compose_validate_and_sync(
-    relocated_repo: Path,
-    real_git,
-) -> None:
-    # `real_git` opts this test out of the suite-wide `sync_coga_state` no-op,
-    # so the final stage exercises the actual pathspec derivation.
-    checkout = relocated_repo.parent
-    cfg = load_config(relocated_repo)
-
-    # resolve — the ref points at the relocated file, not the packaged battery.
-    resolved = resolve_context_path(cfg, "email/payment-flow")
-    assert resolved == checkout / "docs" / "contexts" / "email" / "payment-flow" / "SKILL.md"
-
-    # create — a ref outside `coga/` is accepted, not reported as unknown.
-    create_task(
-        cfg=cfg,
-        title="Fix retry logic",
-        workflow_name="code/with-review",
-        contexts=["email/payment-flow"],
-        owner="marc",
-        agent="claude",
-        status="active",
-    )
-    ref = resolve_task(cfg, "fix-retry-logic")
-
-    # compose — the relocated context's body lands in the prompt. Without this
-    # the ref would silently fall through to the packaged bootstrap batteries.
-    prompt = compose_prompt(cfg, ref, read_ticket(ref))
-    assert "Stripe retries on 429." in prompt
-
-    # validate — no broken-context issue for a ref that lives outside `coga/`.
-    report = validate_task(cfg, "fix-retry-logic")
-    assert [i for i in report.issues if i.kind == "broken-context"] == []
-
-    # sync — the created task reaches origin, and so do an edit to a relocated
-    # context and a new one (build's product/vision shape): the contexts root
-    # is a Coga root, published by the sweep without a knowledge branch.
-    resolved.write_text(resolved.read_text(encoding="utf-8") + "\nRetry-After is authoritative.\n", encoding="utf-8", newline="\n")
-    vision = checkout / "docs" / "contexts" / "product" / "vision" / "SKILL.md"
-    vision.parent.mkdir(parents=True)
-    vision.write_text(
-        "---\nname: product/vision\ndescription: What we build.\n---\n\nA retry service.\n",
-        encoding="utf-8", newline="\n",
-    )
-    ticket = read_ticket(ref)
-    ticket.frontmatter["contexts"] = ["email/payment-flow", "product/vision"]
-    ticket.write(ref.ticket_path)
-    git.sync_coga_state(cfg, message="Sync coga state")
-
-    tracked = _git(
-        tmp_origin := checkout.parent / "origin.git",
-        "ls-tree", "-r", "--name-only", "main",
-    ).splitlines()
-    assert "docs/contexts/email/payment-flow/SKILL.md" in tracked
-    assert "coga/tasks/fix-retry-logic.md" in tracked
-    committed = _git(
-        tmp_origin, "show", "main:docs/contexts/email/payment-flow/SKILL.md"
-    )
-    assert "Retry-After is authoritative." in committed
-    assert "docs/contexts/product/vision/SKILL.md" in tracked
-
-    clone = checkout.parent / "fresh-clone"
-    _git(checkout.parent, "clone", "--branch", "main", str(tmp_origin), str(clone))
-    clone_cfg = load_config(clone / "coga", require_user=False)
-    clone_ref = resolve_task(clone_cfg, "fix-retry-logic")
-    clone_prompt = compose_prompt(clone_cfg, clone_ref, read_ticket(clone_ref))
-    assert "Stripe retries on 429." in clone_prompt
-    assert "Retry-After is authoritative." in clone_prompt
-    assert "A retry service." in clone_prompt
-    clone_report = validate_task(clone_cfg, "fix-retry-logic")
-    assert [i for i in clone_report.issues if i.kind == "broken-context"] == []
-
-
 def test_default_layout_still_resolves_inside_coga_root(tmp_path: Path) -> None:
     """The unset default is unchanged: contexts stay at `coga/contexts/`."""
     coga_os = tmp_path / "coga"
@@ -237,9 +163,9 @@ def test_context_artifacts_rejected_before_fallback(
     # Use a bundled ref: an invalid local artifact must never become a miss.
     create_task(
         cfg=cfg, title="Check artifact", workflow_name="code/with-review",
-        contexts=["coga/sync"], owner="marc", agent="claude", status="active",
+        contexts=["coga/git"], owner="marc", agent="claude", status="active",
     )
-    artifact = cfg.contexts_root / "coga" / "sync" / "SKILL.md"
+    artifact = cfg.contexts_root / "coga" / "git" / "SKILL.md"
     artifact.parent.mkdir(parents=True)
     target = tmp_path / "machine-local.md"
     target.write_text("MACHINE LOCAL MARKER\n", encoding="utf-8", newline="\n")
@@ -262,7 +188,7 @@ def test_context_artifacts_rejected_before_fallback(
         artifact.symlink_to(target)
     elif kind in {"dangling-ancestor", "cyclic-ancestor"}:
         artifact.parent.rmdir()
-        artifact.parent.symlink_to("sync" if kind == "cyclic-ancestor" else "missing")
+        artifact.parent.symlink_to("git" if kind == "cyclic-ancestor" else "missing")
     elif kind == "ancestor":
         artifact.parent.rmdir()
         target = tmp_path / "external-context"
@@ -272,7 +198,7 @@ def test_context_artifacts_rejected_before_fallback(
         artifact.symlink_to(target)
 
     with pytest.raises(ConfigError, match="symlink"):
-        resolve_context_path(cfg, "coga/sync")
+        resolve_context_path(cfg, "coga/git")
     ref = resolve_task(cfg, "check-artifact")
     with pytest.raises(ComposeError, match="symlink"):
         compose_prompt(cfg, ref, read_ticket(ref))
@@ -295,12 +221,12 @@ def test_context_artifacts_rejected_before_fallback(
         assert relocated and "symlink" in str(exc)
     else:
         with pytest.raises(ConfigError, match="symlink"):
-            resolve_context_path(clone_cfg, "coga/sync")
+            resolve_context_path(clone_cfg, "coga/git")
 
 
 @pytest.mark.parametrize("relocated", [False, True])
-@pytest.mark.parametrize("kind", ["ignored", "nested-checkout", "directory"])
-def test_unpublishable_regular_context_rejected(
+@pytest.mark.parametrize("kind", ["nested-checkout", "directory"])
+def test_invalid_regular_context_rejected(
     relocated_repo: Path, relocated: bool, kind: str,
 ) -> None:
     if not relocated:
@@ -309,17 +235,15 @@ def test_unpublishable_regular_context_rejected(
             '[layout]\ncontexts = "docs/contexts"', "",
         ), encoding="utf-8", newline="\n")
     cfg = load_config(relocated_repo)
-    artifact = cfg.contexts_root / "coga" / "sync" / "SKILL.md"
+    artifact = cfg.contexts_root / "coga" / "git" / "SKILL.md"
     _write(artifact, "unpublishable context\n")
-    if kind == "ignored":
-        _write(relocated_repo.parent / ".gitignore", "**/sync/SKILL.md\n")
-    elif kind == "nested-checkout":
+    if kind == "nested-checkout":
         _git(artifact.parent, "init", "-q")
     else:
         artifact.unlink()
         artifact.mkdir()
     with pytest.raises(ConfigError):
-        resolve_context_path(cfg, "coga/sync")
+        resolve_context_path(cfg, "coga/git")
 
 
 def test_context_attachment_symlink_does_not_change_resolution(relocated_repo: Path) -> None:

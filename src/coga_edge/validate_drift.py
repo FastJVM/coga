@@ -152,6 +152,13 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
     kind = issue.kind
     message = issue.message
 
+    if kind == "obsolete-key":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation="Review obsolete configuration locally. Leave frozen workflow snapshots intact.",
+        )
+
     if kind == "blackboard-fence":
         # v2 single-file: `coga validate --fix` appends a missing
         # `<!-- coga:blackboard -->` fence + a fresh blackboard region.
@@ -777,6 +784,7 @@ def recipe_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Allow --commit-and-push while on main/master.",
     )
+    parser.add_argument("--remote", default="origin", help="Git remote for --commit-and-push.")
     parser.add_argument(
         "--commit-message",
         default="Dream: repair validation drift",
@@ -813,12 +821,11 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
         if args.commit_and_push:
             if not fix:
                 raise RuntimeError("--commit-and-push requires the fix pass")
-            worker_cfg = load_worker_config(args.cwd)
             git_result = commit_and_push_fixes(
                 cwd=args.cwd or Path.cwd(),
                 fixes=fixes,
                 message=args.commit_message,
-                remote=worker_cfg.git_remote,
+                remote=args.remote,
                 allow_main_push=args.allow_main_push,
             )
         report = render_blackboard_report(

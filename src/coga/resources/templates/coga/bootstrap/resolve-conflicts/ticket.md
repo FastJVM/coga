@@ -46,9 +46,8 @@ Only update PRs targeting `main`. Report a PR with another base as
 `conflict` with the base named; do not retarget or rebase it.
 
 Leave human-review PRs to the human. A PR whose title starts with
-`Human Review needed` was opened by a lifecycle command for an ambiguous
-ticket status conflict (`coga/state-publication`, "Human review of status
-conflicts"); its conflict with `main` is the question it asks. Report it as
+`Human Review needed` is a legacy ticket conflict reserved for its owner.
+Report it as
 `skipped-human-review` before any refresh, worktree, or rebase, even when it
 is the selected PR.
 
@@ -147,5 +146,5 @@ stateless target is what tells the launch supervisor the command is complete.
 
 A Slack failure is a command failure and must be surfaced: state it in your
 final report, then still run `coga mark done` so the session ends promptly.
-If `mark done` exits 75, report its retained log line. Do not persist the
+Do not persist the
 per-PR lines or roll-up in this command ticket or in any other task file.

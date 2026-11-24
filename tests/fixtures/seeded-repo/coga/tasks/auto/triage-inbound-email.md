@@ -8,20 +8,26 @@ contexts:
 workflow:
   name: code/with-review
   steps:
+  - name: open-branch
+    run: git/open-branch
+    assignee: agent
+    requires: branch
   - name: implement
     skills:
     - infra/testing-conventions
     assignee: agent
-  - name: pr
-    skills: []
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: push-and-open-pr
+    run: git/push-and-open-pr
     assignee: agent
-  - name: approve
-    skills: []
+    requires: pr
+  - name: review
     assignee: owner
-  - name: merge
-    skills: []
-    assignee: owner
-step: 1 (implement)
+step: 1 (open-branch)
 ---
 
 ## Description

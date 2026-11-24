@@ -258,7 +258,11 @@ def test_clone_timeout_kills_descendant_holding_stdout(repo: Path, parent_waits:
             break
         # An orphan may await init's reap, but must no longer be executing.
         stat = Path(f"/proc/{pid}/stat")
-        if stat.exists() and stat.read_text(encoding="utf-8").split()[2] == "Z":
+        try:
+            if stat.exists() and stat.read_text(encoding="utf-8").split()[2] == "Z":
+                break
+        except (FileNotFoundError, ProcessLookupError):
+            # The child was reaped while we inspected its procfs entry.
             break
         time.sleep(0.01)
     else:
@@ -427,7 +431,6 @@ def test_named_launch_runs_a_clone_template_now(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _clone_template(repo)
-    monkeypatch.setattr(recurring_cmd, "_relay_off_control_single_repo_run", lambda *a: None)
     monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **k: None)
 
     first = CliRunner().invoke(app, ["recurring", "launch", "local-sweep"])
@@ -457,14 +460,14 @@ def test_clone_only_sweep_skips_shared_templates(
     assert list_tasks(load_config(repo)) == []
 
 
-def test_ledger_lives_in_the_primary_checkout_for_a_linked_worktree(git_repo) -> None:
-    """A run from a temporary control worktree counts for the clone that owns it."""
+def test_ledger_lives_in_the_current_linked_checkout(git_repo) -> None:
+    """A linked checkout keeps its own local recurring ledger."""
     linked = git_repo.root.parent / "linked"
     git_repo.git("worktree", "add", "--detach", str(linked))
 
     cfg = load_config(linked / "coga", require_user=False)
 
-    assert clone_state_dir(cfg) == git_repo.coga_os / ".coga" / "recurring-clone"
+    assert clone_state_dir(cfg) == linked / "coga" / ".coga" / "recurring-clone"
 
 
 def _frozen_datetime() -> type[datetime]:

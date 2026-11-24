@@ -21,7 +21,6 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from coga import autoclose as am
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -371,52 +370,20 @@ def test_slack_fyi_includes_title(
 # --- automerge ----------------------------------------------------------------
 
 
-def test_automerge_links_pr_and_shows_prev_to_done(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    url = "https://github.com/o/r/pull/7"
-    slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
-    monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
-    monkeypatch.setattr(am, "unanswered_review_threads", lambda u: [])
-    posts = _capture(monkeypatch)
-
-    result = am.sweep_merged(load_config(repo), quiet=True)
-    assert len(result.closed) == 1
-    assert _body(posts, "🎉") == (
-        f"🎉 *{slug}* \"Work\": merge → done — <{url}|PR #7> merged"
-    )
-
-
-def test_automerge_workflowless_collapses_and_links(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    url = "https://github.com/o/r/pull/9"
-    slug, _ = _make_task(repo, workflow=None, status="active", pr_url=url)
-    monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
-    monkeypatch.setattr(am, "unanswered_review_threads", lambda u: [])
-    posts = _capture(monkeypatch)
-
-    result = am.sweep_merged(load_config(repo), quiet=True)
-    assert len(result.closed) == 1
-    assert _body(posts, "🎉") == (
-        f"🎉 *{slug}* \"Work\" finished — <{url}|PR #9> merged"
-    )
-
-
 # --- recurring create -------------------------------------------------------
 
 
 def test_recurring_create_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from coga.recurring_runner import _broadcast_scan
+    from coga.recurring_runner import _report_scan_notes
     from coga.recurring import DueScan, DueTask
     from coga.tasks import TaskRef
 
     # Recurring period tasks are always directory-form because they may carry
     # deterministic and state-snapshot siblings. The `TaskRef` below must agree:
     # with `file_form=True`, `ticket_path` returns the directory itself and
-    # `_broadcast_scan`'s period-lease read raises IsADirectoryError before the
+    # `_report_scan_notes`'s period-lease read raises IsADirectoryError before the
     # notification assertion is ever reached.
     slug, path = _make_task(repo, status="active", force_directory=True)
     posts = _capture(monkeypatch)
@@ -435,7 +402,7 @@ def test_recurring_create_is_silent(
         ],
         errors=[],
     )
-    _broadcast_scan(cfg, scan)
+    _report_scan_notes(cfg, scan)
     assert posts == []
 
 
@@ -443,11 +410,11 @@ def test_recurring_scan_error_posts_live_to_important(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from coga.recurring import DueScan
-    from coga.recurring_runner import _broadcast_scan
+    from coga.recurring_runner import _report_scan_notes
 
     urls: list[str] = []
     posts = _capture(monkeypatch, urls=urls)
-    _broadcast_scan(
+    _report_scan_notes(
         load_config(repo),
         DueScan(tasks=[], errors=[("bad", "invalid schedule")]),
     )
@@ -463,7 +430,7 @@ def test_recurring_scan_error_without_important_webhook_does_not_abort(
 ) -> None:
     """A repo with no resolved important webhook must still finish its sweep.
 
-    Regression: `_broadcast_scan` sent the skipped-template summary with an
+    Regression: `_report_scan_notes` sent the skipped-template summary with an
     unwrapped `important=True`, so the channel's configuration refusal
     propagated out of the scan phase — which runs before the launch loop — and
     took the whole sweep down over a report already on stderr and in the scan
@@ -471,12 +438,12 @@ def test_recurring_scan_error_without_important_webhook_does_not_abort(
     omitting the key.
     """
     from coga.recurring import DueScan
-    from coga.recurring_runner import _broadcast_scan
+    from coga.recurring_runner import _report_scan_notes
 
     monkeypatch.delenv("COGA_IMPORTANT_WEBHOOK_URL")
     urls: list[str] = []
     posts = _capture(monkeypatch, urls=urls)
-    _broadcast_scan(
+    _report_scan_notes(
         load_config(repo),
         DueScan(tasks=[], errors=[("bad", "invalid schedule")]),
     )

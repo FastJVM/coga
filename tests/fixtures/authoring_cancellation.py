@@ -1,4 +1,4 @@
-"""Isolated CLI/agent processes for the synchronized authoring teardown test."""
+"""Isolated CLI and agent processes for the PTY authoring cancellation test."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import signal
 import subprocess
 import sys
 
-from coga import cli, git, launch, repl_supervisor
+from coga import cli, launch, repl_supervisor
 from coga.ticket import Ticket
 
 
@@ -20,13 +20,6 @@ settings = json.loads((state / "settings.json").read_text(encoding="utf-8"))
 
 def record(name: str, value: object = True) -> None:
     (state / name).write_text(json.dumps(value), encoding="utf-8", newline="\n")
-
-
-def remote(path: str) -> str:
-    return subprocess.check_output(
-        ["git", "--git-dir", settings["origin"], "show", f"main:{path}"],
-        text=True, encoding="utf-8",
-    )
 
 
 if role == "agent":
@@ -42,78 +35,29 @@ if role == "agent":
         "---\nname: team\ndescription: Team knowledge.\n---\nHandoff context.\n",
         encoding="utf-8", newline="\n",
     )
-    child = subprocess.Popen([sys.executable, __file__, "cancel", state_dir])
-
-    def terminate_agent(signum, frame):
-        # The real supervisor signals the entire group. Reap our CLI child so
-        # its interrupted/completed sweep is proven before the outer finalizer.
-        record("cancel-exit.json", child.wait(timeout=5))
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, terminate_agent)
-    record("agent-ready")
-    if settings["child_sweep"] == "completed":
-        record("child-reaped", child.wait(timeout=10))
+    child = subprocess.run([sys.executable, __file__, "cancel", state_dir], check=False)
+    record("cancel-exit.json", child.returncode)
     while True:
         signal.pause()
 
 elif role == "cancel":
-    def terminate_cancel(signum, frame):
-        record("cancel-terminated")
-        sys.exit(143)
-
-    signal.signal(signal.SIGTERM, terminate_cancel)
-    sweep = cli._sweep_coga_state
-
-    def child_sweep(cfg):
-        # mark canceled has published its own transition and requested the
-        # done marker before cli.main reaches this boundary. No timing sleeps.
-        record("child-sweep-entered")
-        if settings["child_sweep"] == "interrupted":
-            # cli.main withholds that marker until the boundary returns, so
-            # Coga's own teardown never interrupts this sweep. Model a stop
-            # that still lands mid-sweep (an external kill) by releasing the
-            # held marker early.
-            held = repl_supervisor._deferred_done.get()
-            repl_supervisor._deferred_done.set(None)
-            repl_supervisor.emit_done_marker(held[-1])
-            while True:
-                signal.pause()
-        sweep(cfg)
-        record("child-sweep-completed")
-
-    cli._sweep_coga_state = child_sweep
     sys.argv = ["coga", "mark", "canceled", "duplicate", "--message", "Use sibling"]
-    try:
-        cli.main()
-    except SystemExit as exc:
-        if exc.code not in (None, 0):
-            raise
-    record("cancel-completed")
+    cli.main()
 
 elif role == "outer":
     command = importlib.import_module("coga.commands.ticket")
-    # Match test_repl_supervisor's forced-PTY harness: proxy to captured stdout
-    # and /dev/null stdin, but exercise the real pty.fork and process-group stop.
     command.interactive_stdio_has_tty = lambda: True
     sys.stdout.isatty = lambda: True
     signals_done = repl_supervisor._sentinel_signals_done
 
     def gated_done(path, session_id):
-        gate = (
-            "child-sweep-entered" if settings["child_sweep"] == "interrupted"
-            else "child-reaped"
-        )
-        return (
-            (state / "agent-ready").exists() and (state / gate).exists()
-            and signals_done(path, session_id)
-        )
+        return (state / "cancel-exit.json").exists() and signals_done(path, session_id)
 
     repl_supervisor._sentinel_signals_done = gated_done
     run_agent = launch.run_with_done_marker
 
     def run_with_watchdog(*args, **kwargs):
-        kwargs["max_session"] = 15  # failure backstop, never the synchronization
+        kwargs["max_session"] = 15
         outcome = run_agent(*args, **kwargs)
         record("outcome.json", {
             "kind": outcome.kind, "exit_code": outcome.exit_code,
@@ -122,33 +66,6 @@ elif role == "outer":
         return outcome
 
     launch.run_with_done_marker = run_with_watchdog
-    finalize = command.finalize_authored
-
-    def observed_finalize(*args, **kwargs):
-        record("before-finalize.json", {
-            "target": remote("coga/tasks/duplicate.md"),
-            "sibling": remote("coga/tasks/sibling.md"),
-        })
-        publish = git.publish
-
-        def observed_publish(cfg, paths, *args, **kwargs):
-            record("finalizer-publish.json", [str(path) for path in paths])
-            return publish(cfg, paths, *args, **kwargs)
-
-        git.publish = observed_publish
-        try:
-            return finalize(*args, **kwargs)
-        finally:
-            git.publish = publish
-
-    command.finalize_authored = observed_finalize
-    sweep = cli._sweep_coga_state
-
-    def outer_sweep(cfg):
-        record("outer-sweep.json", {"withheld": git.state_sweep_withheld.get()})
-        return sweep(cfg)
-
-    cli._sweep_coga_state = outer_sweep
     sys.argv = ["coga", "ticket", "duplicate", "--agent", "claude"]
     cli.main()
 

@@ -71,11 +71,10 @@ DEPENDENCIES: tuple[Dependency, ...] = (
     Dependency(
         name="git",
         purpose=(
-            "Coga stores all task state in git and vendors its CLI via a "
-            "clone — nothing works without it."
+            "Version control and Git-backed workflow steps."
         ),
         install="https://git-scm.com/downloads",
-        required_at_init=True,
+        required_at_init=False,
         offer_install=True,
         packages={
             "brew": ("git",),
@@ -88,14 +87,8 @@ DEPENDENCIES: tuple[Dependency, ...] = (
     Dependency(
         name="gh",
         purpose=(
-            "GitHub PR workflows — opening PRs, the merged-ticket autoclose "
-            "sweep, and the explicit `gh skill`-backed `coga skill install` / "
-            "`update`. Run `gh auth login` once installed. Not required at "
-            "init: init installs no skills, and every consumer enforces `gh` "
-            "at the point of need — `coga skill install`, the open-pr step, "
-            "and the autoclose sweep fail loud with setup hints, and "
-            "`coga validate --check-github` probes install/auth proactively — "
-            "so init works on a machine that never opens PRs."
+            "GitHub CLI is required for GitHub workflows and GitHub-backed "
+            "skill installation and updates. Authenticate with gh auth login."
         ),
         install="https://cli.github.com",
         required_at_init=False,

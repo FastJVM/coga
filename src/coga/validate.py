@@ -40,7 +40,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -48,7 +47,6 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-from coga import git
 from coga.atomicio import atomic_write_text
 from coga.compose import _extract_section
 from coga.blackboard import (
@@ -65,7 +63,7 @@ from coga.config import (
     parse_inline_secrets,
 )
 from coga.logfile import last_activity
-from coga.launch_script import SCRIPT_ENTRY_POINT, script_entry_point
+from coga.launch_script import SCRIPT_ENTRY_POINT, resolve_step_script, script_entry_point
 from coga.lifecycle import (
     MAIN_AGENT_REQUIRED_STATUSES,
     TERMINAL_STATUSES,
@@ -111,7 +109,6 @@ from coga.tasks import (
 from coga.ticket import REJECTED_TICKET_KEYS, Ticket, TicketError
 from coga.step_gate import known_gate_tokens
 from coga.workflow import (
-    CHECKOUT_POLICIES,
     VALID_ASSIGNEE_ROLES,
     Workflow,
     WorkflowError,
@@ -137,16 +134,12 @@ OPTIONAL_TASK_KEYS: frozenset[str] = frozenset(
         "skills",
         "secrets",
         "delegate",
-        "period_generation",
-        "launch_generation",
     }
 )
 _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "title",
     "owner",
     "agent",
-    "period_generation",
-    "launch_generation",
 )
 _LIVE_WORKFLOW_STATUSES: frozenset[str] = frozenset(
     {"active", "in_progress", "blocked", "paused"}
@@ -218,10 +211,16 @@ def run(
     idle_hours: float = 72.0,
     max_blackboard_bytes: int = BLACKBOARD_WARN_BYTES,
     check_slack: bool = False,
-    check_github: bool = False,
     fix: bool = False,
 ) -> Report:
     report = Report(generated_at=_now_iso())
+    if cfg.obsolete_git_config:
+        report.issues.append(Issue(
+            kind="obsolete-key", task="(config)",
+            message="Remove the obsolete [git] table",
+            severity="warn",
+        ))
+
 
     # `coga validate` loads config with `require_user=False` so a teammate's
     # fresh clone (no gitignored `coga.local.toml` yet) can run diagnostics at
@@ -246,8 +245,6 @@ def run(
     if check_slack:
         report.issues.extend(_notification_issues(cfg))
 
-    if check_github:
-        report.issues.extend(_github_issues(cfg))
 
     now = datetime.now(timezone.utc)
 
@@ -456,7 +453,6 @@ def _check_one_task(
 
     out.extend(_check_frontmatter_schema(cfg, task_label, ticket))
     out.extend(_check_task_delegate(cfg, ref, ticket))
-    out.extend(_check_period_generation_owner(ref, ticket))
     out.extend(_check_secrets(cfg, task_label, ticket))
 
     out.extend(_check_operator(cfg, ref, ticket))
@@ -657,30 +653,6 @@ def _check_task_delegate(
     return []
 
 
-def _check_period_generation_owner(
-    ref: TaskRef, ticket: Ticket
-) -> list[Issue]:
-    """Keep the runner-owned generation witness on materialized periods."""
-    if "period_generation" not in ticket.frontmatter:
-        return []
-    value = ticket.frontmatter["period_generation"]
-    if not isinstance(value, str) or not value.strip():
-        # The schema check owns the shape diagnostic.
-        return []
-    if ref.directory == "recurring" and not ref.file_form:
-        return []
-    return [Issue(
-        kind="invalid-period-generation-owner",
-        task=ref.id_slug,
-        message=(
-            "`period_generation` is runner-owned state reserved for "
-            "materialized directory-form tasks directly under "
-            "tasks/recurring/"
-        ),
-        severity="error",
-    )]
-
-
 def _check_entry_point_dir(task_dir: Path, label: str) -> list[Issue]:
     """Shared compile check for a directory's reserved ``ticket.py``."""
     entry = task_dir / SCRIPT_ENTRY_POINT
@@ -746,6 +718,13 @@ def _check_frontmatter_schema(
 
     out.extend(_check_main_agent(cfg, task_label, ticket))
 
+    obsolete_keys = {"launch_generation", "period_generation"} & fm.keys()
+    for key in sorted(obsolete_keys):
+        out.append(Issue(
+            kind="obsolete-key", task=task_label,
+            message=f"Remove obsolete frontmatter key {key!r}",
+            severity="warn",
+        ))
     extension_keys = set(cfg.ticket_fields)
     extra = (
         set(fm)
@@ -753,6 +732,7 @@ def _check_frontmatter_schema(
         - OPTIONAL_TASK_KEYS
         - REJECTED_TICKET_KEYS
         - extension_keys
+        - obsolete_keys
     )
     for key in sorted(extra):
         out.append(Issue(
@@ -1102,22 +1082,47 @@ def _check_step_shape(
             ),
             severity="error",
         ))
-    # Absent is valid: a snapshot frozen before `checkout:` existed selects
-    # its entry from the legacy table (coga.checkout_policy).
-    if "checkout" in step and (
-        not isinstance(step["checkout"], str)
-        or step["checkout"] not in CHECKOUT_POLICIES
-    ):
+    run = step.get("run")
+    if run is not None:
+        out.extend(_check_step_run(cfg, task_label, ticket.workflow["steps"], idx, run))
+    if "checkout" in step:
         out.append(Issue(
-            kind="bad-shape",
-            task=task_label,
-            message=(
-                f"workflow step #{idx} checkout {step['checkout']!r} must be one "
-                f"of {list(CHECKOUT_POLICIES)}"
-            ),
-            severity="error",
+            kind="obsolete-key", task=task_label,
+            message=f"workflow step #{idx} ignores its legacy checkout key",
+            severity="warn",
         ))
     return out
+
+
+def _check_step_run(
+    cfg: Config, task_label: str, steps: list, index: int, run: object,
+) -> list[Issue]:
+    from coga.bump import effective_step_role
+
+    try:
+        if not isinstance(run, str) or not run.strip():
+            raise ConfigError("run must be a skill ref")
+        if effective_step_role(steps, index) == "owner":
+            raise ConfigError("an owner step cannot declare run")
+        resolve_step_script(cfg, run)
+    except (ConfigError, OSError, ValueError) as exc:
+        return [Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"workflow step #{index}: {exc}",
+            severity="error",
+        )]
+    return []
+
+
+def _check_workflow_runs(cfg: Config, task_label: str, workflow: Workflow) -> list[Issue]:
+    steps = workflow.freeze()["steps"]
+    return [
+        issue
+        for index, step in enumerate(steps, start=1)
+        if "run" in step
+        for issue in _check_step_run(cfg, task_label, steps, index, step["run"])
+    ]
 
 
 def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
@@ -1187,6 +1192,12 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
             ),
             severity="warn",
         ))
+        try:
+            workflow = Workflow.load(resolve_workflow_path(cfg, wf))
+        except WorkflowError:
+            pass
+        else:
+            out.extend(_check_workflow_runs(cfg, task_label, workflow))
 
     return out
 
@@ -1459,6 +1470,7 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             workflow = Workflow.load(resolve_workflow_path(cfg, workflow_name))
         except WorkflowError:
             continue
+        out.extend(_check_workflow_runs(cfg, f"recurring/{path.name}", workflow))
         # Report the delegated bound on the *template*, so an ineligible
         # combination is visible in a sweep rather than only when the sweep that
         # fires it refuses to materialize a period.
@@ -1525,15 +1537,8 @@ def _check_shebang_executables(cfg: Config) -> list[Issue]:
     for label, root in roots:
         if not root.is_dir():
             continue
-        index_modes: dict[Path, int] | None = None
-        use_working_tree = _working_tree_carries_mode()
-        if use_working_tree:
-            filemode = _git_output(root, "config", "--local", "--bool", "--get", "core.fileMode")
-            use_working_tree = filemode is None or filemode.strip() != "false"
-        if not use_working_tree:
-            index_modes = _git_index_modes(root)
-            if index_modes is None:
-                continue
+        if os.name != "posix":
+            continue
         for directory, subdirs, filenames in os.walk(root):
             subdirs[:] = sorted(name for name in subdirs if name not in _SKIPPED_SCRIPT_DIRS)
             for filename in sorted(filenames):
@@ -1541,12 +1546,7 @@ def _check_shebang_executables(cfg: Config) -> list[Issue]:
                 rel = path.relative_to(root)
                 if path.is_symlink() or not path.is_file() or not _has_shebang(path):
                     continue
-                if index_modes is None:
-                    executable = bool(path.stat().st_mode & 0o111)
-                elif rel in index_modes:
-                    executable = bool(index_modes[rel] & 0o111)
-                else:
-                    continue  # untracked: nothing committed to check
+                executable = bool(path.stat().st_mode & 0o111)
                 if executable:
                     continue
                 remediation = (
@@ -1574,51 +1574,6 @@ def _has_shebang(path: Path) -> bool:
             return handle.read(2) == b"#!"
     except OSError:
         return False
-
-
-def _working_tree_carries_mode() -> bool:
-    """Whether `stat` reflects the executable bit on this platform."""
-    return os.name == "posix"
-
-
-def _git_index_modes(root: Path) -> dict[Path, int] | None:
-    """Index modes of tracked files under `root`, keyed relative to it.
-
-    None when git is unavailable or `root` is not inside a checkout.
-    """
-    listing = _git_output(root, "ls-files", "--stage", "-z", "--", ".")
-    if listing is None:
-        return None
-    modes: dict[Path, int] = {}
-    for entry in listing.split("\0"):
-        if not entry:
-            continue
-        meta, _, rel = entry.partition("\t")
-        modes[Path(rel)] = int(meta.split()[0], 8)
-    return modes
-
-
-def _git_output(root: Path, *args: str) -> str | None:
-    """Run a read-only git query in `root`; None on any failure.
-
-    `coga validate` must work in a Coga repo that is not a git checkout, so
-    a missing binary or a non-repo directory is an answer, not an error.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(root), *args],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="surrogateescape",
-            check=False,
-            env=git._git_env(),
-        )
-    except OSError:
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout
 
 
 def _format_paths(paths: tuple[Path, ...] | tuple[Path, Path]) -> str:
@@ -1702,12 +1657,12 @@ def _check_workflow_shape(
                 for frozen_step in wf.get("steps", []) or []:
                     if not isinstance(frozen_step, dict):
                         continue
-                    if frozen_step.get("skills"):
+                    if frozen_step.get("skills") or frozen_step.get("run"):
                         continue
                     step_name = frozen_step.get("name")
                     if not isinstance(step_name, str):
                         continue
-                    if current_workflow.inline_instructions.get(step_name):
+                    if current_workflow.instructions_for(step_name):
                         continue
                     out.append(Issue(
                         kind="missing-step-instructions",
@@ -1842,45 +1797,6 @@ def _notification_issues(cfg: Config) -> list[Issue]:
     return issues
 
 
-def _github_issues(cfg: Config) -> list[Issue]:
-    """Map the git/GitHub preflight probes into report issues.
-
-    Opt-in only (gated by `--check-github`): these are the network-capable
-    `git`/`gh` probes, so the default read-only validate path never hits the
-    network. Every failed probe is an `error` — the operator explicitly
-    asked "is my setup ready?", and a clear no (with an actionable hint and a
-    non-zero exit) is the useful answer, including when the machine is offline.
-    """
-    from coga.github_preflight import run_preflight
-
-    issues: list[Issue] = []
-    for result in run_preflight(
-        cfg.git_remote,
-        control_branch=cfg.git_control_branch,
-        cwd=cfg.repo_root,
-        coga_root=cfg.repo_root,
-    ):
-        if result.ok and result.value == "state-only-drift":
-            issues.append(
-                Issue(
-                    kind="github-git-branch-state-only-drift",
-                    task="(github)",
-                    message=result.detail,
-                    severity="warning",
-                )
-            )
-        elif not result.ok:
-            issues.append(
-                Issue(
-                    kind=f"github-{result.name}",
-                    task="(github)",
-                    message=result.detail,
-                    severity="error",
-                )
-            )
-    return issues
-
-
 def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix]:
     """Apply deterministic repairs that do not change task state.
 
@@ -1894,46 +1810,41 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
     fixes: list[Fix] = []
     targets = list(only) if only is not None else list_tasks(cfg)
     for ref in targets:
-        with git.state_lock(cfg):
-            ticket_path = ref.ticket_path
-            if not ticket_path.is_file():
-                continue
-            text = ticket_path.read_text(encoding="utf-8")
-            if fence_count(text) >= 1:
-                continue
-            title = ref.id_slug
-            try:
-                title = Ticket.read(ticket_path).title or ref.id_slug
-            except (TicketError, FileNotFoundError):
-                pass
-            try:
-                blackboard = render_blackboard(title, cfg=cfg)
-            except RepoResourceUnreadable:
-                # Leave the missing fence for validation to report; an
-                # unavailable template cannot safely repair this ticket.
-                continue
-            new = (
-                text.rstrip("\n")
-                + "\n\n"
-                + BLACKBOARD_FENCE
-                + "\n\n"
-                + blackboard.lstrip("\n")
+        ticket_path = ref.ticket_path
+        if not ticket_path.is_file():
+            continue
+        text = ticket_path.read_text(encoding="utf-8")
+        if fence_count(text) >= 1:
+            continue
+        title = ref.id_slug
+        try:
+            title = Ticket.read(ticket_path).title or ref.id_slug
+        except (TicketError, FileNotFoundError):
+            pass
+        try:
+            blackboard = render_blackboard(title, cfg=cfg)
+        except RepoResourceUnreadable:
+            # Leave the missing fence for validation to report; an
+            # unavailable template cannot safely repair this ticket.
+            continue
+        new = (
+            text.rstrip("\n")
+            + "\n\n"
+            + BLACKBOARD_FENCE
+            + "\n\n"
+            + blackboard.lstrip("\n")
+        )
+        if not new.endswith("\n"):
+            new += "\n"
+        atomic_write_text(ticket_path, new)
+        fixes.append(
+            Fix(
+                kind="blackboard-fence",
+                task=ref.id_slug,
+                message="added blackboard fence + region",
+                path=str(ticket_path),
             )
-            if not new.endswith("\n"):
-                new += "\n"
-            if ticket_path.read_text(encoding="utf-8") != text:
-                raise TaskFileError(
-                    f"ticket changed before its blackboard repair: {ticket_path}"
-                )
-            atomic_write_text(ticket_path, new)
-            fixes.append(
-                Fix(
-                    kind="blackboard-fence",
-                    task=ref.id_slug,
-                    message="added blackboard fence + region",
-                    path=str(ticket_path),
-                )
-            )
+        )
 
     return fixes
 
@@ -1985,13 +1896,10 @@ def execute_validation(
     idle_hours: float = 72.0,
     max_blackboard_kb: float = BLACKBOARD_WARN_BYTES / 1024,
     check_slack: bool = False,
-    check_github: bool = False,
-) -> ValidationReport:
+) -> Report:
     """Shared option-to-report contract for the CLI and module entry."""
-    if task is not None and (check_slack or check_github):
-        option = "--check-slack" if check_slack else "--check-github"
-        concern = "the Slack webhook" if check_slack else "git/GitHub auth"
-        raise ValidationOptionError(option, concern)
+    if task is not None and check_slack:
+        raise ValidationOptionError("--check-slack", "the Slack webhook")
     if task is not None:
         return validate_task(
             cfg, task, fix=fix,
@@ -2001,11 +1909,11 @@ def execute_validation(
     return run(
         cfg, idle_hours=idle_hours,
         max_blackboard_bytes=int(max_blackboard_kb * 1024),
-        check_slack=check_slack, check_github=check_github, fix=fix,
+        check_slack=check_slack, fix=fix,
     )
 
 
-def emit_report(report: ValidationReport, *, json_output: bool) -> int:
+def emit_report(report: Report, *, json_output: bool) -> int:
     """Emit the stable validation payload or text and return its 0/1 verdict."""
     if json_output:
         payload: dict[str, Any] = {
@@ -2055,11 +1963,6 @@ def _main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Also probe the Slack webhook with an empty-text payload (network call).",
     )
-    parser.add_argument(
-        "--check-github",
-        action="store_true",
-        help="Also probe git/GitHub auth readiness via git/gh (network call).",
-    )
     args = parser.parse_args(argv)
 
     try:
@@ -2072,7 +1975,7 @@ def _main(argv: list[str] | None = None) -> int:
         report = execute_validation(
             cfg, task=args.task, fix=args.fix, idle_hours=args.idle_hours,
             max_blackboard_kb=args.max_blackboard_kb,
-            check_slack=args.check_slack, check_github=args.check_github,
+            check_slack=args.check_slack,
         )
     except ValidationOptionError as exc:
         # The module entry historically uses a shorter probe refusal.

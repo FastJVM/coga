@@ -74,7 +74,7 @@ and megalaunch children each emit exactly one record.
 - The record lands after the agent's final `bump`/`mark` sync, so teardown
   publishes exactly the log through `git.sync_log`, never a broad sweep.
   The log is not a union path; it lands through the event-aware publisher
-  ([spool-merge](../spool-merge/SKILL.md#mergeunion-files)).
+  ([spool-merge](../spool-merge/SKILL.md)).
 
 ## Provider matching — never by file mtime
 

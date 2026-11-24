@@ -17,12 +17,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from coga import git
 from coga.blackboard import (
     Blocker,
     append_to_section_text,
     parse_blockers_text,
-    update_blackboard_under_barrier,
+    update_blackboard,
 )
 from coga.config import Config
 from coga.notification import post
@@ -153,8 +152,7 @@ def record_reminder(
         return append_to_section_text(blackboard, REMINDERS_HEADING, entry)
 
     return (
-        update_blackboard_under_barrier(
-            cfg,
+        update_blackboard(
             ticket_path,
             add_watermark,
         )
@@ -189,17 +187,7 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
             task_path=reminder.task_path,
             owner=owner,
         )
-        if record_reminder(
-            cfg,
-            reminder.ticket_path,
-            reminder.fingerprint,
-            now=now,
-        ):
-            git.sync_task_state(
-                cfg,
-                reminder.task_path,
-                message=f"Ticket: {reminder.slug} — blocker reminder",
-            )
+        record_reminder(cfg, reminder.ticket_path, reminder.fingerprint, now=now)
         reminded += 1
     return reminded
 

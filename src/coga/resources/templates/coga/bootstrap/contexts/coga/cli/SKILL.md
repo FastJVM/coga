@@ -10,7 +10,7 @@ The installed CLI is the syntax authority: run `coga --help` and
 command's behavior. Attach that topic when a task depends on it.
 
 On native Windows, CLI stdout and stderr use UTF-8, including redirected
-output. State files follow the [UTF-8 and LF contract](../state-publication/SKILL.md).
+output. State files use UTF-8 and LF.
 
 ## Setup
 
@@ -32,11 +32,10 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `status` → `launch --read-only bootstrap/status --` | [report ticket](../../../status/ticket.md) |
 | `owner` | [coga/tickets](../tickets/SKILL.md#owner-and-relationships) |
 | `mark`, `bump`, `block`, `unblock` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
-| `delete` | [coga/checkout-cleanup](../checkout-cleanup/SKILL.md) |
+| `delete` | [coga/tickets](../tickets/SKILL.md) |
 | `promote-recurring` → `launch bootstrap/recurring-promote --` | packaged `bootstrap/recurring-promote/ticket.md` |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
-| `open-pr` → `run open-pr` | [coga/pr-publication](../pr-publication/SKILL.md) |
-| `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [coga/checkouts](../checkouts/SKILL.md) |
+| `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [coga/git](../git/SKILL.md) |
 
 ## Running work
 
@@ -48,7 +47,6 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `recurring` (`--force`, `--all`, `launch`) | [coga/recurring](../recurring/SKILL.md) and its children |
 | `recurring list` → `launch --read-only bootstrap/recurring-list --` (fixed adapter) | [report ticket](../../../recurring-list/ticket.md) |
 | `dream` → `recurring launch dream` | [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) |
-| `autoclose` → `recurring launch autoclose-merged --rerun` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |
 | `skill-update` → `recurring launch skill-update` | [coga/skill-management](../skill-management/SKILL.md) |
 
 ## Extension, integrations, and records
@@ -69,12 +67,7 @@ workflow or completion gate, and posts no notification: the command's own
 roll-up FYI is the notification. It appends one `done (stateless command)`
 audit line, credited as `agent:<name>` from the command ticket's `agent:` or
 the configured default (the FYI rule; a lifecycle exception, since no
-supervised task identity exists to verify). With Git enabled the line must be
-confirmed on control before the done marker is requested; otherwise the line
-is kept, the sweep is withheld, the command exits 75 with the
-`coga run publish-state <log>` recovery. The session can still exit normally
-or reach a configured idle or max-session limit. With Git disabled the local
-append suffices.
+supervised task identity exists to verify). A local append completes the audit.
 `--message` and `--force` exit 2 before any effect, as do the other `mark`
 verbs on a bootstrap ref.
 
@@ -88,10 +81,6 @@ This section owns both lists. Default aliases (the `→` rows above) are argv
 rewrites that dispatch even when `coga.toml` omits them; a repo adds or
 overrides them in `[aliases]`.
 
-`coga run` accepts only these fixed recipe names: `autoclose`,
-`branch-sweep`, `recurring-scan`, `autofix-analyze`, `open-pr`, `delete-task`,
-`publish-state`, and `prepare-checkout`. The blocker-reminders, skill-update,
-validate-drift and cleanup-orphan-markers jobs left this list for wheel-owned
-edge modules ([coga/edge-code](../edge-code/SKILL.md)); their old names take
-the unknown-recipe exit 2. How both mechanisms behave, and why a new command usually
+`coga run` accepts `recurring-scan`, `autofix-analyze`, and `delete-task`.
+How both mechanisms behave, and why a new command usually
 belongs at the edge, is in [coga/extension-model](../extension-model/SKILL.md).

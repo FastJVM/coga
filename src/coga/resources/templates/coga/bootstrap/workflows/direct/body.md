@@ -18,7 +18,5 @@ step, so there is nothing to bump into.
 
 ## No other-agent code review
 
-This workflow has no push or PR step, so it lands only Coga state on the
-control branch. `coga mark done` and `coga bump` refuse to finish it when
-the checkout committed product code that control lacks. Code changes
-belong on a `code/*` workflow, which has the other agent review them.
+Use this workflow when the ticket body owns the handoff. Use a code workflow
+when the work needs a branch, review, and pull request.

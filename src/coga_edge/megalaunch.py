@@ -70,39 +70,40 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
-from coga import git, notification
-from coga.atomicio import atomic_write_bytes
+from coga import notification
 from coga.authoring import invoke_ticket_authoring, resolve_authoring_agent
 from coga.blackboard import (
     Blocker,
     open_blockers,
     parse_blockers_text,
     resolve_blockers_text,
-    update_blackboard_under_barrier,
+    update_blackboard,
 )
-from coga.claimed_session import (
-    activate_claimed_ticket,
-    snapshot_ticket_bytes as _ticket_bytes,
-    snapshot_log_bytes as _log_bytes,
-    restore_owned_ticket,
+from coga.launch import (
+    AgentPreparationError,
+    interactive_stdio_has_tty,
+    prepare_agent_launch,
+    spawn_agent_session,
 )
-from coga.launch import run_claimed_agent_session, interactive_stdio_has_tty
+from coga.launch_script import run_script_phase, script_entry_point
 from coga.session_limits import resolve_idle_timeout, resolve_max_session
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log, first_activity_map
-from coga.lifecycle import TERMINAL_STATUSES
+from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
 from coga.mark import (
     PREPARE_ACTIVE_ERRORS as _PREPARE_ACTIVE_ERRORS,
-    reblock_unresolved_resume,
     BlackboardNeedsSynthesis,
     MainAgentUnavailable,
     RequiredExtensionMissing,
     WorkflowMissing,
+    mark_active,
+    mark_in_progress,
     prepare_active,
 )
-from coga.repl_supervisor import unsignalled_advance_warning
+from coga.repl_supervisor import build_supervised_step_env, unsignalled_advance_warning
+from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import WorkflowError
-from coga.taskfile import TaskFileError, read_blackboard, split_body
+from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard, split_body, with_blackboard
 from coga.service_order import service_order
 from coga.tasks import (
     TaskNotFoundError,
@@ -514,7 +515,10 @@ def _drain_satisfied_blockers(
             # The earlier read established that this task is worth considering;
             # this snapshot is the source lease for the actual activation plus
             # resolution publication, so a peer edit cannot be overlaid.
-            captured = _ticket_bytes(ref)
+            try:
+                captured = ref.ticket_path.read_bytes()
+            except FileNotFoundError:
+                captured = None
             if captured is None:
                 drained_slugs.add(ref.id_slug)
                 _replace_result(
@@ -596,8 +600,8 @@ def _drain_satisfied_blockers(
                 for blocker, finished in resolutions.items()
             }
             if any(blocker not in answers for blocker in blockers):
-                failure = _publish_partial_dependency_resolution(
-                    cfg, ref, ticket, source_bytes=captured, answers=answers
+                failure = _resolve_partial_dependency_blockers(
+                    cfg, ref, ticket, answers=answers
                 )
                 if failure is not None:
                     drained_slugs.add(ref.id_slug)
@@ -636,8 +640,7 @@ def _drain_satisfied_blockers(
                     f"resolved finished dependency {dependency}"
                 ),
                 prepared=prepared,
-                source_bytes=captured,
-                blocker_resolution=("system", answers),
+                    blocker_resolution=("system", answers),
             )
             if failure is not None:
                 _replace_result(results, _as_drained(failure, dependency))
@@ -903,69 +906,6 @@ def _run_selection(
         if candidate is not None:
             results.append(candidate)
             continue
-        blocked_resume = ticket.status == "blocked"
-        needs_activation = ticket.status in {"draft", "paused", "blocked"}
-        activation_bytes: bytes | None = None
-        if needs_activation:
-            # Bind preparation, every launch preflight, and the eventual write
-            # to one exact ticket revision. Reading the parsed ticket back from
-            # the captured bytes closes the read/capture gap; the activation
-            # compares those same bytes immediately before its write.
-            captured = activation_bytes = _ticket_bytes(ref)
-            if captured is None:
-                results.append(
-                    _result(ref, "failed", "ticket disappeared before launch")
-                )
-                continue
-            try:
-                ticket = Ticket.parse(captured.decode("utf-8"))
-                _body, captured_blackboard = split_body(ticket.body)
-                assert captured_blackboard is not None
-                captured_blockers = [
-                    blocker
-                    for blocker in parse_blockers_text(captured_blackboard)
-                    if not blocker.resolved
-                ]
-            except (UnicodeDecodeError, TicketError, TaskFileError) as exc:
-                results.append(
-                    _result(ref, "failed", f"unreadable ticket: {exc}")
-                )
-                continue
-            if ticket.status in TERMINAL_STATUSES:
-                results.append(
-                    _result(
-                        ref,
-                        "skipped-unlaunchable",
-                        f"status is {ticket.status}",
-                        _operator_name(cfg, ref, ticket),
-                    )
-                )
-                continue
-            captured_candidate = _candidate_result(
-                cfg,
-                ref,
-                ticket,
-                explicit=True,
-                blockers=captured_blockers,
-            )
-            if captured_candidate is not None:
-                results.append(captured_candidate)
-                continue
-            blocked_resume = ticket.status == "blocked"
-            needs_activation = ticket.status in {"draft", "paused", "blocked"}
-            if not needs_activation:
-                # A peer moved the task between the phase-3 read and the exact
-                # capture. Refuse this stale selection rather than treating a
-                # newly started or closed task as the draft we meant to flip.
-                results.append(
-                    _result(
-                        ref,
-                        "failed",
-                        "ticket changed before deferred activation; retry",
-                        _operator_name(cfg, ref, ticket),
-                    )
-                )
-                continue
         result = _launch_until_stop(
             cfg,
             ref,
@@ -974,9 +914,6 @@ def _run_selection(
             max_steps_per_task=max_steps_per_task,
             idle_timeout=idle_timeout,
             max_session=max_session,
-            blocked_resume=blocked_resume,
-            activate=needs_activation,
-            activation_bytes=activation_bytes,
             explicit=True,
             owner_filter=None,
         )
@@ -1030,9 +967,7 @@ def _author_draft(
             err=True,
         )
         return
-    code = invoke_ticket_authoring(cfg, ref, agent_name=launch_agent)
-    if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
-        raise SystemExit(code)
+    invoke_ticket_authoring(cfg, ref, agent_name=launch_agent)
     # Ordinary interview failures leave the draft for the check phase.
 
 
@@ -1241,188 +1176,125 @@ def _launch_until_stop(
     max_steps_per_task: int,
     idle_timeout: float | None = None,
     max_session: float | None = None,
-    blocked_resume: bool = False,
-    activate: bool = False,
-    activation_bytes: bytes | None = None,
     explicit: bool = False,
     owner_filter: str | None,
 ) -> MegalaunchResult:
-    # `ticket` is `active` / `in_progress` unless `activate` is set — the sweep
-    # only reaches here for ready work, while the selection path hands over a
-    # still-unactivated draft/paused/blocked pick and lets the first step below
-    # flip it, after the preflights. `blocked_resume` marks a
-    # ticket that was blocked when picked: the composed prompt carries the
-    # resolve-or-re-block preamble off the blackboard's still-open asks, and an
-    # exit that leaves an ask open returns it to `blocked` below.
-    launched = False
-    first_step = True
-    step_count = 0
+    from coga.bump import OperatorResolutionError, resolve_operator
 
-    while True:
-        step_count += 1
-        if step_count > max_steps_per_task:
+    launched = False
+    for step_count in range(max_steps_per_task):
+        try:
+            ticket = read_ticket(ref)
+        except TicketError as exc:
+            return _result(ref, "failed", f"unreadable ticket: {exc}", launched=launched)
+        if ticket.status not in VALID_STATUSES:
+            return _result(ref, "failed", f"invalid status {ticket.status!r}", launched=launched)
+        if not explicit and not _owner_in_scope(ticket, owner_filter):
             return _result(
-                ref,
-                "failed",
-                f"exceeded {max_steps_per_task} unattended steps",
-                _operator_name(cfg, ref, ticket),
+                ref, "skipped-human-gate", "ticket is outside the owner filter",
                 launched=launched,
             )
-
-        # Active/resumed work has no earlier selection snapshot. Re-read it
-        # from exact bytes before deriving routing or inputs, then retain those
-        # raw bytes as the compare-and-swap source revision. This accepts
-        # harmless non-canonical YAML formatting without weakening the guard.
-        preflight_source_bytes: bytes | None = None
-        if not activate:
-            try:
-                preflight_source_bytes = ref.ticket_path.read_bytes()
-                ticket = Ticket.parse(preflight_source_bytes.decode("utf-8"))
-                _body, exact_blackboard = split_body(ticket.body)
-                assert exact_blackboard is not None
-                exact_blockers = [
-                    blocker
-                    for blocker in parse_blockers_text(exact_blackboard)
-                    if not blocker.resolved
-                ]
-            except FileNotFoundError:
-                return _result(
-                    ref,
-                    "failed",
-                    "ticket disappeared before launch",
-                    _operator_name(cfg, ref, ticket),
-                    launched=launched,
-                )
-            except (UnicodeDecodeError, TicketError, TaskFileError) as exc:
-                return _result(
-                    ref,
-                    "failed",
-                    f"unreadable ticket: {exc}",
-                    _operator_name(cfg, ref, ticket),
-                    launched=launched,
-                )
-
-            # The outer queue scan is only a candidate hint. A peer may change
-            # owner, status, blockers, or the current workflow step before this
-            # exact reread, so reapply every sweep gate to these same bytes
-            # before deriving a prompt or lifecycle mutation from them.
-            if not explicit and not _owner_in_scope(ticket, owner_filter):
-                return _result(
-                    ref,
-                    "skipped-human-gate",
-                    f"owner {ticket.owner or 'unassigned'} is outside the "
-                    f"owner filter ({owner_filter})",
-                    _operator_name(cfg, ref, ticket),
-                    launched=launched,
-                )
-            if not explicit and ticket.status not in {
-                "active",
-                "in_progress",
-                "blocked",
-            }:
-                return _result(
-                    ref,
-                    "skipped-unlaunchable",
-                    f"status is {ticket.status}",
-                    _operator_name(cfg, ref, ticket),
-                    launched=launched,
-                )
-            if ticket.status in TERMINAL_STATUSES:
-                return _result(
-                    ref,
-                    "skipped-unlaunchable",
-                    f"status is {ticket.status}",
-                    _operator_name(cfg, ref, ticket),
-                    launched=launched,
-                )
-            exact_candidate = _candidate_result(
-                cfg,
-                ref,
-                ticket,
-                explicit=explicit,
-                blockers=exact_blockers,
+        if ticket.status in TERMINAL_STATUSES or (
+            not explicit and ticket.status not in {"active", "in_progress", "blocked"}
+        ):
+            return _result(
+                ref, "skipped-unlaunchable", f"status is {ticket.status}",
+                launched=launched,
             )
-            if exact_candidate is not None:
-                return replace(exact_candidate, launched=launched)
+        candidate = _candidate_result(cfg, ref, ticket, explicit=explicit)
+        if candidate is not None:
+            return replace(candidate, launched=launched)
 
-        # A deferred activation belongs to the first step only. Preflight the
-        # prospective `active` view, materializing the exact `in_progress`
-        # prompt, environment, and agent this launch will use. Commit the flip
-        # only once every refusal below has passed, so a ticket whose session
-        # never starts is never left claiming it did.
-        # The exact bytes this step found before any lifecycle write: what a
-        # failed agent start restores (a deferred pick's draft/paused/blocked
-        # capture, otherwise the active or in_progress preflight read).
-        pre_launch_bytes = activation_bytes if activate else preflight_source_bytes
-        preflight_view = ticket
-        prepared_activation: Ticket | None = None
-        if activate:
+        prior = ticket.status
+        if prior in {"draft", "paused"}:
             prepared = _prepare_for_launch(cfg, ref, ticket)
             if isinstance(prepared, MegalaunchResult):
                 return prepared
-            preflight_view = prepared
-            prepared_activation = prepared
-            candidate = _candidate_result(
-                cfg, ref, prepared, explicit=True, blockers=[]
-            )
-            if candidate is not None:
-                return candidate
-
-        from coga.bump import OperatorResolutionError, resolve_operator
-
+            ticket = prepared
         try:
-            operator = resolve_operator(cfg, ref, preflight_view)
-        except OperatorResolutionError as exc:
+            operator = resolve_operator(cfg, ref, ticket)
+            entry = script_entry_point(ref, ticket, cfg=cfg)
+        except (OperatorResolutionError, OSError, ConfigError, ValueError) as exc:
             return _result(ref, "failed", str(exc), launched=launched)
         if operator is None or operator.is_human:
             who = "no operator" if operator is None else operator.name
-            return _result(
-                ref,
-                "completed",
-                f"handed off to {who}",
-                None if operator is None else operator.name,
-                launched=launched,
-            )
-        # Select from the same prepared ticket the preflight and activation
-        # will use. An override applies only to the first launched step; every
-        # later step follows the ticket's own derived routing, so `other-agent`
-        # rotation still lands on the configured peer.
-        launch_agent = (
-            (agent_override or operator.name) if first_step else operator.name
-        )
-        first_step = False
+            return _result(ref, "completed", f"handed off to {who}", launched=launched)
+        launch_agent = (agent_override or operator.name) if step_count == 0 else operator.name
 
-        transaction = run_claimed_agent_session(
-            cfg, ref,
-            source_bytes=(activation_bytes if activate else preflight_source_bytes),
-            prospective_ticket=preflight_view, agent_name=launch_agent,
-            activation=prepared_activation if activate else None,
-            idle_timeout=idle_timeout, max_session=max_session,
-        )
-        activate = False
-        if transaction.activation_error is not None:
-            return _activation_refusal(
-                cfg, ref, preflight_view, ticket.status, transaction.activation_error
+        if entry is not None:
+            if ticket.status == "blocked":
+                return _result(
+                    ref, "blocked", "answer with `coga unblock --answer` before running the script",
+                    launch_agent, launched=launched,
+                )
+            before_step = ticket.step
+            try:
+                if prior in {"draft", "paused"}:
+                    mark_active(
+                        cfg, ref, ticket, actor="megalaunch",
+                        log_message=f"activated ({prior} → active) via coga megalaunch",
+                    )
+                phase = run_script_phase(cfg, ref, ticket, stateless=False, failure_important=True)
+            except (OSError, ValueError, TaskValidationError, ConfigError) as exc:
+                return _result(ref, "failed", str(exc), launch_agent, launched=launched)
+            launched = launched or phase.ran
+            if phase.exit_code:
+                return _result(ref, "failed", f"script exited with code {phase.exit_code}",
+                               launch_agent, launched=launched)
+            if phase.ticket is None:
+                return _result(ref, "completed", "task removed by script", launch_agent, launched=launched)
+            cfg = phase.cfg or cfg
+            ticket = phase.ticket
+            stop = _chain_stop_result(cfg, ref, ticket)
+            if stop is not None:
+                return stop
+            if ticket.step != before_step:
+                continue
+
+        before = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+        if ticket.status == "active":
+            ticket.frontmatter["status"] = "in_progress"
+        try:
+            prepared_agent = prepare_agent_launch(
+                cfg, ref, ticket, launch_agent, launch_context="megalaunch",
+                env_transform=lambda env: build_supervised_step_env(
+                    env, task_path=ref.path, step=ticket.step, agent=launch_agent,
+                ),
             )
-        if transaction.refusal is not None:
-            return _result(ref, "failed", transaction.refusal, launch_agent, launched=launched)
-        before, session = transaction.before, transaction.session
-        assert before is not None and session is not None
+            if before.status == "active":
+                if prior in {"draft", "paused"} and entry is None:
+                    mark_active(
+                        cfg, ref, before, actor="megalaunch",
+                        log_message=f"activated ({prior} → active) via coga megalaunch",
+                    )
+                mark_in_progress(
+                    cfg, ref, ticket, actor="megalaunch",
+                    log_message="started (active → in_progress) via coga megalaunch",
+                )
+            before = ticket
+            session = spawn_agent_session(
+                cfg, ref, ticket, prepared_agent.agent,
+                env=prepared_agent.env, actor="megalaunch",
+                log_message=f"launched by megalaunch (agent: {launch_agent})",
+                name=ticket.title, idle_timeout=idle_timeout, max_session=max_session,
+                launch_context="megalaunch", composed_prompt=prepared_agent.prompt,
+            )
+        except (AgentPreparationError, OSError, TaskValidationError) as exc:
+            return _result(ref, "failed", str(exc), launch_agent, launched=launched)
 
         launched = True
         if getattr(session, "exec_failed", False):
-            return _restore_after_failed_start(
-                cfg,
-                ref,
-                exit_code=session.exit_code,
-                claimed_bytes=transaction.claimed_bytes,
-                pre_launch_bytes=pre_launch_bytes,
-                agent=launch_agent,
+            return replace(
+                _result(
+                    ref, "failed",
+                    f"agent failed to start (exited with code {session.exit_code})",
+                    launch_agent, launched=True,
+                ),
+                stops_run=True,
             )
+        if not ref.ticket_path.exists():
+            return _result(ref, "completed", "task removed by agent", launch_agent, launched=True)
         after = read_ticket(ref)
-        # Advisory only, observed on the existing post-session read and before
-        # any supervisor-owned reblock, so it can neither change the result
-        # below nor mistake that reblock for the agent's change.
         warning = unsignalled_advance_warning(
             ref.id_slug,
             (before.status, before.step),
@@ -1431,22 +1303,12 @@ def _launch_until_stop(
         )
         if warning:
             typer.secho(warning, fg=typer.colors.YELLOW, err=True)
-        if blocked_resume:
-            # A resumed blocked launch may run to `in_progress` so the session
-            # can discuss, `coga unblock`, and continue. If it exited with the
-            # ask still open, return it to the blocked queue (visible to
-            # `status --blocked` and blocker reminders) instead of chaining.
-            blocked_resume = False
-            reblocked = _reblock_unresolved(cfg, ref, after)
-            if reblocked is not None:
-                return reblocked
-            after = read_ticket(ref)
         if after.status == "blocked":
             blockers = open_blockers(ref.ticket_path)
             detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
             return _result(
-        ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True
-    )
+                ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True,
+            )
         if session.termination_kind == "timeout":
             timeout_reason = getattr(session, "termination_reason", None)
             detail = (
@@ -1480,116 +1342,10 @@ def _launch_until_stop(
                 _operator_name(cfg, ref, after),
                 launched=True,
             )
-        ticket = after
-
-
-def _restore_after_failed_start(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    exit_code: int,
-    claimed_bytes: bytes | None,
-    pre_launch_bytes: bytes | None,
-    agent: str | None,
-) -> MegalaunchResult:
-    """Put a failed-to-start ticket back exactly as this step found it.
-
-    A compare-and-set against the claim the child ran under: the pre-launch
-    bytes (a pick's draft/paused/blocked capture, or the active/in_progress
-    preflight read) go back with any `launch_generation` claim dropped, the
-    audit line records why, and publication expects control's copy to be that
-    same claim. Nothing is blocked or asked: an agent that cannot start is an
-    environment problem, not the ticket's. Whatever happens, the returned row
-    stops the run; a restore that cannot complete says so.
-    """
-    head = f"agent failed to start (exited with code {exit_code}); run stopped"
-    next_step = (
-        "fix the agent environment, then rerun megalaunch "
-        "(`coga megalaunch --relaunch` replays a pick)"
+    return _result(
+        ref, "failed", f"exceeded {max_steps_per_task} unattended steps",
+        _operator_name(cfg, ref, ticket), launched=launched,
     )
-
-    def stopped(detail: str) -> MegalaunchResult:
-        return MegalaunchResult(
-            slug=ref.id_slug,
-            outcome="failed",
-            detail=f"{head}; {detail}",
-            agent=agent,
-            launched=True,
-            stops_run=True,
-        )
-
-    if claimed_bytes is None:
-        return stopped("launch claim unavailable; ticket needs manual reconciliation")
-    if pre_launch_bytes is None:
-        return stopped(
-            "no pre-launch snapshot to restore; ticket needs manual reconciliation"
-        )
-    try:
-        source = Ticket.parse(pre_launch_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, TicketError) as exc:
-        return stopped(
-            f"pre-launch snapshot unreadable ({exc}); ticket needs manual "
-            "reconciliation"
-        )
-    prior = source.status
-    if source.launch_generation is None:
-        restored = pre_launch_bytes
-    else:
-        source.frontmatter.pop("launch_generation", None)
-        restored = source.render().encode("utf-8")
-
-    try:
-        with git.state_lock(cfg):
-            if _ticket_bytes(ref) != claimed_bytes:
-                return stopped(
-                    "ticket changed since launch admission; ticket needs manual reconciliation"
-                )
-            log_before = _log_bytes(cfg)
-            try:
-                atomic_write_bytes(ref.ticket_path, restored)
-                append_log(
-                    cfg,
-                    ref.id_slug,
-                    "megalaunch",
-                    f"restored (in_progress → {prior}) — agent failed to start "
-                    f"(exit {exit_code}); megalaunch run stopped",
-                )
-                if cfg.git_enabled:
-                    git.sync_task_state(
-                        cfg,
-                        ref.path,
-                        message=f"Ticket: {ref.id_slug} — restored {prior}",
-                        expect={ref.ticket_path: claimed_bytes},
-                        strict=True,
-                    )
-            except git.UncertainPublishError as exc:
-                return stopped(
-                    f"restored to {prior} locally but publication is uncertain; "
-                    f"ticket needs manual reconciliation — {exc}"
-                )
-            except (OSError, git.GitError) as exc:
-                # Definitely not on control: keep local state equal to the claim
-                # control still holds rather than a restore nobody accepted.
-                try:
-                    rolled_back = restore_owned_ticket(
-                        cfg, ref, claimed_bytes, log_before=log_before,
-                        expected_bytes=restored,
-                    )
-                    if not rolled_back and _ticket_bytes(ref) != claimed_bytes:
-                        raise OSError("ticket changed during the failed restore")
-                except OSError as rollback_exc:
-                    return stopped(
-                        f"restore failed ({exc}) and local rollback failed ({rollback_exc}); "
-                        "ticket needs manual reconciliation"
-                    )
-                return stopped(
-                    f"restore to {prior} failed ({exc}); ticket needs manual reconciliation"
-                )
-    except (OSError, git.GitError) as exc:
-        return stopped(
-            f"restore could not be confirmed ({exc}); ticket needs manual reconciliation"
-        )
-    return stopped(f"restored to {prior}; {next_step}")
 
 
 def _activation_refusal(
@@ -1669,79 +1425,16 @@ def _prepare_for_launch(
     return prospective
 
 
-def _publish_partial_dependency_resolution(
-    cfg: Config,
-    ref: TaskRef,
-    ticket: Ticket,
-    *,
-    source_bytes: bytes,
-    answers: dict[Blocker, str],
+def _resolve_partial_dependency_blockers(
+    cfg: Config, ref: TaskRef, ticket: Ticket, *, answers: dict[Blocker, str],
 ) -> MegalaunchResult | None:
-    """Publish satisfied asks against exact bytes, retaining `blocked`.
-
-    Match activation's recovery: restore a definitely refused write, retain
-    an uncertain one as evidence, and never overwrite a changed local ticket.
-    """
-    with git.state_lock(cfg):
-        log_before = _log_bytes(cfg)
-        written: bytes | None = None
-        try:
-            written = update_blackboard_under_barrier(
-                cfg, ref.ticket_path,
-                lambda region: resolve_blockers_text(region, "system", answers),
-                expected_bytes=source_bytes,
-            )
-            append_log(
-                cfg, ref.id_slug, "megalaunch",
-                "resolved finished dependency blockers (still blocked)",
-            )
-            git.sync_task_state(
-                cfg, ref.path,
-                message=f"Ticket: {ref.id_slug} — dependency asks resolved",
-                expect={ref.ticket_path: source_bytes},
-                strict=True,
-            )
-        except git.UncertainPublishError as exc:
-            return _result(
-                ref, "failed",
-                "dependency resolution publication outcome is uncertain; "
-                f"local state retained for reconciliation — {exc}",
-                _operator_name(cfg, ref, ticket),
-            )
-        except (OSError, UnicodeError, TaskFileError, git.GitError) as exc:
-            if written is not None:
-                try:
-                    unchanged = _ticket_bytes(ref) == written
-                except OSError:
-                    unchanged = False
-                if not unchanged:
-                    return _result(
-                        ref, "failed",
-                        "dependency resolution publication failed and the local "
-                        "ticket changed or could not be read; "
-                        f"local state retained for reconciliation — {exc}",
-                        _operator_name(cfg, ref, ticket),
-                    )
-                restore_owned_ticket(cfg, ref, source_bytes, log_before=log_before, expected_bytes=written)
-            return _result(
-                ref, "failed", f"could not publish dependency resolutions: {exc}",
-                _operator_name(cfg, ref, ticket),
-            )
+    try:
+        region = read_blackboard(ref.ticket_path)
+        replace_blackboard(ref.ticket_path, resolve_blockers_text(region, "system", answers))
+        append_log(cfg, ref.id_slug, "megalaunch", "resolved finished dependency blockers (still blocked)")
+    except (OSError, TaskFileError) as exc:
+        return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
     return None
-
-
-def _reblock_unresolved(cfg: Config, ref: TaskRef, after: Ticket) -> MegalaunchResult | None:
-    result = reblock_unresolved_resume(
-        cfg, ref, slack_actor=cfg.current_user,
-        log_message="blocked: unresolved blocker still open after resumed megalaunch pick exited",
-        echo_owner_text="owner {owner} needs to answer",
-    )
-    if result.kind in {"noop", "already_blocked"}:
-        return None
-    return _result(
-        ref, "failed" if result.kind == "invalid" else "blocked",
-        result.detail, _operator_name(cfg, ref, after), launched=True,
-    )
 
 
 def _chain_stop_result(
@@ -1752,8 +1445,8 @@ def _chain_stop_result(
         blockers = open_blockers(ref.ticket_path)
         detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
         return _result(
-        ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True
-    )
+            ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True,
+        )
     if after.status == "canceled":
         return _result(
             ref,
@@ -1892,8 +1585,7 @@ def write_run_summary(
     run: MegalaunchRun,
 ) -> None:
     """Write the latest run summary while trimming old megalaunch noise."""
-    update_blackboard_under_barrier(
-        cfg,
+    update_blackboard(
         blackboard_path,
         lambda region: trim_megalaunch_blackboard_text(
             region,
@@ -1918,18 +1610,19 @@ __all__ = [
 
 def _activate_for_launch(
     cfg: Config, ref: TaskRef, ticket: Ticket, *,
-    log_message: str | None = None, prepared: Ticket | None = None,
-    source_bytes: bytes | None = None,
-    blocker_resolution: tuple[str, dict[Blocker, str]] | None = None,
+    log_message: str, prepared: Ticket,
+    blocker_resolution: tuple[str, dict[Blocker, str]],
 ) -> MegalaunchResult | None:
-    prior = ticket.status
-    failure = activate_claimed_ticket(
-        cfg, ref, ticket, log_message=log_message, prepared=prepared,
-        source_bytes=source_bytes, blocker_resolution=blocker_resolution,
-    )
-    if failure is None:
-        return None
-    return _activation_refusal(cfg, ref, ticket, prior, failure.error)
+    actor, answers = blocker_resolution
+    try:
+        _, region = split_body(prepared.body)
+        prepared.body = with_blackboard(prepared.body, resolve_blockers_text(region or "", actor, answers))
+        assert_task_valid(cfg, ref, action="activate dependency", ticket_override=prepared)
+        prepared.write(ref.ticket_path)
+        append_log(cfg, ref.id_slug, actor, log_message)
+    except (OSError, TaskFileError, TaskValidationError) as exc:
+        return _activation_refusal(cfg, ref, ticket, ticket.status, exc)
+    return None
 
 
 def megalaunch(
@@ -2021,25 +1714,6 @@ def megalaunch(
         except ConfigError as exc:
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             sys.exit(2)
-
-    # Pick and queue from control's state, not a stale local copy: every
-    # later read (picker list, sweep queue, saved selection) sees these files.
-    # A feature/detached checkout only fetches; Git-off, non-Git and no-remote
-    # repos skip. `False` means control could not be brought level, and
-    # refresh already said why on stderr.
-    if not git.refresh(cfg):
-        typer.secho(
-            "megalaunch: could not bring this checkout level with control; "
-            "nothing was picked or launched.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(1)
-    try:
-        cfg = load_config(cfg.repo_root)
-    except ConfigError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        sys.exit(2)
 
     try:
         selection = _resolve_selection(

@@ -32,19 +32,6 @@ def _prompt_arg(cmd: list[str]) -> str:
     raise AssertionError(f"No Coga prompt in argv: {cmd!r}")
 
 
-def test_period_generation_renders_as_canonical_task_state() -> None:
-    """The runner-owned token is not mislabeled as a repo extension."""
-    ticket = Ticket(
-        frontmatter={"title": "Check", "period_generation": "generation-1"},
-        body="",
-    )
-
-    rendered = ticket.render()
-
-    assert "period_generation: generation-1" in rendered
-    assert "# --- extensions ---" not in rendered
-
-
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     coga_os = tmp_path / "coga"
@@ -145,37 +132,6 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert "Coga task — investigate-retries" in prompts[0]
     assert "Status: draft" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
-
-
-def test_ticket_publishes_its_launch_line_before_the_session_starts(
-    repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """An attended authoring session must not hold an unpublished log open."""
-    prompts: list[str] = []
-    published: list[str] = []
-    log = repo / "log.md"
-    seen_at_spawn: list[list[str]] = []
-    ticket_path = repo / "tasks" / "investigate-retries.md"
-
-    def record_sync_log(cfg, *, message):  # type: ignore[no-untyped-def]
-        published.append(log.read_text(encoding="utf-8"))
-        return True
-
-    def author_workflow() -> None:
-        seen_at_spawn.append(list(published))
-        t = Ticket.read(ticket_path)
-        t.frontmatter["workflow"] = "code/with-review"
-        t.write(ticket_path)
-
-    monkeypatch.setattr("coga.git.sync_log", record_sync_log)
-    _allow_ticket_launch(monkeypatch, prompts, on_run=author_workflow)
-
-    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
-
-    assert result.exit_code == 0, result.output
-    assert len(seen_at_spawn) == 1
-    assert any("ticket authoring launched" in text for text in seen_at_spawn[0])
 
 
 def test_ticket_path_title_drafts_in_subdirectory(
@@ -438,14 +394,9 @@ def test_ticket_reports_post_exit_validation_errors(
     "POSIX pty.fork and process-group SIGTERM; the Windows supervisor's "
     "sentinel teardown is covered in tests/test_repl_supervisor_nt.py"
 )
-@pytest.mark.parametrize(
-    ("failure", "child_sweep"),
-    [(None, "interrupted"), (None, "completed"),
-     ("validation", "interrupted"), ("validation", "completed"),
-     ("publication", "interrupted")],
-)
+@pytest.mark.parametrize("failure", [None, "validation"])
 def test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state(
-    git_repo, monkeypatch, tmp_path, failure, child_sweep,
+    git_repo, monkeypatch, tmp_path, failure,
 ):
     import json
     import os
@@ -457,7 +408,7 @@ def test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state(
     state = tmp_path / "synchronization"
     state.mkdir()
     (state / "settings.json").write_text(json.dumps({
-        "origin": str(git_repo.origin), "failure": failure, "child_sweep": child_sweep,
+        "failure": failure,
     }), encoding="utf-8")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -499,18 +450,6 @@ def test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state(
     git_repo.git("add", "coga")
     git_repo.git("commit", "-m", "seed authoring cancellation")
     git_repo.git("push", "origin", "main")
-    if failure == "publication":
-        # Reject only the handoff. Lifecycle and usage-log commits still land,
-        # and even a later best-effort outer sweep cannot mask the refusal.
-        write_executable(git_repo.origin / "hooks/pre-receive", """
-            import subprocess, sys
-            for line in sys.stdin:
-                old, new, ref = line.split()
-                body = subprocess.check_output(['git', 'show', new + ':coga/tasks/sibling.md'])
-                if b'Sibling handoff.' in body:
-                    print('test remote rejects sibling handoff', file=sys.stderr)
-                    sys.exit(1)
-        """)
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
     env["PATH"] = str(bin_dir) + os.pathsep + env["PATH"]
 
@@ -526,29 +465,14 @@ def test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state(
     output = result.stdout + result.stderr
     assert result.returncode == (2 if failure else 0), output
     assert receipt("outcome.json") == {"kind": "done", "exit_code": 0, "done_signalled": True}
-    assert receipt("cancel-exit.json") == (143 if child_sweep == "interrupted" else 0)
-    assert (state / "child-sweep-entered").exists()
-    assert (state / "child-sweep-completed").exists() == (child_sweep == "completed")
-    before = receipt("before-finalize.json")
-    assert Ticket.parse(before["target"]).status == "canceled"
-    assert ("Sibling handoff." in before["sibling"]) == (child_sweep == "completed")
-    remote = git_repo.git("show", "main:coga/tasks/sibling.md", cwd=git_repo.origin)
+    assert receipt("cancel-exit.json") == 0
     if failure:
-        assert "state sweep withheld" in output
         assert "Authoring edits are retained" in output
-        assert str(git_repo.coga_os) in output
-        assert "coga run publish-state" in output
-        assert "sibling" in output
-        assert remote == before["sibling"]  # no rollback of an earlier sweep
-        assert (state / "finalizer-publish.json").exists() == (failure == "publication")
-        if failure == "validation":
-            assert "missing/context" in output
+        assert "missing/context" in output
     else:
-        assert "state sweep withheld" not in output
-        assert remote == sibling.read_text(encoding="utf-8")
-        assert "Published these knowledge edits" in output
-        assert str(sibling) in receipt("finalizer-publish.json")
-    assert receipt("outer-sweep.json") == {"withheld": bool(failure)}
+        assert "missing/context" not in output
+    remote = git_repo.git("show", "main:coga/tasks/sibling.md", cwd=git_repo.origin)
+    assert "Sibling handoff." not in remote
     assert Ticket.read(target).status == "canceled"
     assert "Sibling handoff." in sibling.read_text(encoding="utf-8")
     expected_frontmatter = dict(sibling_frontmatter)
@@ -557,12 +481,8 @@ def test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state(
     assert Ticket.read(sibling).frontmatter == expected_frontmatter
     support = git_repo.coga_os / "contexts/team/SKILL.md"
     assert support.is_file()
-    landed = not failure or child_sweep == "completed"
-    assert git_repo.origin_tracks("coga/contexts/team/SKILL.md") == landed
-    if landed:
-        assert git_repo.git("status", "--porcelain") == ""
-    else:
-        assert "coga/tasks/sibling.md" in git_repo.git("status", "--porcelain")
+    assert not git_repo.origin_tracks("coga/contexts/team/SKILL.md")
+    assert "coga/tasks/sibling.md" in git_repo.git("status", "--porcelain")
 
 
 def test_ticket_requires_tty_before_spawning(
