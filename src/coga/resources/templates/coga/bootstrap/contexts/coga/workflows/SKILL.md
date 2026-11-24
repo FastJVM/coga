@@ -41,6 +41,12 @@ from current definitions. Older snapshots retain their positions and step
 names. Legacy checkout-policy keys are ignored and validation reports them
 as obsolete.
 
+When the current definition no longer lists a frozen step, composition and
+validation look for an inline `## <old-step-name>` section in the workflow
+body. When renaming or removing a step that uses inline instructions, keep
+that heading and its instructions until every live ticket using the old step
+has finished.
+
 ## Roles are the routing
 
 `assignee:` is `owner`, `agent`, or `other-agent`. One pure resolver derives
