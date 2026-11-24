@@ -4696,3 +4696,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-23 15:59 v1 [add-the-megalaunch-dependency-resolution-append-lo] [agent:claude] advanced to step 4 (review) → nicktoper
 2026-11-24 00:03 v1 [add-the-megalaunch-dependency-resolution-append-lo] [human:nicktoper] task done
 2026-11-23 23:58 v1 [fix-the-google-skills-dead-helper-invocation-paths] [human:nicktoper] task done
+2026-11-24 00:04 v1 [fix-the-windows-aws-walk-step-and-add-the-v1-14-at] [human:nicktoper] task done

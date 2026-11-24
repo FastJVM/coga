@@ -1,6 +1,6 @@
 ---
 title: Fix the windows-aws walk step and add the v1-14 attended-launch harness gotchas
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,7 +27,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 4 (review)
 agent: claude
 ---
 
@@ -159,6 +158,17 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 pr: https://github.com/FastJVM/coga/pull/1276
 branch: coga/fix-the-windows-aws-walk-step-and-add-the-v1-14-at
+base: main
+remote: origin
+
+## Merge verification
+
+The Windows walkthrough and skill match the published PR head `bf56965e8`
+after integrating current `main`. On Pop!_OS 24.04 LTS with Python 3.12.12,
+`PYTHONPATH="$PWD/src" TERM=dumb .venv/bin/python -m pytest -q -p
+no:cacheprovider tests/test_windows_clean_install.py` passed one test and
+skipped five PowerShell tests in 0.27 seconds. Native testing remains part of
+release verification.
 
 ## Plan (implement, 2026-11-18)
 
