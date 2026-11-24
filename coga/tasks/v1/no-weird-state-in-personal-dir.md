@@ -706,6 +706,29 @@ and the proposed shared module has several real consumers.
   the local config with only `user = "nicktoper"`. The earlier fixture
   directories were removed.
 
+## PR review follow-up
+
+The guided `coga ticket` interviewer opens one managed temporary scope and
+creates the durable directory for its target before spawning. The regression
+test covers a named task and the no-target interview, with successful and
+failed agent exits. It checks that scratch and the lock are removed and that
+durable files survive. [Review thread](https://github.com/FastJVM/coga/pull/1280#discussion_r4657144642)
+
+Verified `1076d8a944975183c34dd59467a62824605a9f69` on Pop!_OS 24.04 LTS
+(Linux 7.2.15-76070215-generic, Python 3.12.12). The three temp variables
+pointed to a dedicated `/tmp/coga-pr1280.owGTQD` directory, removed after
+the run. `COGA_SYSTEM_TMPDIR` and `SLACK_WEBHOOK_URL` were unset.
+
+- `PYTHONPATH="$PWD/src" TERM=dumb /home/n/Code/coga/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_ticket.py tests/test_run_state.py`
+  passed 83 tests in 2.95s.
+- `PYTHONPATH="$PWD/src" TERM=dumb /home/n/Code/coga/.venv/bin/python -m pytest -q -p no:cacheprovider`
+  passed 3,194 tests with 29 skips in 196.83s.
+- `env -u SLACK_WEBHOOK_URL PYTHONPATH="$PWD/src" /home/n/Code/coga/.venv/bin/python -m coga.cli validate --task v1/no-weird-state-in-personal-dir --json`
+  passed with the worktree's missing local user warning.
+
+The PR now targets `main` after its parent PR #1279 merged. The Dev record
+reflects that base. GitHub currently reports a merge conflict.
+
 ## PR
 
 ```yaml
