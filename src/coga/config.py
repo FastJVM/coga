@@ -122,19 +122,8 @@ class Config:
     # the keys are user data, not schema.
     extensions: dict[str, object] = field(default_factory=dict)
     ticket_fields: dict[str, TicketField] = field(default_factory=dict)
-    # Git sync — the git analogue of Slack. `git_enabled` follows the same
-    # local-overrides-shared resolution as `slack_enabled`; `git_remote` /
-    # `git_control_branch` come from shared `[git]`. See `coga.git`.
     telemetry_enabled: bool = True
-    git_enabled: bool = True
-    git_remote: str = "origin"
-    git_control_branch: str = "main"
-    # `[git].worktrees_ticket_owned`: the repo declares that every linked
-    # worktree of its git repository belongs to a Coga ticket, so the weekly
-    # branch sweep may remove a landed, pristine one no live ticket claims
-    # (`branchsweep`). Off by default — destructive behavior is never implicit;
-    # the `coga/checkout-cleanup/branch-sweep` context states the assumption a repo opts into.
-    git_worktrees_ticket_owned: bool = False
+    obsolete_git_config: bool = False
     # Liveness limits for the interactive REPLs `coga recurring` spawns, from
     # the shared `[launch]` table. None = no limit from config. The idle timeout
     # also keeps a presence flag because that limit has a built-in default:
@@ -417,10 +406,6 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     extensions = _parse_extensions(shared.get("extensions", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     telemetry_enabled = _resolve_telemetry_enabled(shared.get("telemetry"), local.get("telemetry"))
-    git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
-    git_remote, git_control_branch, git_worktrees_ticket_owned = _parse_git(
-        shared.get("git")
-    )
     (
         launch_idle_timeout,
         launch_idle_timeout_present,
@@ -472,10 +457,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         extensions=extensions,
         ticket_fields=ticket_fields,
         telemetry_enabled=telemetry_enabled,
-        git_enabled=git_enabled,
-        git_remote=git_remote,
-        git_control_branch=git_control_branch,
-        git_worktrees_ticket_owned=git_worktrees_ticket_owned,
+        obsolete_git_config="git" in shared or "git" in local,
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         recurring_idle_days=_parse_recurring(shared.get("recurring")),
@@ -507,11 +489,9 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
                     f"files or remove {ref!r} from [autofix].contexts."
                 )
     if contexts_dir is not None:
-        # Check the rest of a relocated tree after autofix refs so an invalid
-        # configured default retains its setting and ref in the diagnostic.
         checkout = find_checkout_root(root)
-        assert checkout is not None
-        _require_trackable_context_entry(checkout, contexts_dir)
+        for artifact in contexts_dir.rglob("SKILL.md"):
+            require_context_artifact(contexts_dir, artifact, checkout=checkout)
     return cfg
 
 
@@ -1235,59 +1215,6 @@ def _resolve_telemetry_enabled(shared: dict | None, local: dict | None) -> bool:
     return enabled
 
 
-def _resolve_git_enabled(shared: dict | None, local: dict | None) -> bool:
-    """Resolve [git].enabled with local overriding shared. Default: True.
-
-    Git sync is on by default, and the machine-local opt-out (`[git].enabled =
-    false` in `coga.local.toml`) is for repos with no remote —
-    dev/CI/single-developer checkouts.
-    """
-    for table in (local, shared):
-        if isinstance(table, dict) and "enabled" in table:
-            value = table["enabled"]
-            if not isinstance(value, bool):
-                raise ConfigError(
-                    f"[git].enabled must be a boolean (got {type(value).__name__})"
-                )
-            return value
-    return True
-
-
-def _parse_git(shared: dict | None) -> tuple[str, str, bool]:
-    """Parse `[git]` for `remote` / `control_branch` / `worktrees_ticket_owned`.
-
-    Defaults to `origin` / `main` / `False`. The `enabled` key is resolved
-    separately (`_resolve_git_enabled`) so it can pick up a `coga.local.toml`
-    override.
-    """
-    remote = "origin"
-    control_branch = "main"
-    worktrees_ticket_owned = False
-    if shared is None:
-        return remote, control_branch, worktrees_ticket_owned
-    if not isinstance(shared, dict):
-        raise ConfigError(f"[git] must be a table (got {type(shared).__name__})")
-    if "remote" in shared:
-        value = shared["remote"]
-        if not isinstance(value, str) or not value.strip():
-            raise ConfigError("[git].remote must be a non-empty string")
-        remote = value.strip()
-    if "control_branch" in shared:
-        value = shared["control_branch"]
-        if not isinstance(value, str) or not value.strip():
-            raise ConfigError("[git].control_branch must be a non-empty string")
-        control_branch = value.strip()
-    if "worktrees_ticket_owned" in shared:
-        value = shared["worktrees_ticket_owned"]
-        if not isinstance(value, bool):
-            raise ConfigError(
-                "[git].worktrees_ticket_owned must be a boolean "
-                f"(got {type(value).__name__})"
-            )
-        worktrees_ticket_owned = value
-    return remote, control_branch, worktrees_ticket_owned
-
-
 def _parse_layout(raw: object, repo_root: Path) -> Path | None:
     """Resolve `[layout] contexts` to an absolute directory, or None if unset.
 
@@ -1301,10 +1228,8 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
     The value is a relative path anchored at the git checkout root (see
     `find_checkout_root`), and must resolve to a reproducible child directory
     inside that checkout. Absolute/outside/checkout-root paths, symlinked path
-    components and Git pathspec metacharacters are rejected here. load_config
-    checks tree trackability after validating autofix refs so their failures
-    identify the configured default. Empty or ignored trees still fail load:
-    coga's state is git-backed, so the directory must survive a clone.
+    components and Git pathspec metacharacters are rejected here. Resolved
+    context artifacts are checked against that directory on load.
 
     An unset key skips all of it, so a repo that never touches `[layout]`
     behaves exactly as it did before the key existed.
@@ -1484,13 +1409,10 @@ def require_context_artifact(
     artifact: Path,
     *,
     checkout: Path | None,
-    trackable: set[Path] | None = None,
 ) -> None:
     """Check local context paths before following links or treating them as absent.
 
-    Shared by configured-root admission and per-ref resolution. Non-Git
-    scaffolds retain ordinary-file resolution; in a checkout the file must be
-    tracked or eligible for the next state sweep. Attachments are not callers.
+    Shared by configured-root admission and per-ref resolution.
     """
     root = contexts_root.absolute()
     artifact = artifact.absolute()
@@ -1499,34 +1421,6 @@ def require_context_artifact(
     anchor = checkout or root
     if not root.is_relative_to(anchor):
         raise ConfigError(f"Context root {root} is outside the checkout {anchor}.")
-    if os.name == "nt" and checkout is not None:
-        # With core.symlinks=false, Git checks links out as ordinary files
-        # containing the target name. They still cannot be context artifacts
-        # (or ancestors): another checkout could follow the recorded link.
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(checkout), "ls-files", "--stage", "-z"],
-                capture_output=True, check=False,
-            )
-        except OSError as exc:
-            raise ConfigError(
-                f"Cannot verify context artifact {artifact} with Git: {exc}"
-            ) from exc
-        if result.returncode != 0:
-            raise ConfigError(
-                f"Cannot verify context artifact {artifact} with Git: "
-                f"{result.stderr.decode('utf-8', errors='replace').strip()}"
-            )
-        for entry in result.stdout.split(b"\0"):
-            metadata, _, name = entry.partition(b"\t")
-            if metadata.startswith(b"120000 "):
-                link = checkout / os.fsdecode(name)
-                if artifact == link or link in artifact.parents:
-                    raise ConfigError(
-                        f"Context artifact {artifact} traverses the symlink "
-                        f"recorded by Git at {link}. Replace it with a regular "
-                        "context file or directory and stage the replacement."
-                    )
     current = anchor
     for part in ("", *artifact.relative_to(anchor).parts):
         current = current / part
@@ -1551,134 +1445,6 @@ def require_context_artifact(
         return
     if not artifact.is_file():
         raise ConfigError(f"Context artifact {artifact} is not a regular file.")
-    if checkout is None:
-        return
-    if trackable is None:
-        try:
-            result = subprocess.run(
-                [
-                    "git", "-C", str(checkout), "--literal-pathspecs", "ls-files",
-                    "--cached", "--others", "--exclude-standard", "-z", "--",
-                    artifact.relative_to(checkout).as_posix(),
-                ],
-                capture_output=True, check=False,
-            )
-        except OSError as exc:
-            raise ConfigError(
-                f"Cannot verify context artifact {artifact} with Git: {exc}"
-            ) from exc
-        if result.returncode != 0:
-            raise ConfigError(
-                f"Cannot verify context artifact {artifact} with Git: "
-                f"{result.stderr.decode(errors='replace').strip()}"
-            )
-        trackable = {
-            checkout / os.fsdecode(path)
-            for path in result.stdout.split(b"\0") if path
-        }
-    if artifact not in trackable:
-        raise ConfigError(
-            f"Context artifact {artifact}: context file is neither tracked nor "
-            "unignored in the host checkout. Remove the matching ignore rule "
-            "or force-add the context file, then retry."
-        )
-
-
-def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> None:
-    """Require a reproducible configured root and context artifacts.
-
-    Git does not record directories. Accept tracked files and untracked,
-    non-ignored files because the next Coga state sweep will add the latter;
-    reject an empty or fully ignored tree before its shared config can land by
-    itself and break every fresh clone at config load. Also reject an ignore
-    rule covering the root or any real context ``SKILL.md``: composition would
-    otherwise read state the sweep can never carry to another clone. The
-    shipped ``_template`` is intentionally ignored scaffolding rather than a
-    resolvable context, so it is exempt.
-    """
-    rel = contexts_root.relative_to(checkout).as_posix()
-    try:
-        ignored_root = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(checkout),
-                "check-ignore",
-                "--quiet",
-                "--no-index",
-                "--",
-                f"{rel}/",
-            ],
-            capture_output=True,
-            check=False,
-        )
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(checkout),
-                "--literal-pathspecs",
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "-z",
-                "--",
-                rel,
-            ],
-            capture_output=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise ConfigError(
-            "[layout].contexts requires Git to verify that the configured "
-            "directory can survive a clone, but `git` is not on PATH."
-        ) from exc
-    if ignored_root.returncode == 0:
-        raise ConfigError(
-            f"[layout].contexts points at {contexts_root}, but that directory "
-            "is ignored by Git. Existing tracked files can mask this rule while "
-            "new contexts are silently omitted from the state sweep. Remove the "
-            "matching ignore rule, then retry."
-        )
-    if ignored_root.returncode != 1:
-        detail = ignored_root.stderr.decode(errors="replace").strip()
-        raise ConfigError(
-            "[layout].contexts could not verify the configured directory with "
-            f"`git check-ignore`: {detail or f'exit {ignored_root.returncode}'}."
-        )
-    if result.returncode != 0:
-        detail = result.stderr.decode(errors="replace").strip()
-        raise ConfigError(
-            "[layout].contexts could not verify the configured directory with "
-            f"`git ls-files`: {detail or f'exit {result.returncode}'}."
-        )
-    entries = {
-        (checkout / os.fsdecode(path)).absolute()
-        for path in result.stdout.split(b"\0")
-        if path
-    }
-    trackable = {
-        path for path in entries if path.is_file() or path.is_symlink()
-    }
-    if not trackable:
-        raise ConfigError(
-            f"[layout].contexts points at {contexts_root}, but that directory "
-            "contains no tracked or unignored file, so Git cannot reproduce it "
-            "in a fresh clone. Add a context file or a trackable marker such as "
-            "`.gitkeep`, then retry."
-        )
-
-    # Never follow directory links or inspect ordinary attachments. Per-ref
-    # resolution checks every ancestor, including dangling directory links
-    # that cannot be distinguished from dangling attachments in this scan.
-    for directory, dirs, files in os.walk(contexts_root):
-        dirs[:] = [name for name in dirs if name != "_template"]
-        if "SKILL.md" in files or "SKILL.md" in dirs:
-            require_context_artifact(
-                contexts_root, Path(directory) / "SKILL.md", checkout=checkout,
-                trackable=trackable,
-            )
 
 
 def _parse_log(shared: object) -> int:

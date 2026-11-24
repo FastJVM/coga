@@ -33,43 +33,30 @@ class StepGate:
 
 
 def _has_pr(blackboard_text: str) -> object:
-    # Imported lazily: `coga.autoclose` pulls in `coga.mark` (and thus
-    # `coga.validate`) at module load, so a top-level import here would form a
-    # `validate -> step_gate -> autoclose -> mark -> validate` cycle. step_gate
-    # is imported by validate at module level, so it must stay import-light.
-    from coga.autoclose import parse_pr_url
+    from coga.blackboard import read_dev_fields
 
-    return parse_pr_url(blackboard_text)
+    return read_dev_fields(blackboard_text).get("pr")
 
 
 def _has_branch_linkage(blackboard_text: str) -> object:
-    # Lazy for the same import-cycle reason as `_has_pr`. `worktree:` is
-    # recorded only for the sandbox clone fallback (`coga/checkouts`), so the
-    # branch is the whole linkage.
-    from coga.autoclose import parse_branch_name
+    from coga.blackboard import read_dev_fields
 
-    branch = parse_branch_name(blackboard_text)
-    return bool(branch) and not branch.startswith("(")
+    return read_dev_fields(blackboard_text).get("branch")
 
 
 STEP_GATES: dict[str, StepGate] = {
     "branch": StepGate(
         check=_has_branch_linkage,
         remediation=(
-            "This step must record `branch:` under `## Dev` on the blackboard, "
-            "and `coga bump` only sees the ticket copy in the checkout it runs "
-            "from. Return to `main` (`coga/checkouts`, end of step), record the "
-            "line there, and bump. Confirm the recorded line describes *this* "
-            "attempt's branch — a stale `## Dev` left by an earlier attempt "
-            "satisfies this gate but strands the current one. Or `coga block "
-            "--task {slug} --reason \"...\"` if the branch was lost."
+            "Record this attempt's branch as `branch:` under `## Dev` "
+            "in the ticket, then bump."
         ),
     ),
     "pr": StepGate(
         check=_has_pr,
         remediation=(
-            "Run `coga open-pr {slug}` from the open-pr step to push the recorded "
-            "branch and open the PR (it writes `pr:` under `## Dev`), then bump."
+            "Run the `git/push-and-open-pr` workflow script to record `pr:` "
+            "under `## Dev` and bump."
         ),
     ),
 }

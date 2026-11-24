@@ -75,17 +75,18 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
 - An explicit `update <bundled-ref>` without managed provenance still reports
   `skipped-bundled`: a local override is maintained in the repo, while an
   uninstalled ref is refreshed by upgrading the Coga package.
-- `--pr` requires `--all` and opens or updates one draft PR after running the
-  `--verify` commands (default `coga validate --json`).
-  The updater reuses a shared branch protected by the
-  [branch-sweep cleanup contract](../checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
+- `python -m coga_edge.skill_update_pr` updates managed skills and opens or
+  updates a draft PR. It accepts `--base` and `--remote` and runs
+  `coga validate --json` before opening the PR.
+  The worker reuses a shared branch protected by the
+  [coga/git](../git/SKILL.md).
   Before applying any update it refuses, listing each path, when the switch
   to that branch would fail or sweep up local work: unmerged paths, local
-  edits or untracked files at paths that differ on the control branch, any
+  edits or untracked files at paths that differ on the base branch, any
   local edit under the skills tree, or a skills tree that differs from the
-  control branch. Staged and unstaged edits are checked separately. Commit
+  base branch. Staged and unstaged edits are checked separately. Commit
   or stash the listed local work (for a skills-tree difference, run from the
-  control branch), then retry. Harmless edits outside the skills tree,
+  base branch), then retry. Harmless edits outside the skills tree,
   including staged edits, stay in place through the PR checkout and return;
   only the skills tree is committed.
   After those local checks, and still before writing any skill file, it
@@ -141,15 +142,15 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   replaces it and its PR shows the upstream change, not the lost edit. Fix
   upstream, or convert to a hand-vendored namespaced copy.
 - **Refresh only through `coga skill update`.** The weekly
-  `recurring/skill-update` job runs `coga skill update --all --pr`. Ignore a
+  `recurring/skill-update` job runs `python -m coga_edge.skill_update_pr`. Ignore a
   pack's own bootstrap instructions (for example a skill telling the agent
   to run the pack's setup command); following them installs an unmanaged
   second copy.
-- **Don't push fixes onto the open skill-update PR.** Each `--pr` run
-  rebuilds `coga/skill-update` from the control branch and force-pushes it.
+- **Don't push fixes onto the open skill-update PR.** Each skill-update PR run
+  rebuilds `coga/skill-update` from the base branch and force-pushes it.
   Before writing anything, it refuses when the branch's open PR carries a
   commit that is neither the job's own nor already on the push destination's
-  control branch, by ancestry or by patch. The error lists each commit as
+  base branch, by ancestry or by patch. The error lists each commit as
   `<short-sha> <subject>`, and the weekly job exits 2 until a human resolves
   it, even in weeks with no upstream change. Merge the PR, move the commits
   elsewhere, or close the PR to discard them deliberately, then retry. With no

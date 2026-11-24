@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 
 from coga.repl_supervisor import (
-    CHECKOUT_RETURN_ENV,
     EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -33,7 +32,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_LAUNCH_OWNED_ENV = (
     SENTINEL_ENV,
     "COGA_SUPERVISED",
-    CHECKOUT_RETURN_ENV,
     EXPECTED_TASK_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_AGENT_ENV,

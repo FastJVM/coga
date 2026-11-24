@@ -85,8 +85,6 @@ explained beside the key in the shipped `coga.toml`.
 | `[agents.<name>]` | `cli`, `file` (both required), `mode`, `name_flag`, `session_id_flag`, `launch_args`, `discussion`, `analyze`, `peer` | both; local overlays shared key by key (explained in the shipped `coga.toml`) |
 | `[notification]` | `channels`, `slack` | both |
 | `[notification.slack]` | `webhook`, `important_webhook`, `enabled`, `gifs`, `users` | both; local wins ([coga/notifications](../notifications/SKILL.md)) |
-| `[git]` | `enabled`, `remote`, `control_branch`, `worktrees_ticket_owned` | shared |
-| `[git]` | `enabled` only | local; overrides shared ([coga/state-publication](../state-publication/SKILL.md)) |
 | `[log]` | `retention_days` (non-negative integer, default `30`; `0` disables trimming) | shared only |
 | `[recurring]` | `idle_days` (non-negative integer, default `14`; `0` disables inactivity gating) | shared only |
 | `[launch]` | `idle_timeout`, `max_session` | shared |

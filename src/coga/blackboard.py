@@ -15,12 +15,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from coga import git
 from coga.atomicio import atomic_write_text
 from coga.config import Config
 from coga.paths import read_packaged_resource, read_resource
 from coga.taskfile import (
     TaskFileError,
+    body_sections,
     fence_count,
     markdown_lines,
     read_blackboard,
@@ -39,38 +39,14 @@ PRELAUNCH_SYNTHESIS_TEXT_CHARS = 600
 BLOCKER_TS_FORMAT = "%Y-%m-%d %H:%M"
 
 
-def update_blackboard_under_barrier(
-    cfg: Config,
-    ticket_path: Path,
-    transform: Callable[[str], str | None],
-    *,
-    expected_bytes: bytes | None = None,
-    after_write: Callable[[bytes], None] | None = None,
+def update_blackboard(
+    ticket_path: Path, transform: Callable[[str], str | None],
 ) -> bytes | None:
-    """Apply one blackboard transform behind spawn admission.
-
-    ``None`` from ``transform`` is a no-op. The live bytes are captured and
-    compared again at replacement, so an editor that does not participate in
-    Coga's barrier still wins loudly instead of being overwritten.
-    """
-    with git.state_lock(cfg):
-        raw = ticket_path.read_bytes()
-        if expected_bytes is not None and raw != expected_bytes:
-            raise TaskFileError(
-                f"ticket changed before its blackboard update: {ticket_path}"
-            )
-        region = read_blackboard(ticket_path, expected_bytes=raw)
-        replacement = transform(region)
-        if replacement is None:
-            return None
-        written = replace_blackboard(
-            ticket_path,
-            replacement,
-            expected_bytes=raw,
-        )
-        if after_write is not None:
-            after_write(written)
-        return written
+    """Transform and write the current blackboard as one local file change."""
+    replacement = transform(read_blackboard(ticket_path))
+    if replacement is None:
+        return None
+    return replace_blackboard(ticket_path, replacement)
 
 
 def append_blackboard_report(
@@ -103,30 +79,16 @@ def append_blackboard_report(
             separator = newline * 2
         return region + separator + normalized_report
 
-    with git.state_lock(cfg):
-        # Never recreate a task that deletion removed while this writer was
-        # waiting to enter the barrier. Report targets are existing task files;
-        # a missing file is a stale launch context, not an empty blackboard.
-        raw = ticket_path.read_bytes()
-        text = raw.decode("utf-8")
-        newline = "\r\n" if b"\r\n" in raw else "\n"
-        if fence_count(text):
-            region = read_blackboard(ticket_path, expected_bytes=raw)
-            return replace_blackboard(
-                ticket_path,
-                append(region, newline=newline),
-                expected_bytes=raw,
-            )
+    raw = ticket_path.read_bytes()
+    text = raw.decode("utf-8")
+    newline = "\r\n" if b"\r\n" in raw else "\n"
+    if fence_count(text):
+        region = read_blackboard(ticket_path)
+        return replace_blackboard(ticket_path, append(region, newline=newline))
 
-        # Legacy standalone blackboards have no task fence. Keep their whole
-        # file append semantics, but make the write atomic and barrier-held.
-        if ticket_path.read_bytes() != raw:
-            raise TaskFileError(
-                f"ticket changed before its blackboard update: {ticket_path}"
-            )
-        rendered = append(text, newline=newline)
-        atomic_write_text(ticket_path, rendered)
-        return rendered.encode("utf-8")
+    rendered = append(text, newline=newline)
+    atomic_write_text(ticket_path, rendered)
+    return rendered.encode("utf-8")
 
 
 def render_blackboard(task_title: str, *, cfg: Config | None = None) -> str:
@@ -142,6 +104,71 @@ def render_blackboard(task_title: str, *, cfg: Config | None = None) -> str:
 _SECTION_RE = re.compile(r"^(## .+?)$", re.MULTILINE)
 _CODE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _TOP_LEVEL_HEADING_RE = re.compile(r"^ {0,3}#{1,2}(?:[ \t]+|$)")
+
+
+DEV_FIELDS = frozenset({"branch", "base", "remote", "reviewed", "pr"})
+_DEV_LINE = re.compile(r"(?P<prefix>[ \t]*(?:- +)?)(?P<key>[a-z]+):[ \t]*(?P<value>[^\r\n]*)")
+_PR_URL = re.compile(r"https?://[^/\s]+/[^/\s]+/[^/\s]+/pull/[0-9]+(?:[/?#][^\s]*)?")
+
+
+def read_dev_fields(region: str) -> dict[str, str]:
+    """Read the first usable value for each field in the live Dev section."""
+    section = next((s for s in body_sections(region) if s.heading == "Dev"), None)
+    if section is None:
+        return {}
+    fields: dict[str, str] = {}
+    for line, fenced in markdown_lines(region[section.content_start:section.end]):
+        match = None if fenced else _DEV_LINE.fullmatch(line.rstrip("\r\n"))
+        if match is None or match["key"] not in DEV_FIELDS:
+            continue
+        key = match["key"]
+        value = match["value"].strip()
+        if value.startswith("`") and "`" in value[1:]:
+            value = value[1:].partition("`")[0]
+        if not value or value.startswith("("):
+            continue
+        if key == "pr":
+            value = value.split()[0]
+            if not _PR_URL.fullmatch(value):
+                continue
+        fields.setdefault(key, value)
+    return fields
+
+
+def set_dev_fields(region: str, **fields: str) -> str:
+    """Set only the supplied fields, preserving unrelated lines."""
+    for key, value in fields.items():
+        if key not in DEV_FIELDS or not value.strip() or "\n" in value or "\r" in value:
+            raise ValueError(f"Invalid Dev field: {key!r}")
+    if not fields:
+        return region
+
+    newline = "\r\n" if "\r\n" in region else "\n"
+    section = next((s for s in body_sections(region) if s.heading == "Dev"), None)
+    if section is None:
+        entries = "".join(f"{key}: {value}{newline}" for key, value in fields.items())
+        separator = newline if region and not region.startswith(("\r", "\n")) else ""
+        return f"{newline}## Dev{newline}{newline}{entries}{separator}{region}"
+    rewritten: list[str] = []
+    written: set[str] = set()
+    for line, fenced in markdown_lines(region[section.content_start:section.end]):
+        content = line.rstrip("\r\n")
+        match = None if fenced else _DEV_LINE.fullmatch(content)
+        if match is None or match["key"] not in fields:
+            rewritten.append(line)
+            continue
+        key = match["key"]
+        if key not in written:
+            rewritten.append(f"{match['prefix']}{key}: {fields[key]}{line[len(content):]}")
+            written.add(key)
+    missing = [f"{key}: {value}{newline}" for key, value in fields.items() if key not in written]
+    header = region[:section.content_start]
+    if missing:
+        if not header.endswith(newline):
+            header += newline
+        index = 1 if rewritten and not rewritten[0].strip() else 0
+        rewritten[index:index] = missing
+    return header + "".join(rewritten) + region[section.end:]
 
 
 def _without_superseded_designs(text: str, *, keep_lines: bool = False) -> str:
@@ -752,7 +779,7 @@ __all__ = [
     "PRODUCTION_NOTES_HEADING",
     "PRELAUNCH_AUTHORING_HEADINGS",
     "PRELAUNCH_SYNTHESIS_TEXT_CHARS",
-    "update_blackboard_under_barrier",
+    "update_blackboard",
     "append_blackboard_report",
     "render_blackboard",
     "blackboard_for_prompt",

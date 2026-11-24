@@ -97,6 +97,20 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         scripted_ref.ticket_path
     )
 
+    # Simulate the branch script's artifact without requiring a Git repo.
+    runner = CliRunner()
+    slug = ref["slug"]
+    r = runner.invoke(app, ["bump", slug])
+    assert r.exit_code == 2
+    assert "requires a recorded `branch`" in r.output
+    replace_blackboard(
+        task_path,
+        read_blackboard(task_path)
+        + "\n\n## Dev\nbranch: feat/stripe-retry\nbase: main\nremote: origin\n",
+    )
+    r = runner.invoke(app, ["bump", slug])
+    assert r.exit_code == 0, r.output
+
     # 2. Compose prompt includes every section.
     task_ref = by_slug[ref["slug"]]
     ticket = read_ticket(task_ref)
@@ -119,24 +133,11 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert open_blockers(archived_ref.ticket_path) == []
     assert "Resolve the open blocker first" not in archived_prompt
 
-    # 3. Advance steps. Each gated step refuses until its required artifact is
-    #    recorded — `implement` needs the `branch:` line, `pr` needs the
-    #    PR URL — then the remaining bumps walk to and finish the last step.
-    runner = CliRunner()
-    slug = ref["slug"]
-    r = runner.invoke(app, ["bump", slug])
-    assert r.exit_code == 2
-    assert "requires a recorded `branch`" in r.output
-    replace_blackboard(
-        task_path,
-        read_blackboard(task_path)
-        + "\n\n## Dev\nbranch: feat/stripe-retry\n",
-    )
-    r = runner.invoke(app, ["bump", slug])
-    assert r.exit_code == 0, r.output
-    pr_prompt = compose_prompt(cfg, task_ref, read_ticket(task_ref))
-    assert "## Summary\nDescribe the resulting behavior." in pr_prompt
-    assert "Keep verification receipts current after preparing the summary." in pr_prompt
+    # 3. Move through implementation and peer review to the PR gate.
+    for _ in range(2):
+        r = runner.invoke(app, ["bump", slug])
+        assert r.exit_code == 0, r.output
+    assert read_ticket(task_ref).step == "4 (push-and-open-pr)"
     r = runner.invoke(app, ["bump", slug])
     assert r.exit_code == 2
     assert "requires a recorded `pr`" in r.output
@@ -148,14 +149,12 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     for _ in range(2):
         r = runner.invoke(app, ["bump", slug])
         assert r.exit_code == 0, r.output
-    r = runner.invoke(app, ["bump", slug])
-    assert r.exit_code == 0, r.output
     assert read_ticket(task_ref).status == "done"
 
     # Lifecycle shows up in the repo-global log, tagged with this task's ref.
     log = "\n".join(task_log_lines(cfg, slug))
     assert "created" in log
-    assert "advanced to step 2 (pr)" in log
+    assert "advanced to step 4 (push-and-open-pr)" in log
     assert "task done" in log
 
     # 4. Create a second task so we can exercise block + slack without revival of the first.

@@ -54,27 +54,9 @@ and [history](../coga/log.md) for recorded transitions.
   [autofix](../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md),
   [period tasks](../src/coga/resources/templates/coga/bootstrap/contexts/coga/period-task/SKILL.md),
   [Dream](../src/coga/resources/templates/coga/recurring/dream/ticket.md).
-- Team sync: [Git state overview](../src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md),
-  [notifications](../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md)
-  ([producers](../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md)),
-  [coga-important](../src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md), and
-  [usage records](../src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md).
-
-- Publication: [PRs](../src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/SKILL.md)
-  ([preparation](../src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/preparation/SKILL.md));
-  [human assists](../src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md);
-  [state publication and recovery](../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md).
-- Extending and recovering a repo: [extension choices](../src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md),
-  [edge code and forks](../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md),
-  [agent sandboxes](../src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md).
-
-- Code-task conventions: [checkouts](../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)
-  ([launch boundary](../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md),
-  [sandbox clone](../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/sandbox-clone/SKILL.md)),
-  [design history](../src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md#superseded-designs),
-  [checkout cleanup](../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md)
-  ([terminal owners](../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md),
-  [branch sweep](../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md)).
+- Working with Git and pull requests. [Git conventions](../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md), [PR preparation](../src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/preparation/SKILL.md).
+- [Notifications](../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md) and [usage records](../src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md).
+- [Extension choices](../src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md), [edge code and forks](../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md), and [agent sandboxes](../src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md).
 
 ## Develop Coga
 
@@ -84,8 +66,7 @@ The local-only Coga-dev topics and maintainer skills cover implementation:
 - [Design principles](contexts/coga-dev/principles/SKILL.md),
   [patterns](contexts/coga-dev/patterns/SKILL.md), and the
   [microkernel boundary](contexts/coga-dev/microkernel/SKILL.md).
-- [Internals index](contexts/coga-dev/internals/SKILL.md) for concurrency,
-  publication transactions, recurring admission, and activity capture.
+- [Internals index](contexts/coga-dev/internals/SKILL.md) for execution, recurring admission and activity capture.
 - [Codebase](contexts/coga-dev/codebase/SKILL.md) source map and
   [gotchas](contexts/coga-dev/codebase/gotchas/SKILL.md).
 - [Weekly telemetry](../src/coga/resources/templates/coga/recurring/phone-home/ticket.md) (opt-out) and its

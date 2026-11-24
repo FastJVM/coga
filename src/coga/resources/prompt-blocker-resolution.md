@@ -2,7 +2,7 @@
 
 This ticket carries unresolved blocker asks and has been resumed so you can
 work through them with the human in this session. **Your first job — before
-the workflow step's real work — is to resolve or re-block, nothing else.**
+the workflow step's real work — is to resolve the open ask.**
 
 Open asks, verbatim from the blackboard `## Blockers` section (stale or junk
 asks included, so the human can clear them):

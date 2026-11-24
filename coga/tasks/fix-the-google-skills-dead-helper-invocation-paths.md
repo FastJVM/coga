@@ -1,6 +1,6 @@
 ---
 title: Fix the Google skills' dead helper invocation paths
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,9 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
     checkout: reuse-required
-step: 2 (peer-review)
 agent: claude
-launch_generation: fdf5c2e3-de06-46b3-a770-0b95c4a5ddaf
 ---
 
 ## Description
@@ -214,7 +212,18 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1277
 branch: fix-google-skills-helper-paths
+base: main
+remote: origin
+
+## Merge reconciliation
+
+The recipe uses Coga's skill resolver so the root, nested, and local override
+layouts select the same directory as launch. The placeholder test covers the
+Google helpers and their requirements files. The seed helper moved out of
+the skill directory during the plain Git migration and no longer uses a
+`/resolved/` placeholder.
 
 ## Implement handoff
 
@@ -228,7 +237,24 @@ Commit `1c1a09136` on `fix-google-skills-helper-paths` (pushed; base `b9c94016e`
 - The gcal.py/gmail.py docstrings were left unchanged. They already use the placeholder, and the test now guards them.
 - For the open-pr step, the PR body should say this resolves Dream findings ks-28/ks-29 (do not edit the Dream ticket).
 - Checkout note: this session started on the done ticket `refresh-v1-microkernel-readmes-after-retro` branch. It had no unique commits, and all dirt was already on origin/main (verified per path). I ran the manual return (restore + switch main) before branching.
-- Code review: not run yet. `peer-review` is next.
+
+## Peer review
+
+Codex completed a direct, independent review of Claude's implementation
+(commit `0a725dabe8cff1597d2708c21ddea0bcec4f35dd` after rebase). The
+review found shell metacharacters in the copy-paste example and a packaging
+check that missed extensionless filenames. Codex fixed both and consolidated
+the resolver in Google Calendar so Gmail only supplies its two arguments.
+Codex then reviewed the resulting combined diff at head `ccc7f71f790694448619dca5a65f9f40b6aa3bc4` against
+base `f89f8439e56197d818d0b19fc9cc506fb4590a70`. That final pass includes Codex's own fixes. No findings remain.
+
+Ran the documented Bash resolver for both Calendar and Gmail. With no
+override it found both packaged scripts and each ran `--help`. With
+`COGA_COGA_OS_ROOT` pointing to a local override path containing a space,
+the override won from outside the checkout. Full Linux suite on Pop!_OS
+24.04 LTS, Python 3.12.12, using
+`TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` returned
+5181 passed, 33 skipped in 913.06s (15m 13s). Native Windows and macOS verification is deferred to release.
 
 ## PR
 
@@ -236,57 +262,70 @@ Commit `1c1a09136` on `fix-google-skills-helper-paths` (pushed; base `b9c94016e`
 title: Give the Google skills a concrete helper-path resolution recipe
 author: claude
 author_evidence: >-
-  Implement session ran as Claude (claude-opus-5-5) under coga megalaunch
-  7300fd41-afa6-4de1-9acf-12b79f0b3049.
-head: 1c1a091364182bd6290cdf4589ff7581fd6c1774
-base: b9c94016e211bd261842edf614c6a97b18868913
+  Claude (claude-opus-5-5) implemented the original change under coga
+  megalaunch 7300fd41-afa6-4de1-9acf-12b79f0b3049. Codex authored the
+  follow-up fixes in the peer-review step.
+head: ccc7f71f790694448619dca5a65f9f40b6aa3bc4
+base: f89f8439e56197d818d0b19fc9cc506fb4590a70
 depth: skim
 rationale: >-
-  Docs-only change to three packaged SKILL.md files plus one self-contained
-  packaging test; read the google-calendar resolution section for the recipe
-  and interpreter wording.
+  The change is limited to packaged usage instructions and their
+  packaging regression test. Read the resolver for interpreter selection
+  and platform quoting. Codex independently reviewed the original
+  implementation and checked its own follow-up fixes in the final diff.
 implementation: >-
-  coga/google-calendar owns a copy-pasteable local-override-then-package
-  resolution recipe with interpreter, pip-target and cmd.exe guidance;
-  coga/gmail restates it in two lines and links the owner;
-  coga/calendar-reminder links the owner. A packaging test fails when any
-  /resolved/<ref>/<file> placeholder in packaged resources names an unshipped
-  file.
+  Google Calendar owns one runnable recipe that checks the local override
+  before using the installed package. Gmail and Calendar Reminder point to
+  it. Dependency installation uses the interpreter that runs the helper.
+  The packaging regression checks placeholder targets, including
+  extensionless files. This resolves Dream findings ks-28 and ks-29.
 deviations: >-
-  gmail restates the two resolution lines (allowed by the ticket) rather than
-  a single sentence, so its own skill name stays copy-pasteable.
+  None. Gmail links to the shared recipe and supplies its skill and helper
+  names.
 limitations: >-
-  Examples remain POSIX-shaped; only a cmd.exe quoting note is given. No
-  Windows execution check (release-only tier).
+  The resolver example uses Bash, with a cmd.exe quoting example for the
+  package fallback. Native Windows and macOS checks are deferred to
+  release. Python 3.12.12 was used for Linux verification. The smoke check
+  exercised both resolution branches and helper help without Google API
+  requests or dependency installation.
 files:
   src/coga/resources/templates/coga/bootstrap/skills/coga/google-calendar/SKILL.md: >-
-    Owner of the helper-directory resolution recipe and pip/interpreter rules.
+    Owns the shared helper resolution recipe, dependency installation
+    instructions, and cmd.exe fallback quoting.
   src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/SKILL.md: >-
-    Restates the recipe for gmail and links the owner; pip line by absolute path.
+    Links to the owner's recipe with Gmail-specific arguments and uses the
+    resolved requirements path.
   src/coga/resources/templates/coga/bootstrap/skills/coga/calendar-reminder/SKILL.md: >-
-    Links the owner; keeps call shapes and a concrete pip line.
+    Links to the owner's recipe while retaining its Calendar call shapes
+    and dependency installation command.
   tests/test_packaging.py: >-
-    Locks every /resolved/<ref>/<file> placeholder to a shipped package file.
+    Checks shipped placeholder targets across the package tree and
+    exercises the failure diagnostic for missing files.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: ccc7f71f790694448619dca5a65f9f40b6aa3bc4
+  base: f89f8439e56197d818d0b19fc9cc506fb4590a70
   detail: >-
-    Implement step; independent peer-review is the next workflow step.
+    Direct review completed. Codex independently reviewed Claude's change,
+    fixed two findings, and inspected the full final diff including its own
+    corrections. No findings remain.
 checks:
-  - command: .venv/bin/python -m pytest -q
+  - command: TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q
     status: passed
-    head: 1c1a091364182bd6290cdf4589ff7581fd6c1774
-    base: b9c94016e211bd261842edf614c6a97b18868913
+    head: ccc7f71f790694448619dca5a65f9f40b6aa3bc4
+    base: f89f8439e56197d818d0b19fc9cc506fb4590a70
     detail: >-
-      5181 passed, 33 skipped. Ran on the working tree that was then committed
-      unchanged (git diff --quiet HEAD verified).
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py -k resolved
+      Pop!_OS 24.04 LTS, Linux, Python 3.12.12. 5181 passed, 33 skipped in 913.06s (15m 13s).
+  - command: git diff --check origin/main...HEAD
     status: passed
-    head: 1c1a091364182bd6290cdf4589ff7581fd6c1774
-    base: b9c94016e211bd261842edf614c6a97b18868913
-    detail: 2 passed.
+    head: ccc7f71f790694448619dca5a65f9f40b6aa3bc4
+    base: f89f8439e56197d818d0b19fc9cc506fb4590a70
+    detail: >-
+      No whitespace errors in the final diff.
   - command: coga validate --json
     status: not-run
-    detail: No validation, config, workflow or task-model behavior changed.
+    detail: >-
+      No configuration, workflow, or task-model changes require validation.
 ```

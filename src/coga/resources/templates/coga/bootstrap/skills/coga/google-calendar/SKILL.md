@@ -35,37 +35,22 @@ Exit codes are the contract:
 ## Resolving the helper directory
 
 `/resolved/coga/google-calendar/` stands for this skill's resolved
-directory. Run this from the checkout, or from any directory inside a Coga
-launch. For Gmail, use `skill=gmail` and `helper=gmail.py`.
+directory. Run this from a directory where Coga discovers the repo. For
+Gmail, pass `coga/gmail` as the argument.
 
-```bash
-skill=google-calendar
-helper=gcal.py
-dir="${COGA_COGA_OS_ROOT:-$(git rev-parse --show-toplevel)/coga}/skills/coga/$skill"
-if [ ! -f "$dir/$helper" ]; then
-    dir="$(python -c 'import sys; from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "coga", sys.argv[1]))' "$skill")"
-fi
+```sh
+python -c "import sys; from coga.config import load_config; from coga.paths import resolve_skill_path; ref = sys.argv[1]; path = resolve_skill_path(load_config(require_user=False), ref); print(path.parent) if path else sys.exit('Skill not found: ' + ref)" coga/google-calendar
 ```
 
-The first directory is the repo's local override. Bundled skills stay in the
-package, so the fallback needs a Python that imports `coga`. For a `uv tool`
-or `pipx` install, use the tool environment's Python (shown in the POSIX
-`coga` launcher's shebang) for the `python -c` line. In Windows `cmd.exe`,
-single quotes cannot delimit the code argument. Use double quotes around
-the code and single quotes around the Python strings inside it:
+The command uses Coga's normal local-first resolution in POSIX shells,
+PowerShell, and `cmd.exe`. Use a Python that imports `coga`. For a `uv tool`
+or `pipx` install, that is the tool environment's Python. Read the directory
+it prints and substitute it for `/resolved/coga/google-calendar/` below.
+Use the Python that will run the helper to install its Google client libraries.
 
-```cmd
-python -c "import sys; from coga.paths import packaged_template_path; print(packaged_template_path('bootstrap', 'skills', 'coga', sys.argv[1]))" google-calendar
-```
-
-Once resolution succeeds, use the Python environment where you want the
-Google client libraries installed. The helpers run as standalone scripts and
-can use a different Python from the resolver. The absolute requirements
-path lets you install from any working directory.
-
-```bash
-python -m pip install -r "$dir/requirements.txt"
-python "$dir/$helper" --help
+```sh
+python -m pip install -r "/resolved/coga/google-calendar/requirements.txt"
+python "/resolved/coga/google-calendar/gcal.py" --help
 ```
 
 ## Auth — service account
@@ -115,7 +100,7 @@ as a separate ticket.)
 
 `requirements.txt` declares `google-api-python-client` and `google-auth`.
 Coga installs nothing for a skill. Install them yourself with
-`python -m pip install -r "$dir/requirements.txt"`, using the same Python that
+`python -m pip install -r "/resolved/coga/google-calendar/requirements.txt"`, using the same Python that
 runs `gcal.py` (see "Resolving the helper directory").
 
 ## Out of scope

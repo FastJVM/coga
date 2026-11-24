@@ -11,7 +11,6 @@ from typing import Any
 import yaml
 
 from coga.config import Config
-from coga.git import GitError
 from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_workflow_path
@@ -43,8 +42,6 @@ class RetainedPromotionError(RecurringError):
 _TASK_ONLY_FIELDS = (
     "status",
     "step",
-    "period_generation",
-    "launch_generation",
 )
 
 # What a template passes through to each period task, in render order. Mirrors
@@ -200,7 +197,7 @@ def promote_task(
             f"promoted to recurring template `recurring/{template_name}` "
             f"(schedule {schedule})",
         )
-    except (GitError, OSError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         raise RetainedPromotionError(
             f"Could not record promotion from {ref.path} to {dest}: {exc}. "
             "The local move is retained. Reconcile it before publication."

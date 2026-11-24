@@ -4,55 +4,36 @@ description: A thin ticket is designed into a spec, cold-reviewed by another age
 steps:
   - name: design
     assignee: agent
-    checkout: control
     skills:
       - code/design
   - name: evaluate-design
     assignee: other-agent
-    checkout: control
     skills:
       - code/review-design
   - name: review-design
     assignee: owner
-    checkout: control
+  - name: open-branch
+    run: git/open-branch
+    assignee: agent
+    requires: branch
   - name: implement
     assignee: agent
     requires: branch
-    checkout: create-or-reuse
     skills:
       - code/implement
   - name: peer-review
     assignee: other-agent
-    checkout: reuse-required
     skills:
       - code/peer-review
-  - name: open-pr
+  - name: push-and-open-pr
+    run: git/push-and-open-pr
     assignee: agent
     requires: pr
-    checkout: control
-    skills:
-      - code/open-pr
   - name: review
     assignee: owner
-    checkout: reuse-required
     skills:
       - code/address-pr-comments
 ---
-
-## Before choosing this workflow
-
-This workflow needs a second agent to review the code. Check `[agents.*]` in
-`coga/coga.toml` and `coga.local.toml`. If only one agent is configured — or
-three or more with no `peer =` on the main agent — use `code/with-self-review`
-instead.
-
-A step that declares `skills:` does **not** compose the `## <step>` section
-below: Coga builds that step-specific layer from the declared skill files, and
-the inline section is never read by the launched agent. The base prompt,
-contexts, ticket-level skills, ticket body, and blackboard still compose
-normally. Agent instructions therefore belong in the step's skills. Sections
-here for a skilled step are human-facing framing only. Skill-less steps *do*
-compose their section, so those bodies are load-bearing.
 
 ## review-design
 
@@ -64,56 +45,35 @@ anything under `## Open Questions` on the blackboard. If an
 `## Evaluator review` section is present, resolve every must-fix finding; record
 a disposition when one is intentionally rejected. Edit the ticket directly to
 correct scope or approach. When the spec is right, run `coga bump` to hand off
-to `implement`. If the design is wrong enough to redo, rewind with
+to `open-branch`. If the design is wrong enough to redo, rewind with
 `coga bump <slug> --to 1` (`design` is step 1) instead of bumping; if the premise itself is
 wrong, cancel and open a new ticket (`coga/lifecycle`).
 
-## implement
+## open-branch
 
-Agent step, owned by the `code/implement` skill. Launch creates or reuses the
-recorded branch before the agent starts (`coga/checkouts`). The step declares
-`requires: branch`, so `coga bump` refuses to advance until `branch:` is
-recorded under `## Dev` in the ticket copy of the checkout the bump runs from.
+Run `git/open-branch` from the intended base and record the branch in the ticket.
+See [coga/git](../../contexts/coga/git/SKILL.md).
 
-## peer-review
+## push-and-open-pr
 
-Other-agent step, owned by the `code/peer-review` skill. The `evaluate-design`
-peer reviewed the spec; this step has the main agent's configured peer review
-the code `implement` committed, apply must-fix findings, freshen the branch,
-and prepare `## PR`. Launch reuses the recorded branch. Like
-`evaluate-design`, it fails loud (`unresolvable-step-assignee`) when no peer
-resolves; a single-agent install uses `code/with-self-review` instead.
-Tickets frozen before this step existed go straight from `implement` to
-`open-pr` and report that no code review ran.
-
-## open-pr
-
-Agent step, owned by the `code/open-pr` skill: `coga open-pr <slug>` pushes the
-recorded branch, opens the PR, and writes `pr:` back under `## Dev`. It declares
-`requires: pr`, so `coga bump` holds the step until that line exists.
-
-The command is deterministic and has no judgment of its own, which is why the
-preceding `peer-review` step authors the PR body and rebases the branch.
-Owner approval of the design is not implementation review; the code review is
-the `peer-review` step's.
+Run `git/push-and-open-pr` after the implementation and review commits.
+The script uses the preparation recorded under `## PR`.
 
 ## review
 
-Owner-controlled gate. The human reviews the open PR and decides whether to
-edit, request changes, push fixes, or merge. An agent launched to assist here
-runs the `code/address-pr-comments` skill, which carries the do-not-merge and
-do-not-bump rules for that assist.
+The owner reviews the PR and decides whether to merge. Run the final bump on
+the branch, then commit and push the finished ticket and log before merging.
+The owner can launch an assist to handle requested changes.
 
-After the human merges, the `autoclose-merged` recurring sweep marks the task
-`done` on its next run (≤24h); `coga bump` closes it immediately.
+## open-pr
 
-`done` is not the end of the ticket. When the sweep closes it, the sweep also
-disposes of the feature branch (and any leftover recorded worktree) recorded
-under `## Dev`, but only what the shared checkout proofs show is safe to
-remove; a `coga bump` close disposes of nothing. The closing act is still the
-owner's — once the ticket is `done`, run `coga retire <slug>`. Retire runs the
-same proofs on whatever checkout remains, then deletes the done ticket with no
-agent: its learning already landed with the merged PR. The packaged
-`bootstrap/retire/ticket.md` owns that procedure, and the
-`coga/checkout-cleanup` context owns what the shared proofs prove, preserve,
-and record for later sweeps.
+On a frozen ticket with this earlier step name, follow the `code/open-pr`
+skill to run the current PR script.
+
+## implement
+
+On a frozen snapshot without a step skill, follow `code/implement`.
+
+## peer-review
+
+On a frozen snapshot without a step skill, follow `code/peer-review`.

@@ -63,11 +63,9 @@ def post(
     `fatal` (the default) keeps the crash-loud contract: a message that could
     not be delivered exits 1. Pass `fatal=False` for a broadcast that
     *announces a state change already written to disk* — a bump, mark, or block
-    transition. Three reasons, the same ones git sync already answers to
-    (`coga.git.publish`): the markdown on disk is the source of truth, so
-    the transition happened either way; the miss is already loud on stderr and
-    in `log.md`; and crashing aborts the command *after* the write but before
-    its remaining work — for the session-ending commands that means skipping
+    transition. The local change has already happened, and the delivery
+    failure is reported on stderr and in `log.md`. Exiting before the
+    command can finish risks skipping
     `emit_done_marker`, which leaves a supervised REPL wedged until its idle
     backstop kills it (a real 15-minute stall: a network-restricted agent
     sandbox turned a successful `coga bump` into a `timed_out` task). A

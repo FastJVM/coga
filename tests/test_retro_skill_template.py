@@ -64,81 +64,6 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "`<PR title>. PR: <url>`" in text
 
 
-def test_retro_requires_backend_neutral_isolated_checkout() -> None:
-    """Retro branches and deletes only inside a verified isolated checkout.
-
-    Both callers own the boundary, live-state snapshot, and explicit cleanup.
-    Codex can fall back to a clone when its sandbox cannot lock primary `.git`.
-    """
-    text = RETRO_SKILL.read_text(encoding="utf-8")
-    norm = " ".join(text.split())
-
-    assert "Native `isolation: worktree`, a caller-created `git worktree add`" in norm
-    assert "`git clone --no-hardlinks` fallback" in norm
-    assert "managed sandbox prevents writing the caller's `.git`" in norm
-    assert "fetch that exact ref" in norm
-    assert "unique temporary branch on that fresh tip" in norm
-    assert "test \"$(git rev-parse --show-toplevel)\" != \"<caller-repo-root>\"" in text
-    assert "--git-common-dir" in text
-    assert "configured remote URL must also match the caller's" in norm
-    assert "primary checkout's branch, index, and files" in norm
-    assert "Every `git checkout` and `coga delete` command" in norm
-    assert "ordinary-copy the caller's gitignored `coga.local.toml`" in norm
-    assert "same repo-relative Coga OS path" in norm
-    assert "Never symlink it, put it in the evidence snapshot, stage it, or commit it" in norm
-    assert "read-only evidence snapshot" in norm
-    assert "including sibling attachments" in norm
-    assert "`coga delete <slug> --keep-control-checkout`" in text
-    assert "ordinary `coga delete <slug>` from an independent clone" in norm
-    assert "`git worktree remove <path>`" in text
-    assert "`git branch -D <temporary-branch>`" in text
-    assert "delete only the exact temporary clone directory" in norm
-    assert "mutating Claude subagent may retain its worktree" in norm
-    assert "<configured-remote>/<configured-control-branch>" in text
-    assert "origin/main" not in text
-    assert "auto-cleaned" not in text
-    assert "automatic worktree cleanup" not in text
-    assert "Work in the current checkout — do not create a `git worktree`." not in text
-
-
-def test_retro_deletes_every_processed_done_ticket() -> None:
-    """Every done ticket Retro processes is deleted, but by two different
-    routes. A ticket that carries durable knowledge is deleted inside its
-    theme's reviewable knowledge PR (the marker recorded in the same PR). A
-    ticket with no durable knowledge uses a reference-pin PR when needed,
-    otherwise direct `coga delete` — no marker, no `## Pruned` bookkeeping. A processed done ticket never survives the run on disk."""
-    text = RETRO_SKILL.read_text(encoding="utf-8")
-
-    # Knowledge-bearing tickets stay bundled: extracted + deleted in one PR.
-    assert "theme's knowledge PR" in text
-    assert "delete its directory in the same knowledge" in text
-
-    # Knowledge-less tickets never ride in a knowledge PR.
-    assert "A source task with no new durable knowledge is still deleted" in text
-    assert "is direct-deleted via `coga delete`" in text
-    assert "`coga delete <slug> --keep-control-checkout`" in text
-    assert "no marker or PR" in text
-    assert "gets **no** marker" in text
-    assert "git restore" in text
-    assert "leaves a processed done ticket on disk" in text
-    assert "a processed done ticket should not\nsurvive the run." in text
-
-    # Idempotency: a surviving marked directory is no longer "settled".
-    assert "the task directory is gone, or an open PR" in text
-    assert "processed `## Retro` marker on a still-present" in text
-    assert "Retro re-picks it for deletion." in text
-
-    # The forbidden moves: marker-only PR, and any PR for a no-knowledge ticket.
-    assert "open a marker-only PR" in text
-    assert "no `## Pruned` bookkeeping" in text
-    assert "open any\n  PR for a no-durable-knowledge ticket other than the run's reference-pin PR" in text
-
-    # The old bundled-deletion machinery is gone.
-    assert "delete-only prune PR" not in text
-    assert "folded into a knowledge PR" not in text
-    assert "no-new-durable-knowledge" not in text
-
-
 def test_retro_repoints_inbound_references_before_deleting() -> None:
     text = RETRO_SKILL.read_text(encoding="utf-8")
     norm = " ".join(text.split())
@@ -152,7 +77,7 @@ def test_retro_repoints_inbound_references_before_deleting() -> None:
     assert "resolve relative targets from the referring file" in norm
     assert "Honor the repository's search restrictions" in norm
     assert "Existing commit permalinks already preserve the source" in norm
-    assert "commit permalink of the fresh control-branch tip" in norm
+    assert "commit permalink of the fresh base tip" in norm
     assert "Never add a new live-tree link to a source task you are deleting" in norm
     assert "land a deletion that leaves a live-tree reference to the deleted task" in norm
 

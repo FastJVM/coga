@@ -35,7 +35,7 @@ message/attachment not found.
 
 `/resolved/coga/gmail/` stands for this skill's resolved directory. Resolve it
 with the commands in `coga/google-calendar` ("Resolving the helper directory"),
-using `skill=gmail` and `helper=gmail.py`.
+passing `coga/gmail` and substituting the printed directory.
 
 ## Auth — OAuth user credentials
 
@@ -74,5 +74,5 @@ corresponding environment names above, then remove the retired table from
 
 `google-api-python-client`, `google-auth`, `google-auth-oauthlib` (in
 `requirements.txt`). Coga installs nothing for a skill. Install them yourself
-with `python -m pip install -r "$dir/requirements.txt"`, using the same Python
-that runs `gmail.py`.
+with `python -m pip install -r "/resolved/coga/gmail/requirements.txt"`, using
+the same Python that runs `gmail.py`.

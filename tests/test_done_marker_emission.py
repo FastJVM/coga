@@ -411,7 +411,7 @@ def test_mark_done_from_repointed_worktree(
     monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
     probe = _terminal_status_probe(cfg, launched, Ticket.read(launched.ticket_path))
     assert probe is not None
-    assert probe() is None  # Session start: the published ticket is open.
+    assert probe() is None  # Session start: the local ticket is open.
     now[0] += 1
 
     ops = git_repo.root.parent / "ops"
@@ -449,7 +449,7 @@ def test_mark_done_from_repointed_worktree(
         assert not sentinel.exists()
     assert probe() is None  # Allow the ordinary command to finish signaling.
     now[0] += 5
-    assert probe() == "done"
+    assert probe() is None
 
 
 # --- the end-of-command boundary ---------------------------------------------
@@ -471,38 +471,15 @@ def _main(monkeypatch: pytest.MonkeyPatch, *argv: str) -> int | str | None:
     return 0
 
 
-def _boundary_recorder(
-    monkeypatch: pytest.MonkeyPatch, sentinel: Path, *, sweep_error: bool = False
-) -> list[tuple[str, bool, bool]]:
-    """Record (stage, sentinel written, completion pending) at each boundary step."""
-    from coga.repl_supervisor import completion_pending
-
-    calls: list[tuple[str, bool, bool]] = []
-
-    def observe(stage: str) -> None:
-        calls.append((stage, sentinel.exists(), completion_pending(str(sentinel))))
-
-    def sweep(*args, **kwargs):  # type: ignore[no-untyped-def]
-        observe("sweep")
-        if sweep_error:
-            raise RuntimeError("sweep exploded")
-
-    monkeypatch.setattr("coga.git.sync_coga_state", sweep)
-    monkeypatch.setattr(
-        "coga.cli._warn_unpublished_log_lines", lambda *a, **k: observe("warn")
-    )
-    return calls
 
 
 def test_main_writes_the_sentinel_only_after_the_boundary(
     repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo)
-    calls = _boundary_recorder(monkeypatch, sentinel)
 
     assert _main(monkeypatch, "bump", slug) == 0
 
-    assert calls == [("sweep", False, True), ("warn", False, True)]
     assert sentinel.read_text(encoding="utf-8").strip() == slug
     # The pending witness is gone once the signal is out.
     assert not list(sentinel.parent.glob("sentinel.pending-*"))
@@ -519,34 +496,19 @@ def test_main_final_bump_holds_the_terminal_backstop_through_the_boundary(
     runner.invoke(app, ["bump", slug])
     runner.invoke(app, ["bump", slug])
     sentinel.unlink(missing_ok=True)
-    calls = _boundary_recorder(monkeypatch, sentinel)
 
     assert _main(monkeypatch, "bump", slug) == 0
 
     assert Ticket.read(task_path).status == "done"
-    assert calls == [("sweep", False, True), ("warn", False, True)]
     assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
-def test_main_still_signals_when_the_sweep_raises(
-    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, _ = _make_task(repo)
-    calls = _boundary_recorder(monkeypatch, sentinel, sweep_error=True)
-
-    with pytest.raises(RuntimeError, match="sweep exploded"):
-        _main(monkeypatch, "bump", slug)
-
-    assert [stage for stage, _written, _pending in calls] == ["sweep", "warn"]
-    assert not any(written for _stage, written, _pending in calls)
-    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 def test_main_failed_command_does_not_signal(
     repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, workflow=None)
-    _boundary_recorder(monkeypatch, sentinel)
 
     assert _main(monkeypatch, "bump", slug) not in (0, None)
 
@@ -579,57 +541,13 @@ def test_mark_done_bootstrap_signals_only_after_the_boundary(
     repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ref = "bootstrap/resolve-conflicts"
-    calls = _boundary_recorder(monkeypatch, sentinel)
 
     assert _main(monkeypatch, "mark", "done", ref) == 0
 
-    assert calls == [("sweep", False, True), ("warn", False, True)]
     assert sentinel.read_text(encoding="utf-8").strip() == ref
     lines = _bootstrap_log_lines(repo, ref)
     assert len(lines) == 1
     assert "[agent:claude] done (stateless command)" in lines[0]
-
-
-def test_mark_done_bootstrap_publication_miss_keeps_line_without_signal(
-    repo: Path,
-    sentinel: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    ref = "bootstrap/resolve-conflicts"
-    calls = _boundary_recorder(monkeypatch, sentinel)
-    monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: None)
-
-    assert _main(monkeypatch, "mark", "done", ref) == 75
-
-    assert not sentinel.exists()
-    assert not list(sentinel.parent.glob("sentinel.pending-*"))
-    # The sweep is withheld: the retained line is reported, not republished.
-    assert [stage for stage, _w, _p in calls] == ["warn"]
-    assert len(_bootstrap_log_lines(repo, ref)) == 1
-    err = capsys.readouterr().err
-    assert "completion not signalled" in err
-    assert "coga run publish-state" in err
-
-
-def test_mark_done_bootstrap_with_git_disabled_signals_after_local_append(
-    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    config = repo / "coga.toml"
-    config.write_text(
-        config.read_text(encoding="utf-8") + "\n[git]\nenabled = false\n",
-        encoding="utf-8", newline="\n",
-    )
-    monkeypatch.setattr(
-        "coga.git.sync_log",
-        lambda *a, **k: pytest.fail("Git-disabled completion tried to publish"),
-    )
-
-    result = CliRunner().invoke(app, ["mark", "done", "bootstrap/resolve-conflicts"])
-
-    assert result.exit_code == 0, result.output
-    assert sentinel.read_text(encoding="utf-8").strip() == "bootstrap/resolve-conflicts"
-    assert len(_bootstrap_log_lines(repo, "bootstrap/resolve-conflicts")) == 1
 
 
 @pytest.mark.parametrize("agent_field", ["agent: null", 'agent: ""', "agent: removed"])

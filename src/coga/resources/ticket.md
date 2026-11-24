@@ -42,18 +42,20 @@ do not rewrite a live snapshot or advance it by editing YAML. Frozen example:
     workflow:
       name: code/with-review                # Selected workflow name.
       steps:
+        - name: open-branch
+          run: git/open-branch               # Local-first skill directory containing run.py.
+          assignee: agent
         - name: implement                  # Ordered step name.
           skills:                          # Optional procedures for this step; plural, never skill.
             - code/implement
           assignee: agent                  # Role: owner, agent, or other-agent (the configured peer).
           requires: branch                 # Optional completion gate: branch or pr.
-          checkout: create-or-reuse        # Entry checkout: control, create-or-reuse, reuse-required, manual.
-    step: 1 (implement)                    # One-based position plus name; CLI removes this on completion.
+    step: 1 (open-branch)                    # One-based position plus name; CLI removes this on completion.
 
 An omitted step assignee inherits the previous role; the first defaults to
 owner. The current step determines who holds the ticket. There is no top-level
 assignment field. Removed keys slug, human, assignee, and watchers are invalid.
-There is no execution-mode field: a sibling ticket.py supplies a script phase.
+A workflow run: selects a script for its step. A sibling ticket.py supplies the default script phase.
 
 Repo extensions are string fields declared under [ticket.fields.<name>] in
 coga.toml: description explains the field, values restricts its choices,
@@ -61,19 +63,16 @@ default seeds it, and required prevents activation while it is empty. Actual
 values live below the extensions marker comment in the YAML header. Preserve
 them; do not invent extension fields or change their definitions in config.
 
-Machine-owned fields: delegate freezes a recurring parent's bootstrap/<name>
-target; period_generation identifies its materialized run. Both belong only on
-period tasks directly under tasks/recurring/. launch_generation is megalaunch's
-session claim. Preserve these fields; do not add or clear them yourself.
+The recurring runner writes delegate on materialized period tickets. It
+names the parent template's frozen bootstrap/<name> target.
 
 BLACKBOARD (BELOW THE FENCE)
 Keep current decisions and their reasons, verification, next actions, and
 blockers here. Update current values in place instead of appending stale copies.
 
-Optional ## Dev: branch: <name> when created; pr: <full /pull/ URL> when opened;
-worktree: <path> only for a sandbox clone. One field per line, notes on separate
-lines, omit unknown values. For multiple owned branches, the first branch is
-the workflow branch.
+Optional ## Dev records branch:, base:, remote:, reviewed: (the commit OID),
+and pr: (the full /pull/ URL). Write one field per line and omit unknown
+values. coga/git owns the fields and the workflow that writes them.
 
 Optional ## PR: one fenced YAML mapping of PR-preparation receipts (title,
 author, head/base OIDs, review depth, files, review, checks). Record only actual

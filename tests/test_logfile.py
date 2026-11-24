@@ -16,7 +16,6 @@ from coga.logfile import (
     iter_log_messages_reverse,
     last_activity_map,
     ref_tag_for_path,
-    retract_log_lines,
     task_log_lines,
 )
 from coga.paths import log_path
@@ -148,25 +147,6 @@ def test_iter_log_messages_reverse_missing_log_yields_nothing(repo: Path) -> Non
     assert list(iter_log_messages_reverse(load_config(repo))) == []
 
 
-def test_log_round_trip_preserves_non_ascii_messages_and_refs(repo: Path) -> None:
-    cfg = load_config(repo)
-    ref, message = "café/東京", "résumé — 語\nsecond line"
-    written = append_log(cfg, ref, "system", message)
-
-    assert log_path(cfg).read_bytes() == written
-    assert b"\r" not in written
-    assert ref.encode("utf-8") in written
-    assert list(iter_log_messages(cfg)) == [(ref, message)]
-    assert list(iter_log_messages_reverse(cfg, block_size=7)) == [(ref, message)]
-    assert task_log_lines(cfg, ref) == [written.decode("utf-8").rstrip("\n")]
-    assert ref in first_activity_map(cfg) and ref in last_activity_map(cfg)
-
-    append_log(cfg, "peer", "system", "Autre café")
-    append_log(cfg, ref, "system", "Retract this attempt")
-    retract_log_lines(cfg, ref, written)
-    assert list(iter_log_messages(cfg)) == [(ref, message), ("peer", "Autre café")]
-
-
 # A sync failure carrying complete Git stderr, as `mark.py` logs it.
 _GIT_STDERR = (
     "sync failed: git push failed:\n"
@@ -258,40 +238,6 @@ def test_readers_tolerate_legacy_continuation_lines(repo: Path) -> None:
         "2026-06-02 10:00 [beta] [human:marc] created",
         "hint: stray continuation of beta",
     ]
-
-
-def test_retract_log_lines_removes_the_whole_multiline_event(repo: Path) -> None:
-    cfg = load_config(repo)
-    append_log(cfg, "beta", "human:marc", "created")
-    before = log_path(cfg).read_bytes()
-    append_log(cfg, "alpha", "git", _GIT_STDERR)
-    peer = append_log(cfg, "beta", "git", "push failed:\nrefusing [alpha]\r\n")
-    append_log(cfg, "alpha", "human:marc", "bumped")
-
-    retract_log_lines(cfg, "alpha", before)
-
-    assert log_path(cfg).read_bytes() == before + peer
-    assert [ref for ref, _ in iter_log_messages(cfg)] == ["beta", "beta"]
-
-
-def test_retract_log_lines_keeps_peer_event_mentioning_the_tag(
-    repo: Path,
-) -> None:
-    """Match the `[ref]` field, not a substring anywhere in the line."""
-    cfg = load_config(repo)
-    before = b"2026-06-01 10:00 [alpha] [human:marc] created\n"
-    peer = b"2026-06-01 10:01 [beta] [system] blocked on [alpha]\n"
-    log_path(cfg).write_bytes(
-        before
-        + b"2026-06-01 10:02 [alpha] [git] sync failed: one\n"
-        + b"legacy continuation two\n"
-        + peer
-        + b"2026-06-01 10:03 [alpha] [human:marc] bumped"
-    )
-
-    retract_log_lines(cfg, "alpha", before)
-
-    assert log_path(cfg).read_bytes() == before + peer
 
 
 def test_version_marker_preserves_legacy_text_and_distinguishes_new_events(repo: Path) -> None:

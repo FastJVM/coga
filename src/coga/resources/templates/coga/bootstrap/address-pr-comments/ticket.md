@@ -42,14 +42,11 @@ worktree selected below for the skill's recorded checkout:
 - **§4 Reply without resolving** — the `addPullRequestReviewThreadReply`
   mutation, the re-read before replying, and the ban on `resolveReviewThread`.
 
-The skill's **§1 and its attended-assist conduct do not apply** as a whole
-here. Retain only §1 items 3–5 for publication-destination validation and the
-private-ref fetch proof, with the sweep-specific refusal handling below; its
-ticket linkage, checkout alignment, and human escalation do not apply. Resolve
-the remaining contradictions in favour of this ticket:
+Apply §1's destination and head proofs using the PR metadata below. The
+sweep-specific worktree and escalation rules apply here.
 
 - There is no ticket `## Dev` block to read. The sweep starts from the PR
-  itself (step 1 below), never from a `branch:` / `worktree:` / `pr:` line.
+  itself (step 1 below), never from a `branch:` / `pr:` line.
 - There is no `git branch --show-current == branch:` check. A temporary
   detached worktree has no current branch; it pushes
   `HEAD:refs/heads/<head-ref>` under the same exact lease.
@@ -93,10 +90,8 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
 ### Run order
 
 1. **Preflight and enumerate.** Start from the repository root. Confirm
-   `git` and `gh` can read the repository (`gh auth status`), then run
-   `git fetch <configured-remote> main`, where `<configured-remote>` is
-   `[git].remote` from `coga.toml` (default `origin`) — the same remote the
-   publication checks below read; do not assume an `origin` remote exists.
+   `git` and `gh` can read the repository (`gh auth status`). Use the current
+   branch's upstream remote, falling back to `origin` if unset.
    Query PR metadata with
    `gh pr view <n> --json number,title,url,state,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeable`
    (in sweep mode, from the complete/paginated `gh pr list --state open
@@ -104,10 +99,8 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
    each observed head OID for its push lease. Report and skip before reading
    any comment:
    - title starting with `Human Review needed` → `skipped-human-review`,
-     even when it is the selected PR. A lifecycle command opened it for an
-     ambiguous ticket status conflict (`coga/state-publication`, "Human
-     review of status conflicts"); its comments and resolution are the
-     human's. Apply this check before the remaining skip rules.
+     even when it is the selected PR. These legacy conflict PRs remain with
+     their owner. Apply this check before the remaining skip rules.
    - base other than `main` → `skipped-base` with the base named;
    - `mergeable` is `CONFLICTING` → `conflicting`; if it is `UNKNOWN`, retry
      the read a small, bounded number of times and report `conflicting` if it
@@ -115,8 +108,8 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
    - head repository other than this repository (a fork) → `skipped-fork`.
      Resolving a writable fork remote is not attempted.
 
-   Before reading comments or changing files, apply the skill's §1 items 3–5
-   to this PR: read the configured `[git].remote` (default `origin`), require
+   Before reading comments or changing files, apply the skill's §1 destination proof
+   to this PR. Require
    `git remote get-url --push --all <configured-remote>` to return exactly one
    non-empty URL, and require that URL to identify the PR head repository
    `<headRepositoryOwner.login>/<headRepository.name>`. Record it as
@@ -237,8 +230,7 @@ Always delete the private fetch ref after recording its OID, including on a
 mismatch or later failure.
 
 Never merge a PR, never delete its branch, never resolve a thread, and never
-run `coga bump` or `coga mark` on the PR's owning ticket. `autoclose-merged`
-closes tickets after the human merges.
+run `coga bump` or `coga mark` on the PR's owning ticket. The owner records completion on the branch before merging.
 
 ### Report
 
@@ -275,6 +267,6 @@ stateless target is what tells the launch supervisor the command is complete.
 
 A Slack failure is a command failure and must be surfaced: state it in your
 final report, then still run `coga mark done` so the session ends promptly.
-If `mark done` exits 75, report its retained log line. The Slack line is
+The Slack line is
 the only cross-run record: do not persist the per-PR lines or roll-up in this
 command ticket or in any other task file.

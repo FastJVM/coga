@@ -8,19 +8,15 @@ from pathlib import Path
 
 import typer
 
-from coga import git
 from coga.config import Config, ConfigError, load_config
 from coga.skill_manager import (
     SkillManagerError,
-    assert_skill_update_branch_unclaimed,
-    assert_skill_update_pr_preflight,
     install_github_skill,
     install_local_skill,
     install_url_skill,
     remove_skill,
     render_update_pr_body,
     resolve_installed_skill_dir,
-    run_skill_update_pr_flow,
     status_skills,
     update_skills,
 )
@@ -95,51 +91,11 @@ def update(
         "--json",
         help="Emit structured JSON summary.",
     ),
-    pr: bool = typer.Option(
-        False,
-        "--pr",
-        help="Open or update one draft PR with the skill-update summary.",
-    ),
-    pr_title: str = typer.Option(
-        "Update Coga-managed skills",
-        "--pr-title",
-        help="Title for the skill-update PR.",
-    ),
-    verify: list[str] | None = typer.Option(
-        None,
-        "--verify",
-        help="Verification command to run before creating/updating the PR. Repeatable.",
-    ),
 ) -> None:
     """Update one skill or every managed skill."""
     cfg = _load_config_or_exit()
     try:
-        expected_remote_oid: str | None = None
-        if pr:
-            if not all_skills:
-                raise SkillManagerError("--pr is only supported with `coga skill update --all`.")
-            # Before any update is applied: a refusal must leave no update behind.
-            # Local checks run first because they are cheap and need no network.
-            assert_skill_update_pr_preflight(cfg)
-            # Then refuse to rebuild the shared branch over hand-pushed commits
-            # on its open PR. A refusal also withholds the end-of-command state
-            # sweep, so nothing is committed or pushed by a run that changed
-            # nothing.
-            try:
-                expected_remote_oid = assert_skill_update_branch_unclaimed(cfg)
-            except SkillManagerError:
-                git.state_sweep_withheld.set(True)
-                raise
         summary = update_skills(cfg, skill, all_skills=all_skills)
-        if pr:
-            commands = verify or ["coga validate --json"]
-            summary = run_skill_update_pr_flow(
-                cfg,
-                summary,
-                title=pr_title,
-                verification_commands=commands,
-                expected_remote_oid=expected_remote_oid,
-            )
     except SkillManagerError as exc:
         _bail(str(exc))
 
