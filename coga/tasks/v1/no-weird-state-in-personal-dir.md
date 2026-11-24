@@ -1,6 +1,6 @@
 ---
 title: no weird state in personal dir
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -41,7 +41,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 8 (review)
 agent: claude
 ---
 

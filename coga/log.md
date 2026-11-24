@@ -4686,3 +4686,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-23 23:03 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-23 23:05 v1 [sweep-orphan-tmp-trees-that-contain-read-only-dire] [human:nicktoper] created (status=draft)
 2026-11-23 23:05 v1 [report-an-unknown-or-directory-workflow-name-witho] [human:nicktoper] created (status=draft)
+2026-11-23 23:54 v1 [v1/no-weird-state-in-personal-dir] [human:nicktoper] task done
