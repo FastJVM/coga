@@ -14,12 +14,8 @@ work, and `git branch -d` or GitHub to clean up merged branches.
 
 Use ordinary Git branches in the checkout where the work started. If a
 branch switch would disrupt work in progress, coordinate with the person using
-the checkout before switching.
-
-Dream and Retro are the only Coga workflows allowed to create or use linked
-Git worktrees. Create each worktree in a visible, run-specific temporary
-directory inside the repository. Remove the worktree and temporary directory
-when the run ends, including after a failure.
+the checkout before switching. A [recurring run](../recurring/SKILL.md#checkout-policy)
+is the only Coga workflow that can use a disposable clone or linked Git worktree.
 
 ## Ticket Git record
 

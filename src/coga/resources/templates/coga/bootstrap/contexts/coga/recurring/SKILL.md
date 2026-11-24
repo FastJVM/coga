@@ -30,6 +30,19 @@ operation is covered here and in [coga/secrets](../secrets/SKILL.md)
 (service-account auth), and scheduling behavior is
 [coga/recurring/scheduling](scheduling/SKILL.md).
 
+## Checkout policy
+
+Run recurring work from a disposable clone or linked Git worktree in a visible,
+run-specific directory under `/tmp`. Verify that it has the intended branch
+and revision before launching jobs. Run every job and child step in that
+checkout, including Dream and Retro when the recurring run invokes them.
+Switch branches there when a job needs another branch.
+
+Keep run reports and state needed by later runs in visible paths in the
+original repository. At the end of the run, remove the checkout and its
+temporary directory, including after a failure. Report the path if cleanup
+fails so an operator can find and inspect it.
+
 ## Commands
 
 `coga recurring` sweeps due templates; `coga recurring launch <name>` (and
