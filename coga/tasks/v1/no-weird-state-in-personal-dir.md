@@ -216,6 +216,9 @@ including command aliases (owner reconfirmed during implement); keep
         `<coga root>/.coga/data/<id_slug>`, both in `TASK_ENV_KEYS` and built
         by `build_task_env`. The task data dir exists before the first phase
         runs.
+- [ ] Guided `coga ticket` interviews also get one tmp scope and a durable
+      directory for the selected target, including `bootstrap/ticket` when no
+      target is given.
 - [ ] The `launch(..., read_only=True)` script path and `recurring_clone`'s
       `ticket.py` runs get the same scope and variables.
 - [ ] When the scope closes, normally, on exception, on `LaunchBail` and on
@@ -580,7 +583,7 @@ ordinary ticket.
 
 pr: https://github.com/FastJVM/coga/pull/1280
 branch: coga/v1-no-weird-state-in-personal-dir-d9bd4b
-base: coga/v1-03-use-git-like-everyone-remove-coga-s-public-9c8a83
+base: main
 remote: origin
 reviewed: afcf188110a594f05b94dbadb57f0350f5f9e880
 

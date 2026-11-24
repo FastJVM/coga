@@ -1849,7 +1849,7 @@ def spawn_agent_session(
 
     Per-caller differences are arguments here, not forked command code:
     `env` carries the secrets policy (`coga launch` passes a launch env;
-    authoring passes the ambient process env with no Coga secret injection),
+    authoring passes a scrubbed process env with no Coga secret injection),
     `discussion` selects discussion-prompt argv, and `kickoff` appends an
     optional first user turn such as the `coga ticket` greet-first "Begin".
     `stateless_identity` lets an authoring surface compose against a real task

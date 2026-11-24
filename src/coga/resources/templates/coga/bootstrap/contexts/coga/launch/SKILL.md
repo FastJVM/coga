@@ -121,7 +121,9 @@ A launch provides ignored, repo-local storage for unversioned state under
 Every `_launch` (attended, recurring period, delegated) opens exactly one
 tmp scope once its config is known and holds it for the whole step chain;
 megalaunch opens one per child chain and recurring clone scripts one per
-run. A clone script gets `COGA_DATA_DIR` but no task identity. Read-only
+run. Guided `coga ticket` opens one per interview and creates the durable
+directory for the selected task, or for `bootstrap/ticket` when no target is
+given. A clone script gets `COGA_DATA_DIR` but no task identity. Read-only
 dispatch gets a tmp scope but no data variables, creates no `data/`, and
 never sweeps. `--prompt-report` and parser-only script help create nothing.
 A nested launch creates its own sibling token and never touches its

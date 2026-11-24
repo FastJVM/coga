@@ -29,6 +29,8 @@ syntax authority for every flag.
   `skills:`; a local `coga/skills/bootstrap/ticket/` overrides it. Standard
   `claude`/`codex` receive the prompt as system/developer context
   (`[agents.<type>].discussion` overrides the argv template).
+  The interview uses the same [managed run state](../../launch/SKILL.md#run-state)
+  as a launch.
 - **Authoring agent.** The same resolution picks who runs the interview for
   `coga ticket` and megalaunch's picked drafts; the first set term wins:
   (1) `--agent`, `coga megalaunch --agent`, or the `--pick-agent` answer;

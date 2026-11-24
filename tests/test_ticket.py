@@ -246,6 +246,56 @@ def test_ticket_authoring_scrubs_1password_auth(
     assert not [key for key in captured_env if key in op_auth]
 
 
+@pytest.mark.parametrize("target", [None, "investigate-retries"])
+@pytest.mark.parametrize("exit_code", [0, 17])
+def test_ticket_authoring_manages_run_state(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target: str | None,
+    exit_code: int,
+) -> None:
+    data_root = repo / ".coga" / "data"
+    tmp_root = repo / ".coga" / "tmp"
+    args = ["ticket"]
+    if target is None:
+        task_data = data_root / "bootstrap" / "ticket"
+    else:
+        create_task(
+            cfg=load_config(repo),
+            title="Investigate retries",
+            workflow_name="direct/body",
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status="active",
+        )
+        args.append(target)
+        task_data = data_root / "tasks" / target
+
+    class Result:
+        returncode = exit_code
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        scratch = Path(env["TMPDIR"])
+        assert scratch.parent == tmp_root
+        assert env["TMP"] == env["TEMP"] == str(scratch)
+        assert (tmp_root / f"{scratch.name}.lock").is_file()
+        assert Path(env["COGA_DATA_DIR"]) == data_root
+        assert Path(env["COGA_TASK_DATA_DIR"]) == task_data
+        (scratch / "scratch.txt").touch()
+        (task_data / "keep.txt").touch()
+        return Result()
+
+    monkeypatch.setattr("coga.commands.ticket.interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == exit_code, result.output
+    assert list(tmp_root.iterdir()) == []
+    assert (task_data / "keep.txt").is_file()
+
+
 def test_ticket_uses_discussion_template_when_agent_configures_one(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
