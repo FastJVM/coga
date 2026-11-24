@@ -106,8 +106,7 @@ every step. Decide per ticket across all planned steps:
   that topic (it gets read first anyway).
 
 Measure relative size at authoring time with `approx_tokens` from
-`coga launch --prompt-report`, which skips the state sweep, so a trial
-`contexts:` edit stays local; do not edit lifecycle frontmatter to measure,
+`coga launch --prompt-report` with a local trial `contexts:` edit; do not edit lifecycle frontmatter to measure,
 and do not quote sizes (they go stale). No topic is
 always-attach or always-cite.
 

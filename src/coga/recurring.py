@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 import tomllib
 
@@ -22,6 +21,7 @@ from coga.config import Config, ConfigError
 from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.launch_script import (
     SCRIPT_ENTRY_POINT,
+    resolve_step_script,
     script_entry_point as resolve_script_entry_point,
 )
 from coga.logfile import (
@@ -84,77 +84,6 @@ class AgentUnavailableError(RecurringError):
     Not a template fault: `scan_due` gives it a scan row instead of filing it
     with genuine template errors (see `DueScan.agent_refusals`).
     """
-
-
-@dataclass(frozen=True)
-class PeriodLease:
-    """Exact stable-path generation admitted for one recurring child.
-
-    A later recurring generation can otherwise be materialized at the same
-    stable path with identical dispatch and lifecycle state. New periods carry
-    a creator-owned ``period_generation`` token in their ticket, which stays
-    fixed through child edits and changes on every supported rematerialization.
-    Legacy periods have no token; they remain launchable, and any replacement
-    created by this version gains one and is therefore distinguishable.
-    """
-
-    ticket_bytes: bytes | None
-    generation: str | None
-
-
-def period_generation_from_ticket_bytes(data: bytes | None) -> str | None:
-    """Read the bounded creator-owned generation witness from ticket bytes."""
-    if data is None:
-        return None
-    try:
-        value = Ticket.parse(data.decode()).frontmatter.get("period_generation")
-    except (UnicodeError, TicketError):
-        return None
-    return value if isinstance(value, str) else None
-
-
-def local_period_lease(cfg: Config, ref: TaskRef) -> PeriodLease:
-    """Capture one bounded local ticket-generation dispatch lease."""
-    del cfg  # Kept in the seam for symmetry with revision-backed leases.
-    try:
-        ticket_bytes = ref.ticket_path.read_bytes()
-    except FileNotFoundError:
-        # A concurrent sweep/cleanup may reap the stable period path between
-        # discovery and capture.  Missing is already a first-class lease state
-        # that launch callers classify as skipped; do not turn that race into
-        # an exception that starves later due tasks.
-        ticket_bytes = None
-    return PeriodLease(
-        ticket_bytes=ticket_bytes,
-        generation=period_generation_from_ticket_bytes(ticket_bytes),
-    )
-
-
-def same_ticket_bytes(left: bytes | None, right: bytes | None) -> bool:
-    """Compare two ticket snapshots, ignoring only CRLF vs LF line endings.
-
-    A checkout with `core.autocrlf` holds a ticket CRLF on disk while its Git
-    blob stays LF, and every restore from a control ref rewrites the working
-    copy. Normalize at comparison time, never in a stored lease: those bytes
-    also feed exact CASes against raw disk reads.
-    """
-    if left is None or right is None:
-        return left is right
-    return left.replace(b"\r\n", b"\n") == right.replace(b"\r\n", b"\n")
-
-
-def same_period_lease(left: PeriodLease, right: PeriodLease) -> bool:
-    """True when both leases name the same generation and ticket content.
-
-    Every "did this period move?" check uses this instead of `==`. A raw byte
-    comparison reads an untouched period that a line-ending-converting checkout
-    rewrote as replaced, and the sweep drops the task. Generation and the full
-    ticket must still both match, so a paused, closed, or edited
-    same-generation ticket remains a different lease.
-    """
-    return left.generation == right.generation and same_ticket_bytes(
-        left.ticket_bytes, right.ticket_bytes
-    )
 
 
 def _normalize_delegate(value: Any) -> str:
@@ -318,6 +247,18 @@ def assert_template_delegation(cfg: Config, template: "Template") -> BootstrapRe
     return target
 
 
+def _has_template_script(cfg: Config, template: "Template") -> bool:
+    if template.script_entry_point is not None:
+        return True
+    name = template.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
+    try:
+        workflow = Workflow.load(resolve_workflow_path(cfg, name))
+        run = workflow.steps[0].run
+        return run is not None and resolve_step_script(cfg, run).is_file()
+    except (WorkflowError, ConfigError, OSError, ValueError) as exc:
+        raise RecurringError(f"template {template.name!r}: {exc}") from exc
+
+
 def assert_template_workflow(cfg: Config, template: "Template") -> None:
     """Refuse a template whose period workflow cannot be frozen.
 
@@ -463,11 +404,6 @@ class Template:
                     "phase or delegates its whole period to one bootstrap "
                     "launch"
                 )
-        if "period_generation" in fm:
-            raise RecurringError(
-                "`period_generation` is reserved for materialized period tasks; "
-                "remove it from the recurring template"
-            )
         return cls(
             path=path,
             name=path.name,
@@ -1312,7 +1248,7 @@ def scan_due(
             and not allow_interactive
             and task.status == "paused"
             and task.ref is not None
-            and resolve_script_entry_point(task.ref) is None
+            and resolve_script_entry_point(task.ref, read_ticket(task.ref), cfg=cfg) is None
         ):
             reason = agent_unavailable_reason or _AGENT_NEEDS_TTY
             if task.watchdog_paused:
@@ -1597,7 +1533,7 @@ def create_template(
     # carries its hard no-agent boundary through shared launch.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
-        if not allow_agent and resolve_script_entry_point(live) is None:
+        if not allow_agent and resolve_script_entry_point(live, read_ticket(live), cfg=cfg) is None:
             raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
             ref=live,
@@ -1622,7 +1558,7 @@ def create_template(
             # both an older period and an explicitly requested same-period rerun.
             if template.delegate is not None:
                 assert_template_delegation(cfg, template)
-            if not allow_agent and template.script_entry_point is None:
+            if not allow_agent and not _has_template_script(cfg, template):
                 raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
             # Delete only once the replacement is known to be creatable: a
             # template whose workflow no longer resolves must not orphan the
@@ -1670,7 +1606,7 @@ def create_template(
             and not replace_done
             and not (retain_canceled and ticket.status == "canceled")
             and not (retain_paused and ticket.status == "paused")
-            and resolve_script_entry_point(existing) is None
+            and resolve_script_entry_point(existing, ticket, cfg=cfg) is None
         ):
             raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
@@ -1682,7 +1618,7 @@ def create_template(
 
     if template.delegate is not None:
         assert_template_delegation(cfg, template)
-    if not allow_agent and template.script_entry_point is None:
+    if not allow_agent and not _has_template_script(cfg, template):
         raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
     outcome = _create_at_slug(
         cfg,
@@ -1973,7 +1909,6 @@ def _create_at_slug(
             delegate=template.delegate,
             # Stable period paths need a bounded generation discriminator. The
             # token is creator-owned task state, never copied from the template.
-            period_generation=str(uuid4()),
             # Carry the template body verbatim so sections beyond `## Description`
             # reach the period task instead of being dropped at create time.
             body=template.body,
@@ -2578,10 +2513,5 @@ __all__ = [
     "ServicedPeriodLedger",
     "format_serviced_log",
     "SERVICED_LOG_VERBS",
-    "PeriodLease",
-    "local_period_lease",
-    "same_period_lease",
-    "same_ticket_bytes",
-    "period_generation_from_ticket_bytes",
     "RecurringError",
 ]

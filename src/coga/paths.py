@@ -427,3 +427,8 @@ __all__ = [
     "local_bootstrap_path",
     "bootstrap_resolution_paths",
 ]
+
+
+def symlink_component(path: Path) -> Path | None:
+    """Return a symlink in this lexical path, including broken links."""
+    return next((part for part in (path, *path.parents) if part.is_symlink()), None)

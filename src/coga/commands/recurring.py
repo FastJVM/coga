@@ -7,7 +7,6 @@ from pathlib import Path
 
 import typer
 
-from coga import git
 from coga.config import ConfigError, load_config
 from coga.recurring_runner import run_recurring_all_repos, run_recurring_named
 from coga.runner import run_recipe

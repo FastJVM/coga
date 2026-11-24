@@ -17,13 +17,9 @@ one reviewable PR per theme, each recording the source-task `## Retro` marker,
 updating the knowledge base, and deleting those source task directories in the
 same PR. A source task with no new durable knowledge is still deleted, but
 **directly**: Retro removes its directory with
-the checkout-appropriate `coga delete` form — a working-tree `git rm` plus a
-direct `Ticket: <slug> — deleted` commit — with no PR, no `## Retro` marker,
-and no `## Pruned` bookkeeping. If a tracked file still links that task, it
-leaves in a reference-pin PR instead, which repoints the link to a commit
-permalink (**Inbound references**). A linked worktree uses
-`--keep-control-checkout`; an independent clone uses ordinary `coga delete`
-because its refs and worktree are already separate. Recovery is via
+`coga delete <slug>` in the isolated checkout, then record the deletion
+through ordinary Git. A tracked reference instead follows the reference-pin
+PR route under **Inbound references**. Recovery is via
 `git restore`. Retro never leaves a processed done ticket on disk.
 
 Retro runs only inside a subagent that works in a dedicated isolated
@@ -32,7 +28,7 @@ absolute path the caller names for every command. Prefer the agent's native link
 caller-created linked worktree. If the managed sandbox makes the caller's
 `.git` metadata read-only, use the documented independent
 `git clone --no-hardlinks` fallback under `/tmp`, repointed to the configured
-real remote. The caller fetches the configured control branch first and bases a
+real remote. The caller fetches the configured base branch first and bases a
 unique temporary branch on that fresh tip. It also passes a read-only snapshot
 of the live Retro inputs, then explicitly removes the isolated checkout after
 every mutation is durable. Every knowledge-PR branch switch and direct delete
@@ -68,11 +64,7 @@ checkout.
   bundled with them and for reference repoints; `direct-delete` for
   unreferenced no-durable-knowledge source tasks.
   Every Retro knowledge edit lands in a reviewable PR; the caller's knowledge
-  files stay unchanged. This is Retro's deliberate review policy, not a
-  general requirement for files inside the automatically published Coga roots
-  (see `coga/state-publication`). Commit each knowledge batch before
-  invoking any sweeping Coga command in its checkout: dirty knowledge files
-  publish directly even on a feature branch.
+  files stay unchanged. Review the scoped diff before committing each batch.
 - Idempotency: for each source task, the task directory is gone, or an open PR
   is deleting the source task directory: a knowledge PR that also adds its
   `## Retro` marker, or the run's reference-pin PR. A
@@ -123,7 +115,7 @@ Do:
   marker in its `ticket.md` blackboard region and delete its directory in the same knowledge
   PR;
 - for a no-durable-knowledge source task, delete its directory directly with
-  `coga delete <slug> --keep-control-checkout` from a linked worktree, or
+  `coga delete <slug>` from a linked worktree, or
   ordinary `coga delete <slug>` from an independent clone — no marker or PR,
   and no mutation of the operator's checkout — unless a tracked file still
   references it (see **Inbound references**);
@@ -197,7 +189,7 @@ delete the source in the same reviewable knowledge PR, never by direct delete.
 Deduplicate only when the current context/skill corpus already preserves the
 same actionable finding, or this run's delta does. For a duplicate covered by
 the running delta, keep at least one source carrying the evidence in the PR
-that preserves it; that source must remain on the control branch until the
+that preserves it; that source must remain on the base branch until the
 knowledge and deletion land together. An in-memory note alone is not durable.
 
 ### Done is a status, not a receipt
@@ -207,7 +199,7 @@ ticket's `## Description` shipped. Before extracting a done ticket's
 `## Implemented` or `## Verification` claim as durable knowledge, or citing the
 ticket as the fix for anything, check what the `## Description` scoped — the
 named source path, symbol, test, or context token — against the current files
-of the isolated checkout, which sits on the fresh control-branch tip. Compare
+of the isolated checkout, which sits on the fresh base tip. Compare
 the scope against those files, not against the ticket's own prose. This is a
 read of the current tree like the comparison baseline, not a history search.
 
@@ -215,7 +207,7 @@ When the scoped change is absent or only partly present, the ticket is
 unshipped: do not extract its claimed fix, and do not cite it as delivered.
 Preserve the gap as a known failure mode, exactly as for an **Unresolved
 adjacent bug** above — what the description scoped, what the ticket claimed,
-and what the control-branch tip lacks — so the source is knowledge-bearing and
+and what the base tip lacks — so the source is knowledge-bearing and
 leaves only in that knowledge PR, never by direct delete. Report it under
 `Unshipped scope` in the PR body and in the run's result so the caller can
 route a follow-up ticket; Retro does not file one.
@@ -244,10 +236,10 @@ durable remains — is unchanged.
 ### Inbound references
 
 Deleting a source task breaks every durable reference that resolves it
-against the live tree: a `blob/<control-branch>/` GitHub link, a relative
+against the live tree: a `blob/<base>/` GitHub link, a relative
 Markdown link, or a bare path a reader is told to open in a README, doc,
 context, skill, or code comment. The open-PR and live-checkout gates do not
-see these references, and a navigation test goes red on the control branch the
+see these references, and a navigation test goes red on the base branch the
 moment the delete lands. Before choosing a source's deletion path, search the
 isolated checkout's tracked files for both the task's path relative to the
 Git root and its final slug component (`<task-leaf>`, without `.md`). The
@@ -269,9 +261,9 @@ slug that shares the prefix, or the same relative path inside another repo tree
 such as a test fixture, is not a reference. Existing commit permalinks already
 preserve the source and need no rewrite.
 Links from other live tickets are out of scope, because tickets are transient.
-Repoint every real reference to a commit permalink of the fresh control-branch
+Repoint every real reference to a commit permalink of the fresh base
 tip that the isolated branch is based on (`git rev-parse
-<remote>/<control-branch>`, full OID). That commit still contains the task,
+<remote>/<base>`, full OID). That commit still contains the task,
 because a selected source must exist in the isolated base. A relative link
 becomes the absolute permalink. Reword a bare path in prose so it reads as
 history and add the permalink. Leave everything else in the sentence as it
@@ -313,10 +305,9 @@ first available shape:
    network access, which the Dream agent capability preflight establishes
    before any phase runs.
 
-For every shape, read `[git].remote` and `[git].control_branch` from the shared
-`coga.toml` (defaults `origin` and `main`), fetch that exact ref, and create a
+Use the remote and base named by the caller. Fetch that exact ref and create a
 unique temporary branch from the fresh
-`<configured-remote>/<configured-control-branch>` tip. The subagent never
+`<configured-remote>/<base>` tip. The subagent never
 creates a second isolated checkout.
 
 Before reading the corpus or changing anything, require the caller's absolute
@@ -345,18 +336,15 @@ The caller owns teardown because a mutating Claude subagent may retain its
 worktree and Codex has no native worktree lifecycle. Leave nothing unlanded
 in the checkout and report its kind, path, temporary branch, PR URLs, and
 direct-delete verification. The caller verifies "nothing unlanded" against
-the freshly fetched `<remote>/<control-branch>`:
-`git log <remote>/<control-branch>..HEAD` prints nothing, and every path
+the freshly fetched `<remote>/<base>`:
+`git log <remote>/<base>..HEAD` prints nothing, and every path
 `git status --porcelain` lists (none may be untracked) already matches that
 tip, checked in one call:
-`git diff --name-only <remote>/<control-branch> -- <every listed path>` prints
-nothing. A landed direct delete still lists as a working-tree deletion,
-because `--keep-control-checkout` does not advance the temporary branch (see
-`coga/checkout-cleanup`); that is landed, not dirty. After checking every
-result is durable, remove the copied
+`git diff --name-only <remote>/<base> -- <every listed path>` prints
+nothing. After checking every result is durable, remove the copied
 `coga.local.toml`. For a linked checkout, run `git worktree remove <path>` from
 outside it and delete the caller-created temporary branch with
-`git branch -D <temporary-branch>`. For an independent clone, delete only the
+`git branch -d <temporary-branch>`. For an independent clone, delete only the
 exact temporary clone directory. If durability or cleanup cannot be verified,
 preserve the checkout for recovery and stop instead of force-removing it.
 
@@ -428,7 +416,7 @@ These receipts are not atomic with remote mutations: a process can die after
 a delete lands or a branch/PR is published but before appending its receipt.
 A `read` line with no later `pr` or `deleted` naming that slug therefore means
 **unknown disposition**, not proof that the source still exists. Before
-retrying, fetch the configured remote control branch and inspect its source
+retrying, fetch the configured remote base branch and inspect its source
 path and deletion evidence; check remote branches and PRs for any published
 knowledge batch. Use that inspection only to reconcile actions, not to decide
 which knowledge the corpus already covers. Record verified missing receipts;
@@ -530,7 +518,7 @@ marker for the same source task.
    extracted and not bundled into any knowledge PR. Run the **Inbound
    references** search for every source task. After settling the knowledge
    batches, delete every unreferenced no-durable-knowledge source task directly
-   with `coga delete <slug> --keep-control-checkout` (see step 9). Referenced
+   with `coga delete <slug>` (see step 9). Referenced
    ones go into the run's single reference-pin PR instead. Neither kind gets a
    `## Retro` marker or appears in a knowledge PR.
 
@@ -591,16 +579,12 @@ marker for the same source task.
    A no-durable-knowledge source task with inbound references is deleted in the
    reference-pin PR, together with those repoints. Any other source task with
    no new durable knowledge is deleted
-   **directly** from a clean, unique temporary local branch based on the freshly
-   fetched `<configured-remote>/<configured-control-branch>`. In a linked
-   worktree run `coga delete <slug> --keep-control-checkout`; in an independent
-   clone run ordinary `coga delete <slug>`. Both forms commit
-   `Ticket: <slug> — deleted` straight to the remote control branch without
-   mutating the operator's checkout — no PR, no marker, no `## Pruned` section.
-   Do not run direct deletes from detached HEAD. Leave nothing unlanded in the
-   isolated checkout (see **Isolation boundary**) so the caller can verify and
-   remove it. After deletion git history is
-   the audit trail, and recovery is via `git restore`.
+   **directly** from a clean, unique temporary branch based on the freshly
+   fetched base. Run `coga delete <slug>`, review its local deletions and
+   audit log, and make a path-limited Git commit for those changes. Use the
+   caller's approved Git handoff and stop if any operation fails. Leave
+   unpushed work available for recovery. Use `git restore` to recover files
+   from history.
 
 10. **Self-review the diff.**
    Confirm each knowledge PR changes only context files, warranted skill files,
@@ -617,9 +601,9 @@ marker for the same source task.
 11. **Open the PRs.**
    Work only in the caller-provided isolated checkout; do not create a second
    checkout. For each coherent knowledge batch, branch off
-   `<configured-remote>/<configured-control-branch>` inside it with
+   `<configured-remote>/<base>` inside it with
    `git checkout -b codex/retro-<ticket-slug>-knowledge \
-   <configured-remote>/<configured-control-branch>` for a single source task or
+   <configured-remote>/<base>` for a single source task or
    `codex/retro-<theme>-knowledge` for a multi-ticket batch, make that batch's
    edits and source-task deletions there, commit, push, and open the PR, then
    return the isolated checkout to the configured remote control ref for the
@@ -676,11 +660,7 @@ markers), and its Classification lists only the `Repointed references`. Its
 Test Plan records the repeated inbound-reference search and verification that
 each permalink resolves the original source task.
 
-Other no-durable-knowledge tickets do not get a PR — they are removed directly with
-`coga delete <slug> --keep-control-checkout`, which commits
-`Ticket: <slug> — deleted` to the remote control branch without refreshing a
-different checkout. After the run, git history is the audit trail for each
-direct-deleted task.
+Other no-durable-knowledge tickets use the direct-deletion route in step 9.
 
 ## Quality Bar
 

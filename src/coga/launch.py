@@ -25,26 +25,21 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 import tomllib
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Iterator, Mapping, NamedTuple, TypeVar
+from typing import Callable, Iterator, Mapping, NamedTuple
 
 from uuid import UUID, uuid4
-
-if TYPE_CHECKING:
-    from coga.claimed_session import ClaimedSessionResult
 
 from typer import Exit as NotificationExit
 
 from coga import usage as usage_tracking
 from coga.aliases import ONBOARDING_TASK
 from coga.agent_skills import refresh_agent_skill_view
-from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
 from coga.bump import (
     Operator,
     OperatorResolutionError,
@@ -60,7 +55,6 @@ from coga.blackboard import (
 from coga.compose import (
     ComposeError,
     LaunchContext,
-    CheckoutNotice,
     PromptComposition,
     ResolvedPromptLayers,
     compose_prompt,
@@ -69,7 +63,6 @@ from coga.compose import (
     write_prompt_file,
 )
 from coga import oscompat
-from coga.oscompat import lock_fd
 from coga.config import (
     build_launch_env,
     Config,
@@ -80,13 +73,9 @@ from coga.config import (
     load_config,
 )
 from coga.dependencies import agent_cli_missing_message
-from coga.github_preflight import check_git_auth, check_git_remote
-from coga import checkouts
-from coga import git
-from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import run_script_chain, run_script_phase, script_entry_point
-from coga.logfile import append_log, log_path
+from coga.logfile import append_log
 from coga.paths import RESOURCE_NAMES, RepoResourceUnreadable
 from coga.mark import (
     MainAgentUnavailable,
@@ -95,24 +84,19 @@ from coga.mark import (
     WorkflowMissing,
     format_blackboard_synthesis_refusal,
     mark_active,
-    mark_blocked,
     mark_in_progress,
     prepare_active,
 )
 from coga.notification import post, preflight_post
-from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
-    ASSIST_BRANCH_ENV,
-    ASSIST_PR_ENV,
-    CHECKOUT_RETURN_ENV,
     AgentCliNotFound,
     ReplOutcome,
     build_supervised_step_env,
     run_with_done_marker,
     unsignalled_advance_warning,
 )
-from coga.recurring import PeriodLease, local_period_lease, same_period_lease
+from coga import run_state
 from coga.task_env import apply_task_env
 from coga.taskfile import TaskFileError, split_body, uncomposed_sections_warning
 from coga.tasks import (
@@ -125,12 +109,8 @@ from coga.tasks import (
     resolve_target,
 )
 from coga.ticket import (
-    PENDING_LAUNCH_GENERATION_PREFIX,
     Ticket,
     TicketError,
-    admitted_launch_generation,
-    pending_launch_generation,
-    released_launch_generation,
 )
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import WorkflowError
@@ -182,112 +162,6 @@ DEFAULT_DISCUSSION_TEMPLATES = {
     "claude": "--append-system-prompt {prompt}",
     "codex": "-c developer_instructions={prompt}",
 }
-_ASSIST_ALIGNMENT_ATTEMPTS = 3
-_T = TypeVar("_T")
-
-_CHECKOUT_GUARD_SCOPE: ContextVar[ExitStack | None] = ContextVar(
-    "checkout_guard_scope", default=None
-)
-# The live direct chat this process guards, for its runtime checkout notice.
-_CHAT_SESSION: ContextVar[checkouts.ChatSession | None] = ContextVar(
-    "chat_session", default=None
-)
-
-
-@contextmanager
-def checkout_guard_scope() -> Iterator[None]:
-    """Keep launch's checkout guard through the CLI's final state sweep."""
-    with ExitStack() as stack:
-        token = _CHECKOUT_GUARD_SCOPE.set(stack)
-        try:
-            yield
-        finally:
-            _CHECKOUT_GUARD_SCOPE.reset(token)
-
-
-@contextmanager
-def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
-    """Refuse a second direct chat before it can publish or move this checkout.
-
-    Unlike the short publication lock, this nonblocking lock spans the whole
-    command. It is keyed by Git toplevel, so nested Coga roots share it while
-    separate checkouts do not. The kernel releases it on process exit; the
-    file is deliberately never unlinked (which would permit two lock inodes).
-    Once held, a companion receipt names this live session and its one
-    reserved branch name, which `coga run prepare-checkout` must match.
-    """
-    if not cfg.git_enabled:
-        yield
-        return
-    try:
-        root = git.toplevel(cfg.repo_root)
-    except git.GitError as exc:
-        _bail(
-            f"Cannot guard this chat's checkout: {exc}. No work was started.",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-    if root is None:
-        yield
-        return
-    try:
-        lock_file, _ = checkouts.orientation_lock_paths(root)
-        lock_file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        fd = os.open(lock_file, os.O_CREAT | os.O_RDWR, 0o600)
-    except OSError as exc:
-        _bail(
-            f"Cannot guard this chat's checkout: {exc}. No work was started.",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-    try:
-        try:
-            # Receipt readers must not mistake a newly acquired guard plus a
-            # crashed predecessor's receipt for that predecessor still running.
-            with checkouts.chat_session_lock(cfg, root):
-                try:
-                    lock_fd(fd, blocking=False)
-                except BlockingIOError:
-                    _bail(
-                        "Cannot launch bootstrap/orient: another chat is using this "
-                        f"checkout ({root}). Finish that chat or use a separate "
-                        "checkout. No work was started and the checkout was not changed.",
-                        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-                    )
-                try:
-                    session = checkouts.install_chat_session(cfg, root)
-                except BaseException as exc:
-                    # Drop our guard before readers can see an unchanged old
-                    # receipt, including when installation was interrupted.
-                    os.close(fd)
-                    fd = None
-                    if isinstance(exc, (OSError, git.GitError)):
-                        _bail(
-                            f"Cannot record this chat's session: {exc}. No work was started.",
-                            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-                        )
-                    raise
-        except (OSError, git.GitError) as exc:
-            _bail(
-                f"Cannot guard this chat's checkout: {exc}. No work was started.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
-        token = _CHAT_SESSION.set(session)
-        try:
-            yield
-        finally:
-            try:
-                _CHAT_SESSION.reset(token)
-            except ValueError:  # released from the CLI's outer sweep scope
-                _CHAT_SESSION.set(None)
-            checkouts.clear_chat_session(cfg, session)
-    finally:
-        if fd is not None:
-            os.close(fd)
-
-
-class _RecomposeAfterLaunchPublication(RuntimeError):
-    """A caller-owned start publication completed; rebuild before spawning."""
-
-
 def _onboarding_missing_message() -> str:
     """Explain a `coga build` miss without claiming why the ticket is gone."""
     return (
@@ -317,27 +191,26 @@ def launch(
     No command-line parser objects or process exits cross this boundary.
     """
     if read_only:
-        # Withhold publication only for this read-only call: the caller's
-        # policy comes back on return and on LaunchBail, so a writer command
-        # that makes an in-process read-only call still sweeps at exit.
-        policy_token = git.state_sweep_withheld.set(True)
+        if (
+            agent_override is not None or prompt_report or idle_timeout is not None
+            or max_session is not None or return_timeout or script_failure_important
+        ):
+            _bail("--read-only cannot be combined with agent, report or REPL options.")
         try:
-            if (agent_override is not None or prompt_report or idle_timeout is not None
-                    or max_session is not None or return_timeout or script_failure_important):
-                _bail("--read-only cannot be combined with agent, report or REPL options.")
-            try:
-                cfg = load_config(require_user=False)
-                ref = resolve_target(cfg, task)
-                if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
-                    _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
-                ticket = read_ticket(ref)
+            cfg = load_config(require_user=False)
+            ref = resolve_target(cfg, task)
+            if not isinstance(ref, BootstrapRef) or script_entry_point(ref) is None:
+                _bail("--read-only requires a bootstrap target with an exact ticket.py entry.")
+            ticket = read_ticket(ref)
+            # Read-only dispatch may create only its own tmp area: it never
+            # sweeps other launches' state or creates the durable layout.
+            with run_state.launch_tmp_scope(cfg, sweep=False) as scope:
                 result = run_script_phase(
                     cfg, ref, ticket, stateless=True, read_only=True, args=args or (),
+                    tmp_scope=scope,
                 )
-            except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
-                _bail(str(exc))
-        finally:
-            git.state_sweep_withheld.reset(policy_token)
+        except (ConfigError, tomllib.TOMLDecodeError, TaskNotFoundError, TicketError, SecretError, OSError) as exc:
+            _bail(str(exc))
         return LaunchResult(kind="script", exit_code=result.exit_code)
     from coga.argv import help_requested
     from coga.launch_script import run_bootstrap_script_help
@@ -346,445 +219,58 @@ def launch(
         code = run_bootstrap_script_help(task, args or ())
         if code is not None:
             return LaunchResult(exit_code=code)
-    with ExitStack() as local_scope:
-        if task == "bootstrap/orient" and not prompt_report:
-            try:
-                cfg = load_config()
-            except ConfigError as exc:
-                _bail(str(exc))
-            # CLI dispatch owns cleanup through its exit sweep. Direct Python
-            # callers have no outer sweep, so their guard ends with this call.
-            scope = _CHECKOUT_GUARD_SCOPE.get() or local_scope
-            scope.enter_context(_orientation_checkout_guard(cfg))
-        return _launch(
-            task,
-            args=args,
-            agent_override=agent_override,
-            prompt_report=prompt_report,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=return_timeout,
-            script_failure_important=script_failure_important,
-            # The public CLI spelling is always attended: a human typed it and is
-            # in the REPL. Queue conduct is selected by the in-process seams
-            # below, never by a flag an ordinary launch could pass.
-            launch_context="attended",
-            before_recompose=None,
-            before_final_spawn=None,
-            require_agent_target=False,
-            record_launch=True,
-            recurring_authorized=False,
-            direct_chat=task == "bootstrap/orient" and not prompt_report,
-        )
-
-
-
-class RecurringPeriodLaunchResult(NamedTuple):
-    """One ordinary launch with its child generation and publication class."""
-
-    kind: str | None
-    period_lease: PeriodLease | None
-    require_period_publication: bool
-
-
-@_launch_error_boundary()
-def launch_recurring_period(
-    task: str,
-    *,
-    expected_period_lease: PeriodLease,
-    control_remote_expected: bool,
-    agent_override: str | None,
-    prompt_report: bool,
-    idle_timeout: float | None,
-    max_session: float | None,
-    return_timeout: bool,
-    script_failure_important: bool,
-    launch_context: LaunchContext,
-    agent_spawn_refusal: str | None = None,
-) -> RecurringPeriodLaunchResult:
-    """Launch one period after the recurring runner admitted the sweep.
-
-    This is an in-process capability, not a Typer option. ``coga recurring``
-    performs the full admission pass at its outer boundary. A prior child can
-    run long enough for another checkout to pause, finish, or replace a later
-    period, though, so this seam refreshes and rechecks that one period before
-    entering shared launch logic. The caller supplies the exact ticket/audit
-    generation admitted before any prior child ran. ``control_remote_expected``
-    freezes whether that outer admission saw a configured remote: an admitted
-    remote-less checkout uses local control state, while a remote that later
-    disappears remains a failed verification. A lost refresh fails closed; a
-    period that became closed, parked, or replaced returns
-    ``"skipped"`` without starting work. The result also carries the exact
-    refreshed generation admitted before a deterministic child, or the exact
-    generation recaptured immediately before the last agent spawn. The sweep
-    can therefore compare-and-set any unfinished-child pause without touching
-    a replacement that arrived while either kind of child was running.
-    ``agent_spawn_refusal`` is the runner's hard execution boundary for a
-    headless or temporary-worktree sweep. A frozen ``ticket.py`` may be a
-    hybrid deterministic/agent phase; when it leaves agent work open, shared
-    launch returns before every agent setup or spawn and lets the runner park
-    that exact period.
-    """
-    if not _refresh_recurring_period_before_launch(
+    return _launch(
         task,
-        expected_period_lease,
-        control_remote_expected=control_remote_expected,
-    ):
-        return RecurringPeriodLaunchResult("skipped", None, False)
-
-    publication_cfg, publication_ref = _exact_recurring_period_for_launch(
-        task, boundary="publication preflight"
-    )
-    require_period_publication = _preflight_push_auth(
-        publication_cfg,
-        publication_ref,
-        is_bootstrap=False,
-    )
-
-    # The refresh above proved this exact generation immediately before shared
-    # launch setup. A pure ticket.py child has no agent-spawn callback, so keep
-    # that admitted lease as its teardown witness. Agent-backed launches verify
-    # the same generation and replace only its exact ticket bytes at the tighter
-    # boundary immediately before every actual spawn.
-    launched_period_lease = expected_period_lease
-
-    def capture_launched_period_lease(expected_ticket: Ticket) -> None:
-        """Freeze the exact composed period immediately before agent spawn."""
-        nonlocal launched_period_lease
-        current_cfg, current_ref = _exact_recurring_period_for_launch(
-            task, boundary="agent spawn"
-        )
-        current_period_lease = local_period_lease(current_cfg, current_ref)
-        if current_period_lease.generation != expected_period_lease.generation:
-            _bail(
-                f"{task} belongs to a different period generation at agent "
-                "spawn; not launching."
-            )
-        try:
-            if current_period_lease.ticket_bytes is None:
-                raise TicketError("period ticket disappeared")
-            current_ticket = Ticket.parse(
-                current_period_lease.ticket_bytes.decode()
-            )
-        except (UnicodeError, TicketError) as exc:
-            _bail(f"Cannot launch {task}: invalid period state at agent spawn: {exc}")
-        if current_ticket.status != "in_progress":
-            _bail(
-                f"Cannot launch {task}: period became {current_ticket.status!r} "
-                "before agent spawn. No work was started."
-            )
-        if current_ticket != expected_ticket:
-            _bail(
-                f"Cannot launch {task}: period state changed after prompt "
-                "composition. No work was started."
-            )
-        launched_period_lease = current_period_lease
-
-    result = _launch(
-        task,
-        args=None,
+        args=args,
         agent_override=agent_override,
         prompt_report=prompt_report,
         idle_timeout=idle_timeout,
         max_session=max_session,
         return_timeout=return_timeout,
         script_failure_important=script_failure_important,
-        launch_context=launch_context,
-        before_recompose=None,
-        before_final_spawn=capture_launched_period_lease,
+        # The public CLI spelling is always attended: a human typed it and is
+        # in the REPL. Queue conduct is selected by the in-process seams
+        # below, never by a flag an ordinary launch could pass.
+        launch_context="attended",
+        before_final_spawn=None,
         require_agent_target=False,
         record_launch=True,
-        recurring_authorized=True,
+        recurring_authorized=False,
+    )
+
+
+
+@_launch_error_boundary()
+def launch_recurring_period(
+    task: str, *, agent_override: str | None, idle_timeout: float | None,
+    max_session: float | None, launch_context: LaunchContext,
+    agent_spawn_refusal: str | None = None,
+) -> LaunchResult:
+    """Launch one locally admitted recurring period."""
+    return _launch(
+        task, args=None, agent_override=agent_override, prompt_report=False,
+        idle_timeout=idle_timeout, max_session=max_session, return_timeout=True,
+        script_failure_important=True, launch_context=launch_context,
+        before_final_spawn=None, require_agent_target=False,
+        record_launch=True, recurring_authorized=True,
         agent_spawn_refusal=agent_spawn_refusal,
     )
-    if git.state_sweep_withheld.get():
-        # The checkout return refused (already reported) and preserved dirt
-        # the sweep must not publish or disturb: stop it through the
-        # retained-state exit instead of pausing this period and moving on.
-        raise LaunchBail(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
-    return RecurringPeriodLaunchResult(
-        result.kind,
-        launched_period_lease,
-        require_period_publication,
-    )
-
-
-def _exact_recurring_period_for_launch(
-    task: str, *, boundary: str
-) -> tuple[Config, TaskRef]:
-    """Resolve one canonical period ref without permitting prefix fallback."""
-    try:
-        cfg = load_config()
-    except ConfigError as exc:
-        _bail(str(exc))
-    ref = next(
-        (candidate for candidate in list_tasks(cfg) if candidate.id_slug == task),
-        None,
-    )
-    if ref is None or ref.directory != "recurring":
-        _bail(
-            f"Cannot launch {task}: its exact recurring period disappeared "
-            f"before {boundary}. No work was started."
-        )
-    return cfg, ref
-
-
-def _refresh_recurring_period_before_launch(
-    task: str,
-    expected_period_lease: PeriodLease,
-    *,
-    control_remote_expected: bool,
-) -> bool:
-    """Refresh and re-admit the exact period generation selected by a sweep."""
-    try:
-        cfg = load_config()
-    except ConfigError as exc:
-        _bail(str(exc))
-
-    from coga.recurring_runner import (
-        _control_remote_present_at_admission,
-        _refuse_non_control_branch,
-        _refuse_non_owner,
-    )
-
-    if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
-        raise LaunchBail(2)
-    remote_present_now = _control_remote_present_at_admission(cfg)
-    if not control_remote_expected and not remote_present_now:
-        # This sweep was admitted in the supported local-only Git class. The
-        # branch/owner gates above and exact ticket lease below remain active;
-        # there is simply no distinct control destination to refresh from.
-        refreshed = True
-    elif not remote_present_now:
-        # The remote this sweep was admitted against has vanished: a refresh
-        # that cannot fetch is not a verified per-child refresh.
-        refreshed = False
-    else:
-        refreshed = git.refresh(cfg)
-    if refreshed is False:
-        _bail(
-            f"Cannot launch {task}: the latest control state could not be "
-            "verified after the preceding recurring child. No work was started."
-        )
-    try:
-        cfg = load_config(cfg.repo_root)
-    except ConfigError as exc:
-        _bail(str(exc))
-    ref = next(
-        (candidate for candidate in list_tasks(cfg) if candidate.id_slug == task),
-        None,
-    )
-    if ref is None:
-        _report(
-            f"{task} no longer exists on control; not launching.",
-            fg='yellow',
-        )
-        return False
-    if ref.directory != "recurring":
-        _bail(
-            f"Internal recurring launch expected exact period ref {task!r}, "
-            f"but found it in {ref.directory!r}."
-        )
-    if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
-        raise LaunchBail(2)
-    current_period_lease = local_period_lease(cfg, ref)
-    if not same_period_lease(current_period_lease, expected_period_lease):
-        _report(
-            f"{ref.id_slug} belongs to a different ticket/period generation "
-            "on control; not launching.",
-            fg='yellow',
-        )
-        return False
-    try:
-        if current_period_lease.ticket_bytes is None:
-            raise TicketError("period ticket disappeared")
-        ticket = Ticket.parse(current_period_lease.ticket_bytes.decode())
-    except (UnicodeError, TicketError) as exc:
-        _bail(str(exc))
-    if ticket.status not in {"active", "in_progress"}:
-        _report(
-            f"{ref.id_slug} became {ticket.status} on control; not launching.",
-            fg='yellow',
-        )
-        return False
-    return True
 
 
 @_launch_error_boundary()
 def launch_with_before_spawn(
-    task: str,
-    *,
-    agent_override: str | None,
-    idle_timeout: float | None,
-    max_session: float | None,
-    return_timeout: bool,
-    script_failure_important: bool = False,
-    launch_context: LaunchContext,
+    task: str, *, agent_override: str | None, idle_timeout: float | None,
+    max_session: float | None, return_timeout: bool, launch_context: LaunchContext,
     before_spawn: Callable[[], None],
-    revalidate_before_spawn: Callable[[Ticket], None] | None = None,
 ) -> LaunchResult:
-    """Publish caller state after preflight, then re-derive and spawn once.
-
-    Recurring delegation uses this typed in-process seam to publish its period
-    task's `in_progress` state only after target resolution, TTY/CLI checks,
-    prompt composition, secret preflights, and argv construction have all
-    succeeded. Publication can move the control checkout, so that first pass
-    makes its launch audit durable, runs the callback, and deliberately stops
-    before spawn; a second shared launch pass reloads config and target state,
-    repeats every preflight, re-composes without duplicating that audit, and
-    then starts the bootstrap agent. A separate final callback can lease
-    caller-owned state again immediately before the PTY spawn. The CLI surface
-    remains callback-free.
-    """
-    try:
-        return _launch(
-            task,
-            args=None,
-            agent_override=agent_override,
-            prompt_report=False,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=return_timeout,
-            script_failure_important=script_failure_important,
-            launch_context=launch_context,
-            before_recompose=before_spawn,
-            before_final_spawn=None,
-            require_agent_target=True,
-            record_launch=True,
-            recurring_authorized=False,
-        )
-    except _RecomposeAfterLaunchPublication:
-        return _launch(
-            task,
-            args=None,
-            agent_override=agent_override,
-            prompt_report=False,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=return_timeout,
-            script_failure_important=script_failure_important,
-            launch_context=launch_context,
-            before_recompose=None,
-            before_final_spawn=revalidate_before_spawn,
-            require_agent_target=True,
-            record_launch=False,
-            recurring_authorized=False,
-        )
-
-
-def _reconcile_released_launch_admission(
-    cfg: Config,
-    ticket_path: Path,
-    *,
-    expected_ticket_bytes: bytes,
-) -> bytes:
-    """Turn one local ``released:`` witness into a durable admitted claim.
-
-    A post-gate admission failure cannot restore ``pending:``: the child was
-    already able to execute, even though the supervisor then terminated it.
-    Megalaunch therefore retains ``released:<uuid>`` only in its checkout.
-    An explicit ordinary launch calls this boundary before recovery. It accepts
-    control only when the whole remote ticket is either the matching pending
-    revision (publication definitely failed) or the matching plain revision
-    (an ambiguous push actually landed), then publishes the plain UUID with
-    that exact control copy as its `expect`. Every failure restores the local
-    ``released:`` witness so a later retry remains recognizable, and the sweep
-    never publishes a released witness on its own.
-    """
-    with git.state_lock(cfg):
-        try:
-            current_bytes = ticket_path.read_bytes()
-        except OSError as exc:
-            raise git.GitError(
-                f"could not read released launch admission: {exc}"
-            ) from exc
-        if current_bytes != expected_ticket_bytes:
-            raise git.StateRegressionError(
-                "released launch admission changed before reconciliation"
-            )
-        try:
-            released_ticket = Ticket.parse(current_bytes.decode("utf-8"))
-        except (UnicodeDecodeError, TicketError) as exc:
-            raise git.GitError(
-                f"released launch admission is unreadable: {exc}"
-            ) from exc
-        generation = released_ticket.launch_generation
-        if not released_launch_generation(generation):
-            raise git.StateRegressionError(
-                "launch admission is no longer awaiting released-state "
-                "reconciliation"
-            )
-        assert generation is not None
-        if not cfg.git_enabled:
-            raise git.GitError(
-                "released launch admission requires Git sync to reconcile its "
-                "pending control revision"
-            )
-
-        root = git.toplevel(ticket_path)
-        if root is None:
-            raise git.GitError("released launch admission requires a Git checkout")
-        if not git.remote_configured(root, cfg.git_remote):
-            raise git.GitError(
-                f"remote {cfg.git_remote!r} is unavailable for released "
-                "launch-admission reconciliation"
-            )
-        if not git.control_branch_present(
-            root, cfg.git_control_branch, cfg.git_remote
-        ):
-            raise git.GitError(git.control_branch_mismatch_message(cfg, root))
-
-        admitted_ticket = Ticket(
-            frontmatter=dict(released_ticket.frontmatter),
-            body=released_ticket.body,
-        )
-        admitted_ticket.frontmatter["launch_generation"] = (
-            admitted_launch_generation(generation)
-        )
-        admitted_bytes = admitted_ticket.render().encode("utf-8")
-        pending_ticket = Ticket(
-            frontmatter=dict(released_ticket.frontmatter),
-            body=released_ticket.body,
-        )
-        pending_ticket.frontmatter["launch_generation"] = (
-            f"{PENDING_LAUNCH_GENERATION_PREFIX}"
-            f"{admitted_launch_generation(generation)}"
-        )
-        pending_bytes = pending_ticket.render().encode("utf-8")
-
-        base = git.fetch_control(cfg, root)
-        rel = git.relative_to_root(root, ticket_path)
-        control_bytes = git.tree_bytes(root, base, rel)
-        if control_bytes not in {pending_bytes, admitted_bytes}:
-            raise git.StateRegressionError(
-                f"{rel}: control ticket changed before released "
-                "launch-admission reconciliation"
-            )
-        # The fetch is a network wait; an edit made during it must not be
-        # overwritten by the admitted rendering of the older witness.
-        if ticket_path.read_bytes() != current_bytes:
-            raise git.StateRegressionError(
-                "released launch admission changed during reconciliation"
-            )
-
-        try:
-            admitted_ticket.write(ticket_path)
-            git.publish(
-                cfg,
-                [ticket_path],
-                "Ticket: reconcile released launch admission",
-                expect={ticket_path: control_bytes},
-            )
-        except (git.GitError, OSError) as exc:
-            # Put the witness back: it is what makes the next attempt
-            # recognizable, whether the publish was refused or unknown.
-            ticket_path.write_bytes(current_bytes)
-            if isinstance(exc, OSError):
-                raise git.GitError(
-                    f"could not record reconciled launch admission: {exc}"
-                ) from exc
-            raise
-        return admitted_bytes
+    """Start delegated period bookkeeping just before spawning its agent."""
+    return _launch(
+        task, args=None, agent_override=agent_override, prompt_report=False,
+        idle_timeout=idle_timeout, max_session=max_session, return_timeout=return_timeout,
+        script_failure_important=False, launch_context=launch_context,
+        before_final_spawn=lambda _: before_spawn(), require_agent_target=True,
+        record_launch=True, recurring_authorized=False,
+    )
 
 
 def _launch(
@@ -798,13 +284,11 @@ def _launch(
     return_timeout: bool,
     script_failure_important: bool,
     launch_context: LaunchContext,
-    before_recompose: Callable[[], None] | None,
     before_final_spawn: Callable[[Ticket], None] | None,
     require_agent_target: bool,
     record_launch: bool,
     recurring_authorized: bool,
     agent_spawn_refusal: str | None = None,
-    direct_chat: bool = False,
 ) -> LaunchResult:
     """Run the fixed launch phases; each may finish without starting an agent."""
     invocation = _LaunchInvocation(
@@ -817,29 +301,34 @@ def _launch(
         return_timeout=return_timeout,
         script_failure_important=script_failure_important,
         launch_context=launch_context,
-        before_recompose=before_recompose,
         before_final_spawn=before_final_spawn,
         require_agent_target=require_agent_target,
         record_launch=record_launch,
         recurring_authorized=recurring_authorized,
         agent_spawn_refusal=agent_spawn_refusal,
     )
-    for prepare in (
-        invocation._prepare_target,
-        invocation._align_and_classify,
-        invocation._run_initial_script,
-        invocation._prepare_agent,
-    ):
-        result = prepare()
-        if result is not None:
-            break
-    else:
-        result = invocation._supervise_steps()
-    # All final settlement has run before this command-result decision. Keep
-    # child usage/results untouched, including a nonzero returned timeout.
-    # Only this invocation's armed boundary can turn direct chat success into 75.
-    if direct_chat and result.exit_code == 0 and invocation.boundary.armed and invocation.boundary.stopped:
-        raise LaunchBail(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+    result = invocation._prepare_target()
+    if result is not None:
+        # Admission finished the launch (including a delegated period, which
+        # ran its own `_launch` with its own scope).
+        return result
+    with ExitStack() as stack:
+        # One tmp scope covers the whole supervised step chain. A prompt
+        # report executes nothing, so it creates no run state.
+        if not invocation.prompt_report:
+            invocation.tmp_scope = stack.enter_context(
+                run_state.launch_tmp_scope(invocation.cfg)
+            )
+        for prepare in (
+            invocation._classify_target,
+            invocation._run_initial_script,
+            invocation._prepare_agent,
+        ):
+            result = prepare()
+            if result is not None:
+                break
+        else:
+            result = invocation._supervise_steps()
     return result
 
 
@@ -863,7 +352,6 @@ class _LaunchInvocation:
         return_timeout: bool,
         script_failure_important: bool,
         launch_context: LaunchContext,
-        before_recompose: Callable[[], None] | None,
         before_final_spawn: Callable[[Ticket], None] | None,
         require_agent_target: bool,
         record_launch: bool,
@@ -882,16 +370,12 @@ class _LaunchInvocation:
         # File-backed prompt layers resolved by the entry preflight and handed
         # to the first step's one composition (see `_launch`).
         self.resolved_layers: ResolvedPromptLayers | None = None
-        self.before_recompose = before_recompose
         self.before_final_spawn = before_final_spawn
         self.require_agent_target = require_agent_target
         self.record_launch = record_launch
         self.recurring_authorized = recurring_authorized
         self.agent_spawn_refusal = agent_spawn_refusal
-        self.script_retained_state = False
-        self.kept_checkout_reason: str | None = None
-        self.group_startup = False
-        self.startup_activation: str | None = None
+        self.tmp_scope: run_state.TmpScope | None = None
 
     def _prepare_target(self) -> LaunchResult | None:
         """Resolve and admit the current target, including delegated periods."""
@@ -902,198 +386,26 @@ class _LaunchInvocation:
         except ConfigError as exc:
             _bail(str(exc))
 
-        direct_recurring_prefix = (
-            not self.recurring_authorized
-            and not self.prompt_report
-            and self.task.startswith("recurring/")
-        )
-
-        def authorize_direct_recurring(current_cfg: Config) -> Config:
-            """Gate and refresh one public period launch before state lookup."""
-            from coga.recurring_runner import (
-                _control_remote_present_at_admission,
-                _refuse_non_control_branch,
-                _refuse_non_owner,
-                _sync_control_checkout_ahead,
-            )
-
-            if _refuse_non_control_branch(current_cfg) or _refuse_non_owner(current_cfg):
-                raise LaunchBail(2)
-            try:
-                remote_present_at_admission = _control_remote_present_at_admission(
-                    current_cfg
-                )
-            except git.GitError as exc:
-                _bail(
-                    f"Cannot launch {self.task}: control-state verification failed: "
-                    f"{exc}. No work was started.",
-                    exit_code=git.STALE_CONTROL_EXIT_CODE,
-                )
-            catchup = _sync_control_checkout_ahead(
-                current_cfg, announce_failure=False
-            )
-            if not catchup.fresh and current_cfg.git_enabled:
-                try:
-                    control_checkout = git.toplevel(current_cfg.repo_root)
-                    remote_present_now = _control_remote_present_at_admission(
-                        current_cfg
-                    )
-                except git.GitError as exc:
-                    _bail(
-                        f"Cannot launch {self.task}: control-state verification failed: "
-                        f"{exc}. No work was started.",
-                        exit_code=git.STALE_CONTROL_EXIT_CODE,
-                    )
-                if control_checkout is not None and (
-                    remote_present_at_admission or remote_present_now
-                ):
-                    _bail(
-                        f"Cannot launch {self.task}: could not confirm this checkout "
-                        f"includes the latest {current_cfg.git_remote}/"
-                        f"{current_cfg.git_control_branch}: {catchup.reason}. "
-                        "No work was started.",
-                        exit_code=git.STALE_CONTROL_EXIT_CODE,
-                    )
-            try:
-                refreshed_cfg = load_config(current_cfg.repo_root)
-            except ConfigError as exc:
-                _bail(str(exc))
-            if _refuse_non_control_branch(refreshed_cfg) or _refuse_non_owner(
-                refreshed_cfg
-            ):
-                raise LaunchBail(2)
-            return refreshed_cfg
-
-        # An explicit recurring ref may exist only on the remote control tip. Gate
-        # and catch up from its namespace before resolving it locally; resolving
-        # first made a safely materialized remote period look nonexistent.
-        if direct_recurring_prefix:
-            self.cfg = authorize_direct_recurring(self.cfg)
-
-        # An ordinary ticket launch runs from a clean, current control checkout
-        # (`coga/checkouts`). Resolution and the recorded-checkout test below only
-        # classify; every authoritative read happens after `enter`.
-        retry = ["coga", "launch", self.task]
-        for option, value in (
-            ("--agent", self.agent_override),
-            ("--idle-timeout", self.idle_timeout),
-            ("--max-session", self.max_session),
-        ):
-            if value is not None:
-                retry.extend([option, str(value)])
-        if self.return_timeout:
-            retry.append("--return-timeout")
-        if self.script_failure_important:
-            retry.append("--script-failure-important")
-        if self.args:
-            retry.extend(["--", *self.args])
-        self.boundary = _CheckoutBoundary(retry_command=_checkout_command(retry))
-        may_normalize = not self.prompt_report and not self.recurring_authorized
-
-        # Chat/orientation must compose from current control too, including its
-        # repo-local bootstrap override. Other bootstrap commands may deliberately
-        # operate on a PR branch; delegated sessions keep their caller's boundary.
-        if may_normalize and not self.require_agent_target and self.task == "bootstrap/orient":
-            self.cfg = self.boundary.enter(self.cfg, self.task)
-
         try:
             self.ref = resolve_target(self.cfg, self.task)
         except TaskNotFoundError as exc:
-            # A ticket created on control after this checkout's branch point is
-            # absent from a stale tree: normalize once, then resolve again.
-            missing: TaskNotFoundError | None = exc
-            if (
-                may_normalize
-                and not direct_recurring_prefix
-                and not self.task.startswith("bootstrap/")
+            if self.task == ONBOARDING_TASK and not any(
+                t.id_slug.startswith(self.task) for t in list_tasks(self.cfg)
             ):
-                self.cfg = self.boundary.enter(self.cfg, self.task)
-                if self.boundary.armed:
-                    try:
-                        self.ref = resolve_target(self.cfg, self.task)
-                        missing = None
-                    except TaskNotFoundError as retry_exc:
-                        missing = retry_exc
-            if missing is not None:
-                # `coga build` rewrites to `launch coga-build`; the ticket is
-                # absent when init classified the repo as filled, or when it was
-                # removed later, and the bare resolver miss gives no hint why.
-                if self.task == ONBOARDING_TASK and not any(
-                    t.id_slug.startswith(self.task) for t in list_tasks(self.cfg)
-                ):
-                    _bail(f"{missing}\n{_onboarding_missing_message()}")
-                _bail(str(missing))
-
-        if may_normalize and isinstance(self.ref, TaskRef) and not self.boundary.entered:
-            if self.ref.directory == "recurring":
-                pass  # its own admission gates below require control
-            else:
-                exemption = _checkout_exemption(self.cfg, self.ref)
-                if exemption is not None:
-                    self.kept_checkout_reason = exemption
-                    _report(
-                        f"Launch: keeping this checkout for {self.ref.id_slug}: {exemption}"
-                    )
-                else:
-                    selected_slug = self.ref.id_slug
-                    self.cfg = self.boundary.enter(self.cfg, selected_slug)
-                    if self.boundary.armed:
-                        try:
-                            self.ref = resolve_target(self.cfg, selected_slug)
-                        except TaskNotFoundError:
-                            _bail(
-                                f"Cannot launch {selected_slug}: it no longer "
-                                f"exists on {self.cfg.git_remote}/"
-                                f"{self.cfg.git_control_branch}. No work was started."
-                            )
-                        if self.ref.id_slug != selected_slug:
-                            _bail(
-                                f"Selected task {selected_slug!r} disappeared on "
-                                "control; refusing to launch the different prefix "
-                                f"match {self.ref.id_slug!r}."
-                            )
+                _bail(f"{exc}\n{_onboarding_missing_message()}")
+            _bail(str(exc))
 
         if (
             isinstance(self.ref, TaskRef)
             and self.ref.directory == "recurring"
             and not self.prompt_report
             and not self.recurring_authorized
-            and not direct_recurring_prefix
         ):
-            # A bare/prefix task spelling can resolve into the recurring namespace
-            # only after lookup. Preserve that compatibility, then re-resolve its
-            # canonical slug from the refreshed checkout exactly as the explicit
-            # fast path above does.
-            recurring_slug = self.ref.id_slug
-            self.cfg = authorize_direct_recurring(self.cfg)
-            try:
-                self.refreshed_ref = resolve_target(self.cfg, recurring_slug)
-            except TaskNotFoundError as exc:
-                _bail(str(exc))
-            if (
-                not isinstance(self.refreshed_ref, TaskRef)
-                or self.refreshed_ref.directory != "recurring"
-                or self.refreshed_ref.id_slug != recurring_slug
-            ):
-                _bail(
-                    f"Selected recurring task {recurring_slug!r} disappeared "
-                    "during control catch-up; refusing to launch a different "
-                    f"prefix match {self.refreshed_ref.id_slug!r}."
-                )
-            self.ref = self.refreshed_ref
+            from coga.recurring_runner import recurring_owner_refusal
 
-        # A materialized recurring delegation is an immutable dispatch snapshot,
-        # not prose for an agent wrapper. Route it before ordinary task setup so a
-        # direct `coga launch recurring/<name>` and every recurring runner entry
-        # point perform the same one-hop bootstrap launch. The local imports avoid
-        # a module cycle: recurring_runner itself uses this module's bootstrap
-        # launch seam.
-        if (
-            not self.prompt_report
-            and isinstance(self.ref, TaskRef)
-            and self.ref.directory == "recurring"
-        ):
-            self.boundary.admit(self.cfg)
+            refusal = recurring_owner_refusal(self.cfg)
+            if refusal is not None:
+                _bail(refusal)
 
         if isinstance(self.ref, TaskRef):
             frozen_ticket = read_ticket(self.ref)
@@ -1142,7 +454,6 @@ class _LaunchInvocation:
                         return_timeout=self.return_timeout,
                         script_failure_important=self.script_failure_important,
                         launch_context=self.launch_context,
-                        before_recompose=None,
                         before_final_spawn=None,
                         require_agent_target=False,
                         record_launch=True,
@@ -1161,12 +472,6 @@ class _LaunchInvocation:
                     continue_after_timeout=False,
                     activate_if_needed=True,
                 )
-                # The period's own return half (armed by `admit` above): the
-                # delegated bootstrap session is exempt from normalization, but
-                # the recurring period that dispatched it is not. A refusal sets
-                # the withheld flag, which `launch_recurring_period` turns into
-                # the retained-state exit.
-                self.boundary.settle(self.cfg, subject=f"{self.ref.id_slug}'s delegated run")
                 if self.return_timeout:
                     return LaunchResult(delegated.kind, delegated.exit_code)
                 if delegated.exit_code:
@@ -1178,111 +483,14 @@ class _LaunchInvocation:
         self.script_steps_run: set[str | None] = set()
         return None
 
-    def _align_and_classify(self) -> LaunchResult | None:
-        """Align a recorded assist, then classify its current ticket and script."""
-
-        # A recorded single-checkout assist may be behind its published PR branch.
-        # Align before refreshing the agent-skill view or deriving any launch state:
-        # the fetched commit can change coga.toml, the ticket, or a composed skill.
-        # Reload and repeat after every fast-forward so secrets, expected step,
-        # prompt, and command all come from the final tree.
-        aligned_assist_branch: str | None = None
-        aligned_assist_remote_oid: str | None = None
-        self.aligned_assist_pr_url: str | None = None
-
-        if not self.prompt_report and self.agent_override is not None:
-            for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
-                alignment_ticket = read_ticket(self.ref)
-                # Same resolution the classification below uses: activation
-                # freezes the snapshot, seeds step 1, and selects a main agent,
-                # so a draft must be aligned against the routing it will
-                # actually launch with, not the routing it is parked with.
-                alignment_operator: Operator | None = None
-                if not self.is_bootstrap and isinstance(self.ref, TaskRef):
-                    alignment_operator, _ = _prospective_activation_identity(
-                        self.cfg, self.ref, alignment_ticket
-                    )
-                alignment_is_human_assist = (
-                    alignment_operator is not None
-                    and alignment_operator.is_human
-                )
-                if (
-                    alignment_is_human_assist
-                    and alignment_ticket.status
-                    in {"draft", "active", "in_progress", "paused", "blocked"}
-                    and not interactive_stdio_has_tty()
-                ):
-                    _refuse_tty_launch(self.ref)
-                candidate_assist_branch = (
-                    None
-                    if not alignment_is_human_assist
-                    else _recorded_single_checkout_assist_branch(
-                        self.cfg, alignment_ticket
-                    )
-                )
-                if (
-                    self.is_bootstrap
-                    or alignment_ticket.status
-                    not in {"draft", "active", "in_progress", "paused", "blocked"}
-                    or candidate_assist_branch is None
-                ):
-                    break
-                try:
-                    if candidate_assist_branch == self.cfg.git_control_branch:
-                        raise git.GitError(
-                            f"recorded assist branch {candidate_assist_branch!r} "
-                            "has the same name as the configured control branch"
-                        )
-                    pr_head_oid = _verify_recorded_assist_pr_head(
-                        self.cfg, alignment_ticket, candidate_assist_branch
-                    )
-                    moved, remote_oid = _align_recorded_assist_checkout(
-                        self.cfg, alignment_ticket
-                    )
-                    if remote_oid != pr_head_oid:
-                        raise git.GitError(
-                            f"configured remote {self.cfg.git_remote!r} branch "
-                            f"{candidate_assist_branch!r} is at {remote_oid}, but "
-                            f"the recorded PR head is {pr_head_oid}"
-                        )
-                except git.GitError as exc:
-                    _bail(
-                        f"Cannot launch {self.ref.id_slug}: could not verify and align "
-                        f"the recorded assist checkout before composing the "
-                        f"prompt: {exc}"
-                    )
-                if not moved:
-                    _, alignment_blackboard = split_body(alignment_ticket.body)
-                    aligned_assist_branch = candidate_assist_branch
-                    aligned_assist_remote_oid = remote_oid
-                    self.aligned_assist_pr_url = parse_pr_url(
-                        alignment_blackboard or ""
-                    )
-                    break
-                try:
-                    self.cfg = load_config(self.cfg.repo_root)
-                    self.ref = resolve_target(self.cfg, self.resolved_target_slug)
-                    if self.ref.id_slug != self.resolved_target_slug:
-                        raise TaskNotFoundError(
-                            f"Selected task {self.resolved_target_slug!r} disappeared "
-                            "during assist alignment; refusing to launch the "
-                            f"different prefix match {self.ref.id_slug!r}."
-                        )
-                except (ConfigError, TaskNotFoundError) as exc:
-                    _bail(str(exc))
-                self.is_bootstrap = isinstance(self.ref, BootstrapRef)
-            else:
-                _bail(
-                    f"Cannot launch {self.ref.id_slug}: the recorded assist branch "
-                    f"moved during {_ASSIST_ALIGNMENT_ATTEMPTS} consecutive "
-                    "alignment attempts; retry once the PR branch is stable."
-                )
-
-
-        # Classify only after recorded-assist alignment. Prompt reporting remains
-        # non-executing; for an agent-only report, refresh the agent skill view here
-        # and keep every deterministic launch free of that agent-only preflight.
-        self.entry = script_entry_point(self.ref)
+    def _classify_target(self) -> LaunchResult | None:
+        """Read and classify the ticket in this checkout."""
+        self.source_ticket_bytes = self.ref.ticket_path.read_bytes()
+        self.ticket = Ticket.parse(self.source_ticket_bytes.decode("utf-8"))
+        try:
+            self.entry = script_entry_point(self.ref, self.ticket, cfg=self.cfg)
+        except (OSError, ValueError, ConfigError, WorkflowError) as exc:
+            _bail(str(exc))
         if self.require_agent_target and self.entry is not None:
             _bail(
                 f"Cannot launch {self.ref.id_slug} through the agent-only in-process "
@@ -1327,44 +535,6 @@ class _LaunchInvocation:
                 _report(f"Warning: {warning}", fg='yellow', err=True)
             return LaunchResult()
 
-        self.source_ticket_bytes = self.ref.ticket_path.read_bytes()
-        self.ticket = Ticket.parse(self.source_ticket_bytes.decode("utf-8"))
-
-        if (
-            isinstance(self.ref, TaskRef)
-            and released_launch_generation(self.ticket.launch_generation)
-        ):
-            try:
-                released_bytes = self.ref.ticket_path.read_bytes()
-                admitted_bytes = _reconcile_released_launch_admission(
-                    self.cfg,
-                    self.ref.ticket_path,
-                    expected_ticket_bytes=released_bytes,
-                )
-                self.ticket = Ticket.parse(admitted_bytes.decode("utf-8"))
-            except (OSError, UnicodeError, TicketError, git.GitError) as exc:
-                _bail(
-                    f"Cannot launch {self.ref.id_slug}: its released megalaunch "
-                    "admission could not be reconciled with control. The "
-                    f"recoverable local witness was retained; fix Git and retry: "
-                    f"{exc}",
-                    exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-                )
-            _report(
-                f"Reconciled released megalaunch admission for {self.ref.id_slug}."
-            )
-
-        if (
-            isinstance(self.ref, TaskRef)
-            and pending_launch_generation(self.ticket.launch_generation)
-        ):
-            _bail(
-                f"Cannot launch {self.ref.id_slug}: megalaunch admission "
-                f"{self.ticket.launch_generation!r} is still pending. Its held child "
-                "must be released or the pending claim reconciled before another "
-                "session can start."
-            )
-
         _report(
             f"Launch: task {self.ref.id_slug} "
             f"(status={self.ticket.status if not self.is_bootstrap else 'n/a'}, "
@@ -1386,20 +556,12 @@ class _LaunchInvocation:
             )
 
         self.blocked_resume = False
-        self.blocked_resume_step: str | None = None
-        self.blocked_resume_ticket_bytes: bytes | None = None
-
-        # A blocked ticket may be launched only by an explicit interactive human
-        # act: the session's first job becomes resolving the open asks with the
-        # human (the composed prompt gains a resolve-or-re-block preamble keyed
-        # off the blackboard's open blockers), and the ticket reactivates inline
-        # after preflights pass. Batch surfaces are unchanged — a TTY-less run has
-        # no human to discuss with, so it keeps the hard refusal (checked here,
-        # before any status mutation). `coga
-        # megalaunch` never gets this far: its sweep classifies blocked tickets as
-        # skipped-unresolved-blocker, and an explicit pick runs the same
-        # activate-and-resume through the engine's own launch loop.
         if not self.is_bootstrap and isinstance(self.ref, TaskRef) and self.ticket.status == "blocked":
+            if self.entry is not None:
+                _bail(
+                    f"Cannot launch {self.ref.id_slug}: its script is blocked. "
+                    f"Answer with `coga unblock {self.ref.id_slug} --answer ...`."
+                )
             if interactive_stdio_has_tty():
                 if not open_blockers(self.ref.ticket_path):
                     _bail(
@@ -1409,12 +571,9 @@ class _LaunchInvocation:
                         "repair the task state before launching."
                     )
                 self.blocked_resume = True
-                self.blocked_resume_step = self.ticket.step
-                self.blocked_resume_ticket_bytes = self.ref.ticket_path.read_bytes()
                 _report(
                     f"Launch: {self.ref.id_slug} is blocked — resuming "
-                    "interactively; the session's first job is to resolve or "
-                    "re-block the open asks."
+                    "interactively to resolve the open asks."
                 )
             else:
                 _bail(
@@ -1451,160 +610,39 @@ class _LaunchInvocation:
             and self.operator is not None
             and self.operator.is_human
         )
-        self.single_checkout_assist_branch = (
-            _recorded_single_checkout_assist_branch(self.cfg, self.ticket)
-            if self.human_assist and isinstance(self.ref, TaskRef)
-            else None
-        )
-        if aligned_assist_branch is not None and (
-            self.single_checkout_assist_branch != aligned_assist_branch
-            or aligned_assist_remote_oid is None
-            or self.aligned_assist_pr_url is None
-        ):
-            _bail(
-                f"Cannot launch {self.ref.id_slug}: the recorded assist checkout, "
-                "branch, or PR changed after alignment; retry from the recorded "
-                "checkout once the PR is stable."
-            )
-        if self.single_checkout_assist_branch is not None:
-            try:
-                current_pr_head_oid = _verify_recorded_assist_pr_head(
-                    self.cfg,
-                    self.ticket,
-                    self.single_checkout_assist_branch,
-                    expected_pr_url=self.aligned_assist_pr_url,
-                )
-            except git.GitError as exc:
-                _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
-            if current_pr_head_oid != aligned_assist_remote_oid:
-                _bail(
-                    f"Cannot launch {self.ref.id_slug}: recorded PR head moved from "
-                    f"{aligned_assist_remote_oid} to {current_pr_head_oid} after "
-                    "checkout alignment; retry once the PR branch is stable."
-                )
         return None
 
     def _run_initial_script(self) -> LaunchResult | None:
         """Run deterministic work before any agent-only preparation."""
 
-        # Run the deterministic half before every agent-only preflight. Blocked
-        # tickets pay only their attended/open-ask gate first. A recorded human
-        # assist is additionally wrapped in the same strict lifecycle, PR, audit,
-        # and child-capability transaction as its agent process.
         if self.entry is not None:
-            self.script_outcome = None
             try:
-                if self.single_checkout_assist_branch is not None:
-                    if (
-                        not isinstance(self.ref, TaskRef)
-                        or self.agent_override is None
-                        or self.aligned_assist_pr_url is None
-                    ):
-                        _bail(
-                            f"Cannot launch {self.ref.id_slug}: recorded script assist "
-                            "is missing its task, agent, or PR."
-                        )
-                    # The selected assist agent is part of the child identity, so
-                    # validate the name here. CLI lookup, skill refresh, prompt
-                    # composition, and the remaining agent preflights stay deferred
-                    # until ticket.py actually leaves agent work open.
-                    try:
-                        self.cfg.agent_type(self.agent_override)
-                    except ConfigError as exc:
-                        _bail(str(exc))
-                    build_launch_env(self.cfg, self.ticket.secrets)
-                    try:
-                        preflight_post(self.cfg)
-                    except NotificationExit:
-                        _bail(
-                            f"Cannot launch {self.ref.id_slug}: notification "
-                            "configuration must be valid before assist "
-                            "lifecycle state or script audit is published."
-                        )
-                    _preflight_push_auth(self.cfg, self.ref, is_bootstrap=False)
-                    if self.ticket.status in {"draft", "paused", "blocked"}:
+                if isinstance(self.ref, TaskRef):
+                    _refuse_human_handoff_launch(self.cfg, self.ref, self.ticket, self.agent_override)
+                    if self.ticket.status in {"draft", "paused"}:
+                        build_launch_env(self.cfg, self.ticket.secrets)
                         _auto_activate(self.cfg, self.ref, self.ticket)
-                    if self.ticket.status == "active":
-                        _start_session(self.cfg, self.ref, self.ticket, launch_agent=self.agent_override)
-                    self.ticket = self._read(self.ref)
-                elif (
-                    not self.is_bootstrap
-                    and isinstance(self.ref, TaskRef)
-                    and self.ticket.status in {"draft", "paused", "blocked"}
-                ):
-                    # Secret resolution belongs before the activation write. The
-                    # script helper repeats it after any moving sync so the child
-                    # receives the final ticket's declarations.
-                    build_launch_env(self.cfg, self.ticket.secrets)
-                    _auto_activate(self.cfg, self.ref, self.ticket)
 
                 self.script_outcome = run_script_chain(
                     self.cfg,
                     self.ref,
                     self.ticket,
                     self.script_steps_run,
-                    assist_branch=self.single_checkout_assist_branch,
-                    assist_agent=(
-                        self.agent_override
-                        if self.single_checkout_assist_branch is not None
-                        else None
-                    ),
-                    assist_pr_url=self.aligned_assist_pr_url,
-                    failure_important=self.script_failure_important,
-                    between_phases=(
-                        self.settle_between_phases if self.boundary.armed else None
-                    ),
                     args=self.launch_args if self.is_bootstrap else (),
+                    failure_important=self.script_failure_important,
+                    tmp_scope=self.tmp_scope,
                 )
                 self.cfg = self.script_outcome.cfg or self.cfg
                 self.ref = self.script_outcome.ref or self.ref
                 self.is_bootstrap = isinstance(self.ref, BootstrapRef)
                 if self.script_outcome.ticket is not None:
                     self.ticket = self.script_outcome.ticket
-                self.entry = script_entry_point(self.ref)
-
-                # An unresolved blocked resume may continue to an agent only while
-                # ticket.py left the original step open. Failure, pause, closure,
-                # deletion, or advancement ends the deterministic path and must put
-                # the original ask back in the blocked queue first.
-                should_reblock_after_script = bool(
-                    self.blocked_resume
-                    and (
-                        self.script_outcome.exit_code != 0
-                        or not self.script_outcome.needs_agent
-                        or self.script_outcome.ticket is None
-                        or self.script_outcome.ticket.step != self.blocked_resume_step
-                    )
-                )
-                stop_blocked_resume = (
-                    self.reblock_after_script()
-                    if should_reblock_after_script
-                    else False
-                )
-
                 if self.script_outcome.exit_code != 0:
-                    if (
-                        self.is_bootstrap
-                        and self.script_outcome.exit_code
-                        == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-                    ):
-                        # The command script deliberately retained local state
-                        # (for example a nested launch whose checkout return
-                        # refused). Leave it untouched: no teardown refresh,
-                        # no end-of-command sweep, and the same exit.
-                        self.script_retained_state = True
-                        git.state_sweep_withheld.set(True)
                     _exit_failed_script(self.script_outcome.exit_code)
 
-                if not self.script_outcome.needs_agent or stop_blocked_resume:
+                if not self.script_outcome.needs_agent:
                     if self.script_outcome.stop_reason:
                         _report(self.script_outcome.stop_reason, err=self.is_bootstrap)
-                    elif stop_blocked_resume:
-                        _report(
-                            f"{self.ref.id_slug}: unresolved blocker restored; "
-                            "returning to caller"
-                        )
-                    self.refresh_after_script()
                     return LaunchResult('script' if self.return_timeout else None)
 
                 if self.script_outcome.ticket is None:
@@ -1613,8 +651,6 @@ class _LaunchInvocation:
                         "ticket state for an agent handoff."
                     )
                 if self.agent_spawn_refusal is not None:
-                    if self.blocked_resume:
-                        self.reblock_after_script()
                     _report(
                         f"Cannot continue {self.ref.id_slug}: ticket.py left "
                         f"{_script_step_label(self.ticket)} open, but "
@@ -1623,7 +659,6 @@ class _LaunchInvocation:
                         fg='yellow',
                         err=True,
                     )
-                    self.refresh_after_script()
                     return LaunchResult('script' if self.return_timeout else None)
                 try:
                     post_script_operator = _target_operator(self.cfg, self.ref, self.ticket)
@@ -1662,23 +697,13 @@ class _LaunchInvocation:
                     and post_script_operator.is_human
                 )
             except (SecretError, TaskValidationError, FileNotFoundError) as exc:
-                if self.blocked_resume:
-                    self.reblock_after_script()
-                self.refresh_after_script()
                 _bail(str(exc))
-            except BaseException:
-                if self.blocked_resume:
-                    self.reblock_after_script()
-                self.refresh_after_script()
-                raise
 
         # Everything below is agent-only. A headless or temporary-worktree runner
         # supplies a hard refusal even for a period whose frozen ticket.py vanished
         # after scan admission; no reconciliation race may turn that period into an
         # agent launch in the disposable checkout.
         if self.agent_spawn_refusal is not None:
-            if self.blocked_resume:
-                self.reblock_after_script()
             _report(
                 f"Cannot continue {self.ref.id_slug}: its open work needs an agent, "
                 f"but {self.agent_spawn_refusal} No agent was started.",
@@ -1694,36 +719,19 @@ class _LaunchInvocation:
         # Deterministic completion, failure, and handoff paths have already
         # returned without consulting agent config, materializing skills,
         # composing a prompt, or probing the CLI binary.
-        def agent_only_setup_call(action: Callable[[], _T]) -> _T:
-            """Keep a resumed blocker owned through every agent-only preflight."""
-            try:
-                return action()
-            except BaseException:
-                if self.blocked_resume:
-                    self.reblock_after_script()
-                raise
-
         if self.agent_override is not None:
             try:
-                agent_only_setup_call(
-                    lambda: self.cfg.agent_type(self.agent_override)
-                )
+                self.cfg.agent_type(self.agent_override)
             except ConfigError as exc:
                 _bail(str(exc))
-        agent_only_setup_call(
-            lambda: _refresh_agent_skills_for_launch(self.cfg.repo_root)
-        )
+        _refresh_agent_skills_for_launch(self.cfg.repo_root)
 
         try:
             self.operator = _target_operator(self.cfg, self.ref, self.ticket)
         except OperatorResolutionError as exc:
-            if self.blocked_resume:
-                self.reblock_after_script()
             _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
             return LaunchResult()
         if self.operator is None:
-            if self.blocked_resume:
-                self.reblock_after_script()
             _bail(
                 f"Cannot launch {self.ref.id_slug}: it has no current step, so there is "
                 "no operator to route to."
@@ -1735,766 +743,397 @@ class _LaunchInvocation:
         # Initialized here because the commit gate is reached on paths where the
         # prepare guard never fires.
         auto_activate_prior: str | None = None
-        self.group_startup = (
-            self._manages_branch_checkout()
-            and self.entry is None
-            and not self.human_assist
-            and not self.blocked_resume
-            and self.record_launch
+        # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
+        # is brought to `active` inline rather than refused with a "run
+        # `coga mark active` first" hint. Only the *in-memory* half runs here,
+        # so the composed prompt sees the activated ticket; the durable write is
+        # deferred past every refusing preflight to `_commit_auto_activate`
+        # below, immediately before the `in_progress` flip. A refused launch
+        # must not leave a ticket on disk claiming a session started.
+        if (
+            not self.is_bootstrap
+            and isinstance(self.ref, TaskRef)
+            and self.ticket.status in {"draft", "paused"}
+        ):
+            auto_activate_prior = self.ticket.status
+            _prepare_auto_activate(self.cfg, self.ref, self.ticket)
+            # Activation freezes the snapshot, seeds step 1, and selects a main
+            # agent. Re-derive routing from that prepared state for CLI
+            # preflight, audit, and override continuation, before committing any
+            # lifecycle state.
+            try:
+                self.operator = _target_operator(self.cfg, self.ref, self.ticket)
+            except OperatorResolutionError as exc:
+                _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
+                return LaunchResult()
+            if self.operator is None:
+                _bail(
+                    f"Cannot launch {self.ref.id_slug}: activation left it with no "
+                    "current step to route."
+                )
+                return LaunchResult()
+            self.current_step = self.ticket.current_step()
+            self.human_assist = bool(
+                self.agent_override is not None and self.operator.is_human
+            )
+
+        _refuse_human_handoff_launch(self.cfg, self.ref, self.ticket, self.agent_override)
+
+        if not interactive_stdio_has_tty():
+            _refuse_tty_launch(self.ref)
+
+        self.launch_agent = self.agent_override or self.operator.name
+        if self.human_assist:
+            _report(
+                f"Launch: agent {self.agent_override} assisting on owner-held step "
+                f"(operator={self.operator.name}; ticket routing unchanged)"
+            )
+        elif self.agent_override is not None and self.agent_override != self.operator.name:
+            _report(
+                f"Launch: agent {self.agent_override} overriding this session only "
+                f"(operator={self.operator.name}; ticket routing unchanged)"
+            )
+
+        # Resolve the agent type from whoever is actually going to run.
+        try:
+            self.agent = self.cfg.agent_type(self.launch_agent)
+        except ConfigError as exc:
+            _bail(str(exc))
+        _report(
+            f"Launch: agent {self.launch_agent} -> {self.agent.name} "
+            f"(cli={self.agent.cli})"
         )
 
         try:
-            # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
-            # is brought to `active` inline rather than refused with a "run
-            # `coga mark active` first" hint. Only the *in-memory* half runs here,
-            # so the composed prompt sees the activated ticket; the durable write is
-            # deferred past every refusing preflight to `_commit_auto_activate`
-            # below, immediately before the `in_progress` flip. A refused launch
-            # must not leave a ticket on disk claiming a session started.
-            if (
-                not self.is_bootstrap
-                and isinstance(self.ref, TaskRef)
-                and self.ticket.status in {"draft", "paused"}
-            ):
-                auto_activate_prior = self.ticket.status
-                _prepare_auto_activate(self.cfg, self.ref, self.ticket)
-                # Activation freezes the snapshot, seeds step 1, and selects a main
-                # agent. Re-derive routing from that prepared state for CLI
-                # preflight, audit, and override continuation, before committing any
-                # lifecycle state.
-                try:
-                    self.operator = _target_operator(self.cfg, self.ref, self.ticket)
-                except OperatorResolutionError as exc:
-                    _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
-                    return LaunchResult()
-                if self.operator is None:
-                    _bail(
-                        f"Cannot launch {self.ref.id_slug}: activation left it with no "
-                        "current step to route."
-                    )
-                    return LaunchResult()
-                self.current_step = self.ticket.current_step()
-                self.human_assist = bool(
-                    self.agent_override is not None and self.operator.is_human
-                )
-
-            _refuse_human_handoff_launch(self.cfg, self.ref, self.ticket, self.agent_override)
-
-            if not interactive_stdio_has_tty():
-                _refuse_tty_launch(self.ref)
-
-            self.launch_agent = self.agent_override or self.operator.name
-            if self.human_assist:
-                _report(
-                    f"Launch: agent {self.agent_override} assisting on owner-held step "
-                    f"(operator={self.operator.name}; ticket routing unchanged)"
-                )
-            elif self.agent_override is not None and self.agent_override != self.operator.name:
-                _report(
-                    f"Launch: agent {self.agent_override} overriding this session only "
-                    f"(operator={self.operator.name}; ticket routing unchanged)"
-                )
-
-            # Resolve the agent type from whoever is actually going to run.
-            try:
-                self.agent = self.cfg.agent_type(self.launch_agent)
-            except ConfigError as exc:
-                _bail(str(exc))
-            _report(
-                f"Launch: agent {self.launch_agent} -> {self.agent.name} "
-                f"(cli={self.agent.cli})"
+            prepared = prepare_agent_launch(
+                self.cfg, self.ref, self.ticket, self.launch_agent,
+                launch_context=self.launch_context,
+                defer_prompt=True,
+                discussion=_is_discussion_bootstrap(self.ref),
+                kickoff=_bootstrap_kickoff(self.ref),
             )
+        except AgentPreparationError as exc:
+            _bail(str(exc))
+        self.agent, self.env = prepared.agent, prepared.env
+        self.resolved_layers = prepared.resolved_layers
+        _report(f"Launch: found agent CLI at {prepared.cli_path}")
 
-            try:
-                prepared = prepare_agent_launch(
-                    self.cfg, self.ref, self.ticket, self.launch_agent,
-                    launch_context=self.launch_context,
-                    defer_prompt=True,
-                    discussion=_is_discussion_bootstrap(self.ref),
-                    kickoff=_bootstrap_kickoff(self.ref),
-                )
-            except AgentPreparationError as exc:
-                if exc.command_refused:
-                    git.state_sweep_withheld.set(True)
-                _bail(str(exc))
-            self.agent, self.env = prepared.agent, prepared.env
-            self.resolved_layers = prepared.resolved_layers
-            _report(f"Launch: found agent CLI at {prepared.cli_path}")
+        if auto_activate_prior is not None and isinstance(self.ref, TaskRef):
+            _commit_auto_activate(self.cfg, self.ref, self.ticket, prior=auto_activate_prior)
 
-            # Refuse to start an agent session when git push access is broken. Coga
-            # drives the whole session through git/gh (branch push, `gh pr create`,
-            # every `coga bump` syncs ticket state), so a dead remote means an
-            # often-long run guaranteed to fail at ship time. Fail loud at the door
-            # rather than discover it at PR time — same as the other pre-flip
-            # preflights above. Pre-flip, so a refused launch never posts a "started"
-            # broadcast or flips status.
-            _preflight_push_auth(self.cfg, self.ref, is_bootstrap=self.is_bootstrap)
+        if isinstance(self.ref, TaskRef) and self.ticket.status == "active":
+            _start_session(self.cfg, self.ref, self.ticket, launch_agent=self.launch_agent)
 
-            # Ordinary managed startup keeps the prospective lifecycle through
-            # checkout planning and its explicit publication gate. Other paths
-            # retain their immediate activation/start wrappers. Neither path
-            # may re-read disk and discard the activation just preflighted.
-            if self.group_startup:
-                self.startup_activation = auto_activate_prior
-                if self.ticket.status == "active":
-                    self.ticket.frontmatter["status"] = "in_progress"
-            elif auto_activate_prior is not None and isinstance(self.ref, TaskRef):
-                _commit_auto_activate(
-                    self.cfg, self.ref, self.ticket, prior=auto_activate_prior
-                )
+        # Agent launches chain across consecutive agent-owned steps. After the
+        # agent exits (via autoquit on
+        # `coga bump` / `mark done` / `mark canceled` / `block`, or via
+        # `/exit`), we re-read the
+        # ticket and either relaunch the next step's agent as a fresh process —
+        # rotating the CLI when the step hands off to a different agent (e.g.
+        # claude -> codex for peer review) — or stop and return control to the
+        # caller. Every bump produces a brand-new agent process with a freshly
+        # composed prompt; context flows through the durable files (blackboard,
+        # ticket, artifacts), never a carried-over REPL session. The supervisor
+        # only stops at human handoffs and terminal states — `_harness_stop_reason`
+        # decides. Each step's launch environment is minted below with the
+        # supervised flag plus the exact task/step ownership witnesses.
 
-            if self.blocked_resume and isinstance(self.ref, TaskRef) and self.ticket.status == "blocked":
-                _auto_activate(self.cfg, self.ref, self.ticket)
+        def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
+            # Signals must bypass libraries' recoverable Exception handlers.
+            # The public boundary translates this after internal cleanup.
+            raise SystemExit(128 + signum)
 
-            if isinstance(self.ref, TaskRef) and self.ticket.status == "active":
-                _start_session(self.cfg, self.ref, self.ticket, launch_agent=self.launch_agent)
-
-            # Agent launches chain across consecutive agent-owned steps. After the
-            # agent exits (via autoquit on
-            # `coga bump` / `mark done` / `mark canceled` / `block`, or via
-            # `/exit`), we re-read the
-            # ticket and either relaunch the next step's agent as a fresh process —
-            # rotating the CLI when the step hands off to a different agent (e.g.
-            # claude -> codex for peer review) — or stop and return control to the
-            # caller. Every bump produces a brand-new agent process with a freshly
-            # composed prompt; context flows through the durable files (blackboard,
-            # ticket, artifacts), never a carried-over REPL session. The supervisor
-            # only stops at human handoffs and terminal states — `_harness_stop_reason`
-            # decides. Each step's launch environment is minted below with the
-            # supervised flag plus the exact task/step ownership witnesses.
-
-            def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
-                # Signals must bypass libraries' recoverable Exception handlers.
-                # The public boundary translates this after internal cleanup.
-                raise SystemExit(128 + signum)
-
-            signal.signal(signal.SIGINT, _on_signal)
-            signal.signal(signal.SIGTERM, _on_signal)
-        except BaseException:
-            if self.blocked_resume:
-                self.reblock_after_script()
-            self.return_checkout()
-            raise
+        signal.signal(signal.SIGINT, _on_signal)
+        signal.signal(signal.SIGTERM, _on_signal)
         return None
 
     def _supervise_steps(self) -> LaunchResult:
-        """Supervise successive steps and always reconcile the checkout on exit."""
+        """Supervise successive steps in the current checkout."""
 
         ended_by_script = False
-        try:
-            first_step = True
-            consecutive_agent_override = False
-            while True:
-                if not (first_step and self.group_startup):
-                    self.source_ticket_bytes = self.ref.ticket_path.read_bytes()
-                    self.ticket = Ticket.parse(self.source_ticket_bytes.decode("utf-8"))
-                is_first_step = first_step
+        first_step = True
+        consecutive_agent_override = False
+        while True:
+            self.ticket = self._read(self.ref)
+            is_first_step = first_step
+            try:
+                self.entry = script_entry_point(self.ref, self.ticket, cfg=self.cfg)
+            except (OSError, ValueError, ConfigError, WorkflowError) as exc:
+                _bail(str(exc))
 
-                if self.entry is not None and self.ticket.step not in self.script_steps_run:
-                    try:
-                        self.script_outcome = run_script_chain(
-                            self.cfg,
-                            self.ref,
-                            self.ticket,
-                            self.script_steps_run,
-                            assist_branch=self.single_checkout_assist_branch,
-                            assist_agent=(
-                                self.launch_agent
-                                if self.single_checkout_assist_branch is not None
-                                else None
-                            ),
-                            assist_pr_url=self.aligned_assist_pr_url,
-                            failure_important=self.script_failure_important,
-                            between_phases=(
-                                self.settle_between_phases if self.boundary.armed else None
-                            ),
-                        )
-                    except (SecretError, TaskValidationError, FileNotFoundError) as exc:
-                        _bail(str(exc))
-                    self.cfg = self.script_outcome.cfg or self.cfg
-                    self.ref = self.script_outcome.ref or self.ref
-                    self.is_bootstrap = isinstance(self.ref, BootstrapRef)
-                    self.entry = script_entry_point(self.ref)
-                    if self.script_outcome.exit_code != 0:
-                        _exit_failed_script(self.script_outcome.exit_code)
-                    if not self.script_outcome.needs_agent:
-                        if self.script_outcome.stop_reason:
-                            _report(self.script_outcome.stop_reason)
-                        ended_by_script = True
-                        break
-                    if self.script_outcome.ticket is None:
-                        _bail(
-                            f"Cannot continue {self.ref.id_slug}: ticket.py left no "
-                            "ticket state for an agent handoff."
-                        )
-                    self.ticket = self.script_outcome.ticket
-                    _require_agent_after_script(
+            if self.entry is not None and self.ticket.step not in self.script_steps_run:
+                try:
+                    self.script_outcome = run_script_chain(
                         self.cfg,
                         self.ref,
                         self.ticket,
-                        self.agent_override if first_step else None,
+                        self.script_steps_run,
+                        failure_important=self.script_failure_important,
+                        tmp_scope=self.tmp_scope,
                     )
-
-                # A prior agent or deterministic phase may have changed both the
-                # ticket's secret declarations and coga.toml. Mint this step's env
-                # from the freshly re-read config/ticket instead of carrying the
-                # first step's secret scope across the handoff.
-                try:
-                    self.env = build_launch_env(self.cfg, self.ticket.secrets)
-                except SecretError as exc:
+                except (SecretError, TaskValidationError, FileNotFoundError) as exc:
                     _bail(str(exc))
-
-                # Resolve the agent for THIS step from the step's derived operator,
-                # so the supervisor can rotate main <-> peer across the workflow. A
-                # one-off `--agent` override follows directly consecutive steps that
-                # *explicitly declare* the `agent` role, so a same-agent workflow
-                # stays on the explicitly selected CLI. An omitted role, an owner
-                # step, or `other-agent` ends that continuation permanently for this
-                # launch; later steps follow the ticket's own routing. An inherited
-                # agent role can execute, but does not widen the override contract.
-                # An owner-held first step reaches here only through an explicit
-                # assist, whose override never propagates. Later human handoffs
-                # stop in `_harness_stop_reason` before a relaunch.
-                #
-                # The explicit override expires for routing as soon as ticket.py
-                # hands control to a configured agent, but the launch still runs
-                # in the one aligned recorded-PR checkout, so every step of an
-                # assist keeps naming the assisting agent in its audit lines.
-                assist_branch = self.single_checkout_assist_branch
-                self.current_step = self.ticket.current_step()
-                current_role = _explicit_step_role(self.current_step)
-                try:
-                    step_operator = _target_operator(self.cfg, self.ref, self.ticket)
-                except OperatorResolutionError as exc:
-                    # A routing input became invalid mid-chain (an agent removed
-                    # from config, an edited snapshot). Stop cleanly and hand back
-                    # to the human rather than guessing a worker.
-                    _report(f"{self.ref.id_slug}: {exc}; stopping")
+                self.cfg = self.script_outcome.cfg or self.cfg
+                self.ref = self.script_outcome.ref or self.ref
+                self.is_bootstrap = isinstance(self.ref, BootstrapRef)
+                if self.script_outcome.exit_code != 0:
+                    _exit_failed_script(self.script_outcome.exit_code)
+                if not self.script_outcome.needs_agent:
+                    if self.script_outcome.stop_reason:
+                        _report(self.script_outcome.stop_reason)
+                    ended_by_script = True
                     break
-                if first_step:
-                    step_agent = self.agent_override or (
-                        step_operator.name if step_operator is not None else None
-                    )
-                    consecutive_agent_override = bool(
-                        self.agent_override
-                        and not self.human_assist
-                        and current_role == "agent"
-                    )
-                elif consecutive_agent_override and current_role == "agent":
-                    step_agent = self.agent_override
-                else:
-                    consecutive_agent_override = False
-                    step_agent = (
-                        step_operator.name if step_operator is not None else None
-                    )
-                first_step = False
-                try:
-                    self.agent = self.cfg.agent_type(step_agent) if step_agent else None
-                    if self.agent is None:
-                        raise ConfigError(
-                            f"Task {self.ref.id_slug} has no agent to route this step to"
-                        )
-                except ConfigError as exc:
-                    # Defensive: an owner-held step should have stopped the chain at
-                    # the previous bump. If we somehow reach here, stop rather than
-                    # crash.
-                    _report(f"{self.ref.id_slug}: {exc}; stopping")
-                    break
-                # Re-check the CLI every step — catches the case where the chain
-                # rotates to an agent (e.g. codex) whose CLI won't resolve. Stop
-                # cleanly and hand back to the human rather than blocking.
-                if shutil.which(self.agent.cli) is None:
-                    message = (
-                        f"{self.ref.id_slug}: next step needs agent {step_agent!r} "
-                        f"but {agent_cli_missing_message(self.agent.name, self.agent.cli)}"
-                    )
-                    if self.is_bootstrap and self.return_timeout:
-                        _bail(f"{message} No agent was started.")
-                    _report(
-                        f"{message} Stopping; then run `coga launch "
-                        f"{self.ref.id_slug}` to continue.",
-                        fg='yellow',
-                        err=True,
-                    )
-                    break
-                _report(
-                    f"Launch: step agent {step_agent} -> {self.agent.name} "
-                    f"(cli={self.agent.cli})"
-                )
-
-                _echo_launch_iteration(self.cfg, self.ref, self.ticket)
-                spawn_ticket = self.ticket
-                session_before_recompose = (
-                    self.before_recompose if is_first_step else None
-                )
-                # Delegation uses this only for its stateless single bootstrap
-                # session. An ordinary recurring period can chain agent-owned
-                # workflow steps, so refresh its teardown witness before every
-                # spawned child and retain the last generation actually launched.
-                session_before_spawn: Callable[[], None] | None = None
-                if self.before_final_spawn is not None and (
-                    is_first_step or self.recurring_authorized
-                ):
-
-                    def invoke_final_spawn_guard(
-                        callback: Callable[[Ticket], None] = self.before_final_spawn,
-                        expected_ticket: Ticket = spawn_ticket,
-                    ) -> None:
-                        callback(expected_ticket)
-
-                    session_before_spawn = invoke_final_spawn_guard
-
-                # Freeze the pre-session `(status, step)` at the last boundary
-                # before the PTY spawn, after every start-state write (including an
-                # assist's lifecycle publication in the caller's guard), so the
-                # session's own activation can never read as an agent change.
-                state_before_session: tuple[str | None, str | None] | None = None
-
-                def freeze_state_before_session(
-                    guard: Callable[[], None] | None = session_before_spawn,
-                    spawn_ref: TargetRef = self.ref,
-                ) -> None:
-                    nonlocal state_before_session
-                    if guard is not None:
-                        guard()
-                    state_before_session = _diagnostic_ticket_state(spawn_ref)
-
-                log_message = _launch_log_message(
-                    _operator_display(self.cfg, self.ref, self.ticket),
-                    step_agent or self.launch_agent,
-                    self.agent.name,
-                )
-                actor = f"human:{self.cfg.current_user}"
-                checkout_notice: CheckoutNotice | None = None
-                composed_prompt: str | None = None
-                record_launch = self.record_launch
-                # Only the first step reuses the entry preflight's layer reads;
-                # a chained step composes from the files as they stand then.
-                resolved_layers = self.resolved_layers if is_first_step else None
-                if self._manages_branch_checkout():
-                    spawn_ticket, composed_prompt = self._prepare_step_checkout(
-                        spawn_ticket, actor=actor, log_message=log_message,
-                        resolved_layers=resolved_layers,
-                    )
-                    self.ticket = spawn_ticket
-                    record_launch = False
-                else:
-                    checkout_notice = self._unmanaged_checkout_notice()
-
-                step_env = build_supervised_step_env(
-                    self.env,
-                    task_path=self.ref.path,
-                    step=spawn_ticket.step,
-                    agent=step_agent or self.launch_agent,
-                )
-                if self.boundary.armed:
-                    step_env[CHECKOUT_RETURN_ENV] = "1"
-
-                try:
-                    session = spawn_agent_session(
-                        self.cfg,
-                        self.ref,
-                        spawn_ticket,
-                        self.agent,
-                        env=step_env,
-                        actor=actor,
-                        log_message=log_message,
-                        name=self.ticket.title or "",
-                        discussion=_is_discussion_bootstrap(self.ref),
-                        kickoff=_bootstrap_kickoff(self.ref),
-                        prompt_suffix=_agent_args_prompt_suffix(self.launch_args),
-                        launch_context=self.launch_context,
-                        idle_timeout=self.idle_timeout,
-                        max_session=self.max_session,
-                        label="Launch",
-                        warn_blackboard=True,
-                        # Publish the launch line before the agent starts: a
-                        # bootstrap target has no later task-state sync to carry
-                        # it. A managed branch checkout already published it on
-                        # control, before preparation switched.
-                        commit_log=True,
-                        assist_branch=assist_branch,
-                        assist_agent=(
-                            (step_agent or self.launch_agent)
-                            if assist_branch is not None
-                            else None
-                        ),
-                        before_recompose=session_before_recompose,
-                        before_spawn=freeze_state_before_session,
-                        record_launch=record_launch,
-                        composed_prompt=composed_prompt,
-                        checkout_notice=checkout_notice,
-                        resolved_layers=resolved_layers,
-                    )
-                except ComposeError as exc:
-                    _bail(str(exc))
-                except AgentCliNotFound:
+                if self.script_outcome.ticket is None:
                     _bail(
-                        "Failed to spawn agent: "
-                        f"{agent_cli_missing_message(self.agent.name, self.agent.cli)}"
+                        f"Cannot continue {self.ref.id_slug}: ticket.py left no "
+                        "ticket state for an agent handoff."
                     )
-                except FileNotFoundError as exc:
-                    _bail(missing_launch_file_message(exc))
-
-                _report(f"Launch: agent exited with code {session.exit_code}")
-                supervisor_reblocked = False
-                if self.blocked_resume:
-                    self.blocked_resume = False
-                    bytes_before_reblock = _diagnostic_ticket_bytes(self.ref)
-                    _park_unanswered_resume(self.cfg, self.ref, step_agent or self.launch_agent)
-                    # A supervisor-owned reblock is not an agent's change; give up
-                    # the diagnostic for this session rather than misattribute it.
-                    supervisor_reblocked = (
-                        _diagnostic_ticket_bytes(self.ref) != bytes_before_reblock
-                    )
-                # Return the checkout after every started session (usage already
-                # published by the spawn), before deciding whether to chain. A
-                # refusal keeps this session's own result below and stops chaining.
-                checkout_returned = self.boundary.settle(
-                    self.cfg, subject=f"{self.ref.id_slug}'s session"
-                )
-                target_removed = False
-                if checkout_returned and self.boundary.armed:
-                    self.cfg, returned_ref = self.boundary.reload(self.cfg, self.ref)
-                    checkout_returned = not self.boundary.stopped
-                    if returned_ref is None:
-                        target_removed = True
-                    else:
-                        self.ref = returned_ref
-                # Advisory only: observe refreshed state before the result
-                # branches below, and skip when that state is unavailable.
-                if (
-                    checkout_returned
-                    and not target_removed
-                    and not supervisor_reblocked
-                    and isinstance(self.ref, TaskRef)
-                ):
-                    _warn_unsignalled_advance(
-                        self.ref,
-                        state_before_session,
-                        done_signalled=session.done_signalled,
-                    )
-                if session.termination_kind == "timeout":
-                    # A liveness limit (idle / max-session) tore the REPL down — the
-                    # agent never signalled done. Don't chain to the next step.
-                    # Recurring's in-process caller asks for the kind so it can
-                    # record the timeout and continue its sweep; public CLI callers
-                    # get the supervisor's non-zero timeout exit.
-                    timeout_reason = (
-                        session.termination_reason
-                        or "liveness limit reached without a done signal"
-                    )
-                    _report(
-                        f"Agent timed out: {timeout_reason} — exit "
-                        f"{session.exit_code}.",
-                        fg='yellow',
-                        err=True,
-                    )
-                    if self.return_timeout:
-                        return LaunchResult("timeout", session.exit_code)
-                    raise LaunchBail(session.exit_code)
-                if session.exit_code != 0:
-                    _report(
-                        f"Agent exited with code {session.exit_code}.",
-                        fg='yellow',
-                        err=True,
-                    )
-                    if self.return_timeout and self.is_bootstrap:
-                        return LaunchResult(session.termination_kind, session.exit_code)
-                    raise LaunchBail(session.exit_code)
-
-                if self.return_timeout and self.is_bootstrap:
-                    return LaunchResult(session.termination_kind, session.exit_code)
-
-                if not checkout_returned:
-                    break
-                if target_removed:
-                    _report(
-                        f"Launch: {self.ref.id_slug} no longer exists on control — "
-                        "nothing to chain"
-                    )
-                    break
-
-                # An agent may delete its own task directory as a final action —
-                # e.g. a Dream run retiring itself once its findings are durable.
-                # A missing ticket.md is a clean terminal state, not a chain step.
-                if not self.ref.ticket_path.exists():
-                    _report(
-                        "Launch: task directory removed by agent — nothing to chain"
-                    )
-                    break
-
-                # Bootstrap tickets are stateless single-shot launches — they have no
-                # workflow to chain across, so stop after the one run. A normal
-                # workflow ticket that happens to declare ticket-level `skills:`
-                # MUST still chain; gating on `ticket.skills` here (a rename
-                # artifact of the old singular skill-shim field) silently broke that.
-                if self.is_bootstrap:
-                    _report(
-                        f"Launch: {self.ref.id_slug} is a bootstrap ticket — not chaining"
-                    )
-                    break
-
-                _report("Launch: reading task state after agent exit")
-                updated_ticket = read_ticket(self.ref)
-                stop_reason = _harness_stop_reason(
+                self.ticket = self.script_outcome.ticket
+                _require_agent_after_script(
+                    self.cfg,
                     self.ref,
                     self.ticket,
-                    updated_ticket,
-                    self.cfg,
-                    chain_agent_override=(
-                        self.agent_override if consecutive_agent_override else None
-                    ),
+                    self.agent_override if first_step else None,
                 )
-                if stop_reason is not None:
-                    _report(stop_reason)
-                    break
-        finally:
-            # A blocked resume stays responsible for its original unanswered ask
-            # until an agent session records a resolution.  ticket.py can end the
-            # deterministic path before the ordinary post-session cleanup (failure,
-            # pause, close, or a step handoff), so cover every remaining
-            # exit here.  The helper is a no-op once the ask was resolved.
-            if self.blocked_resume:
-                self.blocked_resume = False
-                _park_unanswered_resume(
+
+            # A prior agent or deterministic phase may have changed both the
+            # ticket's secret declarations and coga.toml. Mint this step's env
+            # from the freshly re-read config/ticket instead of carrying the
+            # first step's secret scope across the handoff.
+            try:
+                self.env = build_launch_env(self.cfg, self.ticket.secrets)
+            except SecretError as exc:
+                _bail(str(exc))
+
+            # Resolve the agent for THIS step from the step's derived operator,
+            # so the supervisor can rotate main <-> peer across the workflow. A
+            # one-off `--agent` override follows directly consecutive steps that
+            # *explicitly declare* the `agent` role, so a same-agent workflow
+            # stays on the explicitly selected CLI. An omitted role, an owner
+            # step, or `other-agent` ends that continuation permanently for this
+            # launch; later steps follow the ticket's own routing. An inherited
+            # agent role can execute, but does not widen the override contract.
+            # An owner-held first step reaches here only through an explicit
+            # assist, whose override never propagates. Later human handoffs
+            # stop in `_harness_stop_reason` before a relaunch.
+            #
+            self.current_step = self.ticket.current_step()
+            current_role = _explicit_step_role(self.current_step)
+            try:
+                step_operator = _target_operator(self.cfg, self.ref, self.ticket)
+            except OperatorResolutionError as exc:
+                # A routing input became invalid mid-chain (an agent removed
+                # from config, an edited snapshot). Stop cleanly and hand back
+                # to the human rather than guessing a worker.
+                _report(f"{self.ref.id_slug}: {exc}; stopping")
+                break
+            if first_step:
+                step_agent = self.agent_override or (
+                    step_operator.name if step_operator is not None else None
+                )
+                consecutive_agent_override = bool(
+                    self.agent_override
+                    and not self.human_assist
+                    and current_role == "agent"
+                )
+            elif consecutive_agent_override and current_role == "agent":
+                step_agent = self.agent_override
+            else:
+                consecutive_agent_override = False
+                step_agent = (
+                    step_operator.name if step_operator is not None else None
+                )
+            first_step = False
+            try:
+                self.agent = self.cfg.agent_type(step_agent) if step_agent else None
+                if self.agent is None:
+                    raise ConfigError(
+                        f"Task {self.ref.id_slug} has no agent to route this step to"
+                    )
+            except ConfigError as exc:
+                # Defensive: an owner-held step should have stopped the chain at
+                # the previous bump. If we somehow reach here, stop rather than
+                # crash.
+                _report(f"{self.ref.id_slug}: {exc}; stopping")
+                break
+            # Re-check the CLI every step — catches the case where the chain
+            # rotates to an agent (e.g. codex) whose CLI won't resolve. Stop
+            # cleanly and hand back to the human rather than blocking.
+            if shutil.which(self.agent.cli) is None:
+                message = (
+                    f"{self.ref.id_slug}: next step needs agent {step_agent!r} "
+                    f"but {agent_cli_missing_message(self.agent.name, self.agent.cli)}"
+                )
+                if self.is_bootstrap and self.return_timeout:
+                    _bail(f"{message} No agent was started.")
+                _report(
+                    f"{message} Stopping; then run `coga launch "
+                    f"{self.ref.id_slug}` to continue.",
+                    fg='yellow',
+                    err=True,
+                )
+                break
+            _report(
+                f"Launch: step agent {step_agent} -> {self.agent.name} "
+                f"(cli={self.agent.cli})"
+            )
+
+            _echo_launch_iteration(self.cfg, self.ref, self.ticket)
+            spawn_ticket = self.ticket
+            # Delegation uses this only for its stateless single bootstrap
+            # session. An ordinary recurring period can chain agent-owned
+            # workflow steps, so refresh its teardown witness before every
+            # spawned child and retain the last generation actually launched.
+            session_before_spawn: Callable[[], None] | None = None
+            if self.before_final_spawn is not None and (
+                is_first_step or self.recurring_authorized
+            ):
+
+                def invoke_final_spawn_guard(
+                    callback: Callable[[Ticket], None] = self.before_final_spawn,
+                    expected_ticket: Ticket = spawn_ticket,
+                ) -> None:
+                    callback(expected_ticket)
+
+                session_before_spawn = invoke_final_spawn_guard
+
+            # Freeze the pre-session `(status, step)` at the last boundary
+            # before the PTY spawn, after every start-state write (including an
+            # assist's lifecycle publication in the caller's guard), so the
+            # session's own activation can never read as an agent change.
+            state_before_session: tuple[str | None, str | None] | None = None
+
+            def freeze_state_before_session(
+                guard: Callable[[], None] | None = session_before_spawn,
+                spawn_ref: TargetRef = self.ref,
+            ) -> None:
+                nonlocal state_before_session
+                if guard is not None:
+                    guard()
+                state_before_session = _diagnostic_ticket_state(spawn_ref)
+
+            log_message = _launch_log_message(
+                _operator_display(self.cfg, self.ref, self.ticket),
+                step_agent or self.launch_agent,
+                self.agent.name,
+            )
+            actor = f"human:{self.cfg.current_user}"
+            resolved_layers = self.resolved_layers if is_first_step else None
+            step_env = build_supervised_step_env(
+                self.env,
+                task_path=self.ref.path,
+                step=spawn_ticket.step,
+                agent=step_agent or self.launch_agent,
+            )
+            if self.tmp_scope is not None:
+                run_state.ensure_task_data_dir(self.cfg, self.ref)
+                step_env = run_state.apply_tmp_env(step_env, self.tmp_scope)
+
+            try:
+                session = spawn_agent_session(
                     self.cfg,
                     self.ref,
-                    self.agent_override or self.launch_agent,
-                    resume_step=self.blocked_resume_step,
+                    spawn_ticket,
+                    self.agent,
+                    env=step_env,
+                    actor=actor,
+                    log_message=log_message,
+                    name=self.ticket.title or "",
+                    discussion=_is_discussion_bootstrap(self.ref),
+                    kickoff=_bootstrap_kickoff(self.ref),
+                    prompt_suffix=_agent_args_prompt_suffix(self.launch_args),
+                    launch_context=self.launch_context,
+                    idle_timeout=self.idle_timeout,
+                    max_session=self.max_session,
+                    label="Launch",
+                    warn_blackboard=True,
+                    assist_agent=step_agent if is_first_step and self.human_assist else None,
+                    before_spawn=freeze_state_before_session,
+                    record_launch=self.record_launch,
+                    resolved_layers=resolved_layers,
                 )
+            except ComposeError as exc:
+                _bail(str(exc))
+            except AgentCliNotFound:
+                _bail(
+                    "Failed to spawn agent: "
+                    f"{agent_cli_missing_message(self.agent.name, self.agent.cli)}"
+                )
+            except FileNotFoundError as exc:
+                _bail(missing_launch_file_message(exc))
 
-            # On every exit path — clean chain completion, `LaunchBail` on a
-            # non-zero/timeout agent, or an exception — pull the run's published
-            # state back into the checkout the operator launched from, so the
-            # `coga status` they run next in this terminal shows the world the
-            # run just created. A normalized launch returns the checkout to a
-            # clean control branch instead (a no-op after a settled session).
-            self.return_checkout()
+            _report(f"Launch: agent exited with code {session.exit_code}")
+            if isinstance(self.ref, TaskRef):
+                _warn_unsignalled_advance(
+                    self.ref, state_before_session, done_signalled=session.done_signalled,
+                )
+            if session.termination_kind == "timeout":
+                # A liveness limit (idle / max-session) tore the REPL down — the
+                # agent never signalled done. Don't chain to the next step.
+                # Recurring's in-process caller asks for the kind so it can
+                # record the timeout and continue its sweep; public CLI callers
+                # get the supervisor's non-zero timeout exit.
+                timeout_reason = (
+                    session.termination_reason
+                    or "liveness limit reached without a done signal"
+                )
+                _report(
+                    f"Agent timed out: {timeout_reason} — exit "
+                    f"{session.exit_code}.",
+                    fg='yellow',
+                    err=True,
+                )
+                if self.return_timeout:
+                    return LaunchResult("timeout", session.exit_code)
+                raise LaunchBail(session.exit_code)
+            if session.exit_code != 0:
+                _report(
+                    f"Agent exited with code {session.exit_code}.",
+                    fg='yellow',
+                    err=True,
+                )
+                if self.return_timeout and self.is_bootstrap:
+                    return LaunchResult(session.termination_kind, session.exit_code)
+                raise LaunchBail(session.exit_code)
 
+            if self.return_timeout and self.is_bootstrap:
+                return LaunchResult(session.termination_kind, session.exit_code)
+
+            # An agent may delete its own task directory as a final action —
+            # e.g. a Dream run retiring itself once its findings are durable.
+            # A missing ticket.md is a clean terminal state, not a chain step.
+            if not self.ref.ticket_path.exists():
+                _report(
+                    "Launch: task directory removed by agent — nothing to chain"
+                )
+                break
+
+            # Bootstrap tickets are stateless single-shot launches — they have no
+            # workflow to chain across, so stop after the one run. A normal
+            # workflow ticket that happens to declare ticket-level `skills:`
+            # MUST still chain; gating on `ticket.skills` here (a rename
+            # artifact of the old singular skill-shim field) silently broke that.
+            if self.is_bootstrap:
+                _report(
+                    f"Launch: {self.ref.id_slug} is a bootstrap ticket — not chaining"
+                )
+                break
+
+            _report("Launch: reading task state after agent exit")
+            updated_ticket = read_ticket(self.ref)
+            stop_reason = _harness_stop_reason(
+                self.ref,
+                self.ticket,
+                updated_ticket,
+                self.cfg,
+                chain_agent_override=(
+                    self.agent_override if consecutive_agent_override else None
+                ),
+            )
+            if stop_reason is not None:
+                _report(stop_reason)
+                break
         return LaunchResult('script' if self.return_timeout and ended_by_script else None)
-
-    def _manages_branch_checkout(self) -> bool:
-        """Whether this step's checkout is prepared here (`coga/checkouts`).
-
-        Only an ordinary task launch whose boundary entered and armed on
-        control. Recurring, delegated and caller-guarded launches keep their
-        own admission and spawn transactions; a recorded checkout, bootstrap
-        command and prompt report are exempt; megalaunch never comes here.
-        """
-        return (
-            isinstance(self.ref, TaskRef)
-            and not self.is_bootstrap
-            and not self.prompt_report
-            and self.ref.directory != "recurring"
-            and self.boundary.entered
-            and self.boundary.armed
-            and not self.boundary.stopped
-            and not self.recurring_authorized
-            and not self.require_agent_target
-            and self.before_recompose is None
-            and self.before_final_spawn is None
-            and self.single_checkout_assist_branch is None
-            and self.launch_context == "attended"
-        )
-
-    def _prepare_step_checkout(
-        self, ticket: Ticket, *, actor: str, log_message: str,
-        resolved_layers: ResolvedPromptLayers | None = None,
-    ) -> tuple[Ticket, str]:
-        """Plan on control, compose, publish startup, then switch and project.
-
-        The `launched` audit line is appended and published only after
-        planning and composition on control succeeded, so a refused
-        preparation leaves no launch record; the switch-time checks were
-        already run once while planning. Returns the authoritative ticket and
-        the prompt composed from control state; the spawn must use both
-        unchanged. `resolved_layers` are the entry preflight's file-backed
-        layers; composition renders this plan's ticket and notice around them.
-        A refusal reports where the checkout stands and stops the
-        launch without a sweep or a return over state it did not start.
-        """
-        assert isinstance(self.ref, TaskRef)
-
-        def compose(
-            plan: checkouts.TicketCheckoutPlan,
-        ) -> tuple[Ticket, CheckoutNotice, str]:
-            assert isinstance(self.ref, TaskRef)
-            current = Ticket.parse(plan.ticket_bytes.decode("utf-8"))
-            notice = checkouts.ticket_notice(self.cfg, plan)
-            prompt = compose_prompt(
-                self.cfg, self.ref, current,
-                launch_context=self.launch_context, checkout=notice,
-                resolved=resolved_layers,
-            )
-            return current, notice, prompt
-
-        try:
-            # Every frozen `checkout:` is validated here, before any branch is
-            # reserved, created or switched; only the boundary's earlier
-            # normalization to control can precede this refusal.
-            policy = checkouts.select_ticket_policy(self.cfg, ticket, "policy")
-            _report(f"Launch: checkout policy {policy.kind} — {policy.reason}")
-            plan = checkouts.plan_ticket_checkout(
-                self.cfg, self.ref, ticket, policy,
-                source_bytes=self.source_ticket_bytes if self.group_startup else None,
-            )
-            current, notice, prompt = compose(plan)
-            started = False
-            if self.group_startup:
-                started = self._publish_startup(current, plan, actor=actor, log_message=log_message)
-            elif self.record_launch:
-                append_log(self.cfg, self.ref.id_slug, actor, log_message)
-                git.sync_log(self.cfg, message=f"Log: {self.ref.id_slug}")
-            if self.record_launch:
-                confirmed = checkouts.confirm_ticket_checkout(
-                    self.cfg, self.ref, current, plan
-                )
-                if confirmed.ticket_bytes != plan.ticket_bytes:
-                    # Control's ticket gained notes meanwhile: compose from it.
-                    current, notice, prompt = compose(confirmed)
-                plan = confirmed
-            checkouts.enter_ticket_checkout(self.cfg, self.ref, plan)
-            if started:
-                # Delivery failures append their own reported audit. Notify only
-                # after the clean-control switch proof, so that non-fatal failure
-                # cannot refuse the launch. Usage/return/sweep can carry its line.
-                _report(f"{self.ref.id_slug}: in_progress")
-                post(
-                    self.cfg,
-                    f"▶️ {self.cfg.current_user} started *{self.ref.id_slug}* "
-                    f'"{current.title}" (agent: {self.launch_agent})',
-                    task_path=self.ref.path, owner=current.owner or self.cfg.current_user,
-                    fatal=False,
-                )
-        except (
-            checkouts.CheckoutPreparationError, git.GitError, OSError,
-            ComposeError, TaskValidationError, TicketError, TaskFileError,
-        ) as exc:
-            switched = getattr(exc, "switched", False)
-            self.boundary.stopped = True
-            git.state_sweep_withheld.set(True)
-            where = (
-                "This checkout was left where preparation stopped, with every "
-                "change preserved; launch did not return or sweep it."
-                if switched
-                else "No agent was started; nothing was swept or discarded."
-            )
-            _bail(
-                f"Cannot launch {self.ref.id_slug}: {exc}\n{where} See "
-                "coga/checkouts/launch-boundary for recovery.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
-        _report(f"Launch: checkout {plan.action} — {notice.summary}")
-        return current, prompt
-
-    def _publish_startup(
-        self, ticket: Ticket, plan: checkouts.TicketCheckoutPlan,
-        *, actor: str, log_message: str,
-    ) -> bool:
-        """Materialize one ordinary start, with no lifecycle replay on failure.
-
-        The source guard runs even for an unchanged (unselected) ticket. The
-        final ticket and all startup events publish before any switch or spawn;
-        exceptions retain the writes and take the checkout's withheld-sweep exit.
-        """
-        assert isinstance(self.ref, TaskRef)
-        source = self.source_ticket_bytes
-        prior = Ticket.parse(source.decode("utf-8")).status
-        started = prior in {"draft", "paused", "active"}
-        message = (
-            f"Ticket: {self.ref.id_slug} — in_progress" if started
-            else f"Ticket: {self.ref.id_slug} — branch {plan.branch}"
-            if plan.outcome == "created" else f"Log: {self.ref.id_slug}"
-        )
-
-        def guard(control: str) -> None:
-            observed = git.tree_bytes(plan.root, control, plan.rel)
-            # `expect` only checks selected paths. This proof also protects a
-            # log-only start whose unchanged ticket is not a candidate.
-            if observed != source:
-                raise git.StateRegressionError(
-                    f"{plan.rel} changed during startup publication; reconcile and retry"
-                )
-
-        with git.state_lock(self.cfg):
-            checkouts.recheck_ticket_checkout(self.cfg, self.ref, ticket, plan, source)
-            assert_task_valid(self.cfg, self.ref, action="launch startup", ticket_override=ticket)
-            # Any interruption from the first write until confirmation must
-            # preserve evidence, never let finally/sweep publish a partial start.
-            try:
-                if plan.ticket_bytes != source:
-                    git.write_ticket(self.cfg, ticket, self.ref.ticket_path)
-                if self.startup_activation is not None:
-                    append_log(
-                        self.cfg, self.ref.id_slug, actor,
-                        f"activated ({self.startup_activation} → active){_AUTO_ACTIVATE_SUFFIX}",
-                    )
-                if started:
-                    append_log(self.cfg, self.ref.id_slug, actor, "started (active → in_progress) via coga launch")
-                append_log(self.cfg, self.ref.id_slug, actor, log_message)
-                result = git.publish(
-                    self.cfg, [self.ref.ticket_path, log_path(self.cfg)], message,
-                    expect={self.ref.ticket_path: source}, guard=guard,
-                    require_paths=[self.ref.ticket_path, log_path(self.cfg)],
-                )
-                if result is None:
-                    raise git.GitError("startup publication was skipped, not confirmed")
-            except BaseException as exc:
-                self.boundary.stopped = True
-                git.state_sweep_withheld.set(True)
-                if isinstance(exc, (SystemExit, KeyboardInterrupt)):
-                    _bail(
-                        f"Cannot launch {self.ref.id_slug}: startup publication was "
-                        "interrupted; local ticket/log and reservation retained. "
-                        "No agent was started; return and sweep withheld. See "
-                        "coga/checkouts/launch-boundary for recovery.",
-                        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-                    )
-                if isinstance(exc, git.GitError):
-                    kind = (
-                        "refused" if isinstance(exc, git.StateRegressionError)
-                        else "uncertain" if isinstance(exc, git.UncertainPublishError)
-                        else "failed"
-                    )
-                    raise checkouts.CheckoutPreparationError(
-                        "startup publication", f"{kind}: {exc}; final local ticket/log and reservation retained"
-                    ) from exc
-                raise
-        self.startup_activation = None
-        return started
-
-    def _unmanaged_checkout_notice(self) -> CheckoutNotice | None:
-        """A truthful notice for a launch that prepared no branch, or None."""
-        if self.prompt_report:
-            return None
-        if self.is_bootstrap:
-            if self.ref.id_slug != "bootstrap/orient" or not self.boundary.entered:
-                return None
-            return checkouts.chat_notice(
-                self.cfg, _CHAT_SESSION.get(), armed=self.boundary.armed,
-                reason=self.boundary.exempt_reason or "",
-            )
-        if self.kept_checkout_reason is not None:
-            return CheckoutNotice(
-                summary=(
-                    "Launch kept this checkout and did not prepare or switch it: "
-                    f"{self.kept_checkout_reason}."
-                ),
-                return_owner=(
-                    "Launch does not return this checkout; follow coga/checkouts "
-                    "for the end of the step."
-                ),
-            )
-        if self.boundary.entered and not self.boundary.armed:
-            return CheckoutNotice(
-                summary=(
-                    "Launch did not prepare a branch or claim freshness against "
-                    f"control: {self.boundary.exempt_reason or 'Git is unavailable'}."
-                ),
-                return_owner="Nothing returns this checkout automatically.",
-            )
-        return None
 
     def _read(self, target: TaskRef | BootstrapRef) -> Ticket:
         """Read the ticket from disk.
@@ -2505,49 +1144,6 @@ class _LaunchInvocation:
         read.
         """
         return read_ticket(target)
-
-
-    def return_checkout(self) -> bool:
-        """Teardown: return a normalized checkout, else today's refresh."""
-        if self.boundary.armed:
-            return self.boundary.settle(self.cfg, subject=f"{self.ref.id_slug}'s launch")
-        else:
-            _refresh_launch_checkout(self.cfg)
-            return True
-
-
-    def refresh_after_script(self) -> None:
-        if self.script_retained_state:
-            return
-        self.return_checkout()
-
-
-    def settle_between_phases(
-        self,
-        phase_cfg: Config, phase_ref: TargetRef
-    ) -> tuple[Config, TargetRef | None] | None:
-        """Return the checkout after one ticket.py phase, then re-read."""
-        if not self.boundary.settle(phase_cfg, subject=f"{phase_ref.id_slug}'s script"):
-            return None
-        refreshed_cfg, refreshed_ref = self.boundary.reload(phase_cfg, phase_ref)
-        if self.boundary.stopped:
-            return None
-        return refreshed_cfg, refreshed_ref
-
-
-    def reblock_after_script(self) -> bool:
-        """Return a still-unanswered resumed blocker to its durable queue."""
-        if not self.blocked_resume:
-            return False
-        self.blocked_resume = False
-        return _park_unanswered_resume(
-            self.cfg,
-            self.ref,
-            self.agent_override or _operator_display(self.cfg, self.ref, self.ticket),
-            resume_step=self.blocked_resume_step,
-            fallback_ticket_bytes=self.blocked_resume_ticket_bytes,
-        )
-
 
 
 
@@ -2709,59 +1305,6 @@ def _prospective_activation_identity(
         return _current()
 
 
-def _prospective_assist_ticket(
-    cfg: Config,
-    ref: TaskRef,
-    ticket: Ticket,
-) -> Ticket:
-    """Return the lifecycle view composed for a child that has not started yet."""
-    prospective = Ticket(
-        frontmatter=dict(ticket.frontmatter),
-        body=ticket.body,
-    )
-    if prospective.status in {"draft", "paused", "blocked"}:
-        try:
-            prepare_active(cfg, ref, prospective)
-        except WorkflowMissing as exc:
-            raise ComposeError(
-                f"Cannot launch {ref.id_slug}: it is {ticket.status!r} and has "
-                "no workflow, so there is nothing to activate or advance."
-            ) from exc
-        except WorkflowError as exc:
-            raise ComposeError(
-                f"Cannot launch {ref.id_slug}: its `workflow:` ref could not "
-                f"be frozen — {exc}"
-            ) from exc
-        except RequiredExtensionMissing as exc:
-            names = ", ".join(repr(field) for field in exc.fields)
-            raise ComposeError(
-                f"Cannot launch {ref.id_slug}: required extension field(s) "
-                f"empty: {names}."
-            ) from exc
-        except BlackboardNeedsSynthesis as exc:
-            raise ComposeError(
-                format_blackboard_synthesis_refusal(
-                    ref.id_slug,
-                    action="launch",
-                    reason=exc.reason,
-                )
-            ) from exc
-        except RepoResourceUnreadable as exc:
-            raise ComposeError(f"Cannot launch {ref.id_slug}: {exc}") from exc
-        except MainAgentUnavailable as exc:
-            raise ComposeError(
-                f"Cannot launch {ref.id_slug}: {exc}"
-            ) from exc
-    if prospective.status == "active":
-        prospective.frontmatter["status"] = "in_progress"
-    if prospective.status != "in_progress":
-        raise ComposeError(
-            f"Cannot launch {ref.id_slug}: assist lifecycle changed to "
-            f"{prospective.status!r} before spawn."
-        )
-    return prospective
-
-
 def _start_session(
     cfg: Config, ref: TaskRef, ticket: Ticket, *, launch_agent: str
 ) -> None:
@@ -2910,13 +1453,6 @@ def _diagnostic_ticket_state(
     return ticket.status, ticket.step
 
 
-def _diagnostic_ticket_bytes(ref: TargetRef) -> bytes | None:
-    try:
-        return ref.ticket_path.read_bytes()
-    except OSError:
-        return None
-
-
 def _warn_unsignalled_advance(
     ref: TargetRef,
     before: tuple[str | None, str | None] | None,
@@ -2934,512 +1470,6 @@ def _warn_unsignalled_advance(
     )
     if warning:
         _report(warning, fg='yellow', err=True)
-
-
-def _park_unanswered_resume(
-    cfg: Config, ref: TaskRef | BootstrapRef, blocker: str | None, *,
-    resume_step: str | None = None, fallback_ticket_bytes: bytes | None = None,
-) -> bool:
-    from coga.mark import reblock_unresolved_resume
-
-    result = reblock_unresolved_resume(
-        cfg, ref, slack_actor=blocker or cfg.current_user,
-        log_message="blocked: unresolved blocker still open after resumed launch exited",
-        echo_owner_text="owner {owner} needs to answer",
-        resume_step=resume_step, fallback_ticket_bytes=fallback_ticket_bytes,
-    )
-    if result.kind == "invalid":
-        _bail(result.detail)
-    return result.kind in {"reblocked", "already_blocked"}
-
-
-def _preflight_push_auth(
-    cfg: Config, ref: TaskRef | BootstrapRef, *, is_bootstrap: bool
-) -> bool:
-    """Refuse to launch when git push access to the configured remote is broken.
-
-    Coga runs the whole session through git/gh, so a dead remote means a run
-    guaranteed to fail at ship time; catch it at the door. The probe is the
-    same non-interactive `git push --dry-run` `coga validate --check-github`
-    uses (so a logged-out HTTPS remote fails fast, not on a prompt).
-
-    Self-skips when there is nothing to push to or no sync configured:
-    bootstrap tickets (stateless, no PR), `[git].enabled = false`, and any
-    checkout where the configured remote does not resolve (not a git repo / no
-    remote) — which is also why the non-git launch test fixtures are
-    unaffected. Only a *configured, reachable-but-unauthenticated* remote bails.
-    Returns whether the period has a configured remote whose later lifecycle
-    publications must therefore keep failing closed if transport disappears.
-    """
-    if is_bootstrap or not cfg.git_enabled:
-        return False
-    if not check_git_remote(cfg.git_remote).ok:
-        # No git repo / remote unconfigured → the sync layer soft-no-ops, so
-        # there is no push to gate.
-        return False
-    auth = check_git_auth(cfg.git_remote)
-    if not auth.ok:
-        _bail(
-            f"Cannot launch {ref.id_slug}: git push access to "
-            f"{cfg.git_remote!r} is unavailable, and coga drives the session "
-            "through git/gh (branch push, `gh pr create`, `coga bump` ticket "
-            f"sync) — it would fail at ship time. {auth.detail} "
-            "Fix auth and retry, or set `[git].enabled = false` to run without "
-            "git sync."
-        )
-    return True
-
-
-def _refresh_launch_checkout(cfg: Config) -> bool:
-    """Bring the launch checkout level with control after a session.
-
-    Runs once on every exit path the supervisor sees, so a control checkout
-    never stays stale until a manual pull; a feature-branch checkout is left
-    as it is (stale-by-design for other checkouts' tickets). The git layer
-    reports failures on stderr + the log and returns the result.
-    """
-    return git.refresh(cfg)
-
-
-def settle_delegated_period(cfg: Config, ref: TaskRef) -> bool:
-    """Return the checkout after a recurring runner's direct delegated run.
-
-    The sweep and the named recurring path call `_run_delegated_task`
-    themselves rather than through `_launch`, so they arm and settle the
-    period's return half here. False means the return refused: the sweep is
-    withheld and the caller must stop with the retained-state exit.
-    """
-    boundary = _CheckoutBoundary()
-    boundary.admit(cfg)
-    return boundary.settle(cfg, subject=f"{ref.id_slug}'s delegated run")
-
-
-class _CheckoutBoundary:
-    """One ordinary launch's checkout normalization (`coga/checkouts`).
-
-    `enter` publishes routine pending Coga state, then brings the invoking
-    checkout to a clean, fetched control branch before any authoritative
-    ticket read. `admit` arms only the return half for a recurring period,
-    whose own gates already required control. `settle` repeats the same
-    publish-then-prepare after every started agent session or deterministic
-    phase and at teardown. Unpublished working state, a distinct index copy,
-    or non-state changes block. The first refusal or failure stops every later
-    mutation for this launch, withholds the end-of-command sweep, and ends
-    chaining; it never rewrites the session's own result.
-    """
-
-    def __init__(self, *, retry_command: str | None = None) -> None:
-        self.entered = False
-        self.armed = False
-        self.stopped = False
-        self._remote_expected = False
-        self._destination: tuple[object, ...] | None = None
-        self._contexts_root: Path | None = None
-        self.exempt_reason: str | None = None
-        self.retry_command = retry_command
-
-    def enter(self, cfg: Config, target: str) -> Config:
-        self.entered = True
-        if self.retry_command is None:
-            self.retry_command = _checkout_command(["coga", "launch", target])
-        git.sync_coga_state(cfg, message="Sync coga state before launch")
-        outcome = git.prepare_control_checkout(cfg)
-        if outcome.kind == "exempt":
-            self.exempt_reason = outcome.reason
-            return cfg
-        if outcome.kind != "prepared":
-            _bail(
-                _checkout_refusal_message(cfg, outcome, f"Cannot launch {target}", retry_command=self.retry_command)
-                + "\nNo work was started.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
-        self.armed = True
-        self._remote_expected = True
-        self._destination = _git_destination(cfg)
-        try:
-            refreshed = load_config(cfg.repo_root)
-        except ConfigError as exc:
-            _bail(str(exc), exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
-        if _git_destination(refreshed) != self._destination:
-            _bail(
-                f"Cannot launch {target}: coga.toml on "
-                f"{cfg.git_remote}/{cfg.git_control_branch} changes the Git "
-                "destination; retry so one configuration governs the launch. "
-                "No work was started.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
-        self._contexts_root = refreshed.contexts_root
-        return refreshed
-
-    def admit(self, cfg: Config) -> None:
-        if self.armed or not cfg.git_enabled:
-            return
-        try:
-            root = git.toplevel(cfg.repo_root)
-            self._remote_expected = bool(
-                root is not None and git.remote_configured(root, cfg.git_remote)
-            )
-        except git.GitError:
-            return
-        if root is None:
-            return
-        self.armed = True
-        self._destination = _git_destination(cfg)
-        self._contexts_root = cfg.contexts_root
-
-    def settle(self, cfg: Config, *, subject: str) -> bool:
-        """Return the checkout; False means stop chaining (already reported)."""
-        if not self.armed:
-            return True
-        if self.stopped:
-            return False
-        try:
-            refreshed = load_config(cfg.repo_root)
-        except ConfigError as exc:
-            self._return_failed(cfg, f"config reload before checkout return failed: {exc}", subject)
-            return False
-        if _git_destination(refreshed) != self._destination:
-            self._return_failed(cfg, "coga.toml changed the Git destination during the launch", subject)
-            return False
-        # ticket.py reloads config before its return callback. Keep the root
-        # captured at admission/the preceding return, not the callback's
-        # already-refreshed view of a relocation.
-        previous_contexts_root = self._contexts_root or cfg.contexts_root
-        cfg = refreshed
-        # The end-of-command sweep, run before the switch rather than after
-        # it: routine state a session or ticket.py wrote without publishing
-        # lands now. A distinct staged copy can still block the return.
-        try:
-            git.sync_coga_state(
-                cfg, message="Sync coga state before checkout return",
-                previous_contexts_root=previous_contexts_root,
-            )
-            outcome = git.prepare_control_checkout(
-                cfg, require_remote_control=self._remote_expected,
-                previous_contexts_root=previous_contexts_root,
-            )
-        except (git.GitError, OSError) as exc:
-            outcome = git.CheckoutPreparation("failed", f"checkout return failed: {exc}")
-        if outcome.kind in {"prepared", "exempt"}:
-            self._contexts_root = cfg.contexts_root
-            return True
-        self.stopped = True
-        git.state_sweep_withheld.set(True)
-        _report(
-            _checkout_refusal_message(
-                cfg, outcome, f"Checkout return after {subject} did not complete",
-                retry_command=self.retry_command,
-            )
-            + "\nState publication was attempted before checkout return; see its "
-            "separate diagnostics. Retained index and working versions are listed "
-            "above; publication does not prove every version safe to remove. "
-            "The session's own result stands. Not chaining further; exit sweep withheld.",
-            fg='red',
-            bold=True,
-            err=True,
-        )
-        return False
-
-    def _return_failed(self, cfg: Config, reason: str, subject: str) -> None:
-        self.stopped = True
-        git.state_sweep_withheld.set(True)
-        _report(
-            _checkout_refusal_message(
-                cfg, git.CheckoutPreparation("refused", reason),
-                f"Checkout return after {subject} did not complete",
-                retry_command=self.retry_command,
-            ) + "\nNo return publication was attempted. Not chaining further; exit sweep withheld.",
-            fg='red', bold=True, err=True,
-        )
-
-    def reload(self, cfg: Config, ref: TargetRef) -> tuple[Config, TargetRef | None]:
-        """Fresh config and the exact same target after a settled boundary.
-
-        `None` means the target is gone from control; a changed Git
-        destination stops the launch rather than cleaning under a second
-        configuration.
-        """
-        try:
-            refreshed = load_config(cfg.repo_root)
-        except ConfigError as exc:
-            self._stop(f"config reload failed: {exc}")
-            return cfg, ref
-        if _git_destination(refreshed) != self._destination:
-            self._stop("coga.toml changed the Git destination during the launch")
-            return cfg, ref
-        self._contexts_root = refreshed.contexts_root
-        try:
-            current = resolve_target(refreshed, ref.id_slug)
-        except TaskNotFoundError:
-            return refreshed, None
-        if current.id_slug != ref.id_slug:
-            return refreshed, None
-        return refreshed, current
-
-    def _stop(self, reason: str) -> None:
-        self.stopped = True
-        git.state_sweep_withheld.set(True)
-        _report(
-            f"Launch stopped chaining: {reason}; retry the launch.",
-            fg='red',
-            err=True,
-        )
-
-
-def _git_destination(cfg: Config) -> tuple[object, ...]:
-    return (cfg.git_enabled, cfg.git_remote, cfg.git_control_branch, cfg.repo_root)
-
-
-def _checkout_refusal_message(
-    cfg: Config, outcome: git.CheckoutPreparation, prefix: str,
-    *, retry_command: str | None = None,
-) -> str:
-    what = (
-        "stopped part-way"
-        if outcome.kind == "failed"
-        else "refused to change the checkout"
-    )
-    lines = [
-        f"{prefix}: bringing this checkout to a clean {cfg.git_control_branch!r} "
-        f"at {cfg.git_remote}/{cfg.git_control_branch} {what}: {outcome.reason}"
-    ]
-    lines.extend(f"  - {item}" for item in outcome.blocking)
-    try:
-        root = git.toplevel(cfg.repo_root)
-        branch = outcome.branch or (git.symbolic_head(root) if root else None)
-    except (git.GitError, OSError):
-        root, branch = None, outcome.branch
-    lines.append(f"Checkout left on {branch!r}." if branch else "Checkout branch could not be determined (possibly detached HEAD).")
-    for observation in outcome.observations:
-        working = {
-            "matches": "working file matches control (including an equal absence)",
-            "published": "working state is already on control by the log/union proof",
-            "differs": "working file differs from control",
-            "unknown": "working publication has not been proved",
-        }[observation.working]
-        index = {
-            "head": "index matches HEAD",
-            "control": "index matches control",
-            "differs": "staged copy differs from HEAD and control",
-            "unknown": "index not proved",
-        }[observation.index]
-        lines.append(f"  {observation.path}: {working}; {index}.")
-    shell = "PowerShell" if os.name == "nt" else "POSIX shell"
-    lines.append(f"Inspect from the Git checkout root ({shell}); no branch upstream is needed:")
-    if root:
-        lines.append("  " + _checkout_command(
-            ["Set-Location", "-LiteralPath", str(root)] if os.name == "nt" else ["cd", str(root)]
-        ))
-    for argv in (
-        ["git", "status", "--short", "--branch"],
-        ["git", "diff", "--cached", "--binary"],
-        ["git", "diff", "--binary"],
-        ["git", "fetch", cfg.git_remote, cfg.git_control_branch],
-    ):
-        lines.append("  " + _checkout_command(argv))
-    if outcome.commit:
-        lines.append(f"Compare with the pinned control commit {outcome.commit} used for this refusal:")
-        for observation in outcome.observations:
-            path = observation.path
-            for cached in ([], ["--cached"]):
-                lines.append("  " + _checkout_command([
-                    "git", "--literal-pathspecs", "diff", *cached, "--binary", outcome.commit, "--", path,
-                ]))
-            if observation.untracked:
-                lines.append(f"  Untracked {path!r}: Git diff omits its working bytes; compare these blob IDs (a missing control path is reported):")
-                lines.append("  " + _checkout_command(["git", "hash-object", f"--path={path}", "--", path]))
-                lines.append("  " + _checkout_command(["git", "rev-parse", "--verify", f"{outcome.commit}:{path}"]))
-    lines.append(
-        "Before recovery, save HEAD's OID, separate staged and unstaged binary patches, "
-        "and copies of untracked files outside this checkout; verify the backups."
-    )
-    state_observations = [o for o in outcome.observations if o.state]
-    if (
-        any(o.index == "differs" for o in state_observations)
-        and all(o.working in {"matches", "published"} for o in state_observations)
-    ):
-        state_paths = [o.path for o in state_observations if not o.untracked]
-        lines.append(
-            "Only after reviewing every listed state path and proving the staged "
-            "drafts are duplicates with no unique intent, restore just their index "
-            "from HEAD (both sides of renames are included; working files stay):"
-        )
-        lines.append("  " + _checkout_command([
-            "git", "--literal-pathspecs", "restore", "--staged", "--source=HEAD", "--", *state_paths,
-        ]))
-    lines.append(
-        "If this branch has a ticket, check "
-        f"the ticket on current {cfg.git_remote}/{cfg.git_control_branch} and "
-        "the PR's merge status if one exists. Chat branches need neither a ticket "
-        "nor a PR. Inspect uncommitted changes separately; a "
-        "merged PR does not prove those edits are finished. Do not automatically "
-        "stash or discard them. Reconcile differing working files and unique intent "
-        "onto current control under coga/checkouts/reconciliation; preserve source "
-        "work on its branch for review. Never blanket-restore from control or replay "
-        "a lifecycle transition. Follow coga/checkouts/launch-boundary's checkout recovery procedure."
-    )
-    if retry_command:
-        lines.append(f"After reconciliation, retry the original invocation (equivalent command): {retry_command}\n"
-                     "The boundary will fetch and prove the checkout again before cleanup.")
-    return "\n".join(lines)
-
-
-def _checkout_command(argv: list[str]) -> str:
-    """Copyable diagnostics for POSIX shells or native Windows PowerShell."""
-    return oscompat.shell_command(argv)
-
-
-def _checkout_exemption(cfg: Config, ref: TaskRef) -> str | None:
-    """Why an ordinary ticket launch keeps its checkout, else None.
-
-    The one exemption: the invoking checkout is the ticket's recorded
-    `worktree:` and HEAD is its recorded `branch:` — the verified recorded
-    human-assist route (which owns its own refusals, such as a
-    control-named branch) or a sandbox clone. The invoking bytes are
-    read first; a `## Dev` record published after the branch point is read
-    from the last fetched control copy. A local released megalaunch witness is
-    likewise left to its own reconciliation. Classification only: nothing
-    composes from these bytes.
-    """
-    if not cfg.git_enabled:
-        return None
-    try:
-        root = git.toplevel(cfg.repo_root)
-        if root is None:
-            return None
-        head_branch = git.symbolic_head(root)
-        if head_branch is None:
-            return None
-        copies: list[bytes | None] = [ref.ticket_path.read_bytes()]
-        revision = git.known_control_revision(cfg, root)
-        if revision is not None:
-            copies.append(
-                git.tree_bytes(root, revision, git.relative_to_root(root, ref.ticket_path))
-            )
-    except (git.GitError, OSError):
-        return None
-    for index, data in enumerate(copies):
-        try:
-            ticket = Ticket.parse(data.decode("utf-8")) if data is not None else None
-        except (UnicodeDecodeError, TicketError):
-            ticket = None
-        if ticket is None:
-            continue
-        if index == 0 and released_launch_generation(ticket.launch_generation):
-            # Megalaunch's local-only released witness: its own
-            # reconciliation transaction owns this checkout's state.
-            return "it holds a released megalaunch admission to reconcile"
-        try:
-            _, blackboard = split_body(ticket.body)
-        except TaskFileError:
-            continue
-        branch = parse_branch_name(blackboard or "")
-        worktree = parse_worktree_path(blackboard or "")
-        if (
-            branch == head_branch
-            and worktree
-            and same_git_checkout(cfg.repo_root, worktree)
-        ):
-            return f"it runs in its recorded checkout on {branch!r}"
-    return None
-
-
-def _recorded_single_checkout_assist_branch(
-    cfg: Config, ticket: Ticket
-) -> str | None:
-    """The recorded PR branch when launch runs in its exact recorded checkout.
-
-    Human ownership plus an explicit override authorizes the assist, but it
-    does not prove that the checkout running `coga launch` owns the recorded
-    branch. The current checkout must equal `worktree:`, be on `branch:`, and
-    carry a recorded `pr:` link before launch may even attempt the live PR-head
-    verification that authorizes publication. A different checkout, a missing
-    `## Dev` field, or a different current branch returns None and retains
-    ordinary local-only log handling. Linked worktrees and independent fallback
-    clones are supported when they are themselves the exact recorded checkout.
-    """
-    if not cfg.git_enabled:
-        return None
-    _, blackboard = split_body(ticket.body)
-    branch = parse_branch_name(blackboard or "")
-    worktree = parse_worktree_path(blackboard or "")
-    pr_url = parse_pr_url(blackboard or "")
-    if not branch or not worktree or not pr_url:
-        return None
-    try:
-        root = git.toplevel(cfg.repo_root)
-        matches = bool(
-            root is not None
-            and same_git_checkout(cfg.repo_root, worktree)
-            and git.current_branch(root) == branch
-        )
-        return branch if matches else None
-    except git.GitError:
-        return None
-
-
-def _verify_recorded_assist_pr_head(
-    cfg: Config,
-    ticket: Ticket,
-    branch: str,
-    *,
-    expected_pr_url: str | None = None,
-) -> str:
-    """Compatibility seam around the shared PR-assist verifier."""
-    return pr_assist.verify_recorded_assist_pr_head(
-        cfg,
-        ticket,
-        branch,
-        expected_pr_url=expected_pr_url,
-    )
-
-
-def _align_recorded_assist_checkout(
-    cfg: Config, ticket: Ticket
-) -> tuple[bool, str]:
-    """Fast-forward a verified recorded assist checkout before launch derivation.
-
-    Returns whether HEAD moved plus the exact fetched remote OID. Only files
-    under the Coga roots (`git.coga_root_paths`) may be dirty; a merely-behind
-    checkout with other dirt, a missing remote branch, or an ahead/diverged
-    tip raises instead of composing from stale files.
-    """
-    _, blackboard = split_body(ticket.body)
-    branch = parse_branch_name(blackboard or "")
-    root = git.toplevel(cfg.repo_root)
-    if root is None or not branch or not git.remote_configured(root, cfg.git_remote):
-        raise git.GitError("the recorded assist checkout has no configured remote")
-    before = git.run_git(root, "rev-parse", "HEAD").strip()
-    remote_ref = f"refs/remotes/{cfg.git_remote}/{branch}"
-    git.run_git(
-        root, "fetch", "--quiet", cfg.git_remote, f"+refs/heads/{branch}:{remote_ref}"
-    )
-    remote_oid = git.run_git(root, "rev-parse", remote_ref).strip()
-    if before == remote_oid:
-        return False, remote_oid
-    ancestry = subprocess.run(
-        ["git", "-C", str(root), "merge-base", "--is-ancestor", before, remote_oid],
-        capture_output=True,
-        check=False,
-        env=git._git_env(),
-    )
-    if ancestry.returncode != 0:
-        raise git.GitError(
-            f"local {branch!r} is ahead of or diverged from "
-            f"{cfg.git_remote}/{branch}; reconcile it (`git pull --rebase`) first"
-        )
-    excludes = [
-        f":(exclude){git.relative_to_root(root, path)}"
-        for path in git.coga_root_paths(cfg)
-    ]
-    dirt = git.run_git(root, "status", "--porcelain", "--", ".", *excludes).strip()
-    if dirt:
-        raise git.GitError(
-            f"the recorded assist checkout has uncommitted changes beyond "
-            f"Coga state; commit or stash them before launching:\n{dirt}"
-        )
-    git.run_git(root, "merge", "--ff-only", "--quiet", remote_oid)
-    return True, remote_oid
 
 
 def _agent_args_prompt_suffix(args: list[str]) -> str:
@@ -3572,7 +1602,7 @@ def agent_command_refusal(
     """
     if os.name != "nt":
         return None
-    placeholder = Path(tempfile.gettempdir()) / (
+    placeholder = Path(oscompat.system_tmpdir()) / (
         f"coga-{ref.id_slug.replace('/', '-')}-XXXXXXXX.md"
     )
     try:
@@ -3598,7 +1628,6 @@ def require_representable_agent_command(agent, **kwargs) -> None:
     """``agent_command_refusal`` as an exit-2 refusal with the sweep withheld."""
     refusal = agent_command_refusal(agent, **kwargs)
     if refusal is not None:
-        git.state_sweep_withheld.set(True)
         _bail(refusal)
 
 
@@ -3802,20 +1831,14 @@ def spawn_agent_session(
     label: str = "Launch",
     warn_blackboard: bool = False,
     commit_log: bool = False,
-    assist_branch: str | None = None,
     assist_agent: str | None = None,
-    before_recompose: Callable[[], None] | None = None,
     validate_before_spawn: Callable[[], None] | None = None,
     before_spawn: Callable[[], None] | None = None,
-    validate_after_spawn: Callable[[], None] | None = None,
-    after_spawn_release: Callable[[], None] | None = None,
     record_launch: bool = True,
-    record_launch_on_spawn: bool = False,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
     composed_prompt: str | None = None,
-    checkout_notice: CheckoutNotice | None = None,
     resolved_layers: ResolvedPromptLayers | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
@@ -3826,7 +1849,7 @@ def spawn_agent_session(
 
     Per-caller differences are arguments here, not forked command code:
     `env` carries the secrets policy (`coga launch` passes a launch env;
-    authoring passes the ambient process env with no Coga secret injection),
+    authoring passes a scrubbed process env with no Coga secret injection),
     `discussion` selects discussion-prompt argv, and `kickoff` appends an
     optional first user turn such as the `coga ticket` greet-first "Begin".
     `stateless_identity` lets an authoring surface compose against a real task
@@ -3839,54 +1862,8 @@ def spawn_agent_session(
     `include_blocker_preamble` is disabled only for guided authoring: the
     resolve-or-re-block directive belongs to task execution, while an authoring
     session must leave a blocked ticket and its open asks intact.
-    `composed_prompt` carries a prompt a caller already materialized at its
-    own preflight boundary. The spawn uses those exact bytes instead of
-    recomposing after intervening lifecycle publication. `checkout_notice`
-    is the caller's observed checkout result for a prompt composed here.
-    `resolved_layers` are file-backed layers the caller already resolved at
-    its preflight; composition here renders `ticket` and `checkout_notice`
-    around them instead of reading those files again.
-    The launch supervisor loop and step chaining deliberately stay outside.
-
-    `commit_log` immediately publishes the `log.md` launch append (via
-    `sync_log`) instead of leaving it for the end-of-command sweep. The
-    ordinary launch path always sets it: stateless bootstrap launches have no
-    later task-state sync to carry the log, and a code step's start check
-    requires a clean tree before the agent branches. `coga ticket` sets it
-    too, so an attended authoring session does not hold a dirty log open.
-    `assist_branch` and
-    `assist_agent` name an explicit assist on a human-owned step running in
-    the recorded single-checkout PR worktree: the
-    child inherits them so its in-session lifecycle commands attribute audit
-    lines to the assisting agent rather than the human ticket owner. `coga
-    ticket` leaves them unset. `secrets_are_scoped` is False only
-    when the caller passes an ambient environment instead of
-    `build_launch_env`; that distinction keeps redaction from mistaking an
-    unrelated same-named variable for a configured secret value.
-    ``before_recompose`` runs after prompt, argv, and pre-session audit
-    publication. Once it returns, this preflight pass exits through a private
-    signal so the caller can reload and re-compose from state those publications
-    may have moved. The recomposed pass sets ``record_launch=False`` because the
-    first pass already made that audit durable. ``validate_before_spawn`` is a
-    guard-only boundary before the launch audit. ``before_spawn`` remains the
-    final publication boundary immediately before the PTY supervisor: human
-    assists publish lifecycle there, while recurring delegation revalidates its
-    period lease. ``validate_after_spawn`` is the narrower executable-admission
-    guard: it runs after the supervisor creates its child but while a private
-    pipe still holds that child before exec. ``record_launch_on_spawn`` defers
-    the audit append into that same gate. A guarded deferred audit is bracketed
-    by two calls to ``validate_after_spawn``: the second exact proof runs after
-    the append and immediately before release. The append, proof, and supervisor
-    pipe release share Git's local `state_lock`, so another Coga command in
-    this checkout cannot publish the provisional line while that proof is in
-    flight. ``after_spawn_release`` runs after that pipe release but before the
-    lock is dropped. A Git-backed megalaunch uses it to admit its visible
-    pending claim only after the held child can execute.
-    Refusal removes only this invocation's append. A pipe-release failure
-    invokes the same compensation inside the lock and clears the
-    session-started flag before the held child is killed. Such an audit cannot
-    also request immediate Git publication, because a published append cannot
-    be transactionally retracted if that final proof or release refuses.
+    `composed_prompt` and `resolved_layers` carry already prepared prompt
+    inputs. `assist_agent` gives lifecycle commands their audit attribution.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -3897,26 +1874,8 @@ def spawn_agent_session(
     # bootstrap ticket's absent `COGA_TASK_BLACKBOARD`) cannot survive by
     # inheritance.
     env = apply_task_env(env, cfg, ref, ticket)
-    # Never inherit a parent assist capability into a nested ordinary launch.
-    # Re-mint it only for the exact recorded branch/PR this spawn already
-    # proved.
-    env.pop(ASSIST_AGENT_ENV, None)
-    env.pop(ASSIST_BRANCH_ENV, None)
-    env.pop(ASSIST_PR_ENV, None)
-    if assist_branch is not None:
-        if not assist_agent:
-            raise ComposeError(
-                "recorded assist checkout has no effective launch agent"
-            )
-        _, blackboard = split_body(ticket.body)
-        assist_pr_url = parse_pr_url(blackboard or "")
-        if not assist_pr_url:
-            raise ComposeError(
-                "recorded assist checkout has no `pr:` link under `## Dev`"
-            )
+    if assist_agent is not None:
         env[ASSIST_AGENT_ENV] = assist_agent
-        env[ASSIST_BRANCH_ENV] = assist_branch
-        env[ASSIST_PR_ENV] = assist_pr_url
 
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
@@ -3934,7 +1893,6 @@ def spawn_agent_session(
             ticket,
             include_blocker_preamble=include_blocker_preamble,
             launch_context=launch_context,
-            checkout=checkout_notice,
             resolved=resolved_layers,
         )
     else:
@@ -3972,12 +1930,8 @@ def spawn_agent_session(
                 session_id=usage_session_id,
                 kickoff=kickoff,
             )
-        except BaseException as exc:
+        except BaseException:
             prompt_file.unlink(missing_ok=True)
-            if isinstance(exc, AgentCommandRefused):
-                # Refusal precedes any launch audit or spawn admission; keep
-                # the final CLI sweep from publishing unrelated dirt.
-                git.state_sweep_withheld.set(True)
             raise
         prompt_arg = windows_plan.prompt_arg
         if windows_plan.prompt_in_file:
@@ -4005,20 +1959,10 @@ def spawn_agent_session(
     usage_cwd = Path.cwd().resolve()
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
-    provisional_audit: tuple[bytes | None, bytes] | None = None
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
     outcome: ReplOutcome | None = None
 
     try:
-        if (
-            record_launch
-            and record_launch_on_spawn
-            and commit_log
-        ):
-            raise ValueError(
-                "a guarded spawn-time launch audit cannot be published before "
-                "its post-append validation"
-            )
         if windows_plan is not None:
             cmd = list(windows_plan.argv)
         else:
@@ -4039,23 +1983,8 @@ def spawn_agent_session(
         if validate_before_spawn is not None:
             validate_before_spawn()
 
-        deferred_launch_audit = record_launch and record_launch_on_spawn
-
-        def record_and_publish_launch_audit() -> bytes:
-            audit_append = append_log(cfg, ref.id_slug, actor, log_message)
-            if commit_log:
-                # A bootstrap target has no later task-state sync to carry its
-                # launch line. When audit recording is spawn-gated, this
-                # publication remains inside that gate too.
-                git.sync_log(cfg, message=f"Log: {ref.id_slug}")
-            return audit_append
-
-        if record_launch and not deferred_launch_audit:
-            record_and_publish_launch_audit()
-
-        if before_recompose is not None:
-            before_recompose()
-            raise _RecomposeAfterLaunchPublication()
+        if record_launch:
+            append_log(cfg, ref.id_slug, actor, log_message)
 
         if name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")
@@ -4064,53 +1993,7 @@ def spawn_agent_session(
         if before_spawn is not None:
             before_spawn()
 
-        gated_spawn_admission = (
-            validate_after_spawn is not None
-            or deferred_launch_audit
-            or after_spawn_release is not None
-        )
-        if not gated_spawn_admission:
-            spawn_started = True
-
-        def admit_spawned_child() -> None:
-            nonlocal provisional_audit, spawn_started
-            if validate_after_spawn is not None:
-                validate_after_spawn()
-            if deferred_launch_audit:
-                audit_path = log_path(cfg)
-                before = audit_path.read_bytes() if audit_path.is_file() else None
-                audit_append = record_and_publish_launch_audit()
-                provisional_audit = (before, audit_append)
-                if validate_after_spawn is not None:
-                    try:
-                        # The append is visible to same-checkout editors and
-                        # publishers, so the proof that authorizes exec must
-                        # follow it rather than merely precede it.
-                        validate_after_spawn()
-                    except BaseException as exc:
-                        provisional_audit = None
-                        if not _retract_log_append(cfg, before, audit_append):
-                            raise RuntimeError(
-                                f"{exc}; could not remove refused launch audit "
-                                f"from {audit_path}"
-                            ) from exc
-                        raise
-            spawn_started = True
-
-        def rollback_spawn_admission() -> None:
-            """Retract callback effects when the held child was not released."""
-            nonlocal provisional_audit, spawn_started
-            spawn_started = False
-            if provisional_audit is None:
-                return
-            before, audit_append = provisional_audit
-            provisional_audit = None
-            if not _retract_log_append(cfg, before, audit_append):
-                raise RuntimeError(
-                    "could not remove unreleased launch audit from "
-                    f"{log_path(cfg)}"
-                )
-
+        spawn_started = True
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
         # `coga bump` / `coga mark done` / `coga mark canceled` / `coga block`
@@ -4132,16 +2015,6 @@ def spawn_agent_session(
             ),
             idle_timeout=idle_timeout,
             max_session=max_session,
-            after_spawn=admit_spawned_child if gated_spawn_admission else None,
-            spawn_release_guard=(
-                (lambda: git.state_lock(cfg))
-                if deferred_launch_audit or after_spawn_release is not None
-                else None
-            ),
-            after_spawn_release=after_spawn_release,
-            on_spawn_admission_failure=(
-                rollback_spawn_admission if gated_spawn_admission else None
-            ),
         )
         outcome_status = _session_outcome_status(outcome)
         return AgentSessionResult(
@@ -4193,29 +2066,6 @@ def spawn_agent_session(
                 exit_kind=outcome.kind if outcome is not None else None,
                 launch_marker=launch_marker,
             )
-            # The usage record lands in `log.md` *past* the agent's final
-            # `bump`/`mark` sync, so publish it now; it also carries this
-            # launch's own log line. A stateful session also retries its
-            # ticket from here, outside the child's sandbox, before the
-            # caller rereads the ticket to decide whether to chain: a
-            # lifecycle write the child could not publish lands (or is
-            # confirmed as already landed) now. Stateless bootstrap and
-            # authoring sessions keep their log-only boundary. A supervised
-            # chain reaches this finally per step. Non-fatal.
-            if isinstance(cfg, Config):
-                if stateless_session or not isinstance(ref, TaskRef):
-                    log_published = git.sync_log(cfg, message=f"Log: {session_slug}")
-                else:
-                    log_published = git.retry_session_publication(
-                        cfg, ref.path, slug=session_slug
-                    )
-                if log_published is None and cfg.git_enabled:
-                    _report(
-                        f"Session {session_slug} ended; log publication was not "
-                        f"confirmed. The local log is retained at {log_path(cfg)}. "
-                        "See the [git] diagnostic above before retrying publication.",
-                        fg='yellow', bold=True, err=True,
-                    )
         try:
             prompt_file.unlink()
         except FileNotFoundError:
@@ -4225,83 +2075,31 @@ def spawn_agent_session(
 def _terminal_status_probe(
     cfg: Config, ref: TaskRef | BootstrapRef, ticket: Ticket,
 ) -> Callable[[], str | None] | None:
-    """Observe this ticket's terminal state without fetching or scanning tasks.
-
-    With Git publication enabled, only the local remote-tracking control ref
-    is proof: a lifecycle command writes its working copy *before* notifying
-    and publishing, and another worktree may hold the completed copy. Without
-    a configured remote, watch the exact local file. Cache unchanged blobs /
-    file stats, poll at most once a second, and allow five seconds of stable
-    terminal state for the ordinary sentinel path to finish first. A terminal
-    state counts only after the probe has seen this ticket open or absent, so
-    a stale published copy from an earlier life of the path never ends a
-    fresh session.
-    """
+    """Observe terminal state in the local ticket if a sentinel is missed."""
     if isinstance(ref, BootstrapRef):
         return None
 
-    generation = ticket.frontmatter.get("period_generation")
-    unresolved = object()
-    # `None` disables the backstop; `(root, rev, rel)` reads published control
-    # state; `()` watches the local file.
-    source: object = unresolved
-    cached_key: object = None
+    cached_key: tuple[int, int, int] | None = None
     cached_status: str | None = None
     armed = False
     next_poll = 0.0
     terminal_since: float | None = None
 
-    def resolve_source() -> tuple[Path, str, str] | tuple[()] | None:
-        # Resolved once, on the first poll: a failure or a ticket outside the
-        # repository disables the backstop rather than retrying git each poll.
-        if not getattr(cfg, "git_enabled", False):
-            return ()
-        try:
-            root = git.toplevel(cfg.repo_root)
-            if root is None or not git.remote_configured(root, cfg.git_remote):
-                return ()
-            rel = git.relative_to_root(root, ref.ticket_path)
-        except git.GitError:
-            return None
-        if Path(rel).is_absolute():
-            return None  # Outside the repository: no published proof.
-        return root, f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}", rel
-
     def probe() -> str | None:
-        nonlocal source, cached_key, cached_status, armed, next_poll, terminal_since
+        nonlocal cached_key, cached_status, armed, next_poll, terminal_since
         now = time.monotonic()
         if now < next_poll:
             return None
         next_poll = now + 1.0
-        if source is unresolved:
-            source = resolve_source()
-        if source is None:
-            return None
         try:
-            if source:
-                root, rev, rel = source
-                key: object = git._blob_oid(root, rev, rel)
-            else:
-                stat = ref.ticket_path.stat()
-                key = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
-            if key is None:
-                cached_key = cached_status = None
-            elif key != cached_key:
-                data = (
-                    git._blob_bytes(root, key) if source
-                    else ref.ticket_path.read_bytes()
-                )
-                current = git._parse_ticket(data)
-                status = current.status if current is not None else None
-                cached_status = (
-                    status if isinstance(status, str) and status in TERMINAL_STATUSES
-                    and current.frontmatter.get("period_generation") == generation
-                    else None
-                )
+            stat = ref.ticket_path.stat()
+            key = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+            if key != cached_key:
+                current = Ticket.read(ref.ticket_path)
+                status = current.status
+                cached_status = status if isinstance(status, str) and status in TERMINAL_STATUSES else None
                 cached_key = key
-        except (OSError, git.GitError):
-            # Missing/unreadable state is not evidence of completion. Retry
-            # next poll; the sentinel and liveness limits remain armed.
+        except (OSError, TicketError, UnicodeError):
             cached_key = cached_status = None
         if cached_status is None:
             armed, terminal_since = True, None
@@ -4314,11 +2112,6 @@ def _terminal_status_probe(
         return None
 
     return probe
-
-
-def _retract_log_append(cfg: Config, before: bytes | None, appended: bytes) -> bool:
-    from coga.logfile import retract_log_append
-    return retract_log_append(cfg, before, appended)
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
@@ -4439,7 +2232,7 @@ def _harness_stop_reason(
             "(agent exited without `coga mark done`); stopping"
         )
 
-    if (after.step, after.status) == (before.step, before.status):
+    if after.step == before.step:
         return f"{ref.id_slug}: still on {after.step}; stopping"
 
     current = after.current_step()
@@ -4614,18 +2407,3 @@ class LaunchBail(RuntimeError):
 
 def _bail(msg: str, *, exit_code: int = 2) -> None:
     raise LaunchBail(exit_code, msg)
-
-
-def run_claimed_agent_session(
-    cfg: Config, ref: TaskRef, *, source_bytes: bytes,
-    prospective_ticket: Ticket, agent_name: str,
-    activation: Ticket | None = None,
-    idle_timeout: float | None = None, max_session: float | None = None,
-) -> "ClaimedSessionResult":
-    """Run the co-versioned claim/release/admission transaction."""
-    from coga.claimed_session import run_claimed_agent_session as run
-    return run(
-        cfg, ref, source_bytes=source_bytes,
-        prospective_ticket=prospective_ticket, agent_name=agent_name,
-        activation=activation, idle_timeout=idle_timeout, max_session=max_session,
-    )

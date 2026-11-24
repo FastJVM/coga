@@ -65,14 +65,6 @@ EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 # else, and completion attribution must name who ran, not who was assigned.
 EXPECTED_AGENT_ENV = "COGA_EXPECTED_AGENT"
 
-# Minted only by `coga launch` for a step whose invoking checkout it prepared
-# on entry and will return to a clean control branch when the session ends
-# (`coga/checkouts`). A code step may then publish its handoff and bump from
-# the feature branch. `build_supervised_step_env` never sets it: megalaunch,
-# bootstrap targets, and exempt checkouts keep the manual return.
-CHECKOUT_RETURN_ENV = "COGA_LAUNCH_RETURNS_CHECKOUT"
-
-
 def build_supervised_step_env(
     env: Mapping[str, str],
     *,
@@ -89,9 +81,6 @@ def build_supervised_step_env(
     nickname actually being spawned; without one, no inherited value survives.
     """
     step_env = dict(env)
-    # Only launch's normalizing path may grant the return witness; never let
-    # an inherited copy reach megalaunch or an exempt session.
-    step_env.pop(CHECKOUT_RETURN_ENV, None)
     step_env["COGA_SUPERVISED"] = "1"
     step_env[EXPECTED_TASK_ENV] = str(task_path.resolve())
     step_env[EXPECTED_STEP_ENV] = step or ""
@@ -148,8 +137,6 @@ def _state_label(state: tuple[str | None, str | None]) -> str:
 # with EXPECTED_TASK_ENV, the exact recorded PR, and the effective launch agent
 # before publishing generated task/log commits back to that branch; nested
 # non-assist launches clear all three values at the spawn boundary.
-ASSIST_BRANCH_ENV = "COGA_ASSIST_BRANCH"
-ASSIST_PR_ENV = "COGA_ASSIST_PR"
 ASSIST_AGENT_ENV = "COGA_ASSIST_AGENT"
 
 # Grace period after SIGTERM before we escalate to SIGKILL. Claude Code and
@@ -182,84 +169,6 @@ class AgentCliNotFound(FileNotFoundError):
     def __init__(self, cli: str) -> None:
         super().__init__(f"agent CLI {cli!r} not found")
         self.cli = cli
-
-
-@contextmanager
-def _defer_spawn_release_interrupts() -> Iterator[None]:
-    """Defer process-control signals across the child-release commit point.
-
-    A one-byte pipe write is atomic, but Python may run a signal handler after
-    the kernel accepted that byte and before ``os.write`` returns to our next
-    bytecode. Block SIGINT/SIGTERM for that tiny window so the caller can mark
-    the child released before a pending handler raises. Restoring the prior
-    mask deliberately happens inside the surrounding admission ``try``: an
-    interrupt delivered there sees the already-recorded release state.
-    """
-    pthread_sigmask = getattr(signal, "pthread_sigmask", None)
-    if pthread_sigmask is None:  # Windows: no signal mask to defer with
-        yield
-        return
-    previous = pthread_sigmask(
-        signal.SIG_BLOCK,
-        {signal.SIGINT, signal.SIGTERM},
-    )
-    try:
-        yield
-    finally:
-        pthread_sigmask(signal.SIG_SETMASK, previous)
-
-
-def _admit_held_child(
-    release: Callable[[], None],
-    *,
-    after_spawn: Callable[[], None],
-    spawn_release_guard: (
-        Callable[[], AbstractContextManager[None]] | None
-    ) = None,
-    after_spawn_release: Callable[[], None] | None = None,
-    on_spawn_admission_failure: Callable[[], None] | None = None,
-) -> None:
-    """Run a held child's admission callbacks and release it, once.
-
-    Shared by the POSIX pipe gate and the Windows named-event gate; only
-    ``release`` (the commit point) differs. ``after_spawn`` runs under the
-    optional guard; ``release`` must either complete or raise before the child
-    can execute. SIGINT/SIGTERM are deferred across it and the released-state
-    update. Before release, a failure runs ``on_spawn_admission_failure`` to
-    retract provisional effects; after release, effects are retained because
-    agent work may already be running, and ``after_spawn_release`` failures
-    propagate without compensation. The caller kills the child on any raise.
-    """
-    child_released = False
-    guard = (
-        spawn_release_guard()
-        if spawn_release_guard is not None
-        else nullcontext()
-    )
-    with guard:
-        try:
-            after_spawn()
-            with _defer_spawn_release_interrupts():
-                release()
-                # This assignment is part of the signal-masked commit point. A
-                # pending interrupt delivered as the prior mask is restored
-                # must retain the launch audit and started state because the
-                # child can already execute.
-                child_released = True
-            if after_spawn_release is not None:
-                after_spawn_release()
-        except BaseException as admission_exc:
-            if not child_released and on_spawn_admission_failure is not None:
-                try:
-                    on_spawn_admission_failure()
-                except BaseException as compensation_exc:
-                    raise RuntimeError(
-                        "agent child admission failed and its provisional "
-                        "effects could not be retracted: "
-                        f"admission={admission_exc}; "
-                        f"compensation={compensation_exc}"
-                    ) from compensation_exc
-            raise
 
 
 @dataclass(frozen=True)
@@ -369,12 +278,6 @@ def run_with_done_marker(
     max_session: float | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
-    after_spawn: Callable[[], None] | None = None,
-    spawn_release_guard: (
-        Callable[[], AbstractContextManager[None]] | None
-    ) = None,
-    after_spawn_release: Callable[[], None] | None = None,
-    on_spawn_admission_failure: Callable[[], None] | None = None,
 ) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
@@ -411,51 +314,8 @@ def run_with_done_marker(
     wall-clock cap.
 
     `output_fd` / `input_fd` exist for tests; production callers leave them
-    None and the supervisor proxies the real stdio. ``after_spawn`` runs in
-    the parent only after the child process exists, while that child waits on
-    a private pipe before executing ``cmd``. A callback failure kills and
-    reaps the held child before propagating; success releases it. Callers can
-    therefore durably record an actual spawn without either recording a
-    refused pre-spawn attempt or letting unrecorded agent work begin.
-    ``spawn_release_guard`` optionally surrounds both that callback and the
-    gate write, so a caller can keep a short cross-process critical section
-    held until the child is irrevocably released.
-    ``after_spawn_release`` runs after the gate byte is delivered and the child
-    is classified as released, but before that guard is dropped. It is for a
-    caller's exact post-release admission transition: failure kills the now-
-    released child and deliberately does not retract pre-release effects.
-    ``on_spawn_admission_failure`` runs inside that same guard when the callback
-    fails or gate-byte delivery is known not to have completed. It lets a caller
-    retract provisional callback effects before the held child is killed and
-    peer publishers can proceed. SIGINT/SIGTERM are deferred across delivery and
-    its released-state update; an interrupt observed after delivery retains the
-    callback effects because agent work may already be running.
+    None and the supervisor proxies the real stdio.
     """
-    if spawn_release_guard is not None and after_spawn is None:
-        raise ValueError("spawn_release_guard requires after_spawn")
-    if after_spawn_release is not None and after_spawn is None:
-        raise ValueError("after_spawn_release requires after_spawn")
-    if on_spawn_admission_failure is not None and after_spawn is None:
-        raise ValueError("on_spawn_admission_failure requires after_spawn")
-
-    def release_gated_child(gate_write_fd: int) -> None:
-        def write_gate_byte() -> None:
-            written = os.write(gate_write_fd, b"\0")
-            if written != 1:
-                raise OSError(
-                    errno.EIO,
-                    "short write while releasing held agent child",
-                )
-
-        assert after_spawn is not None
-        _admit_held_child(
-            write_gate_byte,
-            after_spawn=after_spawn,
-            spawn_release_guard=spawn_release_guard,
-            after_spawn_release=after_spawn_release,
-            on_spawn_admission_failure=on_spawn_admission_failure,
-        )
-
     if os.name == "nt":
         from coga import repl_supervisor_nt
 
@@ -468,10 +328,6 @@ def run_with_done_marker(
             max_session=max_session,
             output_fd=output_fd,
             input_fd=input_fd,
-            after_spawn=after_spawn,
-            spawn_release_guard=spawn_release_guard,
-            after_spawn_release=after_spawn_release,
-            on_spawn_admission_failure=on_spawn_admission_failure,
         )
 
     if not sys.stdout.isatty():
@@ -481,103 +337,27 @@ def run_with_done_marker(
         # lifecycle writers that its absence is by design, not a lost signal.
         env = {**env, SENTINEL_ENV: ""}
 
-        if after_spawn is None:
-            try:
-                code = subprocess.run(
-                    cmd, env=dict(env), check=False
-                ).returncode
-            except FileNotFoundError as exc:
-                # Name the failure at its source. The PTY path below reports
-                # the same condition as a 127 exit from the child, so this is
-                # the one spawn route that can surface it as an exception.
-                raise AgentCliNotFound(cmd[0]) from exc
-        else:
-            gate_read_fd, gate_write_fd = os.pipe()
-            try:
-                pid = os.fork()
-            except BaseException:
-                os.close(gate_read_fd)
-                os.close(gate_write_fd)
-                raise
-            if pid == 0:
-                os.close(gate_write_fd)
-                try:
-                    released = os.read(gate_read_fd, 1)
-                except OSError:
-                    os._exit(126)
-                finally:
-                    os.close(gate_read_fd)
-                if released != b"\0":
-                    os._exit(126)
-                try:
-                    os.execvpe(cmd[0], cmd, dict(env))
-                except OSError as exc:
-                    os.write(2, f"coga: exec {cmd[0]} failed: {exc}\n".encode())
-                    os._exit(127)
-
-            os.close(gate_read_fd)
-            try:
-                release_gated_child(gate_write_fd)
-            except BaseException:
-                # Before delivery this kills a still-held child after the
-                # helper retracts admission effects. After delivery (for
-                # example, a deferred SIGINT raised while restoring the signal
-                # mask) it terminates a launched child but retains its audit.
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except OSError:
-                    pass
-                os.close(gate_write_fd)
-                try:
-                    os.waitpid(pid, 0)
-                except ChildProcessError:
-                    pass
-                raise
-            else:
-                os.close(gate_write_fd)
-            _, status = os.waitpid(pid, 0)
-            if os.WIFEXITED(status):
-                code = os.WEXITSTATUS(status)
-            elif os.WIFSIGNALED(status):
-                code = -os.WTERMSIG(status)
-            else:  # pragma: no cover - waitpid returns exited/signalled here
-                code = 1
+        try:
+            code = subprocess.run(cmd, env=dict(env), check=False).returncode
+        except FileNotFoundError as exc:
+            raise AgentCliNotFound(cmd[0]) from exc
         return ReplOutcome(code, "natural")
 
-    sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
+    sentinel_dir = tempfile.mkdtemp(prefix="coga-done-", dir=oscompat.system_tmpdir())
     sentinel_path = os.path.join(sentinel_dir, "sentinel")
     exec_failure_path = os.path.join(sentinel_dir, "exec-failed")
     child_env = dict(env)
     child_env[SENTINEL_ENV] = sentinel_path
 
-    gate_read_fd: int | None = None
-    gate_write_fd: int | None = None
-    if after_spawn is not None:
-        gate_read_fd, gate_write_fd = os.pipe()
     try:
         pid, master_fd = pty.fork()
     except BaseException:
-        if gate_read_fd is not None:
-            os.close(gate_read_fd)
-        if gate_write_fd is not None:
-            os.close(gate_write_fd)
         try:
             os.rmdir(sentinel_dir)
         except OSError:
             pass
         raise
     if pid == 0:  # child
-        if gate_write_fd is not None:
-            os.close(gate_write_fd)
-        if gate_read_fd is not None:
-            try:
-                released = os.read(gate_read_fd, 1)
-            except OSError:
-                os._exit(126)
-            finally:
-                os.close(gate_read_fd)
-            if released != b"\0":
-                os._exit(126)
         try:
             # `env` is the complete child environment, not an overlay. The
             # fork inherited the parent's `os.environ`; using `execvp` after
@@ -596,40 +376,7 @@ def run_with_done_marker(
             os.write(2, f"coga: exec {cmd[0]} failed: {exc}\r\n".encode())
             os._exit(127)
 
-    if gate_read_fd is not None:
-        os.close(gate_read_fd)
-    # A gated child cannot inspect its terminal before this parent-side setup
-    # completes. Preserve that ordering when the admission callback releases
-    # a fast TUI executable.
     _resize_pty(master_fd)
-    if after_spawn is not None:
-        assert gate_write_fd is not None
-        try:
-            release_gated_child(gate_write_fd)
-        except BaseException:
-            # Before delivery the child is still blocked and the helper has
-            # retracted admission effects. After delivery it may have exec'd;
-            # terminate the process group but retain its launch audit.
-            try:
-                os.killpg(pid, signal.SIGKILL)
-            except OSError:
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except OSError:
-                    pass
-            os.close(gate_write_fd)
-            try:
-                os.close(master_fd)
-            except OSError:
-                pass
-            try:
-                os.waitpid(pid, 0)
-            except ChildProcessError:
-                pass
-            remove_sentinel_dir(sentinel_dir)
-            raise
-        else:
-            os.close(gate_write_fd)
 
     out_fd = output_fd if output_fd is not None else sys.stdout.fileno()
     stdin_fd = input_fd if input_fd is not None else sys.stdin.fileno()
@@ -1037,8 +784,6 @@ def _warn_unsignalled(marker: str, cause: str) -> None:
 
 __all__ = [
     "ASSIST_AGENT_ENV",
-    "ASSIST_BRANCH_ENV",
-    "ASSIST_PR_ENV",
     "SENTINEL_ENV",
     "EXPECTED_STEP_ENV",
     "EXPECTED_AGENT_ENV",

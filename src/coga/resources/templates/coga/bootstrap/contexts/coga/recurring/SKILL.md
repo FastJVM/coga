@@ -30,6 +30,19 @@ operation is covered here and in [coga/secrets](../secrets/SKILL.md)
 (service-account auth), and scheduling behavior is
 [coga/recurring/scheduling](scheduling/SKILL.md).
 
+## Checkout policy
+
+Run recurring work from a disposable clone or linked Git worktree in a visible,
+run-specific directory under `/tmp`. Verify that it has the intended branch
+and revision before launching jobs. Run every job and child step in that
+checkout, including Dream and Retro when the recurring run invokes them.
+Switch branches there when a job needs another branch.
+
+Keep run reports and state needed by later runs in visible paths in the
+original repository. At the end of the run, remove the checkout and its
+temporary directory, including after a failure. Report the path if cleanup
+fails so an operator can find and inspect it.
+
 ## Commands
 
 `coga recurring` sweeps due templates; `coga recurring launch <name>` (and
@@ -55,9 +68,9 @@ inspects templates and `coga promote-recurring` creates one from a task. What ea
   attaches to every period task: parent-blackboard state versus per-run scratch.
 - [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) — the built-in janitor template and its fixed
   phases; REM for repo-specific maintenance.
-- Internals: [recurring-control](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-control/SKILL.md)
+- Internals: [recurring-control](SKILL.md)
   (control-branch requirement, relay, owner authorization),
-  [recurring-temp-worktrees](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md)
+  [recurring-temp-worktrees](SKILL.md)
   (`--all` off-branch service), and
   [recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md) (period
   generations, leases, ledger reads and freshness),

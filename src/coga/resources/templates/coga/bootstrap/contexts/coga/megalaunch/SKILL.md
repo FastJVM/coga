@@ -24,34 +24,10 @@ timeout names its trigger and duration. A task chains through at most 8
 agent steps per run (`failed: exceeded 8 unattended steps`), and an exit that
 changes neither step nor status is `failed`.
 
-An agent that **fails to start** stops the whole run, in the sweep, the
-dependency drain, and an explicit selection alike. The POSIX terminal
-supervisor confirms this when the operating system refuses to execute the
-agent command. A CLI that executes and then returns a nonzero code follows
-the ordinary `failed` rule and the run continues. This includes an agent
-that starts and rejects its configuration. Supervisors without a confirmed
-execution-failure signal retain the ordinary behavior. Megalaunch restores the ticket to the exact bytes that
-step found (a pick's `draft`, `paused`, or `blocked`; otherwise `active` or
-`in_progress`, which a drained ticket reaches with its dependency answer
-kept), drops the launch claim, and records no blocker: the environment is at
-fault, not the ticket. No later task is read, activated, or launched. The
-agent's own error stays on the console above the summary; fix the
-environment and rerun (`--relaunch` replays a pick). If the restore cannot
-complete, the run still stops and the row says the ticket needs manual
-reconciliation.
-
-Megalaunch has no deterministic phase: it never runs a ticket's `ticket.py`
-([script tickets](../script-tickets/SKILL.md)); each step is an agent
-session composed directly.
-
-## Refresh first
-
-Before it resolves a sweep, `--pick`, or `--relaunch`, or reads any ticket,
-megalaunch runs the same control refresh as `coga launch`: fetch, then
-fast-forward a control checkout to `origin/<control>`. If that refresh
-fails, the run stops with exit 1 and nothing is picked or launched. A
-feature or detached checkout is only fetched, so it still queues from its
-own copy. Git-disabled, non-Git, and no-remote repos skip the refresh.
+The queue reads local tickets. A workflow script runs before the agent
+phase. A script that bumps chains to the next step, and one that leaves
+its step open hands it to the agent. The queue stops a ticket when it
+reaches an owner-held step or a script or agent failure.
 
 ## Owner filter
 
@@ -71,13 +47,8 @@ non-default filter (`Owner: <name>`).
 Silently ignores tickets outside the owner filter and every status but
 `active`, `in_progress`, and `blocked`.
 Blocked tickets and ones with open asks report `skipped-unresolved-blocker`;
-a missing current step or an owner/unrouted step reports
-`skipped-human-gate`. `in_progress` work resumes like `coga launch`, even
-when an earlier session's claim remains: megalaunch replaces it without
-checking whether that session still runs, so do not leave a session working
-a ticket you queue. `--owner <name>` treats that owner's claims exactly the
-same way, with no extra check: coordinating with the other owner is the
-operator's job. The queue
+a missing current step or an owner-held step reports `skipped-human-gate`.
+Coordinate with a ticket’s owner before queuing work they already started. The queue
 scan is only a hint: each launch rereads exact bytes and reapplies the same
 owner filter plus the status, blocker, and current-step gates to them. A task that vanished since
 the scan is skipped without a row.
@@ -125,21 +96,10 @@ resolve, under the [dependency contract](../lifecycle/SKILL.md#dependencies-and-
 The ticket and its open asks are recaptured as exact bytes before selecting
 satisfied entries. Each selected entry gets an automatic answer naming its
 finished dependency; other entries keep their asks and answers untouched.
-Partial resolutions publish against that exact snapshot with status still
-`blocked`, and consume no launch attempt. Such a ticket can be reconsidered
-after another launch finishes more work.
-
-When no open asks would remain, activation is prepared first, then all
-remaining targeted answers and activation publish as one exact mutation before
-the launch claim; the prompt therefore never carries the blocker preamble.
-An unactivatable ticket keeps its remaining asks and stays `blocked`. For
-partial resolutions and activation alike, a lost publication restores the
-source ticket; an uncertain one retains evidence. A partial-resolution rollback
-first checks that the local ticket still equals the bytes it wrote. If the
-ticket changed, was deleted, or cannot be read, it retains the current local
-state and reports that reconciliation is needed. Each task drains into a
-launch at most once per run; after any actual launch the walk restarts from
-the oldest blocked ticket, and a pass without a launch ends it.
+Partial resolutions update the blocked ticket locally and consume no
+launch attempt. After all asks are answered, the queue validates and
+activates the ticket. A ticket that cannot activate keeps its remaining asks.
+After a launch the drain restarts at the oldest blocked ticket.
 
 ## Budget, agent, scope, summary
 
@@ -151,10 +111,8 @@ draft interviews plus each task's first launched step only. `DIR` scopes to
 
 The summary counts launched, drained, completed, canceled, blocked,
 skipped-human-gate, skipped-unresolved-blocker, skipped-unlaunchable, and
-failed, one row per task; one notification line follows. A failed start has a row naming the task (`failed - agent failed to start (exited with code N);
-run stopped; restored to <status>`). Any `failed` row exits 1; usage errors
-exit 2. Claims and recovery:
-[launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md).
+failed, one row per task; one notification line follows. A failed start has a row naming the task. Any `failed` row exits 1; usage errors
+exit 2.
 
 ## Editable implementation
 
@@ -162,11 +120,8 @@ The packaged `bootstrap/megalaunch/ticket.md` and sibling `ticket.py` select
 `coga_edge.megalaunch`. The complete module owns picker, persistence, filters,
 service-order selection, dependency policy, budgets, stop classification and
 summary. It is a stateless script invocation, creating no tracking task or
-agent for itself. Its child sessions are still agent-only.
+agent for itself. Its child steps may run a script or an agent.
 
-Shared launch owns exact claim publication, pre-spawn local/control proofs,
-held-child release and admission; changing queue policy cannot supply these
-proofs. Pending and released witnesses retain ordinary launch recovery.
 [Script tickets](../script-tickets/SKILL.md#stateless-command-help-and-interrupts)
 owns help, argv and parent interrupt handling; framing remains on stderr.
 Aliases that previously targeted the built-in `megalaunch` must instead target

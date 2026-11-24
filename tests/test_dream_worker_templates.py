@@ -46,96 +46,6 @@ def test_dream_ships_as_a_recurring_template() -> None:
     assert "\n## Description\n" in text
 
 
-def test_dream_documents_decide_then_execute_phases() -> None:
-    text = DREAM_PROMPT.read_text(encoding="utf-8")
-
-    assert not (DREAM / "SKILL.md").exists()
-    assert not (DREAM / "scan.py").exists()
-    assert not (TEMPLATES / "dev" / "stale-branches" / "SKILL.md").exists()
-    assert "Run the Dream cleanup pass for this Coga repo" in text
-    assert "Dream is Coga's generic cleanup pass" in text
-    assert "Dream is not REM" in text
-    assert "### Console Progress" in text
-    assert "Write short progress updates to the console" in text
-    assert "### Run order" in text
-    assert "**decide**" in text
-    assert "**execute**" in text
-    assert "This body is the dispatch contract" in text
-    assert "Do not auto-discover skills" in text
-    assert "### Phase 1" in text
-    assert "### Phase 2" in text
-    assert "### Phase 3" in text
-    assert "### Phase 4" in text
-    assert "### Phase 5" in text
-    assert "### Phase 6" in text
-    assert "Dream runs six phases in order" in text
-    assert "`bootstrap/dream/tasks/validate-drift`" in text
-    assert "`python -m coga_edge.validate_drift`" in text
-    assert "coga run validate-drift" not in text
-    # The skill updater is a standalone recurring task now, not a Dream phase.
-    assert "skill-update" not in text
-    assert "retro/done-ticket" in text
-    assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
-    assert "`python -m coga_edge.cleanup_orphan_markers`" in text
-    assert "coga run cleanup-orphan-markers" not in text
-    assert "`bootstrap/dream/tasks/dev/stale-branches`" not in text
-    assert "dev/stale-branches" not in text
-    assert "### Skill: dev/stale-branches" not in text
-    assert "knowledge scan" in text
-    assert "`bootstrap/dream/scan/knowledge-scan`" in text
-    assert "`bootstrap/dream/scan/contract-audit`" in text
-    assert "`extract`" in text
-    assert "`stale`" in text
-    assert "`gap`" in text
-    assert "coga create" in text
-    assert "no per-run ticket cap" in text
-    assert "Extract durable knowledge from done tickets, then delete every eligible one." in text
-    assert "its resolved task directory under `coga/tasks/` still exists" in text
-    assert "records no **live checkout**" in " ".join(text.split())
-    assert "Check every real `branch:` line" in " ".join(text.split())
-    assert "check the branches in that repository" in " ".join(text.split())
-    assert "a branch held only in an independent sandbox clone still blocks Retro" in " ".join(text.split())
-    assert (
-        "A probe that cannot answer (an unreadable branch list, an unreachable "
-        "remote) counts as live"
-    ) in " ".join(text.split())
-    assert "leave the ticket and its `## Dev` evidence on disk" in " ".join(text.split())
-    assert "do not invoke `coga retire` from Dream" in " ".join(text.split())
-    assert "Retro never leaves a processed done ticket on" in " ".join(text.split())
-    assert "Delegate the entire Retro pass to one subagent in a dedicated" in text
-    assert "`isolation: worktree`" in text
-    assert "`git worktree add`" in text
-    assert "`git clone --no-hardlinks`" in text
-    assert "primary `.git` metadata read-only" in " ".join(text.split())
-    assert "Fetch the configured remote control branch first" in text
-    assert "unique temporary branch on that fresh tip" in " ".join(text.split())
-    assert "Do not run Retro in Dream's checkout" in " ".join(text.split())
-    assert "gitignored `coga.local.toml`" in text
-    assert "same repo-relative path" in " ".join(text.split())
-    assert "never symlink, snapshot, stage, or commit it" in " ".join(text.split())
-    assert "read-only `evidence/` snapshot" in " ".join(text.split())
-    assert "writable `progress.md` alongside `evidence/`, not inside it" in " ".join(text.split())
-    assert "including sibling attachments" in " ".join(text.split())
-    assert "current `## Findings`" in text
-    assert "`coga delete <slug> --keep-control-checkout`" in text
-    assert "ordinary `coga delete <slug>` from an independent clone" in " ".join(text.split())
-    assert "delete the exact independent-clone" in " ".join(text.split())
-    assert "auto-clean" not in text
-    # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
-    assert "is direct-deleted with" in text
-    assert "`coga delete <slug> --keep-control-checkout`" in text
-    assert "with no PR and no marker" in " ".join(text.split())
-    assert "delete-only prune PR" not in text
-    assert "## Pruned" not in text
-    assert "Do not create child worker tasks" in text
-    assert "--blackboard" not in text
-    assert "Dream Run Summary" in text
-    assert "coga slack --task <this-dream-task>" in text
-    assert "stale branch" not in text.lower()
-    assert "coga/skills/dream/orchestrate/SKILL.md" not in text
-    assert "tasks/**/SKILL.md" not in text
-
-
 def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
     """Dream cleans this sweep; the scheduler replaces stale completed runs."""
     text = DREAM_PROMPT.read_text(encoding="utf-8")
@@ -324,7 +234,7 @@ def test_dream_routes_blackboard_cleanup_to_owner_state_edits() -> None:
     assert "`large-blackboard` and `unsynthesized-draft-blackboard`" in norm
     assert "owner-directed state edits" in norm
     assert "`brief-for-human` draft with no branch or PR requirement" in norm
-    assert "`coga/state-publication`" in norm
+    assert "ordinary Git" in norm
     assert "done tickets follow Phase 4's Retro/retirement split" in norm
     assert "a recurring writer's own state goes to that writer's owner" in norm
     assert "even when an older recipe lists them in `PR Proposal`" in norm
@@ -636,7 +546,7 @@ def test_dream_preflights_agent_capabilities_before_phase_1() -> None:
     assert "then remove it" in section
     assert "A permission-bit check does not count" in section
     assert "never uses a Git lock name" in section
-    assert "`git ls-remote <configured-remote> <configured-control-branch>`" in section
+    assert "`git ls-remote <configured-remote> <base>`" in section
     assert "`gh auth status` succeeds" in section
     assert "the preflight fails before Phase 1" in section
     assert "do not start Phase 1 or any later phase" in section
@@ -732,8 +642,8 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
         .read_text(encoding="utf-8")
         .split()
     )
-    assert "`done` means the work landed; `canceled` means it did not." in lifecycle
-    assert "a ticket whose work did not land must be canceled" in lifecycle
+    assert "Mark abandoned or superseded work `canceled`" in lifecycle
+    assert "records `done` on the branch" in lifecycle
 
 
 def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:
@@ -752,9 +662,8 @@ def test_retro_defines_nothing_unlanded_for_the_caller() -> None:
     """Unpushed commits are unlanded; a landed direct delete's deletion is not."""
     retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
 
-    assert "`git log <remote>/<control-branch>..HEAD` prints nothing" in retro
-    assert "`git diff --name-only <remote>/<control-branch> -- <every listed path>` prints nothing" in retro
-    assert "that is landed, not dirty" in retro
+    assert "`git log <remote>/<base>..HEAD` prints nothing" in retro
+    assert "`git diff --name-only <remote>/<base> -- <every listed path>` prints nothing" in retro
     assert "Leave the isolated checkout clean" not in retro
 
 

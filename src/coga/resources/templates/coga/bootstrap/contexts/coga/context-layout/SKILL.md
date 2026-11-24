@@ -127,16 +127,10 @@ it passes the artifact check above. The ignored `_template/` scaffold is
 exempt. `[layout]` is rejected in `coga.local.toml`: where a repo keeps its
 prose is a repo fact.
 
-## Publication and ownership
+## Moving the contexts root
 
-The contexts root is a Coga root: context edits under it — relocated or
-not, by hand or during guided ticket authoring — publish automatically to
-the control branch with no separate knowledge PR. The publication contract is
-owned by
-[coga/state-publication](../state-publication/SKILL.md).
-Move an existing tree and set the key together. Guided authoring and launch
-checkout return carry the old-path deletions, destination files, and config
-through the same guarded publication, as defined by that contract.
+Move the existing tree and update the config together. Commit the destination
+files, old-path deletions and config as one change when using Git.
 
 `coga init` relocates its scaffold only when the template's `coga.toml` sets
 the key ([coga/init](../init/SKILL.md)). The whole configured root is

@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
-from pathlib import Path
 
 import typer
 
-from coga import git
-from coga.config import Config, ConfigError, load_config
-from coga.paths import log_path
+from coga.config import ConfigError, load_config
 from coga.recurring import RecurringError
 from coga.taskfile import TaskFileError
 from coga.tasks import TaskNotFoundError, resolve_task
@@ -57,58 +52,14 @@ def promote(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    source_path = ref.path
-    if cfg.git_enabled and not ref.file_form:
-        # Guarded publication refuses symlinks; refuse before anything moves
-        # rather than leaving a local move to reconcile.
-        links = sorted(path for path in source_path.rglob("*") if path.is_symlink())
-        if links:
-            typer.secho(
-                "Cannot promote a task with symlink attachments while Git sync is "
-                "enabled: guarded publication refuses them. Replace or remove "
-                f"{', '.join(str(path) for path in links)}, then retry. Nothing moved.",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            sys.exit(2)
     try:
         outcome = promote_task(cfg, ref, schedule=schedule, name=name)
     except RetainedPromotionError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+        raise typer.Exit(2) from exc
     except (RecurringError, TaskFileError, TicketError, OSError, UnicodeError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
-
-    # One sync for the whole move: the task removal and the new template land
-    # together, so no checkout ever sees the ticket in both places (or in
-    # neither).
-    try:
-        required = [*outcome.source_files, log_path(cfg)]
-        required.extend(outcome.path / path for path in outcome.attachments)
-        required.append(outcome.path / "ticket.md")
-        if cfg.git_enabled:
-            required = _unignored(cfg, required)
-            for path in required:
-                if git.symlink_component(path) is not None:
-                    raise git.GitError(f"Cannot publish symlink path {path}")
-        published = git.publish(
-            cfg,
-            [source_path, outcome.path, log_path(cfg)],
-            f"Recurring: promoted {outcome.source_slug} → recurring/{outcome.name}",
-            require_paths=required,
-        )
-        if cfg.git_enabled and published is None:
-            raise git.GitError("Control branch publication was skipped")
-    except git.GitError as exc:
-        typer.secho(
-            f"Promotion publication failed: {exc}. Local move retained from "
-            f"{source_path} to {outcome.path}. Reconcile these paths and the "
-            "audit log with control before retrying publication.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        raise typer.Exit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
 
     typer.echo(
         f"Promoted {outcome.source_slug} → recurring/{outcome.name} "
@@ -131,29 +82,6 @@ def promote(
             err=True,
         )
     typer.echo("Run `coga validate --json` to check the new template.")
-
-
-def _unignored(cfg: Config, paths: list[Path]) -> list[Path]:
-    """Drop gitignored paths: publication never carries them, so requiring
-    one (a copied `__pycache__/*.pyc`, `.DS_Store`) would refuse the move."""
-    root = git.toplevel(cfg.repo_root)
-    if root is None or not paths:
-        return paths
-    result = subprocess.run(
-        ["git", "-C", str(root), "check-ignore", "--no-index", "-z", "--stdin"],
-        input=b"".join(os.fsencode(path) + b"\0" for path in paths),
-        capture_output=True,
-    )
-    if result.returncode not in (0, 1):
-        raise git.GitError(
-            "`git check-ignore` failed: "
-            + result.stderr.decode(errors="replace").strip()
-        )
-    ignored = {
-        Path(os.fsdecode(entry)) for entry in result.stdout.split(b"\0") if entry
-    }
-    ignored = {path if path.is_absolute() else root / path for path in ignored}
-    return [path for path in paths if path not in ignored]
 
 
 if __name__ == "__main__":

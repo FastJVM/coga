@@ -508,3 +508,23 @@ def test_without_stock_placeholder_removes_override_forms(tmp_path: Path) -> Non
     # A different title is not this ticket's rendering.
     other = render_blackboard("Other", cfg=cfg)
     assert without_stock_placeholder(other, cfg=cfg, task_title="Work") == other
+
+
+def test_dev_fields_round_trip_preserves_unknown_lines_and_examples() -> None:
+    from coga.blackboard import read_dev_fields, set_dev_fields
+
+    region = (
+        "\n## Dev\n\nbranch: `coga/one`\ncustom: keep me\n"
+        "```md\npr: https://example.com/team/repo/pull/1\n```\n"
+        "\n## Notes\n\nremote: example\n"
+    )
+    assert read_dev_fields(region) == {"branch": "coga/one"}
+    updated = set_dev_fields(region, remote="origin", pr="https://example.com/team/repo/pull/2")
+    assert read_dev_fields(updated) == {
+        "branch": "coga/one",
+        "remote": "origin",
+        "pr": "https://example.com/team/repo/pull/2",
+    }
+    assert "custom: keep me" in updated
+    assert "```md\npr: https://example.com/team/repo/pull/1\n```" in updated
+    assert updated.endswith("\n## Notes\n\nremote: example\n")

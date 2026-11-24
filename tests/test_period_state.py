@@ -366,32 +366,6 @@ def test_mark_done_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:
     assert "did not advance" not in result.output
 
 
-def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
-    repo: Path, monkeypatch
-) -> None:
-    monkeypatch.chdir(repo)
-    slug = _create_period(repo)
-    _set_parent_state(repo, "### Dev Update State\n\nlast_commit: BBB\n")
-
-    synced: list[tuple[list[Path], str]] = []
-
-    def _capture_publish(cfg, paths, message, **kwargs):
-        synced.append((list(paths), message))
-
-    monkeypatch.setattr("coga.git.publish", _capture_publish)
-
-    result = CliRunner().invoke(app, ["mark", "done", slug])
-    assert result.exit_code == 0, result.output
-
-    task_dir = repo / "tasks" / slug
-    # Single-file format: the parent's working state lives in its ticket.md
-    # blackboard region, so that's the file mark done publishes with the task.
-    parent_ticket = repo / "recurring" / "dev-update" / "ticket.md"
-    assert synced == [
-        ([task_dir, repo / "log.md", parent_ticket], f"Ticket: {slug} — done")
-    ]
-
-
 def test_mark_done_plain_task_unaffected(repo: Path, monkeypatch) -> None:
     """A task with no snapshot (every non-recurring task) is never flagged."""
     monkeypatch.chdir(repo)

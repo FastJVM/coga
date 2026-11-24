@@ -36,7 +36,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/recurring/phone-home/ticket.py",
     "coga/resources/templates/coga/bootstrap/workflows/phone-home/run.md",
     "coga/resources/templates/coga/recurring/phone-home/operations.md",
-    "coga/resources/templates/coga/recurring/autoclose-merged/operations.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md",
@@ -71,23 +70,19 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/"
     "scan-protocol/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "autoclose/sweep/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
     "blockers/remind/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "ticket/finalize/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md",
     "coga/resources/templates/coga/recurring/address-pr-comments/ticket.md",
-    "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/resolve-conflicts/ticket.md",
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
-    "coga/resources/templates/coga/bootstrap/workflows/autoclose-merged/sweep.md",
     "coga/resources/templates/coga/bootstrap/workflows/blocker-reminders/run.md",
     "coga/resources/templates/coga/bootstrap/workflows/direct/body.md",
     "coga/resources/templates/coga/bootstrap/workflows/skill-update/run.md",
@@ -114,21 +109,17 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/seed_local_config.py",
     "coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
     "coga/resources/templates/coga/skills/_template/SKILL.md",
     "coga/resources/templates/coga/contexts/.gitignore",
-    "coga/resources/templates/coga/bootstrap/workflows/branch-sweep/sweep.md",
     "coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md",
     "coga/resources/templates/coga/workflows/_template.md",
-    "coga/resources/templates/coga/recurring/branch-sweep/ticket.md",
-    "coga/resources/templates/coga/recurring/branch-sweep/ticket.py",
     "coga/resources/templates/coga/recurring/dream/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.py",
-    "coga/resources/templates/coga/recurring/autoclose-merged/ticket.py",
     "coga/resources/templates/coga/recurring/skill-update/ticket.py",
     "coga/resources/templates/coga/tasks/coga-build.md",
     "coga/resources/templates/coga/bootstrap/skills/direct/body/SKILL.md",
@@ -157,10 +148,8 @@ SCAFFOLD_COUNTERPARTS = {
 }
 STATE_CARRIER_COUNTERPARTS = {
     "coga/recurring/address-pr-comments/ticket.md": "saved parent blackboard, independent of its delegated definition",
-    "coga/recurring/autoclose-merged/ticket.md": "saved cross-run notes; retires.md remains a separate worklist",
     "coga/recurring/blackboard-size/ticket.md": "state carrier created on the selected job's first admitted run",
     "coga/recurring/blocker-reminders/ticket.md": "saved parent blackboard, including state without declared state_keys",
-    "coga/recurring/branch-sweep/ticket.md": "saved parent notes; clone success ledgers remain machine-local",
     "coga/recurring/dream/ticket.md": "saved cross-run sweep state and notes",
     "coga/recurring/phone-home/ticket.md": "complete movement cursor, counters, identity and unrelated blackboard state",
     "coga/recurring/resolve-conflicts/ticket.md": "saved parent blackboard, independent of its delegated definition",
@@ -522,8 +511,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/human-assist",
         "coga/pr-publication",
         "coga/pr-publication/preparation",
-        "coga/state-publication",
-        "coga/state-publication/launch-boundaries",
         "coga/knowledge",
         "coga/launch",
         "coga/lifecycle",
@@ -542,22 +529,13 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/script-tickets",
         "coga/secrets",
         "coga/skill-management",
-        "coga/sync",
+        "coga/git",
         "coga/tickets",
         "coga/tickets/authoring",
         "coga/tickets/discovery",
         "coga/uninstall",
         "coga/usage",
         "coga/workflows",
-        "coga/checkout-cleanup",
-        "coga/checkout-cleanup/branch-sweep",
-        "coga/checkout-cleanup/terminal-owners",
-        "coga/checkouts",
-        "coga/checkouts/reconciliation",
-        "coga/checkouts/launch-boundary",
-        "coga/checkouts/chat",
-        "coga/checkouts/manual",
-        "coga/checkouts/sandbox-clone",
     }
 )
 
@@ -690,7 +668,7 @@ def test_context_distribution_follows_the_configured_root(
     assert _canonical_contexts_root() == Path("docs/contexts")
     assert _context_distribution_problems() == []
     live_paths = {live for live, _ in _discover_live_packaged_twins()}
-    assert "docs/contexts/coga/sync/SKILL.md" in live_paths
+    assert "docs/contexts/coga/git/SKILL.md" in live_paths
     assert "docs/contexts/.gitignore" in live_paths
     assert "docs/contexts/_template/SKILL.md" not in live_paths
     assert not any(path.startswith("coga/contexts/") for path in live_paths)
@@ -701,7 +679,7 @@ def test_context_distribution_tolerates_a_removed_canonical_counterpart(
 ) -> None:
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
-    (canonical / "coga/sync/SKILL.md").unlink()
+    (canonical / "coga/git/SKILL.md").unlink()
     (canonical / ".gitignore").unlink()
 
     # The package owner still ships, so removing the legacy copy is fine.
@@ -714,12 +692,12 @@ def test_context_distribution_reports_a_topic_deleted_from_both_copies(
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
     packaged = tmp_path / PACKAGED_ROOT
-    (canonical / "coga/sync/SKILL.md").unlink()
-    (packaged / BOOTSTRAP_CONTEXTS / "coga/sync/SKILL.md").unlink()
+    (canonical / "coga/git/SKILL.md").unlink()
+    (packaged / BOOTSTRAP_CONTEXTS / "coga/git/SKILL.md").unlink()
     (packaged / SEEDED_CONTEXTS / "_template/SKILL.md").unlink()
 
     problems = _context_distribution_problems()
-    assert "required bootstrap context 'coga/sync' is not packaged" in problems
+    assert "required bootstrap context 'coga/git' is not packaged" in problems
     assert "required init-seeded context file '_template/SKILL.md' is missing" in (
         problems
     )
@@ -1065,7 +1043,7 @@ def test_shipped_workflow_refs_resolve_without_a_seeded_copy(
         )
 
 
-def test_no_launch_entrypoint_run_py_files_remain() -> None:
+def test_packaged_workflow_scripts_have_their_canonical_paths() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     packaged_root = repo_root / "src" / "coga" / "resources" / "templates" / "coga"
     packaged = {
@@ -1077,7 +1055,11 @@ def test_no_launch_entrypoint_run_py_files_remain() -> None:
         for path in (repo_root / "coga").rglob("run.py")
     }
 
-    assert packaged == set()
+    assert packaged == {
+        "bootstrap/skills/code/merge-pr/run.py",
+        "bootstrap/skills/git/open-branch/run.py",
+        "bootstrap/skills/git/push-and-open-pr/run.py",
+    }
     assert live == set()
 
 
@@ -1149,10 +1131,10 @@ def test_address_pr_comments_recurring_wrapper_delegates_to_command_ticket() -> 
 
     assert "gh pr list --state open --limit 10000" in command.body
     assert "usage: coga address-pr-comments [PR]" in command.body
-    # The sweep reuses the per-PR mechanics from the skill by citation and
-    # must say which parts of the skill do not apply to an unattended run.
+    # The unattended sweep shares the PR mechanics and owns its escalation.
     assert "coga/skills/code/address-pr-comments/SKILL.md" in command.body
-    assert "do not apply" in command.body
+    assert "sweep-specific worktree and escalation rules apply here" in command.body
+    assert "There is no attending human" in command.body
     # Re-run guard is the fixed marker, never the reply's author.
     assert "<!-- coga:address-pr-comments reply-to:" in command.body
     assert "resolveReviewThread" in command.body
@@ -1256,7 +1238,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
 
 
 BUNDLED_PARENTS = (
-    "address-pr-comments", "autoclose-merged", "blackboard-size", "blocker-reminders", "branch-sweep",
+    "address-pr-comments", "blackboard-size", "blocker-reminders",
     "dream", "phone-home", "resolve-conflicts", "skill-update", "trim-log",
 )
 
@@ -1325,7 +1307,7 @@ subprocess.run(["git","config","user.name","Test"],check=True)
 subprocess.run(["git","config","user.email","test@example.test"],check=True)
 def forbidden(*args, **kwargs):
     raise AssertionError("production transport/worker invoked")
-with patch("coga.commands.init._require_init_tools"), patch("coga.commands.init._offer_optional_tools"):
+with patch("coga.commands.init._offer_optional_tools"):
     result=CliRunner().invoke(app,["init",".","--user","tester"])
 assert result.exit_code == 0, result.output
 for gone in ("recurring/phone-home", "recurring/dream", "workflows/direct", "skills/direct"):
@@ -1423,7 +1405,7 @@ for name in sorted(names - {"phone-home"}):
                 runpy.run_path(str(script), run_name="__main__")
             except SystemExit as exc:
                 assert exc.code == 0, (name, exc.code)
-assert set(calls) == {"autoclose", "blocker-reminders", "skill-update", "branch-sweep"}, calls
+assert set(calls) == {"blocker-reminders", "skill-update"}, calls
 import coga_edge.phone_home as t
 assert "installed" in t.__file__
 assert "installed" in str(t._PACKAGE_FILE)
@@ -1534,3 +1516,76 @@ def test_installed_megalaunch_complete_fork_survives_wheel_reinstall(tmp_path: P
     assert run("megalaunch", "--fork-proof").returncode == 2
     assert run("megalaunch", "--help").returncode == 0
     assert not (coga_os / "tasks").exists()
+
+
+# Capture the full path, including a directory placeholder's trailing slash.
+RESOLVED_PLACEHOLDER = re.compile(r"/resolved/([A-Za-z0-9_./-]+)")
+
+
+def _resolved_placeholder_refs(resources: Path) -> dict[str, list[str]]:
+    """Map each `<ref>/<file>` placeholder target to the resources naming it."""
+    refs: dict[str, list[str]] = {}
+    for path in sorted(resources.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for target in RESOLVED_PLACEHOLDER.findall(text):
+            if target.endswith("/") or "/" not in target:
+                continue
+            refs.setdefault(target, []).append(
+                path.relative_to(resources).as_posix()
+            )
+    return refs
+
+
+def _resolved_placeholder_problems(resources: Path) -> list[str]:
+    skills = resources / "templates" / "coga" / "bootstrap" / "skills"
+    return [
+        f"/resolved/{target} (named in {', '.join(sorted(set(sources)))}) "
+        f"is not shipped at {(skills / target).relative_to(resources).as_posix()}"
+        for target, sources in sorted(_resolved_placeholder_refs(resources).items())
+        if not (skills / target).is_file()
+    ]
+
+
+def test_resolved_attachment_placeholders_name_shipped_files() -> None:
+    """Every `/resolved/<ref>/<file>` in packaged resources must ship.
+
+    A placeholder tells a caller to run a skill attachment from the skill's
+    resolved directory. If the package does not ship `<file>` beside that
+    skill, the instruction is dead in every repo without a local override,
+    as the Google skills' old `$COGA_COGA_OS_ROOT/skills/...` paths were.
+    """
+    resources = REPO_ROOT / "src" / "coga" / "resources"
+    refs = _resolved_placeholder_refs(resources)
+    assert "coga/google-calendar/gcal.py" in refs
+    assert "coga/gmail/gmail.py" in refs
+    assert "coga/google-calendar/requirements.txt" in refs
+    assert "coga/gmail/requirements.txt" in refs
+    assert _resolved_placeholder_problems(resources) == []
+
+
+def test_resolved_placeholder_check_reports_an_unshipped_file(tmp_path: Path) -> None:
+    skill = tmp_path / "templates" / "coga" / "bootstrap" / "skills" / "coga" / "demo"
+    skill.mkdir(parents=True)
+    (skill / "tool.py").write_text("", encoding="utf-8")
+    (skill / "SKILL.md").write_text(
+        "python /resolved/coga/demo/tool.py\n"
+        "python /resolved/coga/demo/gone.py\n"
+        "Run `/resolved/coga/demo/missing`.\n"
+        "`/resolved/coga/demo/` is the resolved dir; python .../gone.py\n",
+        encoding="utf-8",
+    )
+
+    problems = _resolved_placeholder_problems(tmp_path)
+
+    assert len(problems) == 2
+    assert "/resolved/coga/demo/gone.py (" in problems[0]
+    assert "/resolved/coga/demo/missing (" in problems[1]
+    assert all(
+        "templates/coga/bootstrap/skills/coga/demo/SKILL.md" in problem
+        for problem in problems
+    )

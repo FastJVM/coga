@@ -1,17 +1,13 @@
 ---
 name: coga/ticket/finalize
-description: Describe the validation and publication boundary that completes guided ticket authoring.
+description: Validate local changes at the end of guided ticket authoring.
 ---
 
 # Ticket Authoring Finalize
 
-After a successful authoring interview, `coga ticket` validates and publishes
-its changes. Read "When Coga publishes" in
-[coga/state-publication](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#when-coga-publishes)
-for the publication and refusal contract.
+After a successful authoring interview, `coga ticket` validates the affected
+local tickets and checks that a draft has a workflow. If validation fails,
+keep the edits and resolve the reported issue before activating the draft.
 
-For development detail, finalization internals live in
-[coga-dev/internals/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/SKILL.md#guided-authoring-finalization).
-
-The command owns this lifecycle directly; this skill documents the shared
-behavior and does not provide an executable entry point.
+Use [coga/git](../../../../contexts/coga/git/SKILL.md) to share the changes.
+The command runs finalization directly.
