@@ -31,10 +31,10 @@ is `coga status` and the ticket bodies; stage posture is
 - **Keep Coga work visible and in the repository (2026-11-23).** The
   [filesystem policy](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md#keep-work-visible)
   and [checkout policy](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#checkout-policy)
-  apply across Coga. This supersedes the linked-worktree exceptions for
-  recurring runs and Retro. Implementation still needs to make runtime state
-  visible, bring scratch files inside the repository, and replace linked
-  worktrees in Dream, Retro, and PR maintenance.
+  apply across Coga. The only linked-worktree exceptions are run-specific
+  temporary checkouts for Dream and Retro. Implementation still needs to
+  make runtime state visible, bring scratch files inside the repository,
+  and remove linked-worktree paths from PR maintenance.
 - **V1 ships for first users and ships hackable (2026-10-27, amended 2026-11-12).**
   The owner requires easy installation and working first-task paths on macOS
   and native Windows, a finished README with matching user documentation, and

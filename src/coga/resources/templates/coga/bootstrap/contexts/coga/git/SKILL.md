@@ -12,11 +12,14 @@ work, and `git branch -d` or GitHub to clean up merged branches.
 
 ## Checkout policy
 
-Use ordinary Git branches in the checkout where the work started. This policy
-applies to people, agents, and Coga workflows, including recurring jobs. Do
-not create or use linked Git worktrees for Coga work. If a branch switch
-would disrupt work in progress, coordinate with the person using the checkout
-before switching.
+Use ordinary Git branches in the checkout where the work started. If a
+branch switch would disrupt work in progress, coordinate with the person using
+the checkout before switching.
+
+Dream and Retro are the only Coga workflows allowed to create or use linked
+Git worktrees. Create each worktree in a visible, run-specific temporary
+directory inside the repository. Remove the worktree and temporary directory
+when the run ends, including after a failure.
 
 ## Ticket Git record
 
