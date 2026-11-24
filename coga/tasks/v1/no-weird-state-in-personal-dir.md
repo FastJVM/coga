@@ -726,8 +726,12 @@ the run. `COGA_SYSTEM_TMPDIR` and `SLACK_WEBHOOK_URL` were unset.
 - `env -u SLACK_WEBHOOK_URL PYTHONPATH="$PWD/src" /home/n/Code/coga/.venv/bin/python -m coga.cli validate --task v1/no-weird-state-in-personal-dir --json`
   passed with the worktree's missing local user warning.
 
-The PR now targets `main` after its parent PR #1279 merged. The Dev record
-reflects that base. GitHub currently reports a merge conflict.
+After parent PR #1279 merged, this PR targeted `main` and reported a merge
+conflict. Merge commit `25018dd20eb62932c8bcc1d12bffdf85c853a62e` applies the
+original run-state patch to `main` at `6170063a8d34433d4e25f4258448da4cc9287e76`
+while preserving both branch histories. The full Linux command above passed
+3,194 tests with 29 skips in 187.93s at the merge commit on the same OS and
+Python version. Scoped validation passed with the same local user warning.
 
 ## PR
 
