@@ -14,6 +14,7 @@ owns the criterion; a shipped surface's required reading must be user knowledge.
 - `coga/architecture/SKILL.md` is a short overview of the primitives and the correction loop plus a topic map; the detailed contracts live in the child topics it links (for example `coga/tickets`, `coga/lifecycle`, `coga/prompt-composition`, `coga/launch`).
 - `coga/knowledge/SKILL.md` decides where a fact lives and when to attach versus cite a topic.
 - `coga/extension-model/SKILL.md` owns repo extension choices; `coga-dev/microkernel/SKILL.md` owns the kernel rule summarized below.
+- [`coga-dev/patterns`](docs/contexts/coga-dev/patterns/SKILL.md#rules-of-thumb-for-a-new-composition) governs where Coga and its development tools put state and temporary files.
 - `coga-dev/codebase/SKILL.md` is the source map; `coga-dev/testing/SKILL.md` and `coga-dev/packaging/SKILL.md` own test and package ownership expectations.
 - `coga-dev/current-direction/SKILL.md` and `coga-dev/project-stage/SKILL.md` capture live product posture.
 
@@ -44,6 +45,7 @@ Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or
 There is no hosted test CI. Follow [coga-dev/testing](docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts) for per-change Linux verification, release-only Windows and macOS checks, and the required receipts.
 
 ## Commit & Pull Request Guidelines
+Use branches in the current checkout under the [Coga checkout policy](src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#checkout-policy).
 Before publishing or handing off edits, follow [coga/git](src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#branch-to-merge), including in sessions outside `coga launch`.
 
 Recent commits use short, factual subjects, for example `Route recurring jobs through registered recipes` or `Drop redundant \`dream\` alias from coga.toml`. Use a ticket prefix only when one exists for the work. PRs should explain the behavior change, mention any fixture or spec touchpoints, and list the exact commands run for verification.

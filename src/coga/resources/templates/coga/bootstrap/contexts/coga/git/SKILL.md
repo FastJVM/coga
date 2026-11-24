@@ -10,6 +10,13 @@ Coga in a directory without Git. Code workflows can explicitly run a Git script
 to open a branch or PR. Use ordinary `git pull`, `git push`, and `gh` to share
 work, and `git branch -d` or GitHub to clean up merged branches.
 
+## Checkout policy
+
+Use ordinary Git branches in the checkout where the work started. If a
+branch switch would disrupt work in progress, coordinate with the person using
+the checkout before switching. A [recurring run](../recurring/SKILL.md#checkout-policy)
+is the only Coga workflow that can use a disposable clone or linked Git worktree.
+
 ## Ticket Git record
 
 Use one line per field in the blackboard's `## Dev` section. Each workflow step

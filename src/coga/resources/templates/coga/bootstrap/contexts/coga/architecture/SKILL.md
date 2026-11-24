@@ -9,6 +9,16 @@ Coga manages what an agent works from. Durable state is markdown in git;
 runtime is transient. No database, daemon, or hidden memory: each launch
 rebuilds its prompt from files.
 
+## Keep work visible
+
+Keep Coga work and the files it produces inside the repository where it
+started. [Recurring runs](../recurring/SKILL.md#checkout-policy) have a
+disposable checkout. Use paths that appear in a normal directory listing for
+Coga-owned state, run reports, and scratch files, so people can inspect what
+a run leaves behind and spot problems early. Use Git ignore rules for
+machine-local files that should stay out of commits. Follow the
+[checkout policy](../git/SKILL.md#checkout-policy) for Git work.
+
 ## Durable files
 
 - **Tickets** under `coga/tasks/`: frontmatter, body, and a blackboard of

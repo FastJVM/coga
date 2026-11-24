@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-11-19.
+Last updated: 2026-11-23.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -28,13 +28,13 @@ is `coga status` and the ticket bodies; stage posture is
   describe today's behavior. Design and decisions:
   [`v1/03-use-git-like-everyone-remove-coga-s-publication-ab`](../../../../coga/tasks/v1/03-use-git-like-everyone-remove-coga-s-publication-ab.md).
 
-- **Two linked-worktree exceptions (2026-10-14).** Ticket work creates no
-  linked worktrees, except the recurring runner's temporary control worktree
-  for a parked checkout ([recurring temp worktrees](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md))
-  and Retro's isolated checkout, created and removed for one Retro pass so
-  Retro runs while the operator keeps working in the main tree. Revisit if
-  those worktrees leak or become operator-visible noise. Contract:
-  [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
+- **Keep Coga work visible and in the repository (2026-11-23).** The
+  [filesystem policy](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md#keep-work-visible)
+  and [checkout policy](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#checkout-policy)
+  apply across Coga. [Recurring runs](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md#checkout-policy)
+  are the sole exception to using the original checkout. Implementation
+  needs to give each recurring run one disposable checkout, keep records
+  visible across runs, and replace paths that create separate worktrees.
 - **V1 ships for first users and ships hackable (2026-10-27, amended 2026-11-12).**
   The owner requires easy installation and working first-task paths on macOS
   and native Windows, a finished README with matching user documentation, and
@@ -164,7 +164,7 @@ is `coga status` and the ticket bodies; stage posture is
   launch checkout; branch existence cannot tell a wrong old branch from a
   legitimate resumed one, and `open-pr` already checks existence and commits
   ahead of the base. Revisit on a concrete wrong-branch handoff under the
-  current ordinary-ticket workflow; recurring worktrees are outside it.
+  current ordinary-ticket workflow.
   Contract: [`coga/workflows`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **The code review step stays a human gate (2026-09-13).** Rather than
   auto-launching `code/address-pr-comments` or blocking merges on unresolved
