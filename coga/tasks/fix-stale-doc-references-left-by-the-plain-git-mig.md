@@ -310,3 +310,9 @@ checks:
 ## Blockers
 
 - [ ] [2026-11-23 17:12] [agent:codex] id=20261123T171254 Publish the recorded base branch from correct-three-stale-doc-claims-that-pr-1279-also-e to origin. The peer-reviewed docs are ready, but push-and-open-pr requires that remote base to exist.
+
+---
+
+## Blocker reminders
+
+- d712cbd3fd85 last_reminded: 2026-11-25 09:51
