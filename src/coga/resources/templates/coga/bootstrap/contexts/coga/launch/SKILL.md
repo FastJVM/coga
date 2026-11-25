@@ -136,7 +136,8 @@ the lock, then retires the lock file (POSIX unlinks it while held; Windows
 closes, then unlinks). Launch purge and the sweep below also remove
 read-only content a tool left in the area (a copied package tree, a Go
 module cache): on a permission error they grant the owner write access
-inside the area, never through a symlink, and retry once. A removal it
+to directories inside the area (and, on Windows, to files), never through a
+symlink and never changing a POSIX file's mode, and retry once. A removal it
 cannot complete warns once on stderr and
 leaves the rest for the sweep; it never fails the launch. On POSIX a file a
 background process still holds open is unlinked but keeps its disk space
