@@ -21,8 +21,7 @@ run.
 - Runs: `python -m coga_edge.cleanup_orphan_markers` from the active Dream
   task, with the Python interpreter that runs `coga`; a full local Dream fork
   may run its own copy of the module (`coga/edge-code`). It takes no
-  arguments, publishes eligible Coga state on exit, and never advances the
-  Dream task.
+  arguments and never advances the Dream task.
 - Inputs: top-level task directories directly under `coga/tasks/`, the source task's
   `## Retro` marker in its `ticket.md` blackboard region, GitHub open PR
   metadata when available, and the public delete surface

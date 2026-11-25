@@ -1,6 +1,6 @@
 ---
 name: coga/human-assist
-description: The `coga launch <slug> --agent <type>` assist on an owner-held step — when it is entered, the recorded-checkout path's PR-head proof, the scripts it may run, and whom its lifecycle lines credit.
+description: The `coga launch <slug> --agent <type>` assist on an owner-held step — when it is entered, which branch it runs on, what it leaves to the owner, and whom its lifecycle lines credit.
 ---
 
 # Assist on an owner step

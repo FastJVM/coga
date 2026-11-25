@@ -15,8 +15,7 @@ enabled = false
 ```
 
 Disabling stops sending; movement from the gap may appear in the first count
-after re-enabling. Git sync and normal lifecycle notifications have independent
-switches. Editable/source installations intentionally do not report.
+after re-enabling. Normal lifecycle notifications have an independent switch. Editable/source installations intentionally do not report.
 
 ## Project and key
 

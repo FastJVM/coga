@@ -18,8 +18,8 @@ Discovery walks `coga/tasks/` at any depth:
   with `_` are skipped at every level: `_template` is reserved (below), and
   any other `_`-prefixed directory is **parked**.
 - A **parked** directory (such as `_v2/`) keeps files Coga never lists,
-  launches, validates, or scans for Dream, while state sync still publishes
-  them. It holds captures and wishes that need not be current or consistent.
+  launches, validates, or scans for Dream; they remain ordinary tracked files
+  you commit with Git. It holds captures and wishes that need not be current or consistent.
   `coga create "_v2/<title>"` writes there, title-only is fine, and `coga
   ticket` refuses a parked target. `_template` is reserved at every level:
   `coga/.gitignore` ignores it, so `coga create` refuses it as a component. Pull an item forward with `git mv` out of
@@ -51,10 +51,9 @@ and grep for it.
 
 A retired or deleted task (`coga retire`, `delete-task`, Retro) leaves its
 body and blackboard only as a Git blob; `coga show` no longer finds it. Find
-the deleting commit on the control ref, then read the file from its parent.
-`<control>` is `<remote>/<control_branch>` from `coga.toml` `[git]`
-([coga/configuration](../../configuration/SKILL.md) owns the keys and defaults),
-or the local `<control_branch>` in a repo with no remote:
+the deleting commit on the repo's default branch, then read the file from its
+parent. `<control>` is the remote default branch (for example `origin/main`),
+or the local default branch in a repo with no remote:
 
 ```bash
 git log <control> --diff-filter=D --name-only -- \

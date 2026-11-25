@@ -37,18 +37,14 @@ Reports before the window can be incomplete and do not read Git automatically.
 
 ### Transaction and completion
 
-Publish pending events before deleting any; every removal must already be
-recoverable from reachable control history. Disabled Git and confirmed non-Git
-runs report a non-destructive skip. A remote-less repo can use verified local
-control history. The state lock covers snapshot, cursor migration and local
-replacement. Exact guards pin the log, config, inventory and phone-home parent
-on every publication attempt. Cursor migration and deletion commit together.
-Never hold the parent lock while invoking the CLI bump subprocess.
+Trim plans removals from one read of the local audit log, then replaces it
+atomically with `replace_log`: events appended since planning are kept, and a
+log whose planned prefix changed is refused. A pending phone-home cursor
+migration is written just before the replacement. There is no publication,
+control history or receipt; commit the result with ordinary Git. Any failure
+appends `Trim failed: ...` to the period blackboard and exits 2 without
+completing the step; success bumps the period through the CLI.
 
-A checkout-local Git receipt prevents an interrupted deletion from becoming an
-ordinary append publication. Exit 75 retains uncertain output for recovery;
-no successful completion or agent fallthrough occurs. Successful maintenance
-uses `Log: recurring/trim-log — ...`, which does not count as repo activity.
 The run report includes removed and retained counts/bytes; no-change needs no
 maintenance commit. See the persistent
 [operations guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)

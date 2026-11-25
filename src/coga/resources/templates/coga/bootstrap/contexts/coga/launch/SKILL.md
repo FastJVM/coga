@@ -42,7 +42,7 @@ spawn, with the ordinary scoping/redaction and fresh script environment
 ([script tickets](../script-tickets/SKILL.md#coga_task_-contract)); outer
 completion and assist authority are cleared. One subprocess's exit is the
 invocation's result, using the usual process-status convention; zero completes
-only this stateless invocation, and 75 also has no refresh or sweep.
+only this stateless invocation.
 
 This is a cooperative procedure contract, not a Python sandbox: the selected
 reader must itself avoid writes, including nested lifecycle commands. A writer
@@ -50,10 +50,7 @@ must use ordinary launch. A mixed read/write procedure chooses its invocation
 policy before execution, through separate explicit invocations or a thin
 argv-parsing adapter calling the same launch API. A read-only entry rejects
 write operands; a child cannot upgrade its dispatch policy. Ordinary launch
-remains the default and retains its publication and completion boundaries.
-The withheld publication is scoped to the read-only call itself: an in-process
-API caller gets its own sweep policy back when the call returns or refuses, so
-a writer command that reads this way still publishes at its exit.
+remains the default and retains its completion boundary.
 
 The shipped report aliases and the `recurring list` adapter use this same
 boundary; their owning command tickets define selection and presentation.
@@ -145,7 +142,12 @@ The scope holds an exclusive lock on `tmp/<token>.lock` from before the
 directory exists until after it is deleted. When the launch ends, normally,
 on failure or on interrupt, it removes its own directory while still holding
 the lock, then retires the lock file (POSIX unlinks it while held; Windows
-closes, then unlinks). A removal it cannot complete warns once on stderr and
+closes, then unlinks). Launch purge and the sweep below also remove
+read-only content a tool left in the area (a copied package tree, a Go
+module cache): on a permission error they grant the owner write access
+to directories inside the area (and, on Windows, to files), never through a
+symlink and never changing a POSIX file's mode, and retry once. A removal it
+cannot complete warns once on stderr and
 leaves the rest for the sweep; it never fails the launch. On POSIX a file a
 background process still holds open is unlinked but keeps its disk space
 until that process exits.
@@ -159,6 +161,17 @@ reports the same orphans read-only as `orphan-tmp`, and only a repo-wide
 `coga validate --fix` removes them. A linked worktree created under a
 purged tmp area leaves stale metadata that `git worktree prune` clears.
 
+`coga validate` also reports what this storage holds. The report is not an
+issue, so a clean repo still prints `All good`. Text output prints
+`State: <root> <size>`, then one line per entry with owner, kind, size, file
+count and path. `--json` adds a top-level `state` object with `root`,
+`data_root`, `total_bytes` and `entries`. An entry's `owner` is an
+`<id_slug>`, `(shared)`, `(unattributed)` or `(tmp)`, and its `kind` is
+`data`, `tmp-live` or `tmp-orphan`. A `stale-state` warning names a durable
+`data/` directory whose ticket is `done`, `canceled` or no longer resolves.
+Nothing removes that data, `--fix` included, and deleting or retiring the
+ticket leaves it in place, so delete it by hand once it is no longer needed.
+
 If the absolute tmp path exceeds 64 bytes, every launch warns once on stderr
 with the path and the ~108-byte Unix socket limit, and still uses it: a
 silent fallback to `/tmp` would break the rule. The prompt rule agents follow
@@ -170,8 +183,7 @@ requirement for disposable scratch outside the checkout.
 - `--prompt-report` prints each composed layer, exact refs, bytes, and
   `characters / 4` token estimates without spawning. It refuses a `ticket.py`
   target and never executes ticket code. It refreshes the agent-skill view
-  and selects the read-only prompt path, so measuring a prompt never
-  publishes the edits being measured.
+  and selects the read-only prompt path.
 - `--idle-timeout` / `--max-session` (off by default) tear down a stalled or
   runaway REPL; the launch then exits 124 and does not chain.
 - On native Windows the agent owns the console, so idleness cannot be

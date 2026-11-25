@@ -6,10 +6,10 @@ description: The post-sweep autofix loop — the built run record, the one-shot 
 # Recurring autofix loop
 
 Under cron nobody reads the sweep's console, so every `coga recurring` sweep —
-and every `coga recurring launch <name>` (hence `coga dream`, `coga autoclose`,
+and every `coga recurring launch <name>` (hence `coga dream`,
 `coga skill-update`) — ends with one analysis of what happened. It runs after a sweep with nothing due and
 after one that died partway. A gate that refused to launch (closed or parked
-template, period already handled on control) is not a run and is not analyzed.
+template) is not a run and is not analyzed.
 Neither is a sweep on an inactive repo that launched nothing; the
 [inactivity](../scheduling/inactivity/SKILL.md) topic owns when autofix runs
 there.
@@ -21,8 +21,8 @@ The console output is unchanged.
    ended (clean, timed out, failing `ticket.py`, unfinished, refused by
    `--force`, or `damaged-template`), the status afterwards, and the period
    **blackboard**, plus templates that failed to load, failures observed
-   outside the launch loop (on a `coga recurring` sweep: failed create syncs,
-   periods created but never launched, watchdog pauses) under
+   outside the launch loop (on a `coga recurring` sweep: periods created but
+   never launched, watchdog pauses) under
    `## Unresolved recurring failures`, and sweep notes. Console output is not
    captured, so the blackboard — the only durable per-run channel — is what
    carries detail.

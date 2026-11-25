@@ -23,8 +23,8 @@ changing the pause or scheduler behavior.
 
 The scanner and watermark writer live in `coga_edge.blocker_reminders`; run
 them by hand with `python -m coga_edge.blocker_reminders`, using the Python
-interpreter that runs `coga`. A hand run publishes its watermarks but never
-advances a task; the removed `coga run blocker-reminders` spelling exits 2.
+interpreter that runs `coga`. A hand run writes its watermarks to local blackboards but
+never advances a task; the removed `coga run blocker-reminders` spelling exits 2.
 A full local fork copies that one module over the job's `ticket.py`
 ([coga/edge-code](context:coga/edge-code)). Blocker creation and resolution
 stay owned by `coga block` and `coga unblock`.

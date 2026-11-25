@@ -129,12 +129,10 @@ cursor. Exact-event duplicates collapse; a partial legacy event waits until
 complete. Missing log is empty. Equal/out-of-order timestamps do not affect
 counting. Identical real transitions in one minute can still collapse.
 
-Retention protects unread events in its control snapshot even when reporting
-is delayed past the age window. After consumption, a later trim may remove
-them. The fingerprint set is replaced, not accumulated forever. Incoming
-archived replays are classified using control's unread snapshot and exact Git
-provenance, so a consumed hash forgotten after trimming cannot resurrect and
-count again. Genuinely new backdated movement remains reportable. Ordinary
+Trim never removes an event whose movement hash is not in `seen_movements`,
+even when reporting is delayed past the age window. After consumption, a later
+trim may remove it. The fingerprint set is replaced, not accumulated forever.
+Genuinely new backdated movement remains reportable. Ordinary
 trimming causes no recurring telemetry loss; transport failure/crash semantics
 above are unchanged. This is approximate activity, not an audit ledger.
 Snapshots supply current inventory; never sum historical inventories.

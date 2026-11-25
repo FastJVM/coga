@@ -4,7 +4,7 @@ Operator procedure owned by [coga/recurring/templates](SKILL.md#selection-and-st
 and linked from [init](../../init/SKILL.md). Existing repos keep working after an
 upgrade: local definitions retain their activation and package-only jobs remain
 disabled without selection. Migration is optional and manual. Every edit is
-reviewed and reversible; use a migration branch or current control.
+reviewed and reversible; make them on a migration branch reviewed as a PR.
 
 ## 1. Prepare
 
@@ -13,19 +13,19 @@ reviewed and reversible; use a migration branch or current control.
    cannot read a carrier. Keep compatible clients after migration or rollback.
 2. Quiesce recurring sweeps, launches and state writers in all checkouts.
    Inspect processes; ticket status is not process evidence. Wait for running
-   scripts to exit, and check for pending log-retention receipts before editing.
-3. Reconcile with fresh control. Read state from that copy, never the package
-   seed. Record the control revision and the clients in use.
+   scripts to exit before editing.
+3. Branch from a freshly pulled base branch. Read state from that checkout,
+   never the package seed. Record the base revision and the clients in use.
 4. Back up every local definition being considered, with supporting files.
    Save `coga/recurring/` completely: full blackboards, attachments, parked
    `_name/` directories, `retires.md`, and the prior `jobs.toml` or its absence.
    Also save frozen `coga/tasks/recurring/` periods, `coga/log.md`, and each
    clone's `coga/.coga/recurring-clone/` ledgers/logs. Keep verified backups
-   outside published roots. For example, with `backup_dir` set to durable
+   outside the checkout. For example, with `backup_dir` set to durable
    backup storage:
 
    ```sh
-   git rev-parse HEAD > "$backup_dir/control.rev"
+   git rev-parse HEAD > "$backup_dir/base.rev"
    tar -C coga -cf "$backup_dir/recurring.tar" recurring tasks/recurring log.md
    ```
 
@@ -70,8 +70,8 @@ Review and commit this selection before removing any dependent definition.
 ## 4. Convert reviewed parents
 
 For each approved stock parent, preserve its whole current blackboard
-byte-for-byte in a carrier and remove its reviewed definition siblings in the same change. Reconcile freshly and
-compare the planned preimages with the verified backup before this example.
+byte-for-byte in a carrier and remove its reviewed definition siblings in the same change. Update from the
+base branch and compare the planned preimages with the verified backup before this example.
 Run the entire block as a standalone command; its subshell stops on failure
 without exiting your interactive shell:
 
@@ -106,16 +106,14 @@ coga validate --json
 )
 ```
 
-Use the upgraded CLI's interpreter. Never publish a carrier beside orphaned
+Use the upgraded CLI's interpreter. Never commit a carrier beside orphaned
 definition siblings. If conversion fails, keep writers quiesced and repair the
 partial local parent **before any mutating Coga command**: restore its definition
 above the fence and reviewed siblings from verified backups while preserving
-the **current** blackboard. Re-inventory that parent before retrying. If
-publication fails, inspect its receipt and reconcile before continuing.
+the **current** blackboard. Re-inventory that parent before retrying.
 A parent with no useful state may have no local ticket
-until first use. Named publication operands must exist: verify removed paths
-separately in the resulting control tree. Do not exclude paths or bypass
-publication guards. On conflict preserve both sides and reconcile newer state
+until first use. Verify removed paths separately in the resulting commit. On
+conflict preserve both sides and reconcile newer state
 before retrying. Frozen periods, copied scripts, worklists, shared log and
 clone ledgers stay intact.
 
@@ -136,21 +134,21 @@ The effective catalog shows converted jobs as bundled and overrides as local,
 with unchanged selection/parking. Validate recurring definitions and compare
 saved blackboards, worklists, frozen periods and clone ledgers. Freshen all
 participating checkouts before resuming writers so stale local definitions
-cannot be republished.
+cannot be committed again.
 
-In Coga's source repo, run control's own packaging, navigation and representative
-runtime checks after selection, after the first conversion/deletion, and after
+In Coga's source repo, run the migration branch's own packaging, navigation and
+representative runtime checks after selection, after the first conversion/deletion, and after
 full removal. Use that tree's imports, not the feature checkout's editable
 installation. Only then enable strict ownership tests in the code PR. No
-intermediate control commit may require unmerged runtime support.
+intermediate base-branch commit may require unmerged runtime support.
 
 ## Rollback
 
 Keep writers quiesced. Restore each converted definition and reviewed sibling
 from verified backups, placing the carrier's **current** blackboard below the
 restored ticket's fence. State may have advanced: never overwrite it with backup
-state. Restore previous selection (or its absence) through the ordinary guarded
-publication path. Retain current worklists, frozen periods, audit history and
+state. Restore previous selection (or its absence) through an ordinary reviewed
+commit. Retain current worklists, frozen periods, audit history and
 all clone ledgers. Never replay or recreate periods; the ledger already records
 what ran. Compare restored definitions against the backup, blackboards against
 their pre-rollback bytes, and the effective catalog before resuming writers.

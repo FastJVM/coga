@@ -72,9 +72,10 @@ maintenance contract above rather than masquerading as a reported no-op.
   local-backed installs by reviewing their source and reinstalling explicitly;
   their omission alone does not make this run fail.
 - Output: append `## Skill Update` to the task blackboard with one row per
-  installed managed skill — GitHub-backed, URL-backed, or an installed twin of
-  a bundled skill — bucketed by its emitted status and linking the PR when one
-  was opened. Bundled refs the repo never installed get no row. Local-backed
+  installed managed skill — GitHub-backed or URL-backed — bucketed by its
+  emitted status and linking the PR when one was opened. Bundled refs without
+  managed provenance get no row, whether or not the repo has a twin (see
+  [coga/skill-management](../../../contexts/coga/skill-management/SKILL.md)). Local-backed
   and hand-vendored directories currently produce no result line. A run that fails before it classifies anything appends the
   same section carrying a `### Failed` block with the command and its failing
   output,
@@ -94,8 +95,7 @@ Coga injects `COGA_TASK_SLUG` and `COGA_TASK_BLACKBOARD`; the run appends
 its result to that blackboard. `coga launch` supplies those variables from the
 instantiated period task before it runs `ticket.py`. A stateless bootstrap target has no
 blackboard, so run from one the job writes its report to stdout rather than
-into a packaged `bootstrap/<name>/ticket.md`. Every run publishes eligible Coga
-state under its `--cwd` target on exit. Only the launched period script
+into a packaged `bootstrap/<name>/ticket.md`. Only the launched period script
 completes its step (`coga bump`); a hand run never does.
 
 The skill runs `python -m coga_edge.skill_update_pr`, then groups the results
