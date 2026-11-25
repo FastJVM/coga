@@ -16,6 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from coga.atomicio import atomic_write_text
 from coga.blackboard import read_dev_fields, set_dev_fields
 from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard, split_body
 from coga.ticket import Ticket, TicketError
@@ -100,18 +101,20 @@ def remotes() -> list[str]:
     return sorted(out("remote").splitlines(), key=len, reverse=True)
 
 
-def candidates(slug: str, relpath: str) -> dict[str, dict[str, str]]:
-    """Branches named for `slug` whose own ticket copy records that branch.
+def candidates(slug: str, relpath: str) -> dict[str, dict[str | None, str]]:
+    """Return all refs for each branch with a self-recording ticket copy.
 
-    Returns `{branch name: {"local"|<remote>: full ref}}`.
+    Ref keys are remote names, with None for the local ref. A ref that
+    removed or changed the ticket still participates in divergence checks.
     """
     part = re.escape(branch_slug_part(slug))
     pattern = re.compile(rf"coga/{part}(?:-[0-9a-f]{{6}})?")
     names = remotes()
-    found: dict[str, dict[str, str]] = {}
+    found: dict[str, dict[str | None, str]] = {}
+    matches: set[str] = set()
     for ref in out("for-each-ref", "--format=%(refname)", "refs/heads/coga/", "refs/remotes/").splitlines():
         if ref.startswith("refs/heads/"):
-            name, where = ref.removeprefix("refs/heads/"), "local"
+            name, where = ref.removeprefix("refs/heads/"), None
         else:
             rest = ref.removeprefix("refs/remotes/")
             remote = next((r for r in names if rest.startswith(f"{r}/")), None)
@@ -120,20 +123,20 @@ def candidates(slug: str, relpath: str) -> dict[str, dict[str, str]]:
             name, where = rest.removeprefix(f"{remote}/"), remote
         if not pattern.fullmatch(name):
             continue
-        text = blob_text(ref, relpath)
-        if text is None or dev_fields_of_text(text).get("branch") != name:
-            continue
         found.setdefault(name, {})[where] = ref
-    return found
+        text = blob_text(ref, relpath)
+        if text is not None and dev_fields_of_text(text).get("branch") == name:
+            matches.add(name)
+    return {name: refs for name, refs in found.items() if name in matches}
 
 
-def refuse_diverged(name: str, refs: dict[str, str]) -> None:
-    local = refs.get("local")
+def refuse_diverged(name: str, refs: dict[str | None, str]) -> None:
+    local = refs.get(None)
     if local is None:
         return
     local_tip = ref_tip(local)
     for where, ref in refs.items():
-        if where == "local":
+        if where is None:
             continue
         tip = ref_tip(ref)
         if local_tip and tip and local_tip != tip and not (
@@ -157,8 +160,47 @@ def refuse_dirty(start: str, target: str, top: Path) -> None:
         )
 
 
-def write_state(path: Path, **state: str) -> None:
-    path.write_text(json.dumps(state), encoding="utf-8")
+def discovered_record(
+    branch: str, refs: dict[str | None, str], relpath: str,
+) -> tuple[str, str]:
+    """Use the local ticket when present and the recorded remote otherwise."""
+    refuse_diverged(branch, refs)
+    if None in refs:
+        selected = refs[None]
+    else:
+        records = [dev_fields_of_text(blob_text(ref, relpath) or "") for ref in refs.values()]
+        remotes = {record.get("remote") for record in records if record.get("branch") == branch}
+        if len(remotes) != 1:
+            raise HookError(f"remote-tracking copies of `{branch}` disagree on its remote")
+        remote = next(iter(remotes))
+        if not remote:
+            raise HookError(f"`{branch}` records branch: {branch} without remote:")
+        if remote not in refs:
+            raise HookError(f"`{branch}` records remote: {remote}, but `{remote}/{branch}` was not fetched")
+        selected = refs[remote]
+
+    fields = dev_fields_of_text(blob_text(selected, relpath) or "")
+    if fields.get("branch") != branch:
+        raise HookError(f"`{selected}` does not record this ticket's branch as `{branch}`")
+    missing = [key for key in ("base", "remote") if not fields.get(key)]
+    if missing:
+        raise HookError(
+            f"`{branch}` records branch: {branch} without "
+            f"{' or '.join(f'{key}:' for key in missing)}; complete the "
+            "record on that branch, then launch again"
+        )
+    return fields["base"], fields["remote"]
+
+
+def record_new_branch(ticket: Path, branch: str, base: str, remote: str) -> None:
+    region = read_blackboard(ticket)
+    fields = read_dev_fields(region)
+    expected = {"branch": branch, "base": base, "remote": remote}
+    if all(fields.get(key) == value for key, value in expected.items()):
+        return
+    if fields.get("branch"):
+        raise HookError(f"the ticket's Git record disagrees with the new branch `{branch}`")
+    replace_blackboard(ticket, set_dev_fields(region, **expected))
 
 
 def enter() -> int:
@@ -174,6 +216,7 @@ def enter() -> int:
     fields = read_dev_fields(read_blackboard(ticket)) if ticket.is_file() else {}
     recorded = fields.get("branch")
     create = False
+    refs: dict[str | None, str]
     if recorded:
         missing = [key for key in ("base", "remote") if not fields.get(key)]
         if missing:
@@ -186,7 +229,7 @@ def enter() -> int:
         refs = {
             where: ref
             for where, ref in (
-                ("local", f"refs/heads/{branch}"),
+                (None, f"refs/heads/{branch}"),
                 (remote, f"refs/remotes/{remote}/{branch}"),
             )
             if ref_tip(ref)
@@ -196,6 +239,7 @@ def enter() -> int:
                 f"the recorded branch `{branch}` exists neither locally nor as "
                 f"`{remote}/{branch}`; fetch it or fix `## Dev`, then launch again"
             )
+        refuse_diverged(branch, refs)
     else:
         found = candidates(slug, relpath)
         if len(found) > 1:
@@ -206,16 +250,7 @@ def enter() -> int:
             )
         if found:
             branch, refs = next(iter(found.items()))
-            text = blob_text(refs.get("local") or next(iter(refs.values())), relpath) or ""
-            branch_fields = dev_fields_of_text(text)
-            missing = [key for key in ("base", "remote") if not branch_fields.get(key)]
-            if missing:
-                raise HookError(
-                    f"`{branch}` records branch: {branch} without "
-                    f"{' or '.join(f'{key}:' for key in missing)}; complete the "
-                    "record on that branch, then launch again"
-                )
-            base, remote = branch_fields["base"], branch_fields["remote"]
+            base, remote = discovered_record(branch, refs, relpath)
         else:
             create = True
             base = start
@@ -227,26 +262,26 @@ def enter() -> int:
             branch = fresh_branch_name(slug, remote, str(top)) if taken else name
             refs = {}
 
-    if not create:
-        refuse_diverged(branch, refs)
     switch = branch != start
     if switch:
         refuse_dirty(start, branch, top)
 
     # Written before any switch so an interrupt after it still lets exit
     # return to the starting branch.
-    write_state(state_file, start=start, branch=branch, remote=remote, slug=slug, base=base)
+    state = dict(start=start, branch=branch, remote=remote, slug=slug, base=base)
+    if create:
+        state["pending_record"] = relpath
+    atomic_write_text(state_file, json.dumps(state))
     try:
         if create:
             run_op("git switch -c", "switch", "-c", branch)
         elif switch:
-            if "local" in refs:
-                run_op("git switch", "switch", branch)
+            if None in refs:
+                run_op("git switch", "switch", "--", branch)
             else:
-                tracking = refs.get(remote) or next(iter(refs.values()))
                 run_op(
                     "git switch", "switch", "-c", branch, "--track",
-                    tracking.removeprefix("refs/remotes/"),
+                    refs[remote],
                 )
     except HookError:
         if out("branch", "--show-current") == start:
@@ -254,10 +289,9 @@ def enter() -> int:
         raise
 
     if create:
-        region = read_blackboard(ticket)
-        replace_blackboard(
-            ticket, set_dev_fields(region, branch=branch, base=base, remote=remote)
-        )
+        record_new_branch(ticket, branch, base, remote)
+        del state["pending_record"]
+        atomic_write_text(state_file, json.dumps(state))
         print(f"{PREFIX}: created `{branch}` from `{start}`", file=sys.stderr)
     elif switch:
         print(f"{PREFIX}: switched to `{branch}`", file=sys.stderr)
@@ -299,13 +333,18 @@ def exit_() -> int:
             f"HEAD is on `{current or 'a detached commit'}`, not the ticket "
             f"branch `{branch}`; nothing was committed or pushed"
         )
+    if pending_record := state.get("pending_record"):
+        record_new_branch(top / pending_record, branch, base, remote)
     removed = not ticket.is_file()
     run_op("git add -A", "add", "-A")
-    if git("diff", "--cached", "--quiet", check=False).returncode != 0:
+    staged = git("diff", "--cached", "--quiet", check=False)
+    if staged.returncode == 1:
         run_op("git commit", "commit", "-q", "-m", handoff_message(slug, ticket))
-    run_op(f"git push {remote} {branch}", "push", "-u", remote, branch)
+    elif staged.returncode:
+        raise HookError(f"git diff --cached --quiet failed: {staged.stderr.strip()}")
+    run_op(f"git push {remote} {branch}", "push", "-u", "--", remote, f"refs/heads/{branch}")
     if start != branch:
-        run_op(f"git switch {start}", "switch", start)
+        run_op(f"git switch {start}", "switch", "--", start)
         print(f"{PREFIX}: pushed `{branch}` and returned to `{start}`", file=sys.stderr)
     if not removed:
         warn_if_only_on_branch(start if start != branch else base, ticket_relpath(top, ticket))

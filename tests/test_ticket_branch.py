@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -336,6 +337,24 @@ def test_mode_mismatch_after_enter_bails_and_still_exits(tb, monkeypatch, capfd)
     assert _branch(repo) == "main"
 
 
+def test_enter_does_not_substitute_another_ticket_matching_the_prefix(tb, monkeypatch):
+    repo, ref = tb
+    branch = _first_launch(repo, ref, monkeypatch)
+    repo.git("switch", branch)
+    repo.git("mv", str(ref.ticket_path), str(ref.ticket_path.with_stem(ref.slug + "-other")))
+    repo.git("commit", "-qm", "Rename the ticket on its branch")
+    repo.git("switch", "main")
+    replace_blackboard(
+        ref.ticket_path, set_dev_fields(read_blackboard(ref.ticket_path),
+                                       branch=branch, base="main", remote="origin"),
+    )
+    repo.git("commit", "-qam", "Record the branch on main")
+    _agent(monkeypatch, lambda env: pytest.fail("no agent for the other ticket"))
+    with pytest.raises(LaunchBail, match="missing after enter"):
+        launch(ref.id_slug)
+    assert _branch(repo) == "main"
+
+
 def test_terminal_ticket_refusal_still_publishes_checkout(tb, monkeypatch):
     repo, ref = tb
     branch = _first_launch(repo, ref, monkeypatch)
@@ -427,21 +446,56 @@ def test_interrupt_during_script_step_still_runs_exit(tb, monkeypatch):
     assert repo.git("show", f"origin/{branch}:partial.txt") == "x\n"
 
 
-def test_interrupt_after_enter_switch_still_returns(tb, monkeypatch):
+@pytest.mark.parametrize("exit_error", [SystemExit(130), OSError("could not spawn exit")])
+def test_exit_exception_keeps_prior_launch_result(tb, monkeypatch, exit_error):
+    _, ref = tb
+    real = launch_module.run_launch_hook
+
+    def fail_exit(cfg, target, script, phase, scope):
+        if phase == "exit":
+            raise exit_error
+        return real(cfg, target, script, phase, scope)
+
+    monkeypatch.setattr(launch_module, "run_launch_hook", fail_exit)
+    _agent(monkeypatch, lambda env: ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout", "idle"))
+    result = launch(ref.id_slug, return_timeout=True)
+    assert (result.kind, result.exit_code) == ("timeout", _TIMEOUT_EXIT_CODE)
+
+
+def test_interrupt_after_enter_switch_records_new_branch_and_returns(tb, monkeypatch):
     repo, ref = tb
     real = launch_module.run_launch_hook
 
-    def hook(cfg, ref_, script, phase, scope):
-        code = real(cfg, ref_, script, phase, scope)
+    def hook(cfg, target, script, phase, scope):
         if phase == "enter":
-            raise KeyboardInterrupt
-        return code
+            edge_enter = runpy.run_path(str(script))["enter"]
+            run_op = edge_enter.__globals__["run_op"]
+
+            def interrupt_after_switch(operation, *args):
+                run_op(operation, *args)
+                raise KeyboardInterrupt
+
+            with monkeypatch.context() as patch:
+                patch.setenv("COGA_TASK_TICKET", str(target.ticket_path))
+                patch.setenv("COGA_TASK_SLUG", target.id_slug)
+                patch.setenv("TMPDIR", str(scope.path))
+                patch.setitem(edge_enter.__globals__, "run_op", interrupt_after_switch)
+                edge_enter()
+        return real(cfg, target, script, phase, scope)
 
     monkeypatch.setattr(launch_module, "run_launch_hook", hook)
     with pytest.raises(KeyboardInterrupt):
         launch(ref.id_slug)
     assert _branch(repo) == "main"
-    assert any(name.startswith("coga/") for name in _remote_branches(repo))
+    branch, = _remote_branches(repo) - {"main"}
+    assert read_dev_fields(_show(repo, f"origin/{branch}", ref).body) == {
+        "branch": branch, "base": "main", "remote": "origin",
+    }
+    monkeypatch.setattr(launch_module, "run_launch_hook", real)
+    _agent(monkeypatch, lambda env: _bump(ref.id_slug))
+    assert launch(ref.id_slug).exit_code == 0
+    assert _remote_branches(repo) == {"main", branch}
+    assert _show(repo, f"origin/{branch}", ref).step == "2 (review-design)"
 
 
 def test_agent_deleting_ticket_still_commits_and_pushes(tb, monkeypatch):
@@ -513,7 +567,8 @@ def test_enter_refuses_multiple_candidate_branches(tb, monkeypatch, capfd):
     assert "more than one branch" in capfd.readouterr().err
 
 
-def test_enter_refuses_diverged_local_and_remote(tb, monkeypatch, capfd):
+@pytest.mark.parametrize("remote_removes_ticket", [False, True])
+def test_enter_refuses_diverged_local_and_remote(tb, monkeypatch, capfd, remote_removes_ticket):
     repo, ref = tb
     branch = _first_launch(repo, ref, monkeypatch)
     repo.git("switch", "-q", branch)
@@ -523,6 +578,8 @@ def test_enter_refuses_diverged_local_and_remote(tb, monkeypatch, capfd):
     repo.git("reset", "-q", "--hard", "HEAD~1")
     (repo.root / "other.txt").write_text("o\n", encoding="utf-8")
     repo.git("add", "other.txt")
+    if remote_removes_ticket:
+        repo.git("rm", str(ref.ticket_path))
     repo.git("commit", "-qm", "other")
     repo.git("push", "-q", "--force", "origin", branch)
     repo.git("reset", "-q", "--hard", "HEAD~1")
@@ -532,6 +589,19 @@ def test_enter_refuses_diverged_local_and_remote(tb, monkeypatch, capfd):
     repo.git("switch", "-q", "main")
     _enter_refusal(ref)
     assert "diverged" in capfd.readouterr().err
+    assert _branch(repo) == "main"
+    assert read_ticket(ref).status == "active"
+
+
+def test_resume_creates_local_tracking_branch_from_recorded_remote(tb, monkeypatch):
+    repo, ref = tb
+    branch = _first_launch(repo, ref, monkeypatch)
+    repo.git("branch", "-D", branch)
+    seen = _agent(monkeypatch, lambda env: _bump(ref.id_slug))
+    assert launch(ref.id_slug, agent_override="claude").exit_code == 0
+    assert seen[0]["COGA_TASK_STEP"] == "2 (review-design)"
+    assert _branch(repo) == "main"
+    assert repo.git("rev-parse", "--abbrev-ref", f"{branch}@{{upstream}}").strip() == f"origin/{branch}"
 
 
 @pytest.mark.parametrize("fields,needle", [
@@ -618,17 +688,30 @@ def test_megalaunch_skips_ticket_branch_ticket(tb):
     assert "git: ticket-branch" in result.detail
 
 
-def test_recurring_template_with_ticket_branch_is_refused(tb):
-    from coga.recurring import RecurringError, assert_template_git_mode
+def test_recurring_template_with_ticket_branch_is_refused_before_period_changes(tb, capsys):
+    from coga.paths import log_path
+    from coga.recurring import create_named, scan_due
+    from coga.recurring_runner import run_recurring_named
+    from coga.validate import run as validate_run
 
     repo, _ = tb
     cfg = load_config(repo.coga_os)
+    template = repo.coga_os / "recurring" / "nightly" / "ticket.md"
+    template.parent.mkdir(parents=True)
+    source = '---\ntitle: Nightly\nschedule: "0 0 * * *"\nworkflow: plain\n---\n\nRun nightly.\n'
+    template.write_text(source, encoding="utf-8")
+    period = create_named(cfg, "nightly").ref.ticket_path
+    before = period.read_bytes(), log_path(cfg).read_bytes()
+    template.write_text(source.replace("workflow: plain", "workflow: tb"), encoding="utf-8")
 
-    class _Template:
-        name = "nightly"
-        frontmatter = {"workflow": "tb"}
-
-    with pytest.raises(RecurringError, match="git: ticket-branch"):
-        assert_template_git_mode(cfg, _Template())
-    _Template.frontmatter = {"workflow": "plain"}
-    assert_template_git_mode(cfg, _Template())
+    assert any(
+        issue.kind == "bad-shape" and "`git: ticket-branch`" in issue.message
+        for issue in validate_run(cfg).issues
+    )
+    assert any(
+        name == "nightly" and "`git: ticket-branch`" in reason
+        for name, reason in scan_due(cfg, force=True).errors
+    )
+    assert run_recurring_named(cfg, "nightly") == 2
+    assert "`git: ticket-branch`" in capsys.readouterr().err
+    assert before == (period.read_bytes(), log_path(cfg).read_bytes())

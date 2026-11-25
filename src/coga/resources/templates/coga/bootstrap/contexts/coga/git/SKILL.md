@@ -74,7 +74,11 @@ copy there:
 - A recorded `branch:` in the current copy's `## Dev` wins. Without one,
   `enter` looks for local or fetched `coga/<slug-part>` and
   `coga/<slug-part>-<6 hex>` branches whose own ticket copy records that
-  branch. It never fetches.
+  branch. Once a branch matches, divergence checks include its local and
+  remote-tracking refs even if a ref removed the ticket. The local ticket
+  supplies the record when present. To resume a remote-only branch, the
+  remote-tracking copies must agree on the recorded remote and its ref
+  must have been fetched.
 - With no match it creates `coga/<slug-part>` from `HEAD` (a suffixed name
   when taken) and records `branch:`, `base:` (the starting branch) and
   `remote:` (the base's upstream remote or `origin`) before the first step.
@@ -97,6 +101,9 @@ upstream set, even from a clean tree, and switches back to the starting
 branch. Because `enter` runs before classification, a launch that later
 refuses (a terminal ticket, a failed agent preflight) still publishes the
 checkout's changes.
+
+If Ctrl-C interrupts enter after creating the branch, exit finishes recording
+the new branch before committing so the next launch can find it.
 
 On any failure, or when `HEAD` is no longer on the ticket branch, `exit`
 stops where it is with local state intact and names the failed operation.

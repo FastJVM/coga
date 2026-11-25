@@ -112,6 +112,7 @@ from coga.tasks import (
     TargetRef,
     list_tasks,
     read_ticket,
+    resolve_task,
     resolve_target,
 )
 from coga.ticket import (
@@ -375,8 +376,12 @@ class _LaunchHookGuard:
     only the hook's script and phases; all Git work lives in the edge script.
     """
 
-    def __init__(self, invocation: "_LaunchInvocation", mode: str, script: Path) -> None:
+    def __init__(
+        self, invocation: "_LaunchInvocation", ref: TaskRef, mode: str, script: Path,
+    ) -> None:
         self.invocation = invocation
+        self.cfg = invocation.cfg
+        self.ref = ref
         self.mode = mode
         self.script = script
         self.started = False
@@ -387,9 +392,9 @@ class _LaunchHookGuard:
 
     def enter(self) -> None:
         inv = self.invocation
-        assert inv.tmp_scope is not None and isinstance(inv.ref, TaskRef)
+        assert inv.tmp_scope is not None
         self.started = True
-        code = run_launch_hook(inv.cfg, inv.ref, self.script, "enter", inv.tmp_scope)
+        code = run_launch_hook(self.cfg, self.ref, self.script, "enter", inv.tmp_scope)
         if code != 0:
             _bail(
                 f"Cannot launch {inv.ref.id_slug}: its `git: {self.mode}` enter "
@@ -399,9 +404,11 @@ class _LaunchHookGuard:
         # The hook may have switched the checkout: resolve config, target and
         # mode again so classification reads the copy now on disk.
         try:
-            inv.cfg = load_config()
-            inv.ref = resolve_target(inv.cfg, inv.task)
-        except (ConfigError, TaskNotFoundError) as exc:
+            inv.cfg = load_config(self.cfg.repo_root)
+            inv.ref = resolve_task(inv.cfg, self.ref.id_slug)
+            if inv.ref.id_slug != self.ref.id_slug:
+                raise TaskNotFoundError(f"Ticket {self.ref.id_slug!r} is missing after enter.")
+        except (ConfigError, TaskNotFoundError, tomllib.TOMLDecodeError) as exc:
             _bail(str(exc))
         try:
             live_mode = git_mode(read_ticket(inv.ref).workflow, inv.cfg)
@@ -421,11 +428,13 @@ class _LaunchHookGuard:
         inv = self.invocation
         assert inv.tmp_scope is not None
         try:
-            code = run_launch_hook(inv.cfg, inv.ref, self.script, "exit", inv.tmp_scope)
-        except KeyboardInterrupt:
-            code = _HOOK_INTERRUPT_CODE
-        except OSError as exc:
-            _report(f"Launch: cannot run the `git: {self.mode}` exit hook: {exc}",
+            code = run_launch_hook(self.cfg, self.ref, self.script, "exit", inv.tmp_scope)
+        except (KeyboardInterrupt, SystemExit) as interrupted:
+            # The agent phase installs a signal handler that raises SystemExit.
+            # A second interrupt during exit must preserve the first failure.
+            code = _exception_exit_code(interrupted)
+        except OSError as error:
+            _report(f"Launch: cannot run the `git: {self.mode}` exit hook: {error}",
                     fg='red', err=True)
             code = 1
         if code == 0:
@@ -636,7 +645,7 @@ class _LaunchInvocation:
             script = prepare_launch_hook(self.cfg, hook_ref, self.tmp_scope)
         except (ConfigError, OSError) as exc:
             _bail(f"Cannot launch {self.ref.id_slug}: `git: {mode}` hook: {exc}")
-        return _LaunchHookGuard(self, mode, script)
+        return _LaunchHookGuard(self, self.ref, mode, script)
 
     def _classify_target(self) -> LaunchResult | None:
         """Read and classify the ticket in this checkout."""
