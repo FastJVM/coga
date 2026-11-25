@@ -243,3 +243,9 @@ checks:
 ## Blockers
 
 - [ ] [2026-11-23 17:51] [agent:codex] id=20261123T175127 Publish the recorded base branch coga/fix-stale-doc-references-left-by-the-plain-git-m-bc5100 from fix-stale-doc-references-left-by-the-plain-git-mig to origin so the reviewed assembler documentation PR can open.
+
+---
+
+## Blocker reminders
+
+- 1859bd78801c last_reminded: 2026-11-25 09:51
