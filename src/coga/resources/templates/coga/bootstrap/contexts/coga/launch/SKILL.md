@@ -42,7 +42,7 @@ spawn, with the ordinary scoping/redaction and fresh script environment
 ([script tickets](../script-tickets/SKILL.md#coga_task_-contract)); outer
 completion and assist authority are cleared. One subprocess's exit is the
 invocation's result, using the usual process-status convention; zero completes
-only this stateless invocation, and 75 also has no refresh or sweep.
+only this stateless invocation.
 
 This is a cooperative procedure contract, not a Python sandbox: the selected
 reader must itself avoid writes, including nested lifecycle commands. A writer
@@ -50,10 +50,7 @@ must use ordinary launch. A mixed read/write procedure chooses its invocation
 policy before execution, through separate explicit invocations or a thin
 argv-parsing adapter calling the same launch API. A read-only entry rejects
 write operands; a child cannot upgrade its dispatch policy. Ordinary launch
-remains the default and retains its publication and completion boundaries.
-The withheld publication is scoped to the read-only call itself: an in-process
-API caller gets its own sweep policy back when the call returns or refuses, so
-a writer command that reads this way still publishes at its exit.
+remains the default and retains its completion boundary.
 
 The shipped report aliases and the `recurring list` adapter use this same
 boundary; their owning command tickets define selection and presentation.
@@ -174,8 +171,7 @@ requirement for disposable scratch outside the checkout.
 - `--prompt-report` prints each composed layer, exact refs, bytes, and
   `characters / 4` token estimates without spawning. It refuses a `ticket.py`
   target and never executes ticket code. It refreshes the agent-skill view
-  and selects the read-only prompt path, so measuring a prompt never
-  publishes the edits being measured.
+  and selects the read-only prompt path.
 - `--idle-timeout` / `--max-session` (off by default) tear down a stalled or
   runaway REPL; the launch then exits 124 and does not chain.
 - On native Windows the agent owns the console, so idleness cannot be

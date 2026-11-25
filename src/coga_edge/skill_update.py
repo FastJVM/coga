@@ -440,9 +440,9 @@ def run_skill_update(
 
 
 def main(argv: list[str] | None = None, *, scheduled: bool = False) -> int:
-    """Report, publish and, for a launched period script, complete the step.
+    """Report and, for a launched period script, complete the step.
 
-    Failure reports and exit publication go to the `--cwd` target's Coga root.
+    Failure reports go to the `--cwd` target's Coga root.
     A scheduled invocation advances only the task named by launch.
     """
     return run_entry(

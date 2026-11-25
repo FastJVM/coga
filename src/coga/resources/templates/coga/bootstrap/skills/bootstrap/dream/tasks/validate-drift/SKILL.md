@@ -54,9 +54,8 @@ contract. The agent launch already carries `COGA_TASK_SLUG`, `COGA_TASK_DIR`,
 and `COGA_TASK_BLACKBOARD`; the worker inherits that metadata and appends its
 result directly to the Dream task blackboard. Run from a stateless bootstrap
 session there is no blackboard to append to — the worker writes its report to
-stdout instead of into a packaged `bootstrap/<name>/ticket.md`. On exit it
-publishes eligible Coga state of the root it validated; it never advances the
-Dream task.
+stdout instead of into a packaged `bootstrap/<name>/ticket.md`. It never
+advances the Dream task.
 
 The default safe-repair pass applies the same conservative repair set as
 `coga validate --fix`: append a missing blackboard fence + region to a `ticket.md` only. To
@@ -92,6 +91,8 @@ The worker accepts:
 - `--commit-and-push` — commit any repaired files and push the current
   non-main branch (requires the fix pass).
 - `--allow-main-push` — allow `--commit-and-push` on `main`/`master`.
+- `--remote <name>` — Git remote `--commit-and-push` pushes to (default:
+  `origin`).
 - `--commit-message <subject>` — commit subject when pushing
   (default: `Dream: repair validation drift`).
 - `--idle-hours <hours>` — passed through to `coga validate`.

@@ -940,9 +940,8 @@ def _author_draft(
 
     Best-effort prep, not a launch: it reuses the same authoring session
     `coga ticket <slug>` runs, so the draft can be edited into a launchable
-    shape before phase 2 tries to activate it. Ordinary interview failures leave
-    the draft for checking; a retained-state refusal exits 75 immediately so
-    neither the queue nor its parent wrapper can refresh or sweep it.
+    shape before phase 2 tries to activate it. Interview failures leave the
+    draft for checking.
     """
     try:
         bootstrap_ref = resolve_bootstrap(cfg, "ticket")
