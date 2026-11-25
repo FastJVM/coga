@@ -1,7 +1,7 @@
 ---
 title: Stop the test suite from deleting files in the real checkout when TMPDIR is
   inside the repo
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,7 +29,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (review)
 agent: claude
 ---
 
