@@ -41,7 +41,7 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 7 (push-and-open-pr)
+step: 8 (review)
 agent: claude
 ---
 
@@ -478,6 +478,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1291
 reviewed: 9c9d892eff4bbdb32b65ba43bbb56167efb56699
 branch: coga/in-workflwo-manage-beter-on-off-better-it-s-crea-2155af
 base: main
