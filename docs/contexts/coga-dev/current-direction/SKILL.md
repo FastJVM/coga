@@ -27,6 +27,15 @@ is `coga status` and the ticket bodies; stage posture is
   cancels the `git-sync/` group. Until implemented, the current topics still
   describe today's behavior. Design and decisions:
   [`v1/03-use-git-like-everyone-remove-coga-s-publication-ab`](../../../../coga/tasks/v1/03-use-git-like-everyone-remove-coga-s-publication-ab.md).
+  **Amended 2026-11-24/25 (owner):** a workflow may declare a launch Git mode
+  (`git: ticket-branch`). The kernel stays Git-agnostic: it reads the frozen
+  mode, maps it to a packaged hook skill and runs that script's `enter`
+  before classification and `exit` after the chain, as it runs a step's
+  `run:`. All Git commands, including the exit commit and push, live in the
+  edge hook. This is the one sanctioned launch-boundary publication;
+  `main` (the default) keeps the plain behavior. Design and decisions:
+  [`in-workflwo-manage-beter-on-off-better-it-s-creati`](../../../../coga/tasks/in-workflwo-manage-beter-on-off-better-it-s-creati.md);
+  contract: [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#ticket-branch-mode).
 
 - **Keep Coga work visible and in the repository (2026-11-23).** The
   [filesystem policy](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md#keep-work-visible)

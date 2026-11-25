@@ -97,6 +97,18 @@ It resolves the next executor from the current ticket file. Owner-held
 steps, terminal states, blocked states and paused states stop the chain.
 Agent sessions also stop on process failure or a liveness limit.
 
+A workflow's launch Git mode wraps the whole chain. When the frozen `git:`
+maps to a hook ([coga/git](../git/SKILL.md#ticket-branch-mode)), launch
+copies the hook skill into the launch `$TMPDIR` and runs its `enter` phase
+before classification, with the ticket and tmp environment and no secrets.
+A failed `enter` refuses the launch before any lifecycle write. Launch then
+re-reads config and the ticket from the switched checkout and refuses if that
+copy selects a different mode. `exit` runs after the chain on every path
+once `enter` has started, including refusals, failures, timeouts and Ctrl-C.
+An `exit` failure makes a successful launch fail; an already failing launch
+keeps its code. `main` (or no field) runs no hook, and `--prompt-report`
+never runs one.
+
 ## Run state
 
 A launch provides ignored, repo-local storage for unversioned state under

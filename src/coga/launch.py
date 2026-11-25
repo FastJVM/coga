@@ -74,7 +74,13 @@ from coga.config import (
 )
 from coga.dependencies import agent_cli_missing_message
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.launch_script import run_script_chain, run_script_phase, script_entry_point
+from coga.launch_script import (
+    prepare_launch_hook,
+    run_launch_hook,
+    run_script_chain,
+    run_script_phase,
+    script_entry_point,
+)
 from coga.logfile import append_log
 from coga.paths import RESOURCE_NAMES, RepoResourceUnreadable
 from coga.mark import (
@@ -113,7 +119,7 @@ from coga.ticket import (
     TicketError,
 )
 from coga.validate import TaskValidationError, assert_task_valid
-from coga.workflow import WorkflowError
+from coga.workflow import GIT_MODES, WorkflowError, git_mode
 
 
 class LaunchResult(NamedTuple):
@@ -319,6 +325,13 @@ def _launch(
             invocation.tmp_scope = stack.enter_context(
                 run_state.launch_tmp_scope(invocation.cfg)
             )
+        # The workflow's launch Git mode may wrap the whole launch in a hook.
+        # The guard is entered (inside the tmp scope, so `$TMPDIR` outlives
+        # it) before `enter` runs, so `exit` runs on every later path.
+        guard = invocation._launch_hook_guard()
+        if guard is not None:
+            stack.enter_context(guard)
+            guard.enter()
         for prepare in (
             invocation._classify_target,
             invocation._run_initial_script,
@@ -329,7 +342,113 @@ def _launch(
                 break
         else:
             result = invocation._supervise_steps()
+        if guard is not None:
+            guard.result = result
     return result
+
+
+_HOOK_INTERRUPT_CODE = 130
+
+
+def _exception_exit_code(exc: BaseException) -> int:
+    """The exit status an unwinding exception will become at the boundary."""
+    if isinstance(exc, LaunchBail):
+        return exc.code
+    if isinstance(exc, SystemExit):
+        code = exc.code
+        return code if isinstance(code, int) else (0 if code is None else 1)
+    if isinstance(exc, NotificationExit):
+        return exc.exit_code
+    if isinstance(exc, KeyboardInterrupt):
+        return _HOOK_INTERRUPT_CODE
+    return 1
+
+
+class _LaunchHookGuard:
+    """Run a workflow Git mode's hook around one launch.
+
+    `enter` runs before classification; `exit` runs once `enter` has started,
+    on every later path (normal end, handoff, failure, timeout, bail,
+    interrupt). The guard observes both the returned `LaunchResult` and an
+    unwinding exception, and keeps the first non-zero code: an exit-hook
+    failure only makes an otherwise successful launch fail. The kernel knows
+    only the hook's script and phases; all Git work lives in the edge script.
+    """
+
+    def __init__(self, invocation: "_LaunchInvocation", mode: str, script: Path) -> None:
+        self.invocation = invocation
+        self.mode = mode
+        self.script = script
+        self.started = False
+        self.result: LaunchResult | None = None
+
+    def __enter__(self) -> "_LaunchHookGuard":
+        return self
+
+    def enter(self) -> None:
+        inv = self.invocation
+        assert inv.tmp_scope is not None and isinstance(inv.ref, TaskRef)
+        self.started = True
+        code = run_launch_hook(inv.cfg, inv.ref, self.script, "enter", inv.tmp_scope)
+        if code != 0:
+            _bail(
+                f"Cannot launch {inv.ref.id_slug}: its `git: {self.mode}` enter "
+                f"hook failed (exit {code}); no lifecycle state was written.",
+                exit_code=code,
+            )
+        # The hook may have switched the checkout: resolve config, target and
+        # mode again so classification reads the copy now on disk.
+        try:
+            inv.cfg = load_config()
+            inv.ref = resolve_target(inv.cfg, inv.task)
+        except (ConfigError, TaskNotFoundError) as exc:
+            _bail(str(exc))
+        try:
+            live_mode = git_mode(read_ticket(inv.ref).workflow, inv.cfg)
+        except (OSError, UnicodeError, TicketError, WorkflowError) as exc:
+            _bail(f"Cannot launch {inv.ref.id_slug}: {exc}")
+        if live_mode != self.mode:
+            _bail(
+                f"Cannot launch {inv.ref.id_slug}: the copy that selected the "
+                f"launch Git mode declares `git: {self.mode}`, but the live copy "
+                f"after the hook declares `git: {live_mode}`. Reconcile the two "
+                "copies, then launch again."
+            )
+
+    def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[no-untyped-def]
+        if not self.started:
+            return False
+        inv = self.invocation
+        assert inv.tmp_scope is not None
+        try:
+            code = run_launch_hook(inv.cfg, inv.ref, self.script, "exit", inv.tmp_scope)
+        except KeyboardInterrupt:
+            code = _HOOK_INTERRUPT_CODE
+        except OSError as exc:
+            _report(f"Launch: cannot run the `git: {self.mode}` exit hook: {exc}",
+                    fg='red', err=True)
+            code = 1
+        if code == 0:
+            return False
+        message = (
+            f"Launch: `git: {self.mode}` exit hook failed (exit {code}); the "
+            "checkout was left where the hook stopped. Fix it by hand."
+        )
+        if exc is not None:
+            original = _exception_exit_code(exc)
+            if original != 0:
+                _report(f"{message} The launch had already failed (exit {original}).",
+                        fg='red', err=True)
+                return False
+            raise LaunchBail(code, message) from exc
+        if self.result is not None and self.result.exit_code != 0:
+            _report(
+                f"{message} The launch had already failed "
+                f"(exit {self.result.exit_code}).",
+                fg='red', err=True,
+            )
+            return False
+        raise LaunchBail(code, message)
 
 
 class _LaunchInvocation:
@@ -482,6 +601,42 @@ class _LaunchInvocation:
         self.is_bootstrap = isinstance(self.ref, BootstrapRef)
         self.script_steps_run: set[str | None] = set()
         return None
+
+    def _launch_hook_guard(self) -> "_LaunchHookGuard | None":
+        """Select the launch-boundary hook for the ticket's frozen Git mode.
+
+        `main` (also an omitted field) selects no hook. A prompt report runs
+        nothing; bootstrap targets have no workflow; delegated periods have
+        already returned from `_prepare_target`.
+        """
+        if self.prompt_report or not isinstance(self.ref, TaskRef):
+            return None
+        try:
+            workflow = read_ticket(self.ref).workflow
+        except (OSError, UnicodeError, TicketError):
+            # Classification reports the unreadable ticket.
+            return None
+        try:
+            mode = git_mode(workflow, self.cfg)
+        except WorkflowError as exc:
+            if isinstance(workflow, str):
+                # A draft's unloadable reference fails at activation, as today.
+                return None
+            _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
+        hook_ref = GIT_MODES[mode]
+        if hook_ref is None:
+            return None
+        if self.ref.directory == "recurring":
+            _bail(
+                f"Cannot launch {self.ref.id_slug}: a recurring period cannot use "
+                f"`git: {mode}`; recurring work runs with `git: main`."
+            )
+        assert self.tmp_scope is not None
+        try:
+            script = prepare_launch_hook(self.cfg, hook_ref, self.tmp_scope)
+        except (ConfigError, OSError) as exc:
+            _bail(f"Cannot launch {self.ref.id_slug}: `git: {mode}` hook: {exc}")
+        return _LaunchHookGuard(self, mode, script)
 
     def _classify_target(self) -> LaunchResult | None:
         """Read and classify the ticket in this checkout."""

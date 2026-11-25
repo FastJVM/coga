@@ -499,8 +499,52 @@ def _echo_script_iteration(
     )
 
 
+LAUNCH_HOOK_DIR = "launch-hook"
+
+
+def prepare_launch_hook(cfg: Config, hook_ref: str, tmp_scope: TmpScope) -> Path:
+    """Copy the mode's hook skill into the launch tmp scope; return its run.py.
+
+    The hook is resolved once, local-first like a step's `run:`, and copied so
+    that `exit` runs the same code as `enter` even if the branch switch changes
+    or removes a local override.
+    """
+    import shutil
+
+    source = resolve_step_script(cfg, hook_ref).parent
+    target = tmp_scope.path / LAUNCH_HOOK_DIR / hook_ref
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(
+        source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+    return target / "run.py"
+
+
+def run_launch_hook(
+    cfg: Config, ref: TaskRef, script: Path, phase: str, tmp_scope: TmpScope,
+) -> int:
+    """Run one launch-boundary hook phase (`enter` or `exit`) as a subprocess.
+
+    Git-free: the kernel only supplies the ticket and launch tmp environment
+    and returns the child's exit status. The hook gets no secrets.
+    """
+    env = apply_task_env(os.environ.copy(), cfg, ref)
+    for key in ("COGA_SUPERVISED", SENTINEL_ENV, EXPECTED_TASK_ENV,
+                EXPECTED_STEP_ENV, EXPECTED_AGENT_ENV, "COGA_SCRIPT_HELP"):
+        env.pop(key, None)
+    env = apply_tmp_env(env, tmp_scope)
+    completed = subprocess.run(
+        [sys.executable, str(script), phase], cwd=host_repo_root(cfg),
+        env=env, check=False,
+    )
+    return _normalize_exit_code(completed.returncode)
+
+
 __all__ = [
     "SCRIPT_ENTRY_POINT",
+    "prepare_launch_hook",
+    "run_launch_hook",
     "ScriptChainResult",
     "ScriptPhaseResult",
     "run_script_chain",

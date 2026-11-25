@@ -1082,6 +1082,22 @@ def _candidate_result(
     explicit: bool = False,
     blockers: list[Blocker] | None = None,
 ) -> MegalaunchResult | None:
+    # Megalaunch runs its own chain, not `coga launch`, so it never runs a
+    # workflow's launch Git hook. Refuse a non-`main` mode explicitly.
+    from coga.workflow import WorkflowError, git_mode
+
+    try:
+        mode = git_mode(ticket.workflow, cfg)
+    except WorkflowError as exc:
+        return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
+    if mode != "main":
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"workflow declares `git: {mode}`; megalaunch does not run launch "
+            f"Git hooks. Run `coga launch {ref.id_slug}`",
+            _operator_name(cfg, ref, ticket),
+        )
     if blockers is None:
         blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":

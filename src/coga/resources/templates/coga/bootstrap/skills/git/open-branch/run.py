@@ -5,29 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
-import secrets
 import subprocess
 import sys
 from pathlib import Path
 
 from coga.blackboard import read_dev_fields, set_dev_fields
 from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard
+from coga_edge.git_workflow import fresh_branch_name
 
 
 def output(*argv: str) -> str:
     return subprocess.check_output(argv, text=True).strip()
-
-
-def fresh_branch_name(slug: str, remote: str) -> str:
-    refs = set(output("git", "for-each-ref", "--format=%(refname)").splitlines())
-    slug_part = re.sub(r"[^A-Za-z0-9._-]+", "-", slug).strip("-.")[:48] or "task"
-    prefix = f"coga/{slug_part}"
-    for _ in range(8):
-        name = f"{prefix}-{secrets.token_hex(3)}"
-        if f"refs/heads/{name}" not in refs and f"refs/remotes/{remote}/{name}" not in refs:
-            return name
-    raise ValueError(f"No free branch name under {prefix}")
 
 
 def main() -> int:

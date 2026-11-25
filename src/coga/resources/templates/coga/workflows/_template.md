@@ -1,6 +1,7 @@
 ---
 name: _template
 description: Starter workflow. Copy this file to workflows/<namespace>/<your-workflow>.md and edit the steps to match your process.
+# git: ticket-branch  # optional launch Git mode; omitted means `main`
 steps:
   - name: first-step
     skills:
@@ -40,3 +41,11 @@ what decides who holds the task; coga derives that operator on every read.
 A step that omits `assignee:` inherits the nearest *preceding* declared role;
 before any declaration the role is `owner`. That makes forward moves, restarts,
 and human rewinds all derive the same answer from this frozen snapshot.
+
+## On `git:`
+
+The optional top-level `git:` selects the launch Git mode for the whole
+workflow. `main`, also used when the field is omitted, does no Git work in
+launch. `ticket-branch` switches to the ticket's branch before every launch
+and commits, pushes and returns to the starting branch when it ends.
+`coga/workflows` and `coga/git` own the contract.
