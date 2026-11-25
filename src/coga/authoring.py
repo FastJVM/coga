@@ -296,10 +296,10 @@ def finalize_authored(
 def invoke_ticket_authoring(cfg: Config, ref: TaskRef, *, agent_name: str) -> int:
     """Invoke the public authoring CLI with a preselected interviewer.
 
-    Keep its guarded finalization and exit sweep. The Python entry adapter
-    requests retained-state exit mapping before CLI context cleanup and
-    refuses, rather than creates, a ref that no longer resolves; it adds no
-    user-facing flag or second authoring executor. Streams stay attached.
+    Keep its ordinary finalization and return the child's exit code. The
+    Python entry adapter refuses, rather than creates, a ref that no longer
+    resolves; it adds no user-facing flag or second authoring executor.
+    Streams stay attached.
     """
     from coga.process_relay import run_foreground_child
     from coga.task_env import TASK_ENV_KEYS, host_repo_root

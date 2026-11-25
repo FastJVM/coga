@@ -53,13 +53,9 @@ editing skill.
 
 Megalaunch invokes the same public `ticket <ref> --agent <name>` command with
 inherited streams and a preselected interviewer. Its command adapter clears
-outer task/supervisor identity and preserves ordinary CLI finalization and
-publication. A refused guarded finalization, the one state an interview
-retains, returns 75 to the queue before CLI context cleanup; the queue
-propagates that retained-state exit without refreshing or sweeping it. A
-pre-write refusal that only withholds the sweep (for example an
-unrepresentable agent command) and other ordinary interview failures exit
-non-zero and leave the draft for the queue's validation phase. The adapter
+outer task/supervisor identity, keeps ordinary CLI finalization, and returns
+the child's exit code. An interview failure leaves the draft for the queue's
+validation phase. The adapter
 requires an exact match for the picked ticket's qualified slug. A missing
 slug ends the interview attempt before any draft is opened or created. The
 adapter adds no alternate authoring executor or public flag.

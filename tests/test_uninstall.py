@@ -19,6 +19,7 @@ from coga.cli import app
 from coga.commands import uninstall as uninstall_cmd
 from coga.commands.init import AGENT_GUIDE_TEMPLATE
 from coga.commands.update import ensure_host_gitignore
+from coga.config import ConfigError, find_repo_root
 
 
 def _seed_footprint(
@@ -523,9 +524,15 @@ def test_uninstall_outside_repo_errors(
 ) -> None:
     empty = tmp_path / "nowhere"
     empty.mkdir()
+    # A tmp tree inside a checkout makes discovery find that real repo; this
+    # test then deleted the live checkout's files (2026-11-23). conftest's
+    # temp-root guard prevents that; the precondition and the missing `--yes`
+    # make a wrong discovery stop at the confirmation prompt anyway.
+    with pytest.raises(ConfigError):
+        find_repo_root(empty)
     monkeypatch.chdir(empty)
 
-    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+    result = CliRunner().invoke(app, ["uninstall"], input="n\n")
     assert result.exit_code == 2
     assert "No coga.toml" in result.output
 

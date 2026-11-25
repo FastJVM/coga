@@ -70,9 +70,23 @@ is their hand-run counterpart: a first-time user installs on a fresh
   and keeps at most three runs. An explicit `--basetemp` is never removed, so
   each uniquely named one leaks its session fixtures (about 60 MB). Keep
   the temp root outside every checkout and outside any tree swept by
-  `coga recurring --all`: an in-checkout root lets the missing-repo tests walk
-  up, discover the checkout's real `coga.toml`, and stop testing the no-repo
-  case (observed 2026-11-04), and a root beside checkouts (for example
+  `coga recurring --all`. An in-checkout root lets tests that expect no
+  repository walk up and act on the real checkout: they stop testing the
+  no-repo case (observed 2026-11-04), and `coga uninstall --yes` once
+  deleted the live checkout's `coga/` and `docs/contexts/` files (observed
+  2026-11-23). `coga launch` sets exactly such a `TMPDIR`
+  (`coga/.coga/tmp/<id>/`), so `tests/conftest.py::pytest_configure`
+  enforces the rule: when the temp root is inside a directory holding a
+  Git checkout marker (a `.git` file, or a `.git` directory with `HEAD`), a
+  `coga.toml` or a `coga/coga.toml`, it moves the root to
+  `$COGA_SYSTEM_TMPDIR` (else `/tmp`) and says so in the report header, and
+  it refuses an explicit `--basetemp` inside a checkout or containing
+  the checkout under test (`tests/test_suite_temproot.py`). Pytest deletes
+  an existing `--basetemp` before creating its fixtures, so use a dedicated
+  directory.
+  Under `coga launch`, run plain `python -m pytest`; for a full run on a
+  small `/tmp`, set `TMPDIR` to a roomy directory outside the checkout
+  instead. A root beside checkouts (for example
   `~/Code/<name>`) fills the swept tree with fixture repos that `--all` then
   services (observed 2026-11-16). Copy anything you must keep out of the temp
   root before the run is pruned. On Windows, use `--basetemp` with a short
@@ -116,9 +130,7 @@ is their hand-run counterpart: a first-time user installs on a fresh
   a branch's launch, supervisor, or capture code in a real `coga launch` or
   `coga chat` session, install the branch commit non-editable into a scratch
   venv and run that venv's `coga` by absolute path (`<venv>/bin/coga launch
-  ...`) without activating the venv: launch prepares the control checkout
-  (`main`), so an editable install of the checkout would run main's code.
-  The agent inherits the supervisor's `PATH` unchanged (`build_launch_env`
+  ...`) without activating the venv. The agent inherits the supervisor's `PATH` unchanged (`build_launch_env`
   copies the parent environment), so commands it runs inside the session (for
   example `coga mark done`) resolve the `coga` on that `PATH`. Without
   activation only the supervisor/capture side runs the branch; activating the

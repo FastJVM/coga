@@ -209,7 +209,7 @@ def run_blocker_reminders(cfg: Config, argv: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None, *, scheduled: bool = False) -> int:
-    """Report, publish and, for a launched period script, complete the step.
+    """Report and, for a launched period script, complete the step.
 
     A scheduled invocation advances only the task named by launch.
     """

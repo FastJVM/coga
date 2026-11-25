@@ -75,6 +75,10 @@ with either one agent or a peer reviewer.
 `coga.local.toml` top level: `user`, `default_agent`, `agents`,
 `notification`, `git`, `upstream`, `telemetry`, `authoring`.
 
+`[git]` is obsolete in both files. Its keys are still shape-checked, but Coga
+no longer reads them, and `coga validate` warns `obsolete-key`. Delete the
+table.
+
 `default_agent` is a string in both files. The local value wins, and each
 present value must name a type in the merged `[agents.*]`; it is validated at
 load. Precedence, freezing at activation, and what it does not move are

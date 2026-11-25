@@ -1,7 +1,7 @@
 ---
 title: Stop the test suite from deleting files in the real checkout when TMPDIR is
   inside the repo
-status: draft
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,7 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (open-branch)
+agent: claude
 ---
 
 ## Description
@@ -127,5 +127,163 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+pr: https://github.com/FastJVM/coga/pull/1287
+branch: coga/stop-the-test-suite-from-deleting-files-in-the-r-2cc57b
+base: fix-read-only-tmp-sweep
+remote: origin
+reviewed: 679fdbc39142300e8633523c198e5793cab384e5
+
+## Findings
+
+- Culprit, confirmed on a throwaway clone in /tmp: `tests/test_uninstall.py::test_uninstall_outside_repo_errors`
+  chdirs to `tmp_path/nowhere` and ran `coga uninstall --yes`. With TMPDIR at
+  `<repo>/coga/.coga/tmp/<id>/`, `coga.config.find_repo_root` walks up to the real
+  `coga/coga.toml`, and `commands/uninstall.py::_execute_plan` rmtrees `docs/contexts/`
+  and then `coga/`. Alone, that test deleted 346 paths on the clone, plus AGENTS.md
+  and the `.gitignore` block.
+- Owner chose **redirect** over refuse (2026-11-24, attended session).
+- The implementation negative control restored the old uninstall test and
+  disabled the temp-root guard in a disposable clone of 0cce044efd.
+  Both original child-pytest regressions failed as expected.
+
+## Implementation
+
+- `tests/conftest.py::pytest_configure` (tryfirst): when pytest's temp root
+  (`PYTEST_DEBUG_TEMPROOT` or `gettempdir()`) sits inside a checkout (see
+  `enclosing_checkout`: a `.git` file, a `.git` dir with HEAD, `coga.toml`, or
+  `coga/coga.toml`), it sets `PYTEST_DEBUG_TEMPROOT` to `$COGA_SYSTEM_TMPDIR`
+  (else /tmp) and prints that in the report header. It raises UsageError
+  when an explicit `--basetemp` is inside a checkout or contains the
+  checkout under test. An empty `.git` directory is ignored, matching
+  `find_checkout_root`.
+- Culprit test hardened: it asserts `find_repo_root(empty)` raises, and it
+  runs without `--yes`.
+- New `tests/test_suite_temproot.py`: a marker unit test, an invariant probe
+  (`tmp_path` outside every checkout), and child-pytest regressions (redirect
+  plus the culprit test leaving a fake host untouched, and refusal of
+  explicit basetemp inside or containing a checkout).
+- Docs: `docs/contexts/coga-dev/testing/SKILL.md` temp-root paragraph.
+- `_isolate_tmpdir` now also clears
+  `COGA_SYSTEM_TMPDIR`. Before this change, three tests
+  (`test_launch_gives_script_and_agent_one_purged_tmp_and_durable_data`,
+  `test_lock_directory_is_per_user`,
+  `test_scope_redirects_temp_keeps_system_tmp_and_purges`) failed whenever
+  that variable was inherited, which every `coga launch` exports.
+  Reproduced on the base commit c771516f2 (they pass with the variable unset).
+- Diff base: the recorded stacked base `fix-read-only-tmp-sweep`
+  (c771516f2, one commit above origin/main 7c78e1920). The PR targets that
+  branch, so the receipts use it as `base`.
+
+## Peer review
+
+- Codex reproduced a second deletion path at 0cce044efd10b72a7822fae4772c07ec12f27f37.
+  Starting pytest in a sibling directory and selecting a test by absolute
+  path let `--basetemp` name a parent of the disposable clone.
+  Pytest removed the clone and its local-config sentinel before fixture
+  setup finished. The guard checks ancestors of the temp path, and
+  pytest's own argument check protects the invocation directory and its
+  ancestors. The owner approved the correction in the attended session.
+  Commit 679fdbc39142300e8633523c198e5793cab384e5 checks the resolved
+  basetemp against the checkout that contains the suite's conftest.
+  The new child-pytest regression supplies a directory containing a
+  disposable checkout as basetemp while invoking pytest from outside it.
+- The focused run on the correction passed with 51 passed, 1 skipped
+  in 1.25s on Pop!_OS 24.04 LTS, Python 3.12.12. Restoring the old
+  conftest in the disposable clone made the new regression fail as
+  expected. The child pytest exited 0 instead of refusing with exit 4.
+- Independently ran the full suite at the same head on Pop!_OS 24.04 LTS,
+  Python 3.12.12. From the disposable clone, with the primary checkout's
+  venv interpreter, ran
+  `env TERM=dumb TMPDIR="$PWD/coga/.coga/tmp/launch" COGA_SYSTEM_TMPDIR="<scratch>/system" PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 /home/n/Code/coga/.venv/bin/python -m pytest -p no:cacheprovider -q`.
+  3202 passed, 29 skipped in 184.34s. Git status including ignored files
+  matched before and after. Local config and durable data sentinel contents
+  matched, and the in-checkout launch temp directory stayed empty.
+- The owner approved setting aside the unrelated draft before publication.
+  Only `coga/tasks/manage-better-git-sync.md` was stashed. Its Git blob
+  matches the copy in stash 972211334116ecd4db4589dc2dfbd5f290a592f8.
+
+## PR
+
+```yaml
+title: Keep the test suite's tmp trees outside every checkout
+author: claude
+author_evidence: >-
+  Claude Opus 5.5 wrote the original implementation in attended Coga
+  launch ad83d4aa. Codex wrote the basetemp ancestor correction during
+  peer review in launch 908d4af7.
+head: 679fdbc39142300e8633523c198e5793cab384e5
+base: c771516f294bd47cb32ee26ca3a29d0d701af669
+depth: deep
+rationale: >-
+  The guard runs at session start and changes where pytest creates test
+  directories. It protects the checkout from repository discovery by
+  tests and from pytest's own explicit basetemp cleanup.
+implementation: >-
+  The pytest_configure guard redirects an implicit temp root inside a Git
+  or Coga checkout via PYTEST_DEBUG_TEMPROOT. It refuses explicit basetemp
+  paths inside a checkout or containing the checkout under test. The
+  uninstall regression checks that repository discovery fails and declines
+  deletion if asked. Per-test isolation clears inherited COGA_SYSTEM_TMPDIR.
+deviations: >-
+  The owner chose to redirect implicit temp roots and approved the
+  basetemp ancestor check found in review. Clearing inherited
+  COGA_SYSTEM_TMPDIR also fixes three preexisting test failures under
+  coga launch.
+limitations: >-
+  Verified on Linux. Native Windows and macOS runs are deferred to release.
+  On Windows, a redirect requires an outside COGA_SYSTEM_TMPDIR.
+  Redirected runs use pytest's normal retention under the system temp root.
+files:
+  tests/conftest.py: "Detect unsafe temp roots at pytest startup and isolate COGA_SYSTEM_TMPDIR per test."
+  tests/test_uninstall.py: "Check that repository discovery fails before invoking uninstall and decline confirmation."
+  tests/test_suite_temproot.py: "Exercise checkout markers, implicit redirection, and both explicit basetemp refusals."
+  docs/contexts/coga-dev/testing/SKILL.md: "Document the guard and how to run pytest under coga launch."
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 679fdbc39142300e8633523c198e5793cab384e5
+  base: c771516f294bd47cb32ee26ca3a29d0d701af669
+  detail: >-
+    Codex manually reviewed the full diff against the recorded stacked
+    base, traced both startup paths and reproduced removal of a disposable
+    checkout by pytest's basetemp cleanup. Codex did not participate in
+    the original implementation and authored and verified the correction
+    during peer review. The regression passed with the correction and
+    failed when the original conftest was restored. The full Linux run
+    passed with an in-checkout launch temp directory. Approved this head
+    after checking both explicit path refusals, automatic redirection,
+    and the uninstall test's confirmation path.
+checks:
+  - command: >-
+      env TERM=dumb TMPDIR="$PWD/coga/.coga/tmp/launch"
+      COGA_SYSTEM_TMPDIR="<scratch>/system" PYTHONPATH="$PWD/src"
+      PYTHONDONTWRITEBYTECODE=1 /home/n/Code/coga/.venv/bin/python -m pytest -p no:cacheprovider -q
+    status: passed
+    head: 679fdbc39142300e8633523c198e5793cab384e5
+    base: c771516f294bd47cb32ee26ca3a29d0d701af669
+    detail: >-
+      Disposable clone on Pop!_OS 24.04 LTS, Python 3.12.12. 3203 passed,
+      29 skipped in 208.74s. Git status including ignored files matched.
+      Local config and durable data sentinels matched byte for byte and
+      the in-checkout launch TMPDIR stayed empty.
+  - command: >-
+      env TERM=dumb TMPDIR="$PWD/coga/.coga/tmp/launch"
+      COGA_SYSTEM_TMPDIR="<scratch>/system" PYTHONPATH="$PWD/src"
+      PYTHONDONTWRITEBYTECODE=1 "<scratch>/venv/bin/python" -m pytest
+      -p no:cacheprovider -q tests/test_suite_temproot.py tests/test_uninstall.py
+    status: passed
+    head: 679fdbc39142300e8633523c198e5793cab384e5
+    base: c771516f294bd47cb32ee26ca3a29d0d701af669
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.11.15 in a scratch venv installed with
+      uv sync --locked --extra test --python /home/n/.local/bin/python3.11.
+      51 passed, 1 skipped in 2.49s. The launch TMPDIR stayed empty.
+  - command: "git diff --check refs/remotes/origin/fix-read-only-tmp-sweep...HEAD"
+    status: passed
+    head: 679fdbc39142300e8633523c198e5793cab384e5
+    base: c771516f294bd47cb32ee26ca3a29d0d701af669
+    detail: "Exit 0 with no whitespace errors."
+```
