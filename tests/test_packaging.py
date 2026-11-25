@@ -1448,6 +1448,10 @@ assert "Wheel promotion" in promote("from-wheel")
 bundled = resolve_bootstrap(cfg, "bootstrap/recurring-promote").path
 fork = Path("coga/bootstrap/recurring-promote")
 shutil.copytree(bundled, fork, copy_function=shutil.copyfile)
+# copytree copies the read-only installed directory modes; a fork is writable.
+for directory in [fork, *fork.rglob("*")]:
+    if directory.is_dir():
+        directory.chmod(0o755)
 implementation = fork / "promotion.py"
 implementation.write_text(
     implementation.read_text(encoding="utf-8").replace(

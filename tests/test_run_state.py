@@ -179,6 +179,67 @@ def test_scope_warns_about_long_socket_paths(
     assert ("Unix socket paths" in err and str(scope.path) in err) is warns
 
 
+def _read_only_tree(base: Path) -> Path:
+    """A tree a tool left read-only, like a copytree of an installed package."""
+    nested = base / "pkg" / "sub"
+    nested.mkdir(parents=True)
+    (nested / "file.py").write_text("x")
+    (base / "pkg" / "top.txt").write_text("x")
+    for path in (nested / "file.py", base / "pkg" / "top.txt", nested, base / "pkg"):
+        path.chmod(0o444 if path.is_file() else 0o555)
+    return base / "pkg"
+
+
+def test_launch_purge_removes_read_only_trees(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with run_state.launch_tmp_scope(load_config(repo)) as scope:
+        _read_only_tree(scope.path)
+    assert "could not" not in capsys.readouterr().err
+    assert not scope.path.exists()
+
+
+def test_sweep_removes_read_only_orphans_without_touching_link_targets(
+    repo: Path, tmp_path: Path
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "kept").write_text("x")
+    outside.chmod(0o555)
+    root = repo / ".coga" / "tmp"
+    orphan = _orphan(root, "aaaaaaaa")
+    pkg = _read_only_tree(orphan)
+    pkg.chmod(0o755)
+    (pkg / "link").symlink_to(outside, target_is_directory=True)
+    pkg.chmod(0o555)
+    try:
+        result = run_state.sweep_orphans(load_config(repo))
+        assert not result.failures
+        assert [o.token for o in result.removed] == ["aaaaaaaa"]
+        assert not orphan.exists()
+        assert (outside / "kept").is_file()
+        assert outside.stat().st_mode & 0o777 == 0o555
+    finally:
+        outside.chmod(0o755)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX inode permissions")
+def test_purge_keeps_modes_of_hard_linked_files_outside_the_area(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    outside = tmp_path / "outside.txt"
+    outside.write_text("x")
+    outside.chmod(0o444)
+    with run_state.launch_tmp_scope(load_config(repo)) as scope:
+        pkg = _read_only_tree(scope.path)
+        pkg.chmod(0o755)
+        os.link(outside, pkg / "linked.txt")
+        pkg.chmod(0o555)
+    assert "could not" not in capsys.readouterr().err
+    assert not scope.path.exists()
+    assert outside.stat().st_mode & 0o777 == 0o444
+
+
 def test_failed_purge_warns_and_leaves_the_rest_for_the_sweep(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
