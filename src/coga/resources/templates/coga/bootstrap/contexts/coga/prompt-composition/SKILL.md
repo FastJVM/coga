@@ -80,7 +80,7 @@ input, not conduct, and never change which resource is selected.
   a silent fallback; `coga validate` flags an unreadable override and a file
   in `resources/` that matches no name.
 - Contexts and skills resolve local-first, then the package bootstrap copy.
-- Every layer except the generated header and checkout notice is
+- Every layer except the generated header is
   **normalized** before it composes: a leading YAML frontmatter block of a
   whole file (resource, `context.md`, context, skill) and whole-line HTML
   comment blocks are dropped; a resource's, context's or skill's leading
@@ -96,7 +96,7 @@ input, not conduct, and never change which resource is selected.
 - Markdown links inside a context or skill are not followed; only attached
   refs compose ([coga/knowledge](../knowledge/SKILL.md)).
 - A missing context, skill, or packaged resource refuses the launch, naming
-  the paths checked, before it publishes `in_progress` or spawns. A deleted
+  the paths checked, before it writes `in_progress` or spawns. A deleted
   workflow definition composes a placeholder and is reported by
   `coga validate` instead; an existing but malformed or unreadable one
   refuses.

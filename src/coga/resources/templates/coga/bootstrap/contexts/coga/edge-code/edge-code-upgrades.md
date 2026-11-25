@@ -19,11 +19,23 @@ rg --files --hidden --no-ignore -g '*.py' coga/recurring coga/tasks | LC_ALL=C s
 For a release removing recipe targets, also inventory their exact callers in
 Python shims and markdown, including Dream Phase 1/5 in templates and all
 outstanding/parked period bodies. Search names even when callers are customized.
-The removed names so far are `validate-drift` and `cleanup-orphan-markers`:
+The removed names so far are:
+
+- `validate-drift` and `cleanup-orphan-markers`, moved to `coga_edge` workers;
+  reconcile Dream with [its Phase 1/5 passages](#dream-phase-15-reconciliation-recipe-removal).
+- `blocker-reminders` and `skill-update`, moved to `coga_edge` jobs; replace
+  their shims as in [Recipe-backed recurring shims](#recipe-backed-recurring-shims).
+- `autoclose`, `branch-sweep`, `open-pr`, `publish-state` and
+  `prepare-checkout`, deleted by the plain-Git migration with no replacement
+  worker. Retire a local `autoclose-merged` or `branch-sweep` definition and
+  its outstanding periods; a step that ran `open-pr` follows `code/open-pr`
+  (the `git/push-and-open-pr` script); `publish-state` and `prepare-checkout`
+  callers are dropped, and changes are committed with ordinary Git
+  ([coga/git](../git/SKILL.md)).
 
 <!-- migration:callers -->
 ```sh
-rg -n --hidden --no-ignore -g '*.md' -g '*.py' 'coga run (validate-drift|cleanup-orphan-markers)' coga/recurring coga/tasks
+rg -n --hidden --no-ignore -g '*.md' -g '*.py' -e 'coga run (validate-drift|cleanup-orphan-markers|blocker-reminders|skill-update|autoclose|branch-sweep|open-pr|publish-state|prepare-checkout)' -e 'run_recipe\(.*(blocker-reminders|skill-update|autoclose|branch-sweep|open-pr|publish-state|prepare-checkout)' coga/recurring coga/tasks
 ```
 
 2. Quiesce affected launches and sweeps in **all participating checkouts**.
@@ -227,7 +239,7 @@ raise SystemExit(main(["--no-pr"], scheduled=True))
 
 `main(..., scheduled=True)` completes the step itself, so delete the shim's own `coga bump`; a
 second bump would advance the next step. It also writes the shared
-`## Recipe Failure` report and publishes the job's state on exit.
+`## Recipe Failure` report.
 
 To keep a reviewed copy instead of following wheel updates, copy the installed
 module over a stock new shim. Do this for a full local override's
@@ -290,10 +302,9 @@ this Dream task. Before each run, read the matching skill's
 `## Known Skill Contract`, keep reads and writes inside its declared scope,
 then invoke the exact command below with the Python interpreter that runs
 `coga`. The worker inherits this task's `COGA_TASK_*` context, writes its
-`## Dream Skill: <name>` section directly to this task's blackboard, publishes
-eligible Coga state on exit, and never advances this task. An interpreter that
-cannot import the worker is a failed phase, not permission to substitute
-another command. Do not create child worker tasks.
+`## Dream Skill: <name>` section directly to this task's blackboard, and never
+advances this task. An interpreter that cannot import the worker is a failed
+phase, not permission to substitute another command. Do not create child worker tasks.
 ```
 
 Phase 1, as shipped before the move:

@@ -114,10 +114,10 @@ holds local Coga-dev knowledge. There are no forwarding files or symlink mirrors
 The generic migration and rollback contract belongs to
 [the recurring runbook](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/package-definitions-migration.md).
 Its source-repo rehearsal retained every parent blackboard, worklist, frozen
-period, custom job and clone ledger. Publication continues to use the ordinary
-state roots and guards. Package edits are outside those roots; deliberately
-reviewed local knowledge edits on a feature checkout are held for merge,
-dirty or committed, so commit them on the branch. See [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
+period, custom job and clone ledger. Package and local knowledge edits are
+ordinary branch changes: commit them on the branch and merge them as
+[coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)
+describes.
 
 A packaged recurring template leaves `owner:` and `agent:` empty so each
 adopting repo's defaults apply; `test_recurring` pins that routing. A local

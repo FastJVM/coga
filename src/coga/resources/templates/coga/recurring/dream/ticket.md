@@ -75,10 +75,9 @@ this Dream task. Before each run, read the matching skill's
 `## Known Skill Contract`, keep reads and writes inside its declared scope,
 then invoke the exact command below with the Python interpreter that runs
 `coga`. The worker inherits this task's `COGA_TASK_*` context, writes its
-`## Dream Skill: <name>` section directly to this task's blackboard, publishes
-eligible Coga state on exit, and never advances this task. An interpreter that
-cannot import the worker is a failed phase, not permission to substitute
-another command. Do not create child worker tasks.
+`## Dream Skill: <name>` section directly to this task's blackboard, and never
+advances this task. An interpreter that cannot import the worker is a failed
+phase, not permission to substitute another command. Do not create child worker tasks.
 
 ### Agent capability preflight
 

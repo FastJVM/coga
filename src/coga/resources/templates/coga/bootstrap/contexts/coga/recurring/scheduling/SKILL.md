@@ -92,22 +92,13 @@ A template that cannot be scanned (`## Template errors`: unloadable, bad ledger
 record, failed create) is named on stderr, in the Slack alert, and in
 `problems:`; on its own it does not change the exit code. A sweep with any
 refused or errored template never reports "No recurring tasks due".
-Two exits stop immediately: **75** (retained assist state needing
-reconciliation) and **≥ 128** (interrupt). Whatever stops the loop, the
-stopping task and each due task "admitted as due but never launched" are named
-in `problems:`.
+No launch exit code stops the loop: every due task launches in turn, and the
+sweep exits with the first failing code.
 
-Absence is a failure: an admitted watchdog recovery or a created period with no
-launch outcome makes the sweep exit 2, except `skip (already handled on
-control)`. A create sync to control that fails is non-fatal for the task — the
-created period still launches — but it is named in `problems:` and exits 2. If
-the created ticket then changed under that failed sync, the scan prints
-`error (…)` for the template instead of any skip, and it never launches;
-`--force` keeps the ordinary admission skip. A period adopted from control
-stays `skip (already handled on control)` even when publishing its log line
-fails; that failure is still named in `problems:`. All of this is the sweep
-path. The [autofix](../autofix/SKILL.md) loop runs afterwards without changing
-the exit code.
+Absence is a failure: a watchdog-paused period and a period this sweep created
+with no launch outcome ("created this sweep but never launched") are each named
+in `problems:`, and any such problem makes an otherwise clean sweep exit 2. All of this is the sweep path. The [autofix](../autofix/SKILL.md) loop
+runs afterwards without changing the exit code.
 
 Size exception: this topic stays over the size review thresholds, as
 accepted when the recurring family was consolidated. It absorbed the former
@@ -117,8 +108,5 @@ them, so only repo inactivity stays a separate leaf.
 Retention preserves every occurrence of the greatest valid period per ref and
 its winning creation/pause evidence, including absent or parked templates.
 It validates the full ledger first and never erases malformed older evidence
-to make a bounded reader succeed. A sweep that already published treats only
-removal of obsolete valid evidence as benign, after comparing full high-water
-and error state at both revisions. Added records, new errors, changed maxima
-or ambiguous evidence still trigger competitor-admission refusal. Target-bound
+to make a bounded reader succeed. Target-bound
 reverse reads retain their at-least semantics and error reachability.
