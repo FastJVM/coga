@@ -1,6 +1,6 @@
 ---
 name: coga/recurring/scheduling/inactivity
-description: Repo inactivity and session liveness — the human-commit gate on sweeps, completion signaling and terminal-ticket recovery, and how late teardown differs from unfinished timeouts.
+description: Repo inactivity — the local ticket-activity gate on recurring sweeps, and when autofix runs on an inactive sweep.
 ---
 
 # Inactivity
@@ -10,3 +10,7 @@ recurring templates are skipped. Zero disables the gate. Activity is read from
 the local audit log, excluding recurring and autofix ticket entries. Templates
 that declare `run_when_inactive: true` may still run. A forced sweep bypasses
 this gate.
+
+On an inactive repo the post-sweep [autofix](../../autofix/SKILL.md) loop runs
+only when the sweep launched something, such as a `run_when_inactive`
+template; an inactive sweep that launched nothing is not analyzed.

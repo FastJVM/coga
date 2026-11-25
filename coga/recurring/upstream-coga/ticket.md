@@ -34,8 +34,8 @@ Once a week this task's `ticket.py` sweeps the checkouts named by machine-local
    titled from the entry and carrying its `upstream-id`, `repo`, `date`,
    `class`, `target`, `evidence` lines and prose in the description — a
    draft, with no workflow, so a human triages before anything launches;
-4. advances the cursor after each entry, then syncs the template and every
-   filed ticket through git in one commit.
+4. advances the cursor after each entry; the template blackboard and every
+   filed ticket are left as local changes for the operator to commit.
 
 The `- upstream-id: <checkout-name>/<id>` line on each filed ticket is the
 durable identity: the processor greps existing tasks for it before creating,

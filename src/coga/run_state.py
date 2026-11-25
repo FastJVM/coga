@@ -276,7 +276,13 @@ def _remove_tree(path: Path) -> list[str]:
 
 
 def _make_owner_writable(root: Path) -> None:
-    """Grant the owner rwx on directories and w on files under ``root``."""
+    """Grant the owner rwx on directories under ``root``.
+
+    POSIX unlinks a file through its directory's write bit, so files keep their
+    modes: chmod would change a shared inode, including a hard-linked file
+    outside the area. Windows refuses to delete a read-only file, so there the
+    owner also gets w on files.
+    """
     pending = [str(root)]
     while pending:
         current = pending.pop()
@@ -288,7 +294,7 @@ def _make_owner_writable(root: Path) -> None:
                 os.chmod(current, stat.S_IMODE(mode) | stat.S_IRWXU)
                 with os.scandir(current) as entries:
                     pending.extend(entry.path for entry in entries)
-            else:
+            elif os.name == "nt":
                 os.chmod(current, stat.S_IMODE(mode) | stat.S_IWUSR)
         except OSError:
             continue  # the retry reports whatever still cannot be removed

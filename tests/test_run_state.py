@@ -223,6 +223,23 @@ def test_sweep_removes_read_only_orphans_without_touching_link_targets(
         outside.chmod(0o755)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX inode permissions")
+def test_purge_keeps_modes_of_hard_linked_files_outside_the_area(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    outside = tmp_path / "outside.txt"
+    outside.write_text("x")
+    outside.chmod(0o444)
+    with run_state.launch_tmp_scope(load_config(repo)) as scope:
+        pkg = _read_only_tree(scope.path)
+        pkg.chmod(0o755)
+        os.link(outside, pkg / "linked.txt")
+        pkg.chmod(0o555)
+    assert "could not" not in capsys.readouterr().err
+    assert not scope.path.exists()
+    assert outside.stat().st_mode & 0o777 == 0o444
+
+
 def test_failed_purge_warns_and_leaves_the_rest_for_the_sweep(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

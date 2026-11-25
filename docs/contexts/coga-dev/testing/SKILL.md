@@ -130,9 +130,7 @@ is their hand-run counterpart: a first-time user installs on a fresh
   a branch's launch, supervisor, or capture code in a real `coga launch` or
   `coga chat` session, install the branch commit non-editable into a scratch
   venv and run that venv's `coga` by absolute path (`<venv>/bin/coga launch
-  ...`) without activating the venv: launch prepares the control checkout
-  (`main`), so an editable install of the checkout would run main's code.
-  The agent inherits the supervisor's `PATH` unchanged (`build_launch_env`
+  ...`) without activating the venv. The agent inherits the supervisor's `PATH` unchanged (`build_launch_env`
   copies the parent environment), so commands it runs inside the session (for
   example `coga mark done`) resolve the `coga` on that `PATH`. Without
   activation only the supervisor/capture side runs the branch; activating the
