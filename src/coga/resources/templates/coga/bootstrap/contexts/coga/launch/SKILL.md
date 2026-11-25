@@ -152,6 +152,17 @@ reports the same orphans read-only as `orphan-tmp`, and only a repo-wide
 `coga validate --fix` removes them. A linked worktree created under a
 purged tmp area leaves stale metadata that `git worktree prune` clears.
 
+`coga validate` also reports what this storage holds. The report is not an
+issue, so a clean repo still prints `All good`. Text output prints
+`State: <root> <size>`, then one line per entry with owner, kind, size, file
+count and path. `--json` adds a top-level `state` object with `root`,
+`data_root`, `total_bytes` and `entries`. An entry's `owner` is an
+`<id_slug>`, `(shared)`, `(unattributed)` or `(tmp)`, and its `kind` is
+`data`, `tmp-live` or `tmp-orphan`. A `stale-state` warning names a durable
+`data/` directory whose ticket is `done`, `canceled` or no longer resolves.
+Nothing removes that data, `--fix` included, and deleting or retiring the
+ticket leaves it in place, so delete it by hand once it is no longer needed.
+
 If the absolute tmp path exceeds 64 bytes, every launch warns once on stderr
 with the path and the ~108-byte Unix socket limit, and still uses it: a
 silent fallback to `/tmp` would break the rule. The prompt rule agents follow
