@@ -1,6 +1,6 @@
 ---
 title: Add a Git mode field to workflow files
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -41,7 +41,6 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 8 (review)
 agent: claude
 ---
 
