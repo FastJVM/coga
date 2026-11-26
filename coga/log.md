@@ -3915,3 +3915,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-25 13:02 v1 [in-workflwo-manage-beter-on-off-better-it-s-creati] [system] script exited with code 0
 2026-11-25 13:35 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-25 16:10 v1 [in-workflwo-manage-beter-on-off-better-it-s-creati] [human:nicktoper] task done
+2026-11-25 21:56 v1 [run-a-workflow-step-script-that-publishes-only-the] [human:nicktoper] created (status=draft)
