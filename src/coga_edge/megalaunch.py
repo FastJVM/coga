@@ -100,6 +100,7 @@ from coga.mark import (
     mark_in_progress,
     prepare_active,
 )
+from coga.step_scripts import StepScriptError, exit_failure, run_enter_before_step
 from coga.repl_supervisor import build_supervised_step_env, unsignalled_advance_warning
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import WorkflowError
@@ -1243,6 +1244,15 @@ def _launch_chain(
             return _result(ref, "completed", f"handed off to {who}", launched=launched)
         launch_agent = (agent_override or operator.name) if step_count == 0 else operator.name
 
+        # The workflow's `enter` step script runs before every step this
+        # chain executes; it may switch the checkout, so re-read the ticket.
+        try:
+            if run_enter_before_step(cfg, ref, ticket.workflow, tmp_scope):
+                ticket = read_ticket(ref)
+        except (StepScriptError, TicketError, OSError) as exc:
+            return _result(ref, "failed", f"enter script: {exc}", launch_agent,
+                           launched=launched)
+
         if entry is not None:
             if ticket.status == "blocked":
                 return _result(
@@ -1468,6 +1478,11 @@ def _chain_stop_result(
     cfg: Config, ref: TaskRef, after: Ticket
 ) -> MegalaunchResult | None:
     """Terminal chain state after an agent step, or None to keep chaining."""
+    failure = exit_failure(cfg, ref)
+    if failure is not None:
+        return _result(
+            ref, "failed", failure, _operator_name(cfg, ref, after), launched=True,
+        )
     if after.status == "blocked":
         blockers = open_blockers(ref.ticket_path)
         detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"

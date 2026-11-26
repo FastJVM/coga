@@ -13,8 +13,13 @@ description: Implement and verify the change on the ticket branch.
 2. Implement the requested behavior and update its canonical documentation.
    Use repo-native tests and supporting fixtures. Run the repo's required
    checks and retain their actual commands and results.
-3. Commit the implementation. Fetch the recorded remote and reconcile with
-   the base. Preserve unique changes and repeat checks after rebasing.
+3. Commit the implementation, without `coga/tasks/**` or `coga/log.md`:
+   ticket state lives on the base, and the workflow's `exit` script
+   publishes it there. Reconcile with the base: on a workflow with
+   `enter: git/ticket-enter`, run the local or packaged
+   `git/ticket-enter/run.py rebase` with the ticket environment, which keeps
+   the live ticket across the rebase; otherwise fetch the recorded remote
+   and rebase. Preserve unique changes and repeat checks after rebasing.
 4. Record the actual implementing agent, tested head, diff base, check
    receipts and review-depth rationale in the live ticket's `## PR`.
    Follow `coga/pr-publication/preparation` for the schema. Name any

@@ -924,6 +924,7 @@ def _check_frontmatter_schema(
                     severity="error",
                 ))
             out.extend(_check_frozen_git_mode(cfg, task_label, wf))
+            out.extend(_check_frozen_step_scripts(cfg, task_label, wf))
             steps = wf.get("steps")
             if not isinstance(steps, list) or not steps:
                 out.append(Issue(
@@ -1212,6 +1213,42 @@ def _check_frozen_git_mode(cfg: Config, task_label: str, wf: dict) -> list[Issue
             severity="error",
         )]
     return []
+
+
+def _check_frozen_step_scripts(cfg: Config, task_label: str, wf: dict) -> list[Issue]:
+    """Frozen `enter:` / `exit:` must name skills whose `run.py` resolves."""
+    from coga.workflow import STEP_SCRIPT_KEYS
+
+    out: list[Issue] = []
+    for key in STEP_SCRIPT_KEYS:
+        if key not in wf:
+            continue
+        ref = wf[key]
+        if not isinstance(ref, str) or not ref.strip() or ref != ref.strip():
+            out.append(Issue(
+                kind="bad-shape",
+                task=task_label,
+                message=f"workflow.{key} {ref!r} must be a skill ref",
+                severity="error",
+            ))
+            continue
+        try:
+            resolve_step_script(cfg, ref)
+        except (ConfigError, OSError, ValueError) as exc:
+            out.append(Issue(
+                kind="bad-shape",
+                task=task_label,
+                message=f"workflow.{key} {ref!r}: {exc}",
+                severity="error",
+            ))
+    if wf.get("git", "main") != "main" and any(k in wf for k in STEP_SCRIPT_KEYS):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message="workflow.git cannot be combined with enter/exit step scripts",
+            severity="error",
+        ))
+    return out
 
 
 def _check_workflow_runs(cfg: Config, task_label: str, workflow: Workflow) -> list[Issue]:
@@ -1578,6 +1615,17 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                     f"recurring template {path.name!r} declares workflow "
                     f"{workflow_name!r} with `git: {workflow.git}`; recurring "
                     "work runs with `git: main`"
+                ),
+                severity="error",
+            ))
+        if workflow.enter is not None or workflow.exit is not None:
+            out.append(Issue(
+                kind="bad-shape",
+                task=f"recurring/{path.name}",
+                message=(
+                    f"recurring template {path.name!r} declares workflow "
+                    f"{workflow_name!r} with `enter`/`exit` step scripts; "
+                    "recurring work does not run them"
                 ),
                 severity="error",
             ))

@@ -121,6 +121,7 @@ from coga.ticket import (
 )
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import GIT_MODES, WorkflowError, git_mode
+from coga.step_scripts import StepScriptError, exit_failure, run_enter_before_step
 
 
 class LaunchResult(NamedTuple):
@@ -1059,6 +1060,27 @@ class _LaunchInvocation:
                     self.ticket,
                     self.agent_override if first_step else None,
                 )
+
+            # The workflow's `enter` step script runs before every agent step
+            # this chain starts. It may switch the checkout, so config and the
+            # ticket are read again from what it left.
+            if isinstance(self.ref, TaskRef):
+                try:
+                    entered = run_enter_before_step(
+                        self.cfg, self.ref, self.ticket.workflow, self.tmp_scope,
+                    )
+                except StepScriptError as exc:
+                    _bail(
+                        f"Cannot start {self.ref.id_slug} step {self.ticket.step}: "
+                        f"{exc}; no agent was started.",
+                        exit_code=exc.code or 1,
+                    )
+                if entered:
+                    try:
+                        self.cfg = load_config(self.cfg.repo_root)
+                    except (ConfigError, tomllib.TOMLDecodeError) as exc:
+                        _bail(str(exc))
+                    self.ticket = self._read(self.ref)
 
             # A prior agent or deterministic phase may have changed both the
             # ticket's secret declarations and coga.toml. Mint this step's env
@@ -2376,6 +2398,9 @@ def _harness_stop_reason(
     *,
     chain_agent_override: str | None = None,
 ) -> str | None:
+    failure = exit_failure(cfg, ref)
+    if failure is not None:
+        return f"{failure} Stopping before the next step"
     if after.status != "in_progress":
         if after.status in TERMINAL_STATUSES:
             return f"{ref.id_slug}: task is {after.status}"

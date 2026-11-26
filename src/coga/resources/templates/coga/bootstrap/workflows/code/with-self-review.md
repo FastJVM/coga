@@ -1,12 +1,9 @@
 ---
 name: code/with-self-review
 description: Code change with an agent self-QA pass (direct review, fixes committed in place) before the PR is opened, so the human reviewer sees one clean diff. Three agent steps then human PR review.
-git: ticket-branch
+enter: git/ticket-enter
+exit: git/ticket-exit
 steps:
-  - name: open-branch
-    run: git/open-branch
-    assignee: agent
-    requires: branch
   - name: implement
     assignee: agent
     requires: branch
@@ -28,8 +25,10 @@ steps:
 
 ## open-branch
 
-Run `git/open-branch` from the intended base and record the branch in the ticket.
-See [coga/git](../../contexts/coga/git/SKILL.md).
+On a frozen ticket with this earlier step, run `git/open-branch` from the
+intended base and record the branch in the ticket. Current snapshots open the
+branch in the `git/ticket-enter` step script instead. See
+[coga/git](../../contexts/coga/git/SKILL.md).
 
 ## push-and-open-pr
 
@@ -38,8 +37,9 @@ The script uses the preparation recorded under `## PR`.
 
 ## review
 
-The owner reviews the PR and decides whether to merge. Run the final bump on
-the branch, then commit and push the finished ticket and log before merging.
+The owner reviews the PR and decides whether to merge. The final bump runs
+the `exit` step script, which publishes the finished ticket to the base; the
+PR carries no ticket state, so merge it before or after.
 The owner can launch an assist to handle requested changes.
 
 ## pr

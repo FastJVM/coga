@@ -278,6 +278,11 @@ def assert_template_git_mode(cfg: Config, template: "Template") -> None:
             f"template {template.name!r} declares workflow {name!r} with "
             f"`git: {workflow.git}`; recurring work runs with `git: main`"
         )
+    if workflow.enter is not None or workflow.exit is not None:
+        raise RecurringError(
+            f"template {template.name!r} declares workflow {name!r} with "
+            f"`enter`/`exit` step scripts; recurring work does not run them"
+        )
 
 
 def assert_template_workflow(cfg: Config, template: "Template") -> None:

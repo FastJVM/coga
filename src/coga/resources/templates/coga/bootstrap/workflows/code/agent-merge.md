@@ -1,12 +1,9 @@
 ---
 name: code/agent-merge
 description: Code change implemented by the main agent, reviewed by its configured peer, then published and merged by the main agent with no owner gate. The owner audits after the merge and can revert.
-git: ticket-branch
+enter: git/ticket-enter
+exit: git/ticket-exit
 steps:
-  - name: open-branch
-    run: git/open-branch
-    assignee: agent
-    requires: branch
   - name: implement
     assignee: agent
     requires: branch
@@ -27,8 +24,10 @@ steps:
 
 ## open-branch
 
-Run `git/open-branch` from the intended base and record the branch in the ticket.
-See [coga/git](../../contexts/coga/git/SKILL.md).
+On a frozen ticket with this earlier step, run `git/open-branch` from the
+intended base and record the branch in the ticket. Current snapshots open the
+branch in the `git/ticket-enter` step script instead. See
+[coga/git](../../contexts/coga/git/SKILL.md).
 
 ## push-and-open-pr
 

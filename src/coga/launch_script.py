@@ -333,6 +333,13 @@ def run_script_chain(
         _echo_script_iteration(cfg, ref, current, stateless=stateless)
 
         before = current
+        # Enter only a step this chain will run as a script; an agent step
+        # is entered by the supervisor right before its session starts.
+        if not stateless and script_entry_point(ref, before, cfg=cfg) is not None:
+            entered = _enter_step(cfg, ref, before, tmp_scope)
+            if isinstance(entered, ScriptChainResult):
+                return entered
+            before = entered
         phase = run_script_phase(
             cfg,
             ref,
@@ -365,6 +372,12 @@ def run_script_chain(
         after = phase.ticket
         if stateless:
             return ScriptChainResult(0, after, False, None, cfg, ref)
+        from coga.step_scripts import exit_failure
+
+        if (failure := exit_failure(cfg, ref)) is not None:
+            return ScriptChainResult(
+                1, after, False, f"{failure} Stopping before the next step", cfg, ref,
+            )
         if after is None:
             return ScriptChainResult(
                 0,
@@ -412,6 +425,30 @@ def run_script_chain(
         current = after
 
     return ScriptChainResult(0, current, True, None, cfg, ref)
+
+
+def _enter_step(
+    cfg: Config, ref: TargetRef, ticket: Ticket, tmp_scope: TmpScope | None,
+) -> "Ticket | ScriptChainResult":
+    """Run the workflow's `enter` script before one script phase.
+
+    Returns the ticket re-read from the checkout the script left, or a failed
+    chain result naming the failure.
+    """
+    from coga.step_scripts import StepScriptError, run_enter_before_step
+
+    try:
+        ran = run_enter_before_step(cfg, ref, ticket.workflow, tmp_scope)
+    except StepScriptError as exc:
+        typer.secho(
+            f"Cannot start {ref.id_slug} step {ticket.step}: {exc}; the step "
+            "did not run.",
+            fg=typer.colors.RED, err=True,
+        )
+        return ScriptChainResult(exc.code or 1, ticket, False, None, cfg, ref)
+    if not ran:
+        return ticket
+    return read_ticket(ref)
 
 
 def _classify_script_handoff(
@@ -522,12 +559,14 @@ def prepare_launch_hook(cfg: Config, hook_ref: str, tmp_scope: TmpScope) -> Path
 
 
 def run_launch_hook(
-    cfg: Config, ref: TaskRef, script: Path, phase: str, tmp_scope: TmpScope,
+    cfg: Config, ref: TaskRef, script: Path, phase: str | None, tmp_scope: TmpScope,
 ) -> int:
-    """Run one launch-boundary hook phase (`enter` or `exit`) as a subprocess.
+    """Run one hook script as a subprocess, with `phase` as its argument.
 
-    Git-free: the kernel only supplies the ticket and launch tmp environment
-    and returns the child's exit status. The hook gets no secrets.
+    Serves the legacy launch-boundary hook (`enter` / `exit` phases) and the
+    workflow step scripts (no argument). Git-free: the kernel only supplies
+    the ticket and tmp environment and returns the child's exit status. The
+    script gets no secrets.
     """
     env = apply_task_env(os.environ.copy(), cfg, ref)
     for key in ("COGA_SUPERVISED", SENTINEL_ENV, EXPECTED_TASK_ENV,
@@ -535,7 +574,8 @@ def run_launch_hook(
         env.pop(key, None)
     env = apply_tmp_env(env, tmp_scope)
     completed = subprocess.run(
-        [sys.executable, str(script), phase], cwd=host_repo_root(cfg),
+        [sys.executable, str(script), *([phase] if phase else [])],
+        cwd=host_repo_root(cfg),
         env=env, check=False,
     )
     return _normalize_exit_code(completed.returncode)

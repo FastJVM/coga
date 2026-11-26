@@ -52,6 +52,13 @@ GIT_MODES: dict[str, str | None] = {
     "ticket-branch": "git/ticket-branch",
 }
 
+# Step scripts a workflow may declare at top level: `enter: <skill-ref>` runs
+# that skill's `run.py` when a step starts (the first step of a launch and each
+# step the supervisor chains); `exit: <skill-ref>` runs it on every step change
+# (`coga bump`, `coga mark done|canceled`, `coga block`). The kernel stays
+# Git-free: it only runs the named scripts. Either may be omitted.
+STEP_SCRIPT_KEYS: tuple[str, ...] = ("enter", "exit")
+
 @dataclass(frozen=True)
 class WorkflowStep:
     name: str
@@ -71,6 +78,8 @@ class Workflow:
     steps: list[WorkflowStep] = field(default_factory=list)
     body: str = ""
     git: str = DEFAULT_GIT_MODE  # launch Git mode; see GIT_MODES
+    enter: str | None = None  # step-start script skill ref; see STEP_SCRIPT_KEYS
+    exit: str | None = None  # step-change script skill ref
     # step name -> markdown section body (used when step has no skills ref)
     inline_instructions: dict[str, str] = field(default_factory=dict)
     # other `## <heading>` sections; a ticket frozen before a step rename
@@ -121,6 +130,16 @@ class Workflow:
                 f"{path}: `git` {git!r} must be one of {sorted(GIT_MODES)}"
             )
 
+        scripts = {
+            key: _parse_step_script_ref(fm.get(key), f"{path}: `{key}`")
+            for key in STEP_SCRIPT_KEYS
+        }
+        if git != DEFAULT_GIT_MODE and any(scripts.values()):
+            raise WorkflowError(
+                f"{path}: `git: {git}` cannot be combined with `enter`/`exit` "
+                f"step scripts"
+            )
+
         steps = [_parse_step(s, path) for s in fm["steps"]]
         step_names = {s.name for s in steps}
         inline = _parse_inline_sections(body, step_names)
@@ -135,6 +154,8 @@ class Workflow:
             description=fm.get("description", ""),
             steps=steps,
             git=git,
+            enter=scripts["enter"],
+            exit=scripts["exit"],
             body=body,
             inline_instructions=inline,
             other_sections=other,
@@ -149,6 +170,10 @@ class Workflow:
         }
         if self.git != DEFAULT_GIT_MODE:
             out["git"] = self.git
+        if self.enter is not None:
+            out["enter"] = self.enter
+        if self.exit is not None:
+            out["exit"] = self.exit
         out["steps"] = []
         for step in self.steps:
             entry: dict[str, Any] = {"name": step.name, "skills": list(step.skills)}
@@ -185,7 +210,33 @@ def git_mode(workflow: Any, cfg: Any) -> str:
     return mode
 
 
+def step_script(workflow: Any, cfg: Any, key: str) -> str | None:
+    """The `enter` or `exit` step-script skill ref a ticket's workflow names.
+
+    A frozen mapping carries its own refs; a draft's string reference loads
+    the definition it would freeze. A missing workflow names none. A malformed
+    frozen value raises `WorkflowError`; `coga validate` reports it.
+    """
+    if key not in STEP_SCRIPT_KEYS:
+        raise ValueError(f"unknown step script {key!r}")
+    if isinstance(workflow, str):
+        from coga.paths import resolve_workflow_path
+
+        return getattr(Workflow.load(resolve_workflow_path(cfg, workflow)), key)
+    if not isinstance(workflow, dict):
+        return None
+    return _parse_step_script_ref(workflow.get(key), f"frozen workflow `{key}`")
+
+
 # --- helpers ------------------------------------------------------------------
+
+
+def _parse_step_script_ref(raw: Any, where: str) -> str | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip() or raw != raw.strip():
+        raise WorkflowError(f"{where} must be a skill ref, got {raw!r}")
+    return raw
 
 
 def _parse_step(raw: Any, source: Path) -> WorkflowStep:
@@ -262,4 +313,5 @@ def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
 __all__ = [
     "Workflow", "WorkflowStep", "WorkflowError", "WorkflowNotFoundError",
     "VALID_ASSIGNEE_ROLES", "GIT_MODES", "DEFAULT_GIT_MODE", "git_mode",
+    "STEP_SCRIPT_KEYS", "step_script",
 ]

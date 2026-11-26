@@ -177,14 +177,6 @@ def test_git_mode_reads_frozen_and_draft_references(tb):
         git_mode({"name": "x", "git": "bogus", "steps": []}, cfg)
 
 
-def test_shipped_code_workflows_declare_ticket_branch():
-    from coga.workflow import Workflow
-
-    root = _SKILLS.parent / "workflows" / "code"
-    for name in ("with-review", "with-self-review", "design-then-implement", "agent-merge"):
-        assert Workflow.load(root / f"{name}.md").git == "ticket-branch", name
-
-
 def test_validate_reports_unknown_frozen_git_mode(tb):
     from coga.validate import run as validate_run
 

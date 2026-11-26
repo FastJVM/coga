@@ -40,11 +40,11 @@ def _review_section(name: str) -> str:
 
 
 @pytest.mark.parametrize("name", CHECKOUT_BEARING_WORKFLOWS)
-def test_review_section_names_owner_completion_before_merge(name: str) -> None:
+def test_review_section_names_owner_completion_publication(name: str) -> None:
     text = _review_section(name).split("\n## ", 1)[0]
     assert "final bump" in text
-    assert "commit and push" in text
-    assert "before merging" in text
+    assert "`exit` step script" in text
+    assert "publishes the finished ticket to the base" in text
 
 
 @pytest.mark.parametrize("name", PEER_REVIEW_WORKFLOWS)

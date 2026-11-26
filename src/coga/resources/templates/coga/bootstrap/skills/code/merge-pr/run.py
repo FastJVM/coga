@@ -1,4 +1,4 @@
-"""Finish the ticket and merge exactly its peer-reviewed change and state commits."""
+"""Merge exactly the ticket's peer-reviewed change, then finish the ticket."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from coga.repl_supervisor import SENTINEL_ENV, deferred_done_marker, emit_done_m
 from coga.blackboard import read_dev_fields
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.ticket import Ticket, TicketError
-from coga_edge.git_workflow import changed_paths, commit_state, git_output, verify_reviewed_tree
+from coga_edge.git_workflow import changed_paths, git_output, verify_reviewed_tree
 
 
 def pr_view(cwd: str, url: str) -> dict:
@@ -58,7 +58,11 @@ def run() -> int:
         branch = git_output("branch", "--show-current", cwd=cwd)
         if fields["branch"] != branch:
             raise ValueError(f"Current branch {branch!r} disagrees with recorded branch {fields['branch']!r}")
-        dirty = set(changed_paths(cwd)) - set(paths)
+        tasks_prefix = (coga_root / "tasks").relative_to(cwd).as_posix() + "/"
+        dirty = {
+            p for p in set(changed_paths(cwd)) - set(paths)
+            if not p.startswith(tasks_prefix)
+        }
         if dirty:
             raise ValueError("Commit your work first: " + ", ".join(sorted(dirty)))
         verify_reviewed_tree(cwd, fields["reviewed"], git_output("rev-parse", "HEAD", cwd=cwd), paths)
@@ -67,11 +71,6 @@ def run() -> int:
             workflow = ticket.workflow
             if not isinstance(workflow, dict) or ticket.step_index() != len(workflow["steps"]):
                 raise ValueError("The merge step must be the final workflow step")
-            subprocess.run(
-                [sys.executable, "-m", "coga.cli", "bump", slug],
-                cwd=cwd, env={**os.environ, SENTINEL_ENV: ""}, check=True,
-            )
-        commit_state(cwd, paths)
         subprocess.run(["git", "push", "--", fields["remote"], "HEAD"], cwd=cwd, check=True)
         head = git_output("rev-parse", "HEAD", cwd=cwd)
         verify_reviewed_tree(cwd, fields["reviewed"], head, paths)
@@ -85,6 +84,13 @@ def run() -> int:
             ["gh", "pr", "merge", url, merge_method(cwd, url), "--match-head-commit", head],
             cwd=cwd, check=True,
         )
+        # Last action: the final bump marks the ticket done and runs the
+        # workflow's `exit` script, which publishes it on the base.
+        if ticket.status != "done":
+            subprocess.run(
+                [sys.executable, "-m", "coga.cli", "bump", slug],
+                cwd=cwd, env={**os.environ, SENTINEL_ENV: ""}, check=True,
+            )
     except subprocess.CalledProcessError as exc:
         return exc.returncode if exc.returncode > 0 else 1
     except (OSError, ValueError, KeyError, TaskFileError, TicketError) as exc:
