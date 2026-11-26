@@ -101,7 +101,8 @@ it actually behaves, none of them obvious from the field list above:
   coga/skills`. It writes no `.coga-source.json`, so `coga skill status` reports
   the result as `delegated (github) — managed by gh skill metadata`: no digests,
   and therefore no dirty detection and nothing for `coga skill update` to
-  compare. The seven `google-agents-cli-*` skills are exactly that. Reach for it
+  compare. A pack of skills installed from a GitHub repository this way (say,
+  `coga/skills/example-cli-*/`) is managed by `gh`, not by coga. Reach for it
   only when you deliberately want `gh` to own the skill; `install-local` has the
   same property. **Both require you to name the skill**, and coga always runs
   `gh` with captured output, so gh never gets to prompt interactively.
@@ -130,7 +131,12 @@ it actually behaves, none of them obvious from the field list above:
   `coga/skill-management` owns how `include` is applied: install and update
   re-prune to it, so the pruned tree stays clean rather than locally adapted
   and `update` reapplies the same pruning instead of conflicting.
-  `coga/skills/clarity/.coga-source.json` is the worked example.
+  A pruned import's `.coga-source.json` then carries, for example:
+
+  ```json
+  "include": ["SKILL.md", "LICENSE", "references", "scripts/run.py"],
+  "local_adaptation_notes": "Pruned to the runtime skill via include; upstream site/, evals/ and README are never loaded by the skill body."
+  ```
 - **A prune without `include` reads as `locally-adapted (url)`.** `coga skill
   status` calls a URL skill locally adapted the moment the installed tree stops
   hashing to `installed_tree_digest` (`_status_url_skill`), and a hand prune
@@ -146,15 +152,15 @@ Imported and adapted skills are ordinary project-local skills, resolved before
 the bundled batteries like every other local skill — but you do not pick where
 one lands. `install-url` takes the destination from the *upstream* `SKILL.md`'s
 frontmatter `name` (`_validated_url_skill_ref` validates it, `_skill_target`
-joins it under `coga/skills/`), and an upstream skill carries a plain Agent
-Skills name, so an import installs flat at `coga/skills/<name>/`. Every import
-in this repo looks like that: `coga/skills/clarity/` and the seven
-`coga/skills/google-agents-cli-*/`.
+joins it under `coga/skills/`), and an upstream skill usually carries a plain
+Agent Skills name, so a typical import installs flat at `coga/skills/<name>/` —
+for example, an upstream `name: example-skill` lands at
+`coga/skills/example-skill/`.
 
 The slash-separated `coga/skills/<namespace>/<name>/` form is Coga's own
-extension to the Agent Skills name. It is available to skills *you* write — the
-namespaced trees here, such as `coga/skills/marketing/write-post/`, are
-locally authored, per `bootstrap/ticket` step 4 —
+extension to the Agent Skills name. It is available to skills *you* write — a
+locally authored skill such as `coga/skills/<team>/<name>/` (say,
+`coga/skills/docs/write-guide/`) uses it, per `bootstrap/ticket` step 4 —
 **and an import can land on it too**. `_validated_url_skill_ref` deliberately
 accepts a slash-separated Coga namespace as well as a plain Agent Skills name,
 and `_skill_target` then installs at the matching nested path, so an upstream
@@ -164,7 +170,7 @@ that case).
 
 So do not assume a flat ref. **Read the upstream `name:` and wire workflows to
 the ref it produces** — flat when upstream carries a plain Agent Skills name,
-which is the common case and what every import in this repo happens to be,
+which is the common case,
 nested when it carries a namespace.
 
 They stay plain directories — no package cache, no hidden service owns them —
