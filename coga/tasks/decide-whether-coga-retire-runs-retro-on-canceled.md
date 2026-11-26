@@ -1,6 +1,6 @@
 ---
 title: Decide whether coga retire runs Retro on canceled tickets
-status: draft
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (open-branch)
+step: 3 (peer-review)
+agent: claude
 ---
 
 ## Description
@@ -133,5 +134,120 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+branch: coga/decide-whether-coga-retire-runs-retro-on-cancele-a1e2ec
+base: coga/correct-migration-claims-the-fix-stale-branch-s--4128cc
+remote: origin
+reviewed: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+
+
+## Decision (implement, 2026-11-25)
+
+**Reword; do not restore Retro delegation.** Evidence:
+- `git log -- src/coga/resources/retire.md`: 91c688048 ("Checkpoint plain Git
+  workflow migration", owner commit 2026-11-21) deliberately replaced the
+  Retro-launcher `retire.md` (added by 9bfb0adf5 / #1014) with the generic
+  review prompt. The shipped `bootstrap/retire/ticket.md` help already says
+  "creates a follow-up task to review what should be carried forward".
+- Owner decision 2026-10-14 (`_v2/add-a-failed-terminal-status`, and the
+  canceled `retire-canceled-tickets-without-retro`): canceled gets no Retro;
+  only a future `failed` status would.
+
+**Dream lists `source: canceled` extracts as retirement debt.** The
+`retire.md` task receives the source slug and asks the agent to carry forward
+durable knowledge or file follow-ups before deleting the ticket. The Dream
+summary gives the operator the slug, area, and finding for prioritization.
+The three findings from run `20261125T175534Z` stay on that route:
+`close-the-presence-not-freshness-hole-in-the-branc`,
+`retire-canceled-tickets-without-retro`, and
+`marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive`.
+
+Note for `_v2/add-a-failed-terminal-status` (owner gate, not edited here): its
+Proposed shape step 5 assumes `retire.md` is still the Retro launcher
+("canceled" → "failed" throughout). After the plain-Git migration it is a
+generic review prompt, so implementing `failed` → Retro needs a new Retro
+launcher prompt (see 91c688048^:src/coga/resources/retire.md), and Retro's
+`### Canceled tickets` section would become `### Failed tickets`.
+
+## Publication dependency
+
+The recorded base belongs to blocked task
+`correct-migration-claims-the-fix-stale-branch-s-fi`. `git fetch origin` and
+`git ls-remote` confirmed that its branch has no corresponding remote ref.
+It contains eight commits beyond `origin/main` from three other tickets.
+All seven changed paths match `origin/main` at the recorded base, so the
+retirement commits can be retargeted to `main` for an independent PR. A base
+change needs a fresh review receipt. The current checkout also holds four
+unrelated, unstaged ticket edits which must be reconciled before the PR
+script can run.
+
+## PR
+
+```yaml
+title: Document canceled-ticket retirement and Dream routing
+author: claude
+author_evidence: >-
+  Claude (claude-opus-5-5) wrote the implementation in launch 3c215166.
+  Codex made the follow-up corrections in an independent peer-review session.
+head: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+base: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+depth: skim
+rationale: >-
+  The change brings shipped instructions in line with the retire command.
+  The full Linux test suite and review of the canceled-ticket route passed.
+implementation: >-
+  Canceled-ticket retirement creates a review task from retire.md. Dream
+  lists canceled-ticket extracts as retirement debt and leaves the source for
+  the review task. Retro accepts eligible done tickets.
+deviations: >-
+  Corrected the same stale claim in extension-model and the adjacent Dream
+  instruction that attributed Git checkout disposal to coga retire. Review
+  uses the recorded stacked base to cover the seven paths in this change.
+limitations: >-
+  Native Windows and macOS and the Python 3.11 floor are deferred to release
+  verification. Publication requires resolving the local-only base and the
+  other ticket edits noted under Publication dependency.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: "Explain why canceled retirement calls for agent judgment."
+  src/coga/resources/templates/coga/bootstrap/retire/ticket.py: "Document the review task, default resource, and --no-launch."
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/knowledge-scan/SKILL.md: "Identify the retirement route for source canceled."
+  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: "Limit accepted inputs to done tickets."
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: "Document the retirement review, Git cleanup, and canceled-finding summary."
+  tests/test_dream_worker_templates.py: "Check that Phase 6 assigns durable knowledge to the retirement review task."
+  tests/test_retro_skill_template.py: "Guard against reintroducing the canceled-ticket Retro claim."
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+  base: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+  detail: >-
+    Codex independently reviewed Claude's diff and traced the alias, command,
+    resource override, deletion paths, and Dream and Retro instructions. Codex
+    reviewed its own follow-up corrections and reconciled the wording assertion
+    they affected. No unresolved findings on this diff. No overlap with the
+    Claude implementation session.
+checks:
+  - command: 'PYTHONPATH="$PWD/src" .venv/bin/python -m pytest -q -p no:cacheprovider'
+    status: passed
+    head: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+    base: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+    detail: "Pop!_OS 24.04 LTS (Linux), Python 3.12.12. 3258 passed, 30 skipped, 0 failed in 204.84 seconds."
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+    base: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+    detail: "Pop!_OS 24.04 LTS (Linux), Python 3.12.12. 0 errors and 82 pre-existing warnings in under one second."
+  - command: git diff --check e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3 ecde357318bf3b5e9bf9633e3d35e705f21737a8
+    status: passed
+    head: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+    base: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+    detail: "Pop!_OS 24.04 LTS (Linux). Exit 0 with no findings in under one second."
+```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-25 18:14] [agent:codex] id=20261125T181432 Resolve correct-migration-claims-the-fix-stale-branch-s-fi so its branch can serve as the remote PR base, or confirm retargeting the two reviewed retirement commits to main. Reconcile the four unrelated ticket edits in the shared checkout before publication.

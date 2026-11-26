@@ -1,6 +1,6 @@
 ---
 title: Correct migration claims the fix-stale branch's files still make
-status: draft
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (open-branch)
+step: 3 (peer-review)
+agent: claude
 ---
 
 ## Description
@@ -140,5 +141,126 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+branch: coga/correct-migration-claims-the-fix-stale-branch-s--4128cc
+base: coga/sweep-orphan-tmp-trees-that-contain-read-only-di-c1cc7a
+remote: origin
+
+## Peer review handoff
+
+Codex reviewed the documented claims against their code and examined all 15 paths from the recorded base `0aaa67fb` to `e649a9ce3`. Claude Code authored `718a44a36`. Codex, in a separate session, committed `e649a9ce3` to correct remaining launch and recurring comments, streamline the delegation pointer, and clarify which recurring shims use `run_entry`. The Python ASTs match after stripping docstrings. The compose checkout notice and launch `_commit_auto_activate` comments are already corrected on `fix-stale`.
+
+The ticket requires `fix-stale-doc-references-left-by-the-plain-git-mig` to land first or serve as the PR base. After `git fetch origin`, neither that branch nor the recorded `sweep-orphan` base had a remote head. The fix-stale ticket is itself blocked on publication of its base. A merge-tree preview with the recorded base as the explicit ancestor isolates this ticket's diff and finds one content conflict, `coga-dev/current-direction`. When reconciling, keep the latest product decisions and this ticket's #1279 landing sentence. The ordinary merge of fix-stale with `origin/main` already conflicts in current-direction, autofix and spool-merge.
+
+Refresh onto the reconciled fix-stale branch or onto main after it lands. Repeat verification and record `reviewed:` for that head before bumping. The shared checkout has pending log and unrelated ticket changes from the queue.
+
+## PR
+
+```yaml
+title: Correct plain-Git migration claims the fix-stale branch leaves behind
+author: claude
+author_evidence: >-
+  Claude Code authored 718a44a36 in launch aa07f7fc. Codex authored the
+  review corrections in e649a9ce3 in the independent peer-review session.
+head: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+base: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+depth: deep
+rationale: >-
+  The ticket diff is limited to documentation, comments and docstrings.
+  The intended fix-stale integration base is unavailable. This evidence
+  covers the local recorded base and will need refreshing after reconciliation.
+implementation: >-
+  Corrects the eleven Dream findings and stale source comments about the
+  removed publication machinery. The recurring delegation topic owns the
+  lifecycle details.
+deviations: >-
+  Implementation used the local sweep-orphan base while fix-stale was
+  blocked. Review kept that base and clarified the launch and recurring
+  comments and the coverage of the recurring-shim tests.
+limitations: >-
+  Publication is blocked on the fix-stale dependency. Native Windows and
+  macOS verification is deferred to release.
+files:
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: >-
+    Describe prospective activation validation and how the five edge shims report and bump.
+  docs/contexts/coga-dev/current-direction/SKILL.md: >-
+    Record the landing of #1279 and update the date.
+  src/coga/launch.py: >-
+    Explain delegation's start callback, readiness checks, and prompt rendering.
+  src/coga/recurring.py: >-
+    Describe local ledger snapshots, completed-period replacement and scan refusals.
+  src/coga/recurring_state.py: >-
+    Explain how parent state is initialized with exclusive creation.
+  src/coga/repl_supervisor.py: >-
+    Explain assist audit attribution and deferred done markers.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: >-
+    Point to coga/git for the current Dev record fields.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: >-
+    Document repo-wide orphan tmp cleanup and the onboarding approval gates.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: >-
+    Document how run records are saved locally.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: >-
+    Document exclusive carrier creation, failure reporting and the scheduled bump.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md: >-
+    Point to the current ticket discovery recipe and blackboard Proposals convention.
+  src/coga/resources/templates/coga/recurring/resolve-conflicts/ticket.md: >-
+    Point to the recurring delegation lifecycle contract.
+  src/coga/runner.py: >-
+    Explain which local root owns the failure report.
+  src/coga_edge/megalaunch.py: >-
+    Describe the local dependency-drain ticket writes and validation.
+  tests/test_recurring_shims.py: >-
+    Correct the docstring describing run_entry and the behavior under test.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+  base: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+  detail: >-
+    Codex independently reviewed the Claude implementation and then reviewed
+    its own documentation corrections. All 15 paths were checked against
+    the recorded base. The claims match the current code. Publication
+    approval is pending reconciliation with the fix-stale branch.
+checks:
+  - command: >-
+      TMPDIR="$review_tmp" PYTHONPATH="$PWD/src" TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+    base: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.12.12. 3257 passed, 30 skipped in 215.91s.
+      The run used a dedicated temporary directory under /tmp.
+  - command: >-
+      TMPDIR="$packaging_tmp" PYTHONPATH="$PWD/src" TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py
+    status: passed
+    head: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+    base: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.12.12. 43 passed in 11.03s. The run used a
+      dedicated temporary directory under /tmp.
+  - command: >-
+      PYTHONPATH=<reviewed-or-base-src> TERM=dumb .venv/bin/python -m coga.cli validate --json
+    status: passed
+    head: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+    base: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.12.12. Ran against the same checkout using
+      each revision's source. Both exited zero with the same 82 issue
+      records, with zero added and zero removed.
+  - command: git diff --check 0aaa67fbbc54037ebf50d7c341df7fabf228a067...HEAD
+    status: passed
+    head: e649a9ce3b02dcc5dc67b14b7fbb2428a03c1ee3
+    base: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    detail: >-
+      No whitespace errors. An AST comparison confirmed all seven Python
+      changes are comments or docstrings. Changed Markdown frontmatter,
+      period template blackboard and new relative link targets also checked.
+```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-25 18:00] [agent:codex] id=20261125T180053 Land fix-stale-doc-references-left-by-the-plain-git-mig first, or publish its reconciled branch as this ticket's PR base. The recorded sweep-orphan base is local-only and does not contain fix-stale. Reconcile this branch and refresh peer review once the intended base is available.

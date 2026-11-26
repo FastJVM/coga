@@ -1,7 +1,7 @@
 ---
 title: Stop the shipped bootstrap-import skill presenting Coga's own skills as the
   user's repo
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -29,7 +29,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (open-branch)
+step: 4 (push-and-open-pr)
+agent: claude
 ---
 
 ## Description
@@ -125,5 +126,86 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+branch: coga/stop-the-shipped-bootstrap-import-skill-presenti-4704ec
+base: coga/restore-coga-init-contracts-and-a-delete-topic-t-bb5902
+remote: origin
+reviewed: ff3f1188176012f08d4107ca7a86c5298ac84406
+
+## Implement notes
+
+- Chose "rewrite as generic examples" over a coga-dev topic: the four spots
+  only needed an illustration, and the inline `include` JSON snippet carries
+  what `coga/skills/clarity/.coga-source.json` used to point at.
+- Remaining "this repo" phrases (decision checklist, reject criteria,
+  adaptation-notes example) address the reader's repo generically; kept.
+- Out of scope, possible follow-up: the shipped dream skills
+  `bootstrap/dream/scan/contract-audit/SKILL.md` l.54-56 and
+  `bootstrap/dream/scan/knowledge-scan/SKILL.md` l.87-91 also cite
+  `coga/skills/clarity/` and `google-agents-cli-*`. Those read as Coga-repo
+  scan targets, not as claims about an adopter's checkout, so not touched.
+
+## Publication handoff
+
+- The recorded stacked base is the parent of the reviewed change at `b4205a08f`.
+  After fetching `origin`, that base still exists only locally. The PR step
+  needs the base on `origin`.
+- The checkout already had unstaged changes in the audit log and seven task
+  files, including this ticket. The PR script requires the other task files
+  to be reconciled before publication. Their changes are preserved.
+
+## PR
+
+```yaml
+title: Stop the shipped bootstrap-import skill presenting Coga's own skills as the user's repo
+author: claude
+author_evidence: >-
+  The implement session ran on Claude Opus 5.5 (claude-opus-5-5).
+head: ff3f1188176012f08d4107ca7a86c5298ac84406
+base: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+depth: skim
+rationale: >-
+  A documentation-only change to one shipped skill. It replaces four
+  Coga-repo-specific examples with placeholders and leaves the behavior
+  descriptions unchanged.
+implementation: >-
+  The gh-managed pack example now uses coga/skills/example-cli-*/. The
+  clarity worked example becomes an inline include and
+  local_adaptation_notes snippet. The flat-import examples use
+  name example-skill, and the namespaced authored example uses
+  coga/skills/docs/write-guide/. The claim about what every import in
+  this repo is has been removed.
+deviations: >-
+  None. The ticket allowed generic examples or a coga-dev topic, and
+  generic examples were chosen.
+limitations: >-
+  Native Windows and macOS verification is deferred to release. The Linux
+  suite ran on Python 3.12.12. The dream scan skills still cite Coga's own
+  skills, which is out of scope and noted on the blackboard.
+files:
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md: "Replace Coga-repo-only skill paths with generic examples."
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: ff3f1188176012f08d4107ca7a86c5298ac84406
+  base: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+  detail: >-
+    Codex manually reviewed the full diff against the recorded stacked base
+    and checked the shipped skill against coga/skill-management, the skill
+    resolver, and the import implementation. All four examples apply to an
+    adopting repo and no findings remain. Claude implemented the change in a
+    separate session, with no reviewer overlap.
+checks:
+  - command: 'PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_packaging.py tests/test_skill_manager.py'
+    status: passed
+    head: ff3f1188176012f08d4107ca7a86c5298ac84406
+    base: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+    detail: "176 passed in 12.64s on Pop!_OS 24.04 LTS (Linux), Python 3.12.12."
+  - command: 'PYTHONPATH="$PWD/src" .venv/bin/python -m pytest'
+    status: passed
+    head: ff3f1188176012f08d4107ca7a86c5298ac84406
+    base: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+    detail: "3258 passed, 30 skipped in 179.56s on Pop!_OS 24.04 LTS (Linux), Python 3.12.12."
+```

@@ -244,6 +244,9 @@ checks:
 
 - [ ] [2026-11-23 17:51] [agent:codex] id=20261123T175127 Publish the recorded base branch coga/fix-stale-doc-references-left-by-the-plain-git-m-bc5100 from fix-stale-doc-references-left-by-the-plain-git-mig to origin so the reviewed assembler documentation PR can open.
 
+- [ ] [2026-11-25 16:39] [agent:codex] id=20261125T163927 Confirm whether to move only the two reviewed assembler commits onto current main and reverify, or publish the recorded base coga/fix-stale-doc-references-left-by-the-plain-git-m-bc5100 from fix-stale-doc-references-left-by-the-plain-git-mig to origin. PR #1279 has merged, the assembler diff applies cleanly to main, and the recorded base is still absent from origin.
+
+
 ---
 
 ## Blocker reminders

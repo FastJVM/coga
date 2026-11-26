@@ -1,6 +1,6 @@
 ---
 title: Restore coga-init contracts and a delete topic that siblings cite
-status: draft
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (open-branch)
+step: 3 (peer-review)
+agent: claude
 ---
 
 ## Description
@@ -128,5 +129,107 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+branch: coga/restore-coga-init-contracts-and-a-delete-topic-t-bb5902
+base: coga/decide-whether-coga-retire-runs-retro-on-cancele-a1e2ec
+remote: origin
+reviewed: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+
+## Review notes
+
+- `coga/init` owns the fresh and clone init contracts. Checked the scan, table
+  rewrite, local identity and contexts relocation against `commands/init.py`,
+  `config.py` and agent launch preflight. The docs describe the current
+  standalone init and its failure remedies.
+- `coga/tickets/discovery` owns deletion. The top-level command and registered
+  recipe use the same helper. Corrected the delete and Retro skills to point
+  at the local deletion contract and record publication as a separate Git step.
+- Checked all six init citers, the reciprocal layout and migration links, and
+  the delete links. Fourteen links resolve to the intended files and headings.
+- An exploratory Python 3.11 suite run exposed a pre-existing failure in
+  `test_layout_context_artifact_symlink_rejected`. Python 3.11.15 omits the
+  dangling `SKILL.md` from `Path.rglob`, while Python 3.12.12 enumerates it.
+  The config code and test match the recorded base. An earlier Python 3.12
+  full run reproduced the documented POSIX supervisor timing failure. Its
+  isolated rerun on the final head passed.
+- After `git fetch origin`, the recorded base was the local commit
+  `ecde357318bf3b5e9bf9633e3d35e705f21737a8` on
+  `coga/decide-whether-coga-retire-runs-retro-on-cancele-a1e2ec`. `git ls-remote`
+  confirmed no remote branch with that name. Its task
+  `decide-whether-coga-retire-runs-retro-on-canceled` is blocked. The publisher
+  requires a remote base and also refuses the five unrelated unstaged ticket
+  edits in this checkout. Those edits are preserved.
+
+## PR
+
+```yaml
+title: Restore coga-init contracts and a delete topic that siblings cite
+author: claude
+author_evidence: >-
+  The implementation session ran on Claude Opus 5.5 (claude-opus-5-5).
+  Codex authored the documentation and assertion corrections during peer review.
+head: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+base: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+depth: skim
+rationale: >-
+  The change restores documentation contracts and updates one content
+  assertion. Peer review checked the contracts against the implementation
+  and followed each citation.
+implementation: >-
+  coga/init owns the agent CLI scan, agent table selection, missing CLI remedy,
+  local identity and contexts relocation, and links the migration procedure.
+  The CLI index routes delete to coga/tickets/discovery, which documents both
+  entry points and their local working-tree effects.
+deviations: >-
+  Peer review updated the agent configuration summary and the delete and
+  Retro skills to align with the owning topics. It refreshed the existing
+  Retro content assertion to check the reference-pin PR rule directly.
+limitations: >-
+  Native Windows and macOS verification is deferred to release. The full Linux
+  suite was run on Python 3.12.12. A baseline Python 3.11 issue with discovering
+  dangling context symlinks is recorded in the review notes.
+files:
+  docs/contexts/coga-dev/internals/agent-config/SKILL.md: "Point to the agent scan contract in coga/init."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: "Route delete to the new section."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: "Restore agent CLI, user, contexts-root and migration guidance."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: "Mention coga delete in the discovery leaf."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md: "Describe local deletion and Git recovery."
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/delete-task/SKILL.md: "Use the canonical delete topic for command semantics."
+  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: "Distinguish local deletion from the enclosing Git publication step."
+  tests/test_retro_skill_template.py: "Keep the content check for the reference-pin PR route."
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+  base: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+  detail: >-
+    Codex reviewed the full diff against the recorded ticket base and checked
+    init and both delete entry points against their code and callers. Codex
+    did not participate in implementation and reviewed its own peer-review
+    corrections. The focused and full Linux runs passed on the final head.
+    No in-scope findings remain.
+checks:
+  - command: >-
+      TMPDIR="$review_tmp" PYTHONPATH="$PWD/src" TERM=dumb PIP_DISABLE_PIP_VERSION_CHECK=1
+      .venv/peer-review.wT1qVC/venv/bin/python -m pytest -q tests/test_packaging.py
+      tests/test_layout_contexts.py tests/test_retro_skill_template.py --basetemp="$review_tmp/pytest"
+    status: passed
+    head: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+    base: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+    detail: "Pop!_OS 24.04 LTS (Linux), Python 3.11.15. 73 passed in 12.69s."
+  - command: >-
+      TMPDIR="$review_tmp" PYTHONPATH="$PWD/src" TERM=dumb PIP_DISABLE_PIP_VERSION_CHECK=1
+      .venv/bin/python -m pytest -q --basetemp="$review_tmp/pytest"
+    status: passed
+    head: b4205a08f3f5254f6e26a1f9db7ef3c1f1a6c704
+    base: ecde357318bf3b5e9bf9633e3d35e705f21737a8
+    detail: "Pop!_OS 24.04 LTS (Linux), Python 3.12.12. 3258 passed, 30 skipped in 180.93s."
+```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-25 18:30] [agent:codex] id=20261125T183024 Resolve decide-whether-coga-retire-runs-retro-on-canceled so the recorded PR base is available on origin, or approve retargeting this change. Reconcile the five unrelated unstaged ticket edits before publication.

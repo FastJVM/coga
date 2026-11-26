@@ -1,6 +1,6 @@
 ---
 title: Sweep orphan tmp trees that contain read-only directories
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (open-branch)
+step: 4 (push-and-open-pr)
+agent: claude
 ---
 
 ## Description
@@ -132,5 +133,129 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+branch: coga/sweep-orphan-tmp-trees-that-contain-read-only-di-c1cc7a
+base: coga/report-an-unknown-or-directory-workflow-name-wit-41c8d8
+remote: origin
+reviewed: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+
+## Implement notes
+
+Most of the ticket had already landed on main before this branch opened:
+
+- Permission retry: c771516f2 + d5e09df4c. `run_state._remove_tree` retries
+  once after `_make_owner_writable` grants owner rwx on directories (files
+  only on Windows), skipping symlinks, so a hard-linked or linked-to file
+  outside the area keeps its mode. Covered by
+  `test_sweep_removes_read_only_orphans_without_touching_link_targets` and
+  `test_purge_keeps_modes_of_hard_linked_files_outside_the_area`.
+- Packaging root cause (c771516f2): `test_installed_wheel_init_and_phone_home_are_isolated`
+  strips write bits from the installed `coga/resources/` to prove the package
+  stays read-only. Its script then `copytree`s `bootstrap/recurring-promote`
+  into the project as a fork, and copytree carries directory modes
+  (copy_function only covers file contents), so the fork in `tmp_path` was
+  `dr-xr-xr-x`. The test now chmods the fork's directories to 0755. After a
+  full suite run in this launch, `find "$TMPDIR" -type d ! -perm -u+w` → 0.
+
+This branch adds what was still missing:
+
+- `run_state._summarize`: one line per area (first failure + "(and N more)")
+  for the launch purge warning and each `sweep_orphans` failure. Sweep
+  failures feed launch warnings and validate's `orphan-tmp` issues, so both
+  now give one line per area.
+- Tests: `test_validate_fix_removes_read_only_orphans` (validate's
+  `orphan-tmp` fix) and `test_unremovable_orphan_reports_one_failure_per_area`
+  (fails on the old per-problem output; checked by stashing the src change).
+- `coga/launch` topic: sweep failure paragraph now states the per-area line.
+
+## Peer review notes
+
+- The first diff left two warnings in `validate --fix` when a failed area
+  was still old enough to be rediscovered after the sweep retired its lock.
+  The correction uses the sweep's warning in fix mode and escapes line
+  breaks in cleanup diagnostics.
+- The permission retry now skips Windows junctions alongside symlinks. A
+  native test covers the junction target's file mode.
+- Fetched `origin` and reviewed against the recorded stacked base,
+  `7b1aa74f11c6c182fca335b2d405c095f50f6a26`. The base ticket
+  `report-an-unknown-or-directory-workflow-name-witho` is at its PR step and
+  its branch is still local. Publication also requires reconciling the
+  pending state edits for that ticket and
+  `move-the-assembler-trial-evidence-out-of-the-shipp`.
+
+## PR
+
+```yaml
+title: Report each failed launch tmp cleanup once
+author: claude
+author_evidence: >-
+  Claude Code (Claude Opus 5.5) authored the original change in launch
+  1a4a5a62-88cd-4e1b-b407-971254e8f3ed. Codex authored the review
+  corrections in 0aaa67fbbc54037ebf50d7c341df7fabf228a067.
+head: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+base: 7b1aa74f11c6c182fca335b2d405c095f50f6a26
+depth: skim
+rationale: >-
+  The change affects cleanup diagnostics and junction handling. The Linux
+  full suite and verification of the Python 3.11 retry path passed.
+implementation: >-
+  Report the first remaining failure and a count of additional failures
+  for each tmp area. Escape line breaks in diagnostics, use the sweep
+  result for orphan-tmp warnings in validate fix mode, and skip junctions
+  when granting write access. Cover read-only orphans and failed repairs
+  with regression tests.
+deviations: >-
+  The review uses the recorded stacked base branch. The core permission
+  retry and installed-wheel fixture repair landed on main in c771516f2 and
+  d5e09df4c.
+limitations: >-
+  Native Windows and macOS verification is deferred to release, including
+  the Windows junction regression. Publication depends on the stacked
+  base and reconciliation of the unrelated task state in the checkout.
+files:
+  src/coga/run_state.py: "Summarize each failed purge or sweep on one line and skip Windows junctions during permission repair."
+  src/coga/validate.py: "Use the sweep result as the source of orphan warnings in fix mode."
+  tests/test_run_state.py: "Exercise read-only cleanup, one-line failures in sweep and validation, and a Windows junction target."
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: "Document cleanup diagnostics and junction handling."
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+  base: 7b1aa74f11c6c182fca335b2d405c095f50f6a26
+  detail: >-
+    Codex independently inspected Claude's stacked diff in launch
+    b52fa35d-ba2c-40e8-bc16-b538bb1c5536 and traced launch purge, orphan
+    sweep, and both validation modes. Codex made and self-reviewed the
+    corrections above, reviewed the resulting full diff, and found no
+    remaining must-fix issues.
+checks:
+  - command: 'TMPDIR=/tmp/coga-orphan-review.yfpiYYCE/py312 PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q'
+    status: passed
+    head: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    base: 7b1aa74f11c6c182fca335b2d405c095f50f6a26
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. 3257 passed, 30 skipped in 193.50s."
+  - command: >-
+      TMPDIR=/tmp/coga-orphan-review.yfpiYYCE/py311 PYTHONPATH=$PWD/src
+      /tmp/coga-orphan-review.yfpiYYCE/venv311/bin/python -m pytest -q
+      tests/test_run_state.py
+      tests/test_packaging.py::test_installed_wheel_init_and_phone_home_are_isolated
+    status: passed
+    head: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    base: 7b1aa74f11c6c182fca335b2d405c095f50f6a26
+    detail: "Pop!_OS 24.04 LTS, Python 3.11.15. 35 passed, 1 Windows-only test skipped in 5.75s."
+  - command: 'PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --json > /tmp/coga-orphan-review.yfpiYYCE/validate.json'
+    status: passed
+    head: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    base: 7b1aa74f11c6c182fca335b2d405c095f50f6a26
+    detail: "Pop!_OS 24.04 LTS, Python 3.12.12. Exit 0 with 0 errors and 82 warnings."
+  - command: 'env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --fix --json'
+    status: passed
+    head: 0aaa67fbbc54037ebf50d7c341df7fabf228a067
+    base: 7b1aa74f11c6c182fca335b2d405c095f50f6a26
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.12.12. In a disposable fixture with launch
+      variables cleared, exit 0 removed one read-only tmp area and reported
+      one warning for the orphan symlink. Its target file remained intact.
+```
