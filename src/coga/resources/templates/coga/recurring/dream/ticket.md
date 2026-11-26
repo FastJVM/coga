@@ -288,7 +288,8 @@ Dream: leave the ticket and its `## Dev` evidence on disk so the exact
 human-typed `coga retire <slug>` command remains valid. That command disposes
 of the checkout and deletes the done ticket without a retro agent. A canceled
 ticket is retirement debt too: Phase 4 never takes it, and `coga retire <slug>`
-runs Retro on it for its cancellation reason and other negative learning. List
+launches a review task (not Retro) that moves its lasting knowledge to the
+owning topic or files follow-ups before deleting it. List
 both kinds as deferred retirement debt in the run summary. After retirement
 removes the source ticket, the ordinary existence gate makes it disappear from
 Dream's candidate set.
@@ -629,7 +630,8 @@ Route each remaining Phase 2 and Phase 3 finding by class:
   - `canceled` — the source ticket is retirement debt, deliberately left on
     disk so the human-typed `coga retire <slug>` stays valid. That ticket
     is the durable artifact and retirement is its consumer: `coga retire`
-    runs Retro over the ticket and extracts what this finding saw. Open no PR
+    launches a review task (not Retro) that reads the ticket and moves what
+    this finding saw to its canonical topic. Open no PR
     and file no carrier ticket — a second copy decays while the source stays
     fresh. Instead, list the finding under the run summary's retirement-debt
     section with its slug, area, and one-line summary, so the human can order

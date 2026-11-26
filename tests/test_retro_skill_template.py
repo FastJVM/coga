@@ -99,3 +99,32 @@ def test_retro_reference_pin_route_has_no_markers_or_shared_run_branch() -> None
     assert "its Source omits the Markers bullet (there are no markers)" in norm
     assert "direct-deleted tickets and any reference-pin PR" in norm
     assert "otherwise it leaves in the reference-pin PR" in norm
+
+
+def test_no_surface_promises_retro_for_a_canceled_ticket() -> None:
+    """`coga retire` reviews a canceled ticket with the generic `retire.md`
+    task; it never delegates to `retro/done-ticket`. Every surface that
+    describes canceled-ticket retirement must say the same."""
+    bootstrap = RETRO_SKILL.parents[3]
+    resources = RETRO_SKILL.parents[6]
+    retire_md = (resources / "retire.md").read_text(encoding="utf-8")
+    assert "retro" not in retire_md.lower()
+
+    retro_norm = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
+    assert "Retro never takes a canceled ticket." in retro_norm
+    assert "one canceled ticket `coga retire` passes" not in retro_norm
+    assert "`status: canceled` when `coga retire` passed" not in retro_norm
+
+    retire_py = (bootstrap / "retire" / "ticket.py").read_text(encoding="utf-8")
+    assert "run Retro on a canceled one" not in retire_py
+    assert "It does not run Retro" in retire_py
+
+    for path in (
+        bootstrap / "skills" / "bootstrap" / "dream" / "scan" / "knowledge-scan" / "SKILL.md",
+        bootstrap.parent / "recurring" / "dream" / "ticket.md",
+        bootstrap / "contexts" / "coga" / "extension-model" / "SKILL.md",
+    ):
+        norm = " ".join(path.read_text(encoding="utf-8").split())
+        assert "runs Retro on it" not in norm, path
+        assert "runs Retro over the ticket" not in norm, path
+        assert "the retro is multi-step" not in norm, path

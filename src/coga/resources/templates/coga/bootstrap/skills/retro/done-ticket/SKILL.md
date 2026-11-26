@@ -1,6 +1,6 @@
 ---
 name: retro/done-ticket
-description: Extract durable knowledge from every eligible done ticket in a single Dream run, or from one canceled ticket `coga retire` passes, into Coga contexts or skills. A ticket that yields durable knowledge is deleted in its theme's reviewable knowledge PR; a ticket with no durable knowledge leaves through a reference-pin PR when durable references need repointing, otherwise through direct `coga delete`, with no marker.
+description: Extract durable knowledge from every eligible done ticket in a single Dream run into Coga contexts or skills. A ticket that yields durable knowledge is deleted in its theme's reviewable knowledge PR; a ticket with no durable knowledge leaves through a reference-pin PR when durable references need repointing, otherwise through direct `coga delete`, with no marker.
 ---
 
 # Retro Done Ticket
@@ -75,8 +75,7 @@ checkout.
   distinct from the caller's checkout, the caller did not supply a complete
   evidence snapshot and caller repo root, the isolated checkout lacks a valid
   machine-local config copy, any slug is ambiguous, any task is not
-  `status: done` (or `status: canceled` when `coga retire` passed that one
-  slug; see **Canceled tickets**), any required evidence file is missing, a single coherent
+  `status: done` (see **Canceled tickets**), any required evidence file is missing, a single coherent
   theme still exceeds the per-PR hard limits, or the diff would touch anything
   outside the allowed files or the exact source task directories.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
@@ -158,7 +157,7 @@ routes it to the repo's `coga/upstream-coga.md` for the Coga source repo to
 sweep. Everything else the same ticket teaches is extracted as usual, so a
 ticket holding one local fact and one Coga-owned fact contributes the local
 fact and is deleted like any other processed done ticket. Without the mark
-(every run in the Coga source repo, and every `coga retire`), nothing changes.
+(every run in the Coga source repo), nothing changes.
 
 ### Unresolved adjacent bugs
 
@@ -219,19 +218,12 @@ never as unshipped scope, a local context edit, or a knowledge PR.
 
 ### Canceled tickets
 
-`coga retire` runs Retro on one canceled ticket; it never sends a done one,
-because a done ticket's positive learning already landed in its merged PR.
-A canceled ticket's learning is negative, and nothing landed it. Read the
-cancellation reason (the `canceled` line for the slug in `coga/log.md`, which
-`coga mark canceled --message` requires) and the body and blackboard, and
-extract only what a later ticket would need: what was tried and did not work,
-a gotcha or measured limit found along the way, or an owner decision *not* to
-act — what was declined, why, and what would reopen it — when the topic owning
-that subject does not already state it (`coga/knowledge` owns where it lands).
-The abandoned design itself is not durable knowledge. A canceled ticket
-claimed nothing shipped, so **Done is a status, not a receipt** does not apply.
-Everything else — deduplication, theme PRs, the direct delete when nothing
-durable remains — is unchanged.
+Retro never takes a canceled ticket. `coga retire <slug>` handles one with
+its own review task (the `retire.md` resource): that agent moves lasting
+knowledge to its canonical topic or files follow-ups, then runs
+`coga delete`. An owner decision *not* to act belongs in the topic that owns
+the subject, written before or with the cancel (`coga/lifecycle`,
+`coga/knowledge`). Stop and ask if a caller passes a canceled slug.
 
 ### Inbound references
 
@@ -435,8 +427,8 @@ delegation prompt must also carry the caller's absolute repo root and the
 absolute read-only evidence-snapshot path at `<run-dir>/evidence/`, with its
 writable sibling `<run-dir>/progress.md`. Work from the isolated repo root.
 Resolve each slug to its actual task path; tasks may be single files or
-directories at any depth under `coga/tasks/`. `coga retire <slug>` passes one
-canceled slug (it deletes a done ticket itself, without Retro). Dream passes every eligible done ticket in one run; the skill partitions
+directories at any depth under `coga/tasks/`. `coga retire <slug>` never passes a slug: it deletes a done
+ticket itself and reviews a canceled one with its own task. Dream passes every eligible done ticket in one run; the skill partitions
 them into coherent PR batches itself.
 
 Required files:
@@ -458,8 +450,7 @@ python -c "from importlib.resources import files; print(files('coga.resources').
 
 Stop and ask if the isolated-checkout preflight or machine-local config setup
 fails, the caller root or snapshot path is missing, any task slug is ambiguous,
-any snapshot task is not `status: done` (a single canceled slug from
-`coga retire` is the one exception), any required evidence file is missing,
+any snapshot task is not `status: done`, any required evidence file is missing,
 a selected source task does not exist in the isolated base (an uncommitted-only
 task cannot be deleted durably), a single coherent theme cannot be kept within
 the per-PR hard limits, or there is already an open PR adding a `## Retro`

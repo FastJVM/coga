@@ -1,4 +1,4 @@
-"""`coga retire` — dispose of a finished task: delete a done one, retro a canceled one.
+"""`coga retire` — dispose of a finished task: delete a done one, review a canceled one.
 
 The script half of the stateless `bootstrap/retire` command ticket, reached by
 the default `retire = "launch bootstrap/retire --"` alias. Launch runs it with
@@ -45,15 +45,15 @@ def retire(
         help="Canceled tickets only: create the retire task but do not launch it.",
     ),
 ) -> None:
-    """Wrap up a finished task: delete a done one, run Retro on a canceled one.
+    """Wrap up a finished task: delete a done one, review a canceled one.
 
     A `done` ticket is deleted locally through `coga delete`.
 
-    For a `canceled` ticket, retire creates a one-shot task that invokes
-    the `retro/done-ticket` skill. Retro opens a PR when it extracts durable
-    knowledge. That PR records `## Retro`, updates the knowledge base and
-    deletes the source ticket. If there is no new durable knowledge,
-    Retro deletes the ticket locally through `coga delete`.
+    For a `canceled` ticket, retire creates and launches a one-shot
+    `retire-<slug>` task whose body is the `retire.md` resource. That agent
+    reviews the ticket, moves lasting knowledge to its canonical topic or
+    files follow-ups, records the disposition, and then removes the source
+    through `coga delete`. It does not run Retro (`retro/done-ticket`).
     """
     if os.environ.get("COGA_SCRIPT_HELP") == "1":
         raise typer.Exit(2)
