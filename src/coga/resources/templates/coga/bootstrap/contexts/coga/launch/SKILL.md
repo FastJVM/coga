@@ -147,8 +147,10 @@ read-only content a tool left in the area (a copied package tree, a Go
 module cache): on a permission error they grant the owner write access
 to directories inside the area (and, on Windows, to files), never through a
 symlink and never changing a POSIX file's mode, and retry once. A removal it
-cannot complete warns once on stderr and
-leaves the rest for the sweep; it never fails the launch. On POSIX a file a
+cannot complete gives one line per area, naming the first failure and how
+many more remain: a purge warns on stderr and leaves the rest for the sweep,
+and a sweep warns at launch or reports one `orphan-tmp` warning under
+`coga validate --fix`. Neither fails the launch. On POSIX a file a
 background process still holds open is unlinked but keeps its disk space
 until that process exits.
 

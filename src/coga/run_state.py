@@ -200,7 +200,7 @@ def launch_tmp_scope(cfg: Config, *, sweep: bool = True) -> Iterator[TmpScope]:
             lock_problems = _retire_lock(fd, lock_path)
         problems.extend(lock_problems)
         if problems:
-            _warn(f"could not fully remove launch tmp {path}: {', '.join(problems)}")
+            _warn(f"could not fully remove launch tmp {path}: {_summarize(problems)}")
 
 
 def _create_locked_token(root: Path) -> tuple[int, str]:
@@ -273,6 +273,13 @@ def _remove_tree(path: Path) -> list[str]:
         _make_owner_writable(path)
         rmtree()
     return problems
+
+
+def _summarize(problems: list[str]) -> str:
+    """One line per tmp area: the first failure plus how many others remain."""
+    if len(problems) == 1:
+        return problems[0]
+    return f"{problems[0]} (and {len(problems) - 1} more)"
 
 
 def _make_owner_writable(root: Path) -> None:
@@ -423,8 +430,8 @@ def sweep_orphans(cfg: Config) -> SweepResult:
             lock_problems = _retire_lock(fd, orphan.lock_path)
         problems.extend(lock_problems)
         if problems:
-            result.failures.extend(
-                f"could not remove orphan tmp {orphan.path}: {p}" for p in problems
+            result.failures.append(
+                f"could not remove orphan tmp {orphan.path}: {_summarize(problems)}"
             )
         else:
             result.removed.append(orphan)

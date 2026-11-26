@@ -223,6 +223,35 @@ def test_sweep_removes_read_only_orphans_without_touching_link_targets(
         outside.chmod(0o755)
 
 
+def test_validate_fix_removes_read_only_orphans(repo: Path) -> None:
+    cfg = load_config(repo)
+    orphan = _orphan(repo / ".coga" / "tmp", "aaaaaaaa")
+    _read_only_tree(orphan)
+    fixed = validate_run(cfg, fix=True)
+    assert [f.path for f in fixed.fixes if f.kind == "orphan-tmp"] == [str(orphan)]
+    assert not any(i.kind == "orphan-tmp" for i in fixed.issues)
+    assert not orphan.exists()
+
+
+def test_unremovable_orphan_reports_one_failure_per_area(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = repo / ".coga" / "tmp"
+    _orphan(root, "aaaaaaaa")
+    _orphan(root, "bbbbbbbb")
+    monkeypatch.setattr(
+        run_state, "_remove_tree",
+        lambda path: [f"{path}/{name}: denied" for name in ("a", "b", "c")],
+    )
+    failures = run_state.sweep_orphans(load_config(repo)).failures
+    assert len(failures) == 2
+    for token, failure in zip(("aaaaaaaa", "bbbbbbbb"), sorted(failures)):
+        assert failure == (
+            f"could not remove orphan tmp {root / token}: "
+            f"{root / token}/a: denied (and 2 more)"
+        )
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX inode permissions")
 def test_purge_keeps_modes_of_hard_linked_files_outside_the_area(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
