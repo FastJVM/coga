@@ -19,8 +19,8 @@ ticket carries it.
 ## Leaves
 
 - [coga/tickets/discovery](discovery/SKILL.md) — where tasks live, file
-  versus directory form, parked and group directories, task refs, and
-  finding a retired task in Git.
+  versus directory form, parked and group directories, task refs,
+  finding a retired task in Git, and `coga delete`.
 - [coga/tickets/authoring](authoring/SKILL.md) — `coga create`, the guided
   `coga ticket` interview and its authoring agent, and `coga show`.
 

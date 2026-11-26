@@ -1,6 +1,6 @@
 ---
 name: coga/tickets/discovery
-description: Where tickets live and how they are named — task discovery, file versus directory form, parked and group directories, task refs, finding a retired task in Git, and the reserved `ticket.py` sibling.
+description: Where tickets live and how they are named — task discovery, file versus directory form, parked and group directories, task refs, finding a retired task in Git, the reserved `ticket.py` sibling, and deleting a task with `coga delete`.
 ---
 
 # Where tasks live and how they are named
@@ -71,3 +71,15 @@ tasks kept the blackboard in a sibling `blackboard.md`; read it the same way.
 A directory-form task may reserve the exact sibling `ticket.py` as its
 deterministic phase ([coga/script-tickets](../../script-tickets/SKILL.md)); no
 other attachment changes dispatch. Attachments are never composed.
+
+## Deleting a task
+
+`coga delete <ref>` (and the `delete-task` recipe, `coga run delete-task
+<ref>`) resolves the ref like any other command, then removes only that task
+from the working tree: the `<slug>.md` file for file form, or the task
+directory with its attachments for directory form. It never touches a parent
+group directory, needs no status, and does not stage, commit or log anything;
+commit the deletion with Git when it should travel. Check the resolved task
+first. A committed ticket comes back with `git restore`; an uncommitted one is
+gone. Use it to drop a split original or a ticket that carried nothing
+durable; `coga retire` is the path for `done` or `canceled` work.

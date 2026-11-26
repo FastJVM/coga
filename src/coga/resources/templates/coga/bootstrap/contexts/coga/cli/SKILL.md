@@ -32,7 +32,7 @@ output. State files use UTF-8 and LF.
 | `status` → `launch --read-only bootstrap/status --` | [report ticket](../../../status/ticket.md) |
 | `owner` | [coga/tickets](../tickets/SKILL.md#owner-and-relationships) |
 | `mark`, `bump`, `block`, `unblock` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
-| `delete` | [coga/tickets](../tickets/SKILL.md) |
+| `delete` | [coga/tickets/discovery](../tickets/discovery/SKILL.md#deleting-a-task) |
 | `promote-recurring` → `launch bootstrap/recurring-promote --` | packaged `bootstrap/recurring-promote/ticket.md` |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
 | `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [coga/git](../git/SKILL.md) |
