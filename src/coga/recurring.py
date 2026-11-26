@@ -956,8 +956,6 @@ class DueScan:
     tasks: list[DueTask]
     errors: list[tuple[str, str]]  # (template_filename, error_message)
     # Target-bounded ledger state captured before this scan creates anything.
-    # The runner may reuse it as control's pinned pre-publication snapshot when
-    # its immediately preceding control-branch catch-up succeeded.
     ledger_periods: dict[str, str] = field(default_factory=dict, repr=False)
     ledger_errors: dict[str, str] = field(default_factory=dict, repr=False)
     period_targets: dict[str, str] = field(default_factory=dict, repr=False)
@@ -1110,9 +1108,8 @@ def scan_due(
     )
     ledger = read_serviced_ledger(cfg, period_targets)
     # `_advance_serviced_period` mutates `ledger.periods` in place as this scan
-    # creates tasks. Preserve the pre-create view separately: after a successful
-    # control catch-up it is the one snapshot the runner must pin before any
-    # template publishes its new shared-log line.
+    # creates tasks. Preserve the pre-create view separately so the result
+    # reports the ledger as the scan found it.
     ledger_periods_before_scan = dict(ledger.periods)
     ledger_errors_before_scan = dict(ledger.errors)
     serviced = ledger.periods
@@ -1327,7 +1324,7 @@ def _pause_origins(cfg: Config, refs: set[str]) -> dict[str, tuple[str, str]]:
     (`PAUSE_SWEEP`); a human or unidentifiable pause is absent. Reuse the
     durable audit actor instead of inventing another status or duplicating
     lifecycle state in the blackboard. Audit timestamps win over file order
-    because cross-checkout publication may append older events after newer ones; same-minute
+    because a merged log may hold older events after newer ones; same-minute
     ties follow append order. A newer creation clears old-period provenance at
     the stable task path. Other events (an `unblocked` that leaves the period
     paused) do not change who paused it. No paused periods means no log read.
@@ -2155,7 +2152,7 @@ def _period_bucket(cron: str, fire_time: datetime) -> str:
 # that, and every `coga recurring` then re-fired an already-serviced period
 # and reposted its result. An appended
 # line cannot be clobbered that way, it outlives the period task (Dream reaps
-# those), and its high-water evidence survives event-aware publication and retention.
+# those), and its high-water evidence survives log merges and retention.
 #
 # Because dedup now depends on this wording, the format has one writer and one
 # reader, both here. Changing it breaks `test_recurring.py`'s format pin rather

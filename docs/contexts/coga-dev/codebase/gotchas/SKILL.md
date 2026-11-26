@@ -18,16 +18,18 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
 - **Activation splits at `prepare_active` / `mark_active`.** `prepare_active`
   validates, freezes the workflow ref, selects the main agent, re-derives the
   operator, and mutates an in-memory copy without writing. `mark_active`
-  writes, validates, audits, and optionally syncs. `megalaunch._PREPARE_ACTIVE_ERRORS`
+  validates that copy, writes it, and audits it. `coga_edge.megalaunch` imports
+  `mark.PREPARE_ACTIVE_ERRORS`, which
   encodes the division: `WorkflowMissing`, `WorkflowError`,
   `RequiredExtensionMissing`, `BlackboardNeedsSynthesis`,
   `MainAgentUnavailable`, and `RepoResourceUnreadable` refuse before any
   byte is written;
-  `TaskValidationError` comes from the post-write `assert_task_valid`.
+  `TaskValidationError` comes from `mark_active`'s `assert_task_valid`, which
+  checks the prospective ticket before anything is written.
   Megalaunch prepares on a throwaway copy (`_prepare_for_launch`), preflights
   prompt, env, and agent there, commits only after every refusal passes, and
   refuses if the ticket bytes moved. The dependency-drain call site activates
-  before resolving blockers on purpose, so both land in one publication; see
+  before resolving blockers on purpose; see
   [coga/megalaunch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md).
 - **Blackboard writers are fence-aware.** Persist state below
   `<!-- coga:blackboard -->` only through `taskfile.read_blackboard` /
@@ -55,22 +57,24 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   operator to fix, which is safe only for checks keyed off ticket content. A
   check that can fail on configuration (such as `unresolvable-step-assignee`)
   must run against a prospective copy before writing: copy the `Ticket`,
-  apply the change, pass `ticket_override=...`, then write, log and sync.
-  `mark_done`, `mark_canceled`, bump's step advance, the assist freeze, and
-  `coga owner` do this; `mark_active`, `mark_in_progress`, `mark_blocked`,
-  and `mark_paused` still validate after writing. The shared finalizers live
+  apply the change, pass `ticket_override=...`, then write and log.
+  `mark_done`, `mark_canceled`, `mark_active`, `mark_in_progress`,
+  `mark_blocked`, `mark_paused`, bump's step advance, the assist freeze, and
+  `coga owner` do this; `create_task` does not. The shared finalizers live
   in `src/coga/mark.py`; `bump.REWINDABLE_STATUSES` holds the rewind set.
 - **Recipes report to the repo under test.** Pass the discovered root to
   `task_env.blackboard_from_env(coga_os_root)`; it refuses a blackboard
   outside that root's `tasks/` tree and fails closed to stdout.
-- **Shipped recipe-backed `ticket.py` shims go through the runner.** They call
-  `run_recipe(load_config(), "<name>", [])` rather than importing the recipe
-  function, so the recipe failure report applies;
-  `tests/test_recurring_shims.py` pins that shape. The other sanctioned shape is
-  a wheel-owned edge shim that runs a `coga_edge` module's `main` (phone-home:
-  `from coga_edge.phone_home import main`; blocker-reminders and skill-update:
-  `main([], scheduled=True)`, whose `runner.run_entry` reports and bumps) and has no
-  `RECIPES` entry; do not turn it into a registry entry ([coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
+- **Shipped recurring `ticket.py` shims are edge shims, not registry shims.**
+  Each imports its `coga_edge` module's `main` and calls it; none calls
+  `run_recipe`, and none has a `runner.RECIPES` entry. blackboard-size,
+  blocker-reminders and skill-update reach `runner.run_entry`, which reports
+  the run and then bumps a launched script task once. phone-home and trim-log
+  call `runner.run_reported` and bump their own step. Do not turn a shim into a
+  registry entry ([coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
+  `tests/test_recurring_shims.py` pins the import-and-call shape only for the
+  templates in `EDGE_SHIMMED_TEMPLATES` (blocker-reminders and skill-update)
+  and tests phone-home's failure report separately.
 - **`reminders.py` is only `run()` plus `SweepResult`** for downstream sweep
   scripts: it parses `--today` / `--tasks-dir` / `--dry-run`, prints the
   report, and posts alerts through `coga slack` by default (a `ticket.py` gets

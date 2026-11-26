@@ -35,8 +35,9 @@ What may be edited above the fence is owned by
 Match the section's regime; do not invent a fourth.
 
 - **Live state: rewrite in place.** One current value per named line. `## Dev`
-  (`branch:`, `worktree:`, `pr:`) is canonical; its shape is in
-  the ticket template's guide comment. Old values live in git.
+  holds the ticket Git record (`branch:`, `base:`, `remote:`, `reviewed:`,
+  `pr:`); [coga/git](../git/SKILL.md#ticket-git-record) owns its fields and
+  which step writes each. Old values live in git.
 - **Record: append, never delete.** `## Superseded designs` takes dated
   entries (shape [below](#superseded-designs);
   only an archive pointer composes). `## Blockers` takes one checkbox per ask;

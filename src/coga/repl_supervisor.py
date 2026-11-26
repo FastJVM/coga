@@ -131,12 +131,11 @@ def _state_label(state: tuple[str | None, str | None]) -> str:
     return status or "?"
 
 
-# A human-step assist may run from the recorded PR checkout itself. Launch
-# exports this capability only after proving that checkout is on the recorded
-# branch and aligned with its live remote tip. In-session state commands pair it
-# with EXPECTED_TASK_ENV, the exact recorded PR, and the effective launch agent
-# before publishing generated task/log commits back to that branch; nested
-# non-assist launches clear all three values at the spawn boundary.
+# The agent assisting on a human-held step. Launch exports it for audit
+# attribution only: `pr_assist.assist_session_from_env` honours it when it names
+# a configured agent and EXPECTED_TASK_ENV names the ticket being changed.
+# `task_env.apply_task_env` clears it at every launch's spawn boundary, and
+# only an assist launch sets it again.
 ASSIST_AGENT_ENV = "COGA_ASSIST_AGENT"
 
 # Grace period after SIGTERM before we escalate to SIGKILL. Claude Code and
@@ -660,9 +659,8 @@ def emit_done_marker(session_id: str | None = None) -> None:
     the legacy `"done"` sentinel.
 
     Inside `deferred_done_marker` (every command dispatched by `cli.main`)
-    the request is held and written only after the end-of-command boundary
-    — the state sweep and the unpublished-log warning — has returned, so
-    the supervisor never tears down a command still running Git.
+    the request is held and written only after the command has returned, so
+    the supervisor never tears down a command that is still writing.
     """
     marker = session_id or "done"
     deferred = _deferred_done.get()
@@ -700,13 +698,13 @@ _PENDING_INFIX = ".pending-"
 def deferred_done_marker() -> Iterator[None]:
     """Hold `emit_done_marker` until this block (the whole command) exits.
 
-    `cli.main` wraps dispatch *and* its end-of-command boundary in this, so
-    a session-ending command signals the supervisor only after its last Git
-    call — on a normal return, `SystemExit`, or any other exception. The
+    `cli.main` wraps command dispatch in this, so a session-ending command
+    signals the supervisor only after it has finished — on a normal return,
+    `SystemExit`, or any other exception. The
     last request wins. For the block's duration it also leaves
     `<sentinel>.pending-<pid>`, which keeps the supervisor's terminal-ticket
-    backstop (a published `done`/`canceled` ticket) from tearing the session
-    down while the command is still publishing. A file whose process has
+    backstop (a `done`/`canceled` ticket on disk) from tearing the session
+    down while the command is still running. A file whose process has
     exited is ignored, so a crashed command cannot disable the backstop.
     """
     requested: list[str] = []

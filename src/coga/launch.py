@@ -1141,10 +1141,9 @@ class _LaunchInvocation:
 
             _echo_launch_iteration(self.cfg, self.ref, self.ticket)
             spawn_ticket = self.ticket
-            # Delegation uses this only for its stateless single bootstrap
-            # session. An ordinary recurring period can chain agent-owned
-            # workflow steps, so refresh its teardown witness before every
-            # spawned child and retain the last generation actually launched.
+            # Only recurring delegation passes `before_final_spawn`
+            # (`launch_with_before_spawn`): it records the period start just
+            # before its single stateless bootstrap session spawns.
             session_before_spawn: Callable[[], None] | None = None
             if self.before_final_spawn is not None and (
                 is_first_step or self.recurring_authorized
@@ -1159,8 +1158,8 @@ class _LaunchInvocation:
                 session_before_spawn = invoke_final_spawn_guard
 
             # Freeze the pre-session `(status, step)` at the last boundary
-            # before the PTY spawn, after every start-state write (including an
-            # assist's lifecycle publication in the caller's guard), so the
+            # before the PTY spawn, after every start-state write (including a
+            # delegated period's start record in the caller's guard), so the
             # session's own activation can never read as an agent change.
             state_before_session: tuple[str | None, str | None] | None = None
 
@@ -1443,8 +1442,8 @@ def _prospective_activation_identity(
     before that classification.
 
     This runs on a copy and writes nothing. Activation and resolution refusals
-    are deliberately swallowed: the real `_prepare_auto_activate` (or the assist
-    publisher) still runs later and owns the operator-facing error, so this must
+    are deliberately swallowed: the real `_prepare_auto_activate` still runs
+    later and owns the operator-facing error, so this must
     not change which message a refused launch produces or when it appears.
     """
     def _current() -> tuple[Operator | None, dict | None]:
@@ -1793,7 +1792,7 @@ def require_representable_agent_command(agent, **kwargs) -> None:
 
 
 class AgentPreparationError(Exception):
-    """Readiness refusal before a caller publishes startup state."""
+    """Readiness refusal before a caller writes startup state."""
 
     def __init__(self, reason: str, *, command_refused: bool = False) -> None:
         super().__init__(reason)
@@ -1801,7 +1800,7 @@ class AgentPreparationError(Exception):
 
 
 class PreparedAgentLaunch(NamedTuple):
-    """One fresh readiness pass; never retained across publication/reload."""
+    """One fresh readiness pass; never retained across a ticket write/reload."""
 
     agent: AgentType
     prompt: str | None
@@ -1827,7 +1826,7 @@ def prepare_agent_launch(
     Ordinary launch defers rendering until it has the final ticket and checkout
     notice. Queue callers retain the prompt rendered during readiness.
 
-    Callers own prospective lifecycle, admission and publication. Secret
+    Callers own prospective lifecycle, admission and ticket writes. Secret
     resolution may call an external provider; the result is not cached.
     ``env_transform`` maps the launch env to the env the caller will spawn
     with (megalaunch's supervised step identity); the command check and the

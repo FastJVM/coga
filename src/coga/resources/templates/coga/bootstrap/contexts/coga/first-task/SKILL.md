@@ -55,15 +55,17 @@ warns when `user` is unset. Network probes are opt-in:
 Validation remains a core command. Its CLI and `python -m coga.validate`
 entry share execution and JSON/text rendering; Dream's
 `coga_edge.validate_drift` worker consumes the module entry. Both need no configured user and never publish, including
-`--fix`, which only applies conservative local blackboard-fence repairs under
-a state lock and refuses concurrent changes.
+`--fix`. Its only ticket repair appends a missing blackboard fence and region;
+it never rewrites frontmatter or existing body. A repo-wide `--fix` (no `--task`) also
+removes orphan launch tmp areas ([coga/launch](../launch/SKILL.md#run-state)).
 
 These checks do not test agent authentication or complete a first task.
 
 On an empty repo, `init` seeded an onboarding ticket. `coga build` is a
 default alias for `launch coga-build`: one question, an agent-led chat, a
 short vision, then a batch of starter tickets, offered for launch only once
-the vision and the batch are confirmed on the base branch. Use `coga build --agent
+you approve the vision and the batch
+([build/onboarding](../../../workflows/build/onboarding.md)). Use `coga build --agent
 codex` for Codex. It dispatches through `coga launch`, so it needs an
 initialized repo. Coga never installs an agent CLI: when the configured one
 cannot be found, the launch fails and names the `[agents.*]` table to fix in

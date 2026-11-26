@@ -448,12 +448,12 @@ def _drain_satisfied_blockers(
     a finished task may legitimately be retired and removed before its
     dependent reaches this drain.
 
-    Partial resolutions publish from an exact snapshot, keeping the task
+    A partial resolution rewrites only the blackboard and keeps the task
     blocked. Once every remaining ask is satisfied, prospective activation
-    validates first, then activation and resolution publish together. A ticket
-    that cannot activate keeps its remaining asks. The resolved bytes become
-    the next launch claim's control revision. Each task may launch from the
-    drain at most once, preventing a new blocker from relaunching it forever.
+    validates first, then one ticket write records activation and resolution
+    together. A ticket that cannot activate keeps its remaining asks. Each task
+    may launch from the drain at most once, preventing a new blocker from
+    relaunching it forever.
     """
     # `filter_tasks_under` accepts a human-friendly leading/trailing slash and
     # normalizes it for the main queue. Apply the same normalization to the
@@ -511,10 +511,9 @@ def _drain_satisfied_blockers(
             if max_tasks is not None and attempted >= max_tasks:
                 return results
 
-            # Re-acquire the ticket and its blockers as one exact revision.
-            # The earlier read established that this task is worth considering;
-            # this snapshot is the source lease for the actual activation plus
-            # resolution publication, so a peer edit cannot be overlaid.
+            # Re-read the ticket and its blockers as one revision. The earlier
+            # read established that this task is worth considering; this
+            # snapshot is what the activation plus resolution write starts from.
             try:
                 captured = ref.ticket_path.read_bytes()
             except FileNotFoundError:
@@ -623,9 +622,9 @@ def _drain_satisfied_blockers(
 
             drained_slugs.add(ref.id_slug)
 
-            # Validate the prospective activation before either local write.
-            # The durable helper then publishes activation and these answers as
-            # one exact transaction; a refused activation leaves the blocked
+            # Validate the prospective activation before writing anything.
+            # `_activate_for_launch` then writes activation and these answers
+            # in one ticket write; a refused activation leaves the blocked
             # ticket and its actionable ask untouched.
             prepared = _prepare_for_launch(cfg, ref, ticket)
             if isinstance(prepared, MegalaunchResult):
@@ -648,8 +647,8 @@ def _drain_satisfied_blockers(
 
             try:
                 # The combined write changed both frontmatter and blackboard.
-                # Re-read before launch so the strict start claim binds to the
-                # exact resolved control revision just published.
+                # Re-read before launch so the launch starts from the ticket
+                # just written.
                 ticket = read_ticket(ref)
             except TicketNotFoundError:
                 _replace_result(

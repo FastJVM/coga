@@ -215,7 +215,7 @@ The same holds for a ticket cited in `## Context`: copy the substance this
 task needs, and cite the slug only for provenance. Retro and `coga retire` may
 delete it first. When the source is already gone, recover its body with the
 retired-task recipe in `coga/tickets/discovery` (`Where tasks live and how they are
-named`), which also searches the pre-rename `relay-os/tasks/` tree.
+named`).
 
 ## Step 3 — Interview the human
 
@@ -322,8 +322,9 @@ add the new context to the ticket's `contexts:` list (or, for a new skill,
 note it in the body so the human can wire it into a workflow on review).
 
 If a gap is too speculative to commit to a file, write it to
-the ticket's blackboard region under a **Proposals** section instead — same shape as the
-`bootstrap/dream` skill uses. The human accepts or rejects on review.
+the ticket's blackboard region under a **Proposals** section instead. It is
+authoring scratch ([coga/blackboard](../../../contexts/coga/blackboard/SKILL.md#section-regimes)),
+folded into the body or dropped at cleanup. The human accepts or rejects on review.
 
 ## Step 5 — Write the ticket
 

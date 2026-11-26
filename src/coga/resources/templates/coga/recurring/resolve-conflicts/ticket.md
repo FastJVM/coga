@@ -28,25 +28,9 @@ dispatch. The runner marks the period task `in_progress`, launches
 `bootstrap/resolve-conflicts` in-process (honouring the sweep's `--agent`
 override and selected queue session conduct), and marks the period task
 `done` after the delegated command emits its scoped completion sentinel.
-Launch preflights before the start transition, then reloads and recomposes
-after that publication. Before bootstrap work, it also checks push
-access for the materialized period task; the stateless bootstrap target would
-otherwise skip that gate. Start publication, final spawn, and post-child
-completion/timeout all lease the exact period ticket plus its task-audit
-generation against control, so a later period at the same stable path cannot
-receive an older child's result. Sweeps reread dispatch after reconciliation,
-freeze every admitted period generation before the first child, and perform
-full recurring admission at their outer boundary; each ordinary child also
-refreshes and checks that exact generation immediately before launch, while
-delegation fails closed on every exact-lease verification/publication error. A
-direct launch requires verified catch-up before resolving even a locally missing period ref. A
-natural/crashed exit fails without completing the period. A
-multi-task sweep pauses a watchdog timeout and records it as timed out only
-after that pause is verified on control; a stale or failed pause refuses the
-run. Strict publication unwinds an unaccepted local lifecycle commit and probes
-an exact remote candidate after a lost push reply; an unknown outcome retains
-local reconciliation evidence rather than rolling back into split state. An
-explicit named launch fails and leaves the period retryable.
+Preflight, the local start record, completion and the failure path follow
+`coga/recurring/delegation`; an unexpected exit reports failure and leaves the
+period ticket for a retry.
 
 The replacement intentionally covers **open PRs only**. The removed
 `rebase-stale-worktrees` task also found pre-PR branches through worktrees and

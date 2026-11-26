@@ -3,14 +3,14 @@
 A recurring job's *definition* (schedule, body, workflow, `ticket.py`, runbooks)
 may come from the repo or from the installed package. Its cross-run *state*
 always lives at the repo path `coga/recurring/<name>/ticket.md`, below the
-blackboard fence, so period snapshots and publication keep their old paths.
+blackboard fence, so period snapshots and state writes keep their old paths.
 
 For a package-backed job that path holds a **state-only carrier**: empty YAML
 frontmatter, the reserved own-line marker, then exactly one blackboard fence
 and the saved blackboard. It has no schedule, instructions, workflow or script.
 A local parent with a genuine full definition remains its own state owner.
 
-Shared by creation/snapshots, completion/publication, phone-home and audit
+Shared by creation/snapshots, completion, phone-home and audit
 retention. The write path always derives from `cfg.repo_root`, never from a
 resolved definition directory.
 """
@@ -198,8 +198,7 @@ def ensure_parent_state(
     the carrier; pass None for a local definition (it owns its own state, so
     nothing is created). Existing state is never reseeded, including an
     intentionally empty state region, and concurrent creation is detected by
-    an exclusive create rather than overwritten. A pending audit-log mutation
-    receipt blocks initialization.
+    an exclusive create rather than overwritten.
     """
     path = parent_state_path(cfg, name)
     if path.exists() or path.is_symlink() or seed_ticket is None:

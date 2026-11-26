@@ -80,7 +80,7 @@ the last run's output into the next run's instructions.
   300, `<= 0` disarms) is one deadline shared by the first call, the auth probe
   and any retry.
 - Every run record is written to gitignored `.coga/recurring-runs/<stamp>.md`,
-  ticketed or not; temp-control scans copy it back to the durable workspace.
+  ticketed or not.
 - `coga run autofix-analyze [<run-log.md>] [--dry-run]` re-analyzes a record
   (default: the newest).
 - Analyst agent: `--agent` on `coga recurring` or `autofix-analyze`, else the

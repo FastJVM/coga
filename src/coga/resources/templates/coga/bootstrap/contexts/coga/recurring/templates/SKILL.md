@@ -82,10 +82,8 @@ fork to repair, not an inherited file. An empty or cache-only directory
 counts as absent. The first admitted repo-scoped run creates the carrier
 once from the packaged definition's initial blackboard, before snapshotting
 `state_keys`; listing, status and validation never create it, and existing
-state (even an empty region) is never reseeded. Initialization and existing
-state lookup validate the parent under the shared state lock, including direct
-writers. The first carrier publishes with its period and ledger, pinned to
-control's absence; retries preserve a competing writer's complete state.
+state (even an empty region) is never reseeded. Creation is exclusive, so a
+concurrent first writer's carrier is kept, not overwritten.
 `coga.recurring_state` owns
 this classification; writes always target the repo path, never the package.
 
@@ -192,17 +190,17 @@ every sweep until fixed; `coga block` records the ask instead.
 The period blackboard (`COGA_TASK_BLACKBOARD`, `task_env.blackboard_from_env`)
 is a per-run report surface: it reaches the sweep's run record and any autofix
 `run-log.md`, then is deleted. Successful runs owe no report. On a non-zero exit
-or escaping exception, `runner.run_recipe` appends a `## Recipe Failure`
-section (recipe, exit, task, stderr tail) because the sweep discards child
-stderr; registered-recipe shims call `run_recipe(load_config(), "<name>", [])`
-for that reason, and edge shims call their `coga_edge` module's `main`.
+or escaping exception, `runner.run_recipe` (for the registered
+`runner.RECIPES`: `recurring-scan`, `autofix-analyze`, `delete-task`)
+appends a `## Recipe Failure` section (recipe, exit, task, stderr tail)
+because the sweep discards child stderr. Every shipped recurring `ticket.py`
+shim calls its `coga_edge` module's `main` instead.
 Do not duplicate that write; add structured detail on top. Never write secrets.
 Edge code outside the registry gets the same floor from `runner.run_reported`,
 passing a `root=` resolver when its worker can operate on another Coga root
 (`task_env.cwd_option_root` reads a worker's own `--cwd`); an unknown root
 records nothing. `runner.run_entry` wraps that floor in the edge entry
-sequence: report, publish the operating root's state as the CLI's exit sweep
-would, then, only for a `scheduled` script launched as this exact task
+sequence: report, then, only for a `scheduled` script launched as this exact task
 (`COGA_SCRIPT_TASK`), bump once after success and return the bump's exit.
 Manual and Dream invocations never bump.
 

@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-11-23.
+Last updated: 2026-11-25.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -24,8 +24,8 @@ is `coga status` and the ticket bodies; stage posture is
   locks or `coga sync`; the owner is a ticket's single writer; unclean
   operations stop rather than recover; `git.py` goes. This reverses the
   publication and claim guarantees that the microkernel work preserved, and
-  cancels the `git-sync/` group. Until implemented, the current topics still
-  describe today's behavior. Design and decisions:
+  cancels the `git-sync/` group. Implemented by #1279; the topics describe
+  the plain-Git behavior. Design and decisions:
   [`v1/03-use-git-like-everyone-remove-coga-s-publication-ab`](../../../../coga/tasks/v1/03-use-git-like-everyone-remove-coga-s-publication-ab.md).
   **Amended 2026-11-24/25 (owner):** a workflow may declare a launch Git mode
   (`git: ticket-branch`). The kernel stays Git-agnostic: it reads the frozen
