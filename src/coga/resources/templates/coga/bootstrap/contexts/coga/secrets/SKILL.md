@@ -83,6 +83,10 @@ processes are not tasks and keep it: `coga recurring` runs its inner scan
 unscrubbed, so the launches it makes can still resolve `op://` refs. The clone
 scripts that scan runs are scrubbed children, not part of the scan.
 
+Workflow `enter` and `exit` scripts receive a scrubbed environment with
+the declared sources, 1Password authentication and any inherited Coga
+secret bindings removed. The scripts resolve no secret references.
+
 - A launched agent cannot `op read` through an inherited token, whatever its
   ticket declared. A launch started from inside a task, of a ticket that
   declares `op://` secrets, therefore fails preflight.

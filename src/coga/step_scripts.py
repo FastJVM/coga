@@ -21,6 +21,7 @@ from coga.config import Config, ConfigError
 from coga.launch_script import prepare_launch_hook, run_launch_hook
 from coga.run_state import TmpScope
 from coga.tasks import TaskRef
+from coga.ticket import TicketError
 from coga.workflow import WorkflowError, step_script
 
 
@@ -76,7 +77,7 @@ def _run(cfg: Config, ref: TaskRef, skill: str, key: str, scope: TmpScope) -> No
         raise StepScriptError(f"{key} script {skill!r}: {exc}") from exc
     try:
         code = run_launch_hook(cfg, ref, script, scope)
-    except OSError as exc:
+    except (OSError, TicketError, UnicodeError) as exc:
         raise StepScriptError(f"cannot run {key} script {skill!r}: {exc}") from exc
     if code != 0:
         raise StepScriptError(f"{key} script {skill!r} failed (exit {code})", code=code)

@@ -18,7 +18,14 @@ from typing import NamedTuple, Sequence
 import typer
 
 from coga.bump import OperatorResolutionError, effective_step_role, resolve_operator
-from coga.config import Config, ConfigError, build_launch_env, load_config, find_repo_root
+from coga.config import (
+    Config,
+    ConfigError,
+    build_launch_env,
+    find_repo_root,
+    load_config,
+    step_script_env,
+)
 from coga.logfile import append_log
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import bootstrap_skill_dir, resolve_workflow_path, skill_dir
@@ -564,7 +571,8 @@ def run_launch_hook(cfg: Config, ref: TaskRef, script: Path, tmp_scope: TmpScope
     Git-free: the kernel only supplies the ticket and tmp environment and
     returns the child's exit status. The script gets no secrets.
     """
-    env = apply_task_env(os.environ.copy(), cfg, ref)
+    ticket = read_ticket(ref)
+    env = apply_task_env(step_script_env(ticket.secrets), cfg, ref, ticket)
     for key in ("COGA_SUPERVISED", SENTINEL_ENV, EXPECTED_TASK_ENV,
                 EXPECTED_STEP_ENV, EXPECTED_AGENT_ENV, "COGA_SCRIPT_HELP"):
         env.pop(key, None)

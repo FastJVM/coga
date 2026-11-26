@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import random
@@ -1756,6 +1757,7 @@ OP_AUTH_ENV_VARS = frozenset(
     {"OP_SERVICE_ACCOUNT_TOKEN", "OP_CONNECT_TOKEN", "OP_CONNECT_HOST"}
 )
 OP_SESSION_ENV_PREFIX = "OP_SESSION_"
+LAUNCH_SECRET_NAMES_ENV = "COGA_LAUNCH_SECRET_NAMES"
 
 
 def is_op_auth_env_var(name: str) -> bool:
@@ -1771,6 +1773,35 @@ def scrub_op_auth_env(env: Mapping[str, str]) -> dict[str, str]:
     with the parent's own `os.environ`, never with the scrubbed dict.
     """
     return {k: v for k, v in env.items() if not is_op_auth_env_var(k)}
+
+
+def _launch_secret_names(env: Mapping[str, str]) -> set[str]:
+    try:
+        names = json.loads(env.get(LAUNCH_SECRET_NAMES_ENV, "[]"))
+    except ValueError:
+        return set()
+    if not isinstance(names, list):
+        return set()
+    return {name for name in names if isinstance(name, str)}
+
+
+def step_script_env(declared: object) -> dict[str, str]:
+    """Remove launch credentials without resolving anything for a step script."""
+    env = scrub_op_auth_env(os.environ)
+    names = _launch_secret_names(env)
+    env.pop(LAUNCH_SECRET_NAMES_ENV, None)
+    try:
+        bindings = parse_inline_secrets(declared)
+    except SecretError:
+        # A cancellation can complete on a draft with malformed declarations.
+        bindings = []
+    for name, ref in bindings:
+        names.add(name)
+        if ref.startswith("env:"):
+            names.add(ref.removeprefix("env:"))
+    for name in names:
+        env.pop(name, None)
+    return env
 
 
 def build_launch_env(
@@ -1799,4 +1830,9 @@ def build_launch_env(
         if ref.startswith("env:"):
             env.pop(ref[len("env:") :], None)
     env.update(resolved)
+    names = _launch_secret_names(env) | resolved.keys()
+    if names:
+        # Lifecycle commands can run inside this environment even after
+        # the ticket declarations change. Keep only the names for scrubbing.
+        env[LAUNCH_SECRET_NAMES_ENV] = json.dumps(sorted(names))
     return env

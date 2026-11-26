@@ -22,6 +22,7 @@ from textwrap import dedent
 
 import pytest
 
+from coga.config import LAUNCH_SECRET_NAMES_ENV
 from coga.repl_supervisor import (
     EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
@@ -38,6 +39,7 @@ from coga.task_env import TASK_ENV_KEYS
 # `_clear_supervised_session_env` scrubs the whole set for every test; the
 # regression proof lives in `test_env_isolation.py`.
 LAUNCH_OWNED_ENV = (
+    LAUNCH_SECRET_NAMES_ENV,
     SENTINEL_ENV,
     "COGA_SUPERVISED",
     EXPECTED_TASK_ENV,

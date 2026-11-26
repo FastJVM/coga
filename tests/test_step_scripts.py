@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 import coga.launch as launch_module
 from coga.cli import app
-from coga.config import load_config
+from coga.config import build_launch_env, load_config
 from coga.create import create_task
 from coga.launch import AgentSessionResult, launch
 from coga.repl_supervisor import ReplOutcome
@@ -237,6 +237,35 @@ def test_failed_exit_keeps_the_write_and_fails_the_command(ss, monkeypatch):
     assert result.exit_code == 7
     assert "exit script 'test/exit' failed (exit 7)" in result.output
     assert read_ticket(ref).step == "3 (review)"
+
+
+def test_exit_scrubs_credentials_inherited_from_an_existing_launch(ss, monkeypatch):
+    repo, ref, log = ss
+    cfg = load_config(repo.coga_os)
+    monkeypatch.setenv("OP_SERVICE_ACCOUNT_TOKEN", "fake-auth")
+    monkeypatch.setenv("PROBE_SOURCE", "fake-secret")
+    inherited = build_launch_env(cfg, [{"PREVIOUS_BINDING": "env:PROBE_SOURCE"}])
+    # A session can edit the ticket after Coga minted its environment.
+    ticket = read_ticket(ref)
+    ticket.frontmatter["secrets"] = [{"CURRENT_BINDING": "env:CURRENT_SOURCE"}]
+    ticket.write(ref.ticket_path)
+    _set_in_progress(ref, "2 (implement)")
+    exit_script = repo.coga_os / "skills" / "test" / "exit" / "run.py"
+    exit_script.write_text(
+        "import os\n"
+        "from pathlib import Path\n"
+        "Path(os.environ['STEP_SCRIPT_LOG']).write_text(','.join(sorted("
+        "key for key in os.environ if key in "
+        "{'OP_SERVICE_ACCOUNT_TOKEN', 'CURRENT_BINDING', 'CURRENT_SOURCE', 'PREVIOUS_BINDING', "
+        "'COGA_LAUNCH_SECRET_NAMES', 'NORMAL_ENV'})))\n",
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(app, ["bump", ref.id_slug], env={
+        **inherited, "CURRENT_SOURCE": "fake-source", "CURRENT_BINDING": "fake-binding",
+        "NORMAL_ENV": "retained", "OP_SERVICE_ACCOUNT_TOKEN": "fake-auth",
+    })
+    assert result.exit_code == 0, result.output
+    assert log.read_text(encoding="utf-8") == "NORMAL_ENV"
 
 
 # --- enter at step start -------------------------------------------------------
