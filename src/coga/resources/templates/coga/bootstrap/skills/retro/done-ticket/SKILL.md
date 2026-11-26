@@ -17,7 +17,7 @@ one reviewable PR per theme, each recording the source-task `## Retro` marker,
 updating the knowledge base, and deleting those source task directories in the
 same PR. A source task with no new durable knowledge is still deleted, but
 **directly**: Retro removes its directory with
-`coga delete <slug>` in the isolated checkout, then record the deletion
+`coga delete <slug>` in the isolated checkout, then records the deletion
 through ordinary Git. A tracked reference instead follows the reference-pin
 PR route under **Inbound references**. Recovery is via
 `git restore`. Retro never leaves a processed done ticket on disk.
@@ -267,10 +267,9 @@ Where the repoint lands depends on the source:
 - **Knowledge-bearing source:** in the knowledge PR that deletes it. Repointed
   files do not count toward the per-PR knowledge-file limit. List each one under
   `Repointed references` in the PR body.
-- **No-durable-knowledge source with references:** it does not take the direct
-  delete, because `coga delete` publishes only the task and the log, and a
-  repointed doc needs review like any other edit. Collect every such source in
-  the run into one reference-pin PR. That PR repoints their references and
+- **No-durable-knowledge source with references:** collect every such source in
+  the run into one reference-pin PR so the reference edits can be reviewed
+  together with the deletions. That PR repoints their references and
   deletes those source tasks, and changes nothing else. It carries no `## Retro`
   marker. A source with no references is direct-deleted as usual.
 
@@ -571,8 +570,8 @@ marker for the same source task.
    reference-pin PR, together with those repoints. Any other source task with
    no new durable knowledge is deleted
    **directly** from a clean, unique temporary branch based on the freshly
-   fetched base. Run `coga delete <slug>`, review its local deletions and
-   audit log, and make a path-limited Git commit for those changes. Use the
+   fetched base. Run [`coga delete <slug>`](../../../contexts/coga/tickets/discovery/SKILL.md#deleting-a-task),
+   review the local deletion, and make a path-limited Git commit. Use the
    caller's approved Git handoff and stop if any operation fails. Leave
    unpushed work available for recovery. Use `git restore` to recover files
    from history.

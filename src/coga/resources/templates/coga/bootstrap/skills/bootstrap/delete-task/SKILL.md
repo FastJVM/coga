@@ -1,12 +1,11 @@
 ---
 name: bootstrap/delete-task
-description: Remove a task directory from the working tree — the contract behind `coga delete` and the `delete-task` registered recipe.
+description: Remove a task from the working tree with `coga delete` or the `delete-task` registered recipe.
 ---
 
 # Delete a task
 
-Use `coga delete <slug>` or the `delete-task` recipe to remove the local
-ticket file or its owned directory and attachments. Check the resolved task
-before deleting it. A previously committed ticket can be recovered with
-`git restore`. Commit the deletion when you want it to travel with other
-changes.
+Check the task ref, then run `coga delete <ref>` or `coga run delete-task
+<ref>`. Review the local deletion before committing it. For what gets removed
+and how to recover committed files, see
+[Deleting a task](../../../contexts/coga/tickets/discovery/SKILL.md#deleting-a-task).

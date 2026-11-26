@@ -23,29 +23,28 @@ the state. [coga/launch](../launch/SKILL.md#run-state) owns their contract.
 
 ## Agent CLIs and `coga.toml`
 
-Coga drives an agent CLI but never installs one or says where to get one; an
-interactive init offers only the supporting CLIs `git` and `gh`, notes a
-missing `op`, and runs nothing without a yes. Init runs before any `coga.toml`
-exists, so an interactive fresh init scans `PATH` for every agent CLI in
-`coga.dependencies.AGENT_CLIS` and prints one row per agent, found or not. It
-asks nothing.
+Agent-backed commands such as `coga build`, `coga launch`, and `coga ticket`
+require an agent CLI. Init can finish without one and leaves finding and
+installing it to you. Interactive init may offer to install the supporting
+CLIs `git` and `gh` with your confirmation. It prints a note if `op` is missing.
 
-That scan configures the new repo. When it found at least one agent, init
-comments out (never deletes) the `[agents.*]` table of each supported agent it
-did not find, so enabling one later is an uncomment. No `default_agent` key is
-written: the default is the first table the file still declares, which is the
-first agent found, and delivered tickets that named the template's default,
-such as the onboarding ticket's `agent:`, are repointed at it. When the scan
-found nothing, the packaged `coga.toml` stays as shipped, declaring every
-supported agent, and the next steps say an agent-backed command needs one
-installed. The rewrite is all or nothing: if the result would not parse back
-to the expected declarations, init keeps the packaged file and warns. A
-non-interactive init prints no scan and leaves the file as shipped. The clone
-path never scans or rewrites `coga.toml`: it is committed team config.
+Before writing `coga.toml`, an interactive fresh init checks `PATH` for
+each supported agent CLI and reports which ones it found. When it finds at
+least one, init comments out the shipped `[agents.*]` tables for agents it
+couldn't find. To enable one later, uncomment its table. With the shipped
+template, the first remaining table sets the default without a `default_agent`
+key. If the default changes, delivered tickets that named the template's
+default, including the onboarding ticket if seeded, are updated to use it.
 
-After init, a configured agent CLI that cannot be found fails the launch with
-`Agent CLI '<cli>' not found. Set \`cli\` in [agents.<name>] in coga.toml`:
-the remedy is always that table, never an install by Coga.
+If the scan finds no agent CLI, init copies the packaged config with all its
+agent tables enabled and reports the prerequisite for agent-backed commands.
+If the table rewrite fails, init warns and keeps the packaged agent tables.
+Non-interactive init skips the displayed scan and keeps the packaged agent
+tables. Clone setup uses the shared `coga.toml` as it stands.
+
+If launch cannot resolve the configured executable, its error names the
+missing CLI and points to the `cli` key in `[agents.<name>]` in `coga.toml`.
+Set that key to the name or path of your agent CLI.
 
 ## The operator's name
 
@@ -54,20 +53,21 @@ writes it from `--user`, which must be non-empty with no `"` or `\`; Coga
 never guesses it from Git or the OS, because a wrong guess fails quietly
 against ticket `owner:` tokens. `user` is accepted only in the gitignored
 `coga.local.toml`. Read-only surfaces such as `status`, `show`, `validate`,
-`usage` and `--help` work without it and `coga validate` warns `missing-user`; every
-command that creates or moves work fails with `Run coga init --user <name>`.
+`usage` and `--help` work without it. `coga validate` reports a `missing-user`
+warning. Commands that require the local identity, such as `coga create` and
+`coga bump`, report how to set it with `coga init --user NAME`.
 On a clone, init edits an existing `coga.local.toml` in place, preserving its
 other keys and comments, and writes `user` only after the agent skill links
 are wired, so a failed run can be retried.
 
 ## Configured contexts root
 
-A fresh init scaffolds local contexts at `coga/contexts/`. It relocates them
-only when the template's own `coga.toml` sets `[layout] contexts`; the shipped
-template does not. The destination must not already exist: init refuses
-before writing anything rather than merge into it, and a later failure removes
-the relocated tree with the rest of the partial init. Moving the root in an
-initialized repo is a manual change
+A fresh init scaffolds local contexts at `coga/contexts/`, the default in the
+shipped template. A template can set `[layout] contexts` in its own
+`coga.toml` to move that scaffold to a different root. The new destination
+must be absent. Init checks it before scaffolding and cleans up the relocated
+tree if a later initialization step fails. Moving the root in an initialized
+repo is a manual change
 ([coga/context-layout](../context-layout/SKILL.md#moving-the-contexts-root)).
 
 ## Migrating existing definitions

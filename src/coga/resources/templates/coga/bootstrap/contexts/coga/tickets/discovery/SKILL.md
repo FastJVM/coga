@@ -49,11 +49,11 @@ from the ref. Log lines are tagged with the ref and never rewritten, so moving
 a task orphans its history under the old tag: record the prior ref in the body
 and grep for it.
 
-A retired or deleted task (`coga retire`, `delete-task`, Retro) leaves its
-body and blackboard only as a Git blob; `coga show` no longer finds it. Find
-the deleting commit on the repo's default branch, then read the file from its
-parent. `<control>` is the remote default branch (for example `origin/main`),
-or the local default branch in a repo with no remote:
+After a tracked task's deletion reaches the default branch, its body and
+blackboard are available in Git history. Find the deleting commit and read
+the file from its parent. In the commands below, `<control>` is the remote
+default branch (for example `origin/main`) or the local default branch in a
+repo with no remote.
 
 ```bash
 git log <control> --diff-filter=D --name-only -- \
@@ -74,12 +74,12 @@ other attachment changes dispatch. Attachments are never composed.
 
 ## Deleting a task
 
-`coga delete <ref>` (and the `delete-task` recipe, `coga run delete-task
-<ref>`) resolves the ref like any other command, then removes only that task
-from the working tree: the `<slug>.md` file for file form, or the task
-directory with its attachments for directory form. It never touches a parent
-group directory, needs no status, and does not stage, commit or log anything;
-commit the deletion with Git when it should travel. Check the resolved task
-first. A committed ticket comes back with `git restore`; an uncommitted one is
-gone. Use it to drop a split original or a ticket that carried nothing
-durable; `coga retire` is the path for `done` or `canceled` work.
+Check the task ref before running `coga delete <ref>` or
+`coga run delete-task <ref>`. Either command accepts an exact ref or a unique
+prefix regardless of ticket status. It removes the task's Markdown file or,
+for directory form, the task directory and its attachments. A parent group
+directory is preserved. The deletion is local and unstaged, and creates no
+audit entry. Commit the deletion with Git to share it. `git restore` can
+recover previously committed files. To review a `done` or `canceled` ticket
+for lasting knowledge before removing it, use
+[`coga retire`](../../../../retire/ticket.md).
