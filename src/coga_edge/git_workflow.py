@@ -1,13 +1,30 @@
-"""Plain Git utilities shared by the PR and merge workflow scripts."""
+"""Plain Git utilities shared by the branch, PR and merge workflow scripts."""
 
 from __future__ import annotations
 
 import re
+import secrets
 import subprocess
 
 
 def git_output(*args: str, cwd: str) -> str:
     return subprocess.check_output(["git", *args], cwd=cwd, text=True).rstrip("\n")
+
+
+def branch_slug_part(slug: str) -> str:
+    """The branch-safe slug segment used in `coga/<slug-part>[-<hex6>]`."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", slug).strip("-.")[:48] or "task"
+
+
+def fresh_branch_name(slug: str, remote: str, cwd: str = ".") -> str:
+    """A `coga/<slug-part>-<hex6>` name free locally and on `remote`."""
+    refs = set(git_output("for-each-ref", "--format=%(refname)", cwd=cwd).splitlines())
+    prefix = f"coga/{branch_slug_part(slug)}"
+    for _ in range(8):
+        name = f"{prefix}-{secrets.token_hex(3)}"
+        if f"refs/heads/{name}" not in refs and f"refs/remotes/{remote}/{name}" not in refs:
+            return name
+    raise ValueError(f"No free branch name under {prefix}")
 
 
 def _dirty_paths(porcelain_z: str) -> list[str]:

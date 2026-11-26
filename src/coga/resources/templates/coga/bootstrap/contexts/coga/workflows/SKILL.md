@@ -32,10 +32,20 @@ A step with no script or skill can use an inline `## <step>` section. Owner
 steps hand work to the human. See [script tickets](../script-tickets/SKILL.md)
 for deterministic dispatch.
 
+An optional top-level `git:` selects the launch Git mode for the whole
+workflow. `main`, also used when the field is omitted, does no Git work in
+launch. `ticket-branch` runs the packaged `git/ticket-branch` hook around
+every launch of the ticket ([coga/git](../git/SKILL.md#ticket-branch-mode)).
+Any other value is a load error. The shipped `code/*` workflows declare
+`git: ticket-branch`. Recurring templates must stay on `main`.
+
 ## Frozen snapshot, live content
 
 Creation and activation freeze the ordered step names, roles, skills, run
-refs and requirements in the ticket. A later workflow edit affects newly
+refs and requirements in the ticket. A non-`main` `git:` is frozen after
+`name`; `main` is not written, so snapshots without the field keep today's
+bytes and behave as `main`. Validation reports an unregistered frozen `git:`
+as `bad-shape`. A later workflow edit affects newly
 frozen tickets. Attached skills, script files and inline instructions resolve
 from current definitions. Older snapshots retain their positions and step
 names. Legacy checkout-policy keys are ignored and validation reports them
