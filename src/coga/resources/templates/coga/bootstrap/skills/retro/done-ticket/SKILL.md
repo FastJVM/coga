@@ -20,7 +20,9 @@ same PR. A source task with no new durable knowledge is still deleted, but
 `coga delete <slug>` in the isolated checkout, then records the deletion
 through ordinary Git. A tracked reference instead follows the reference-pin
 PR route under **Inbound references**. Recovery is via
-`git restore`. Retro never leaves a processed done ticket on disk.
+`git restore`. Retro never leaves a processed done ticket on disk; the one
+source it does not delete itself is a caller-named local-only period ticket,
+which the caller deletes (see **Local-only sources**).
 
 Retro runs only inside a subagent that works in a dedicated isolated
 checkout: its cwd, or, when the agent's subagents take no cwd (Codex), the
@@ -53,7 +55,9 @@ checkout.
   attachments), the repo-global `coga/log.md`, Dream's live `## Findings` when
   present, and every local context/skill file; plus the packaged
   `bootstrap/contexts/` and `bootstrap/skills/` corpus. Load the snapshot and
-  packaged corpus once before ticket-by-ticket extraction.
+  packaged corpus once before ticket-by-ticket extraction. The caller may
+  name some slugs as `local-only:` uncommitted period tickets; see
+  **Local-only sources**.
 - May change: warranted context files, warranted skill files, and the exact
   resolved source task directories under `coga/tasks/` for every processed
   source task — a knowledge-bearing ticket deleted in its theme's knowledge PR,
@@ -75,7 +79,8 @@ checkout.
   distinct from the caller's checkout, the caller did not supply a complete
   evidence snapshot and caller repo root, the isolated checkout lacks a valid
   machine-local config copy, any slug is ambiguous, any task is not
-  `status: done` (see **Canceled tickets**), any required evidence file is missing, a single coherent
+  `status: done` (see **Canceled tickets**), any required evidence file is missing, a selected
+  source is absent from the isolated base without being named `local-only:`, a single coherent
   theme still exceeds the per-PR hard limits, or the diff would touch anything
   outside the allowed files or the exact source task directories.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
@@ -273,6 +278,36 @@ Where the repoint lands depends on the source:
   deletes those source tasks, and changes nothing else. It carries no `## Retro`
   marker. A source with no references is direct-deleted as usual.
 
+## Local-only sources
+
+The recurring sweep does not commit the period tickets it creates, so a done
+`recurring/<name>` ticket may exist only as an untracked file in the caller's
+checkout. It is absent from the isolated base, so Retro cannot delete it or
+land that delete. The caller names such tickets in a separate `local-only:`
+slug list and owns their deletion in its own checkout after Retro returns.
+
+For each local-only slug:
+
+- Classify it from the snapshot exactly like any other source, including
+  **Unresolved adjacent bugs** and **Done is a status, not a receipt**.
+- Verify it really is absent from the isolated base
+  (`git cat-file -e <remote>/<base>:<path>` fails). If it is present, stop and
+  ask: the caller's partition is wrong.
+- Skip the **Inbound references** search. A tracked reference to a path the
+  base never held already dangles, and deleting the local copy changes nothing
+  on the base.
+- Never run `coga delete` on it, write a `## Retro` marker for it, or put it in
+  the reference-pin PR.
+- A knowledge-bearing one contributes its facts to its theme's knowledge PR
+  like any other source and counts toward that batch's source-ticket limit.
+  The PR deletes no source for it. List it in the PR body's Source section as
+  `local-only <slug> (uncommitted; deleted by the caller)`, citing the snapshot
+  evidence in enough detail to stand without the ticket.
+- Append `local <slug> — <delete | extract>` to `progress.md` once its
+  disposition is settled: for `delete`, right after its `read` line; for
+  `extract`, after the `pr` line for its knowledge PR. That line hands the
+  ticket back to the caller for local deletion.
+
 ## Isolation boundary
 
 Run only inside a subagent whose cwd is a dedicated isolated checkout. Use the
@@ -393,19 +428,22 @@ start — <slug>[, <slug> ...]
 read <slug> — <extract | delete>
 pr <theme | pin-references> — <url> — <slug>[, <slug> ...]
 deleted <slug>
-complete — <N> PRs, <M> direct deletes, <K> tickets
+local <slug> — <delete | extract>
+complete — <N> PRs, <M> direct deletes, <L> local handbacks, <K> tickets
 ```
 
 `read` is written when a ticket's classification is settled (step 6); `pr`
 when its branch is pushed and the PR exists (step 11), naming every source
-task it deletes; `deleted` after each direct `coga delete` lands (step 9);
+task it deletes or, for a local-only source, extracts from; `deleted` after
+each direct `coga delete` lands (step 9); `local` when a local-only source is
+handed back (see **Local-only sources**);
 `complete` as the run's last action before its final message, only after every
 selected slug has a verified disposition recorded. The final message repeats
 the completion line's numbers.
 
 These receipts are not atomic with remote mutations: a process can die after
 a delete lands or a branch/PR is published but before appending its receipt.
-A `read` line with no later `pr` or `deleted` naming that slug therefore means
+A `read` line with no later `pr`, `deleted`, or `local` naming that slug therefore means
 **unknown disposition**, not proof that the source still exists. Before
 retrying, fetch the configured remote base branch and inspect its source
 path and deletion evidence; check remote branches and PRs for any published
@@ -450,8 +488,9 @@ python -c "from importlib.resources import files; print(files('coga.resources').
 Stop and ask if the isolated-checkout preflight or machine-local config setup
 fails, the caller root or snapshot path is missing, any task slug is ambiguous,
 any snapshot task is not `status: done`, any required evidence file is missing,
-a selected source task does not exist in the isolated base (an uncommitted-only
-task cannot be deleted durably), a single coherent theme cannot be kept within
+a selected source task does not exist in the isolated base and the caller did
+not name it `local-only:` (an uncommitted-only task cannot be deleted durably
+from the isolated checkout), a single coherent theme cannot be kept within
 the per-PR hard limits, or there is already an open PR adding a `## Retro`
 marker for the same source task.
 
@@ -505,8 +544,9 @@ marker for the same source task.
    within one PR's limits, stop and ask.
 
    Tickets with no new durable knowledge are not a batch theme — they are not
-   extracted and not bundled into any knowledge PR. Run the **Inbound
-   references** search for every source task. After settling the knowledge
+   extracted and not bundled into any knowledge PR. Local-only sources follow
+   **Local-only sources** instead of the deletion routes below. Run the
+   **Inbound references** search for every other source task. After settling the knowledge
    batches, delete every unreferenced no-durable-knowledge source task directly
    with `coga delete <slug>` (see step 9). Referenced
    ones go into the run's single reference-pin PR instead. Neither kind gets a
@@ -540,8 +580,8 @@ marker for the same source task.
    replaced by the new edit.
 
 8. **Record the Retro markers for knowledge-bearing tickets.**
-   For each source task that contributed new durable knowledge, append or update
-   exactly one `## Retro` section in its `ticket.md` blackboard region:
+   For each source task that contributed new durable knowledge, except a
+   local-only source, append or update exactly one `## Retro` section in its `ticket.md` blackboard region:
 
    ```markdown
    ## Retro
@@ -563,7 +603,8 @@ marker for the same source task.
    unshipped scope is preserved as required above. A source with an uncovered
    bug or unshipped scope cannot take the direct-delete path, even when it
    contains no other durable knowledge.
-   A source task that contributed new durable knowledge is deleted inside the PR
+   Local-only sources are never deleted here; the caller deletes them after
+   the `local` receipt. A source task that contributed new durable knowledge is deleted inside the PR
    that records its `## Retro` marker, after recording that marker — in its
    theme's knowledge PR, together with the repoint of its inbound references.
    A no-durable-knowledge source task with inbound references is deleted in the
@@ -581,7 +622,9 @@ marker for the same source task.
    the exact source task directories that contributed knowledge, and inbound
    reference repoints, unless the human explicitly asked for something else.
    Confirm every knowledge-bearing
-   source task directory is deleted in exactly one PR, that no-durable-knowledge
+   source task directory (other than a local-only source) is deleted in exactly
+one PR, that every local-only source has its `local` receipt and is untouched
+in the checkout, that no-durable-knowledge
    tickets are direct-deleted or ride only in the reference-pin PR, and that no
    marker-only PR (marker written, directory left in place) is opened. Re-run
    the inbound-reference search against each branch, and against the tree before

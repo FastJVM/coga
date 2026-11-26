@@ -88,6 +88,27 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
     assert "self-deleted" not in blackboard
 
 
+def test_dream_retro_handles_uncommitted_period_tickets() -> None:
+    """The sweep never commits period tickets, so a done one can be absent from
+    the remote base the isolated Retro checkout starts from. Dream names the
+    case, Retro classifies it from the snapshot, and Dream deletes it locally."""
+    norm = " ".join(DREAM_PROMPT.read_text(encoding="utf-8").replace("**", "").split())
+    retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").replace("**", "").split())
+
+    assert "Uncommitted period tickets." in norm
+    assert "Local-only period ticket:" in norm
+    assert "untracked in Dream's checkout (`git ls-files -- <path>` prints nothing)" in norm
+    assert "separate `local-only:` slug list" in norm
+    assert "the one named exception to \"do not run Retro in Dream's checkout\"" in norm
+    assert "Then run `coga delete recurring/<name>` from Dream's checkout" in norm
+    assert "is not Retro input this run" in norm
+
+    assert "## Local-only sources" in retro
+    assert "Never run `coga delete` on it" in retro
+    assert "local <slug> — <delete | extract>" in retro
+    assert "did not name it `local-only:`" in retro
+
+
 def test_dream_documents_the_knowledge_scan_skill() -> None:
     """Phase 2 delegates the reusable taxonomy/corpus/output contract to a
     prompt-only Dream scan skill."""

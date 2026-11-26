@@ -353,8 +353,8 @@ limits (≤5 source tickets, ≤3 knowledge files, ≤1 new context/skill file, 
 theme). It first appends a `start` line to the writable `progress.md`, before
 any remote mutation, then records each classified ticket, opened PR, and landed
 direct delete, and finally `complete`. Read that file when the subagent returns
-or terminates, before removing any paths. A missing `pr` or `deleted` receipt
-means the outcome is unknown: the remote mutation may have succeeded before
+or terminates, before removing any paths. A missing `pr`, `deleted`, or `local`
+receipt means the outcome is unknown: the remote mutation may have succeeded before
 the worker stopped. Follow the skill's reconciliation checks against the fresh
 remote base branch and branch/PR state before retrying. Without `complete`,
 report the phase as `partial` with the file's contents and preserve the run
@@ -370,7 +370,9 @@ Every processed done ticket is deleted: a ticket that contributed durable
 knowledge is deleted in its theme's knowledge PR, which also records its
 `## Retro` marker. For an unreferenced ticket carrying no durable knowledge,
 follow Retro's local deletion and explicit Git handoff. Recovery is via
-`git restore`. Retro never leaves a processed done
+`git restore`. A local-only period ticket is the exception: Dream deletes it
+from its own checkout after Retro returns (see **Uncommitted period tickets**
+below). Retro never leaves a processed done
 ticket on disk and never opens a marker-only PR. Retro also searches tracked
 files for durable references to each source task, such as a README or doc
 link on `blob/<base>`. Before a deletion lands, it repoints each one
@@ -382,7 +384,9 @@ eligibility gates above do not cover it.
 After the subagent returns, fetch the remote base branch and verify:
 
 - every PR branch is pushed;
-- every direct delete is present on the remote base branch;
+- every direct delete is present on the remote base branch (a local-only
+  period ticket has no direct delete to verify; Dream deletes it afterwards,
+  as **Uncommitted period tickets** below directs);
 - the isolated checkout holds nothing unlanded, by the check the
   `retro/done-ticket` skill's **Isolation boundary** defines.
 
@@ -419,8 +423,47 @@ later firing, the recurring scanner deletes it before creating that period's
 fresh task. The previous Dream run is removed by that scanner fallback before
 this Dream task is created, so Dream never sees or deletes its own predecessor.
 
-Summarize each knowledge PR — and the directly-deleted no-knowledge tickets —
-in this run's blackboard.
+**Uncommitted period tickets.** The recurring sweep creates period tickets
+without committing them, so a done period ticket is often untracked: it was
+never on the remote base, the isolated checkout does not contain it, and
+neither Retro's delete nor the remote-base verification can reach it. After
+fetching the remote base and before building the snapshot, classify each
+eligible ticket's resolved artifact path:
+
+- **On the base:** `git cat-file -e <remote>/<base>:<path>` succeeds. Retro
+  handles it as above.
+- **Local-only period ticket:** a `recurring/<name>` ticket whose path is
+  absent from `<remote>/<base>` and untracked in Dream's checkout
+  (`git ls-files -- <path>` prints nothing). Nothing about it needs to land.
+- **Anything else absent from the base** — a non-period ticket, or a period
+  ticket committed locally but not pushed — is not Retro input this run. Leave
+  it on disk and list it as deferred in the run summary.
+
+Local-only period tickets still go through Retro's classification, because a
+period blackboard can hold a gotcha worth extracting. Include them in the
+evidence snapshot like any other eligible ticket, and pass them to the
+subagent in a separate `local-only:` slug list, telling it that Retro
+classifies them from the snapshot and never deletes them. Retro records each
+one's `read` and `local` receipts (the skill's **Local-only sources** section
+owns the rule). A knowledge-bearing one contributes to its theme's knowledge
+PR, which cites the snapshot evidence instead of deleting a source.
+
+Dream deletes local-only period tickets itself, in its own checkout, as the
+one named exception to "do not run Retro in Dream's checkout". The exception
+is a local `coga delete` only: no Git command, no commit, no marker. Do it
+after the post-Retro verification below passes and Phase 4 is not `partial`.
+For each slug with a `local` receipt, first re-check that its path is still
+untracked and absent from the fetched base. Confirm the live artifact still
+matches its snapshot copy (`diff -r <snapshot-copy> <path>` prints nothing).
+A knowledge-bearing one also needs its `pr` receipt's branch verified pushed.
+Then run `coga delete recurring/<name>` from Dream's checkout and confirm
+`git status --porcelain -- <path>` prints nothing. A failed check leaves that
+ticket on disk for the scanner fallback above; record the reason under the
+run summary rather than retrying. List every local delete in the run summary
+as `local delete <slug>`, separately from Retro's direct deletes.
+
+Summarize each knowledge PR — and the directly-deleted no-knowledge tickets,
+local deletes, and deferred tickets — in this run's blackboard.
 
 ### Phase 5 — cleanup-orphan-markers
 
