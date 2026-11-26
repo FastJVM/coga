@@ -55,13 +55,8 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
 
     # Phase 4 cleans completed recurring tasks produced earlier in this sweep.
     assert "A done `recurring/<name>` ticket from this sweep is eligible" in norm
-    # Direct-delete is the default, not the rule: the blackboard decides. Both
-    # halves are asserted so neither can drift away on its own.
-    assert (
-        "Retro normally direct-deletes them via `coga delete recurring/<name>`"
-        in norm
-    )
-    assert "never direct-delete on the ticket's class alone" in norm
+    assert "Period tickets *normally* carry nothing durable." in norm
+    assert "Classify the evidence before following the deletion route." in norm
 
     # The scanner is the liveness fallback: it deletes an unreaped completed
     # artifact before creating the next period's fresh task. Dream therefore
@@ -89,24 +84,27 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
 
 
 def test_dream_retro_handles_uncommitted_period_tickets() -> None:
-    """The sweep never commits period tickets, so a done one can be absent from
-    the remote base the isolated Retro checkout starts from. Dream names the
-    case, Retro classifies it from the snapshot, and Dream deletes it locally."""
-    norm = " ".join(DREAM_PROMPT.read_text(encoding="utf-8").replace("**", "").split())
-    retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").replace("**", "").split())
+    """Local deletion needs the snapshot and the receipts from isolated Retro."""
+    dream = DREAM_PROMPT.read_text(encoding="utf-8")
+    phase = dream.split("### Phase 4 — retro/done-ticket", 1)[1].split("### Phase 5", 1)[0]
+    norm = " ".join(phase.split())
+    retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
 
-    assert "Uncommitted period tickets." in norm
-    assert "Local-only period ticket:" in norm
-    assert "untracked in Dream's checkout (`git ls-files -- <path>` prints nothing)" in norm
-    assert "separate `local-only:` slug list" in norm
-    assert "the one named exception to \"do not run Retro in Dream's checkout\"" in norm
-    assert "Then run `coga delete recurring/<name>` from Dream's checkout" in norm
-    assert "is not Retro input this run" in norm
-
+    assert "separate `local-only:` list" in norm
+    assert "`git ls-tree <fetched-tip> -- <path>`, `git ls-tree HEAD -- <path>`" in norm
+    assert "`git ls-files -- <path>`" in norm
+    assert "each `extract` handback also has a verified `pr` receipt" in norm
+    assert "require `diff -r <snapshot-copy> <path>` to exit zero" in norm
+    assert "confirm the artifact path is gone from disk" in norm
+    assert (
+        phase.index("every selected local-only slug has a `local` receipt")
+        < phase.index("run `coga delete recurring/<name>`")
+        < phase.index("delete\nthe temporary run directory")
+    )
     assert "## Local-only sources" in retro
     assert "Never run `coga delete` on it" in retro
     assert "local <slug> — <delete | extract>" in retro
-    assert "did not name it `local-only:`" in retro
+    assert "for `extract`, after the `pr` line for its knowledge PR" in retro
 
 
 def test_dream_documents_the_knowledge_scan_skill() -> None:
@@ -699,6 +697,6 @@ def test_retro_hands_pr_fyis_to_the_caller() -> None:
 def test_dream_phase4_defers_inbound_reference_rule_to_retro() -> None:
     norm = " ".join(DREAM_PROMPT.read_text(encoding="utf-8").split())
 
-    assert "Retro also searches tracked files for durable references" in norm
+    assert "Retro searches tracked files for durable references to each on-base source" in norm
     assert "leaves in the run's reference-pin PR, not by direct delete" in norm
     assert "The skill's **Inbound references** section owns the rule." in norm
