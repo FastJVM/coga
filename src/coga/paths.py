@@ -192,6 +192,8 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
             continue
         except OSError as exc:
             raise WorkflowError(f"Cannot inspect workflow {candidate}: {exc}") from exc
+        except ValueError as exc:
+            raise WorkflowError(f"Invalid workflow name {name!r}: {exc}") from exc
         # Existing entries, including directories and broken links, must be
         # diagnosed by the loader rather than silently selecting other text.
         return candidate
@@ -220,12 +222,16 @@ def _workflow_names_under(root: Path) -> set[str]:
         return set()
 
 
-def available_workflow_names(cfg: Config) -> list[str]:
+def _available_workflow_names(cfg: Config) -> list[str]:
     """Every workflow ref resolvable from local `workflows/` or bundled ones."""
     names: set[str] = set()
     for root in _workflow_roots(cfg):
         names |= _workflow_names_under(root)
     return sorted(names)
+
+
+def _format_workflow_options(names: list[str]) -> str:
+    return ", ".join(name if name.isprintable() else repr(name) for name in names)
 
 
 def workflow_not_found_message(cfg: Config, name: str) -> str:
@@ -235,35 +241,35 @@ def workflow_not_found_message(cfg: Config, name: str) -> str:
     any other ref suggests close matches. Both cover local and bundled
     workflows, matching `resolve_workflow_path`'s search order.
     """
-    clean = name.strip().strip("/")
-    if clean:
+    ref_path = Path(name.strip())
+    clean = ref_path.as_posix() if ref_path.parts else ""
+    if clean and not ref_path.anchor and ".." not in ref_path.parts:
         members: set[str] = set()
         for root in _workflow_roots(cfg):
-            group = root / clean
-            try:
-                is_group = group.is_dir()
-            except OSError:
-                is_group = False
-            if is_group:
-                members |= {
-                    f"{clean}/{leaf}" for leaf in _workflow_names_under(group)
-                }
+            members.update(
+                f"{clean}/{leaf}" for leaf in _workflow_names_under(root / ref_path)
+            )
         if members:
             return (
                 f"Unknown workflow {name!r}: {clean!r} is a workflow group; "
-                f"use one of: {', '.join(sorted(members))}"
+                f"use one of: {_format_workflow_options(sorted(members))}"
             )
-    available = available_workflow_names(cfg)
-    leaf_matches = [n for n in available if clean and n.rsplit("/", 1)[-1] == clean]
-    close = get_close_matches(clean, available, n=3, cutoff=0.6)
-    suggestions = list(dict.fromkeys(leaf_matches + close))
+    available = _available_workflow_names(cfg)
+    if "/" in clean:
+        suggestions = get_close_matches(clean, available)
+    else:
+        by_leaf: dict[str, list[str]] = {}
+        for ref in available:
+            by_leaf.setdefault(ref.rsplit("/", 1)[-1], []).append(ref)
+        matches = get_close_matches(clean, by_leaf)
+        suggestions = [ref for leaf in matches for ref in by_leaf[leaf]]
     if suggestions:
         return (
             f"Unknown workflow {name!r}; did you mean: "
-            f"{', '.join(suggestions)}?"
+            f"{_format_workflow_options(suggestions)}?"
         )
     return (
-        f"Unknown workflow {name!r}: no {workflow_path(cfg, name)} and no "
+        f"Unknown workflow {name!r}: no {str(workflow_path(cfg, name))!r} and no "
         "bundled workflow of that name"
     )
 
@@ -491,7 +497,6 @@ __all__ = [
     "bootstrap_workflow_path",
     "resolve_workflow_path",
     "load_workflow",
-    "available_workflow_names",
     "workflow_not_found_message",
     "skill_path",
     "skill_dir",

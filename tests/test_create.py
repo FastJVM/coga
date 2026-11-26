@@ -1118,8 +1118,9 @@ def test_cli_create_workflow_flag_attaches_workflow(
         ),
         ("code/with-reveiw", "did you mean: code/with-review"),
         ("zzz-no-such-flow", "Unknown workflow 'zzz-no-such-flow': no "),
+        ("zzz\nno-such-flow", "Unknown workflow 'zzz\\nno-such-flow': no "),
     ],
-    ids=["group-directory", "typo-close-match", "unknown"],
+    ids=["group-directory", "typo-close-match", "unknown", "newline"],
 )
 def test_cli_create_unknown_workflow_reports_one_line_error(
     repo: Path, monkeypatch: pytest.MonkeyPatch, name: str, expected: str

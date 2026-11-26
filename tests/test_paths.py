@@ -17,7 +17,7 @@ from coga.paths import (
     workflow_not_found_message,
     workflow_path,
 )
-from coga.workflow import WorkflowError, WorkflowNotFoundError
+from coga.workflow import WorkflowError, WorkflowNotFoundError, git_mode
 
 
 def _cfg(repo_root, contexts_root=None):
@@ -151,7 +151,7 @@ def test_workflow_not_found_suggests_close_matches_across_sources(tmp_path):
     assert "did you mean: ops/deploy" in workflow_not_found_message(cfg, "ops/deplyo")
     assert "code/with-review" in workflow_not_found_message(cfg, "code/with-reveiw")
     # A bare leaf points at every workflow sharing it.
-    leaf = workflow_not_found_message(cfg, "with-review")
+    leaf = workflow_not_found_message(cfg, "with-reveiw")
     assert "code/with-review" in leaf and "docs/with-review" in leaf
 
 
@@ -166,7 +166,7 @@ def test_workflow_not_found_without_matches_names_local_path(tmp_path):
     assert "_template" not in workflow_not_found_message(cfg, "template")
 
     assert "did you mean" not in message
-    assert str(workflow_path(cfg, "zzz-qqq")) in message
+    assert repr(str(workflow_path(cfg, "zzz-qqq"))) in message
 
 
 def test_load_workflow_raises_not_found_with_diagnosis(tmp_path):
@@ -174,6 +174,8 @@ def test_load_workflow_raises_not_found_with_diagnosis(tmp_path):
 
     with pytest.raises(WorkflowNotFoundError, match="is a workflow group"):
         load_workflow(cfg, "code")
+    with pytest.raises(WorkflowNotFoundError, match="is a workflow group"):
+        git_mode("code", cfg)
     assert load_workflow(cfg, "code/with-review").name == "code/with-review"
 
 

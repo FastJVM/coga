@@ -1068,7 +1068,9 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     assert "broken-workflow" not in kinds
 
 
-def test_unfrozen_workflow_group_name_reports_members(repo: Path) -> None:
+def test_unfrozen_workflow_group_name_reports_members(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
     """A hand-authored `workflow: code` names a workflow group, not a
     workflow; validate reports it as an error listing the members instead
     of passing silently until activation fails."""
@@ -1081,17 +1083,44 @@ def test_unfrozen_workflow_group_name_reports_members(repo: Path) -> None:
         owner="marc",
         agent="claude",
         status="draft",
+        description="Described.",
     )
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
     t.frontmatter["workflow"] = "code"
     t.write(ref.ticket_path)
-    report = run(cfg)
-    broken = [i for i in report.issues if i.kind == "broken-workflow"]
-    assert len(broken) == 1
-    assert broken[0].severity == "error"
-    assert "'code' is a workflow group; use one of: " in broken[0].message
-    assert "code/with-review" in broken[0].message
+    monkeypatch.chdir(repo)
+    assert _main(["--task", ref.id_slug]) == 1
+    captured = capsys.readouterr()
+    [error] = [line for line in captured.out.splitlines() if line.startswith("[ERROR]")]
+    assert "[ERROR] x: broken-workflow" in error
+    assert "'code' is a workflow group; use one of: " in error
+    assert "code/with-review" in error
+    assert "unfrozen-workflow" not in captured.out
+    assert captured.err == ""
+
+
+def test_validate_reports_an_unknown_recurring_template_workflow(repo: Path) -> None:
+    _write(repo / "recurring" / "verify" / "ticket.md", """
+        ---
+        title: Verify
+        schedule: "0 9 * * *"
+        workflow: code/with-reveiw
+        ---
+
+        ## Description
+
+        Verify the release.
+
+        <!-- coga:blackboard -->
+    """)
+
+    report = run(load_config(repo))
+
+    [issue] = [i for i in report.issues if i.task == "recurring/verify"]
+    assert issue.kind == "broken-workflow"
+    assert issue.severity == "error"
+    assert "did you mean: code/with-review" in issue.message
 
 
 @pytest.mark.parametrize(

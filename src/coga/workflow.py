@@ -172,9 +172,9 @@ def git_mode(workflow: Any, cfg: Any) -> str:
     `WorkflowError`; `coga validate` reports it as `bad-shape`.
     """
     if isinstance(workflow, str):
-        from coga.paths import resolve_workflow_path
+        from coga.paths import load_workflow
 
-        return Workflow.load(resolve_workflow_path(cfg, workflow)).git
+        return load_workflow(cfg, workflow).git
     if not isinstance(workflow, dict):
         return DEFAULT_GIT_MODE
     mode = workflow.get("git", DEFAULT_GIT_MODE)

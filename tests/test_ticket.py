@@ -440,6 +440,29 @@ def test_ticket_reports_post_exit_validation_errors(
     assert "email/ghost" in combined
 
 
+def test_ticket_reports_an_unknown_authored_workflow_in_one_line(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ticket_path = repo / "tasks" / "investigate-retries.md"
+
+    def author_workflow_group() -> None:
+        ticket = Ticket.read(ticket_path)
+        ticket.frontmatter["workflow"] = "code"
+        ticket.write(ticket_path)
+
+    _allow_ticket_launch(monkeypatch, [], on_run=author_workflow_group)
+
+    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
+
+    assert result.exit_code == 2, result.output
+    error = result.stderr.splitlines()[-1]
+    assert "'code' is a workflow group" in error
+    assert "code/with-review" in error
+    assert "Authoring edits are retained" in error
+    assert "Traceback" not in result.output
+    assert Ticket.read(ticket_path).workflow == "code"
+
+
 @windows_skip(
     "POSIX pty.fork and process-group SIGTERM; the Windows supervisor's "
     "sentinel teardown is covered in tests/test_repl_supervisor_nt.py"

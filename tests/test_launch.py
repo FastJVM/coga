@@ -2813,6 +2813,27 @@ def test_launch_auto_activate_bails_without_workflow(
     assert Ticket.read(ref.ticket_path).status == "draft"
 
 
+def test_launch_reports_unknown_draft_workflow_before_activation(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = list_tasks(load_config(active_task))[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter.update(status="draft", workflow="code")
+    ticket.frontmatter.pop("step")
+    ticket.write(ref.ticket_path)
+    original = ref.ticket_path.read_bytes()
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 2, result.output
+    assert len(result.output.splitlines()) == 1
+    assert "'code' is a workflow group" in result.output
+    assert "code/with-review" in result.output
+    assert calls == []
+    assert ref.ticket_path.read_bytes() == original
+
+
 @pytest.mark.parametrize("slug", ["fix-retry-logic", "coga-build"])
 def test_launch_agent_not_in_path(
     active_task: Path, monkeypatch: pytest.MonkeyPatch, slug: str

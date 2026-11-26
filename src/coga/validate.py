@@ -1282,15 +1282,6 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
                         severity="error",
                     ))
     elif isinstance(wf, str):
-        out.append(Issue(
-            kind="unfrozen-workflow",
-            task=task_label,
-            message=(
-                f"workflow {wf!r} is not a frozen dict — likely a hand-authored "
-                "ticket awaiting first launch"
-            ),
-            severity="warn",
-        ))
         try:
             workflow = load_workflow(cfg, wf)
         except WorkflowError as exc:
@@ -1301,6 +1292,15 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
                 severity="error",
             ))
         else:
+            out.append(Issue(
+                kind="unfrozen-workflow",
+                task=task_label,
+                message=(
+                    f"workflow {wf!r} is not a frozen dict — likely a hand-authored "
+                    "ticket awaiting first launch"
+                ),
+                severity="warn",
+            ))
             out.extend(_check_workflow_runs(cfg, task_label, workflow))
 
     return out
@@ -1572,7 +1572,13 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             continue
         try:
             workflow = load_workflow(cfg, workflow_name)
-        except WorkflowError:
+        except WorkflowError as exc:
+            out.append(Issue(
+                kind="broken-workflow",
+                task=f"recurring/{path.name}",
+                message=str(exc),
+                severity="error",
+            ))
             continue
         out.extend(_check_workflow_runs(cfg, f"recurring/{path.name}", workflow))
         if workflow.git != "main":

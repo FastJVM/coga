@@ -416,7 +416,12 @@ def _run_authoring_session(
     try:
         finalize_authored(cfg, before_snapshot=before_authoring, ref=ref)
     except (AuthoringError, TaskValidationError) as exc:
-        _bail(f"{exc}\nAuthoring edits are retained on disk for inspection.")
+        retained = "Authoring edits are retained on disk for inspection."
+        if isinstance(exc, TaskValidationError) and len(exc.issues) == 1:
+            issue = exc.issues[0]
+            if issue.kind == "broken-workflow":
+                _bail(f"{issue.task}: {issue.message} ({retained})")
+        _bail(f"{exc}\n{retained}")
 
 
 def _bail(msg: str) -> None:
