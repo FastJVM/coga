@@ -84,8 +84,10 @@ def test_retro_repoints_inbound_references_before_deleting() -> None:
     # Knowledge-bearing sources repoint in their knowledge PR; referenced
     # no-knowledge sources leave in one reference-pin PR, not by direct delete.
     assert "Repointed files do not count toward the per-PR knowledge-file limit" in norm
-    assert "it does not take the direct delete" in norm
-    assert "one reference-pin PR" in norm
+    assert (
+        "**No-durable-knowledge source with references:** collect every such source "
+        "in the run into one reference-pin PR"
+    ) in norm
     assert "`codex/retro-pin-references-<run-id>`" in text
     assert "pr <theme | pin-references>" in text
     assert "- Repointed references:" in text
