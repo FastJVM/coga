@@ -80,6 +80,6 @@ prefix regardless of ticket status. It removes the task's Markdown file or,
 for directory form, the task directory and its attachments. A parent group
 directory is preserved. The deletion is local and unstaged, and creates no
 audit entry. Commit the deletion with Git to share it. `git restore` can
-recover previously committed files. To review a `done` or `canceled` ticket
-for lasting knowledge before removing it, use
-[`coga retire`](../../../../retire/ticket.md).
+recover previously committed files. See how
+[`coga retire`](../../../../retire/ticket.md) handles `done` and `canceled`
+tickets.
