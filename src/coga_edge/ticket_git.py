@@ -123,6 +123,20 @@ def tracked_in_head(rel: str) -> bool:
     return git("cat-file", "-e", f"HEAD:{rel}", check=False).returncode == 0
 
 
+def require_unstaged_carried_paths(paths: TicketPaths) -> None:
+    pathspecs = [f":(top,literal){rel}" for rel in paths.carried]
+    staged = out("diff", "--cached", "--name-only", "-z", "--", *pathspecs)
+    if staged:
+        raise TicketGitError(
+            "Unstage the carried ticket or log before continuing: "
+            + ", ".join(staged.rstrip("\0").split("\0"))
+        )
+
+
+def restore_worktree_file(rel: str) -> None:
+    out("restore", "--source=HEAD", "--worktree", "--", f":(top,literal){rel}")
+
+
 # --- carrying live state across a switch -----------------------------------------
 
 
@@ -134,6 +148,7 @@ def switch_carrying(paths: TicketPaths, target: str, *switch_args: str) -> None:
     on failure. Any other modified file that blocks the switch fails it with
     Git's message naming that file.
     """
+    require_unstaged_carried_paths(paths)
     saved: dict[str, bytes | None] = {}
     for rel in paths.carried:
         file = paths.top / rel
@@ -141,31 +156,15 @@ def switch_carrying(paths: TicketPaths, target: str, *switch_args: str) -> None:
     try:
         for rel, data in saved.items():
             if tracked_in_head(rel):
-                out("checkout", "HEAD", "--", rel)
+                restore_worktree_file(rel)
             elif data is not None:
                 (paths.top / rel).unlink()
-        run_op(f"git switch {target}", "switch", *switch_args)
+        run_op(f"git switch {target}", "switch", "--no-overwrite-ignore", *switch_args)
     finally:
-        for rel, data in saved.items():
-            file = paths.top / rel
-            if data is None:
-                continue
-            file.parent.mkdir(parents=True, exist_ok=True)
-            file.write_bytes(data)
+        _write_back(paths, saved)
 
 
-def restore_carried_to_head(paths: TicketPaths) -> dict[str, bytes | None]:
-    """Save the carried files and restore tracked ones to `HEAD`."""
-    saved: dict[str, bytes | None] = {}
-    for rel in paths.carried:
-        file = paths.top / rel
-        saved[rel] = file.read_bytes() if file.is_file() else None
-        if tracked_in_head(rel):
-            out("checkout", "HEAD", "--", rel)
-    return saved
-
-
-def write_back(paths: TicketPaths, saved: dict[str, bytes | None]) -> None:
+def _write_back(paths: TicketPaths, saved: dict[str, bytes | None]) -> None:
     for rel, data in saved.items():
         if data is None:
             continue
@@ -200,31 +199,31 @@ def merged_log(base_text: str, local_text: str, slug: str) -> str:
     )
 
 
-def _task_files(paths: TicketPaths) -> list[str]:
-    """The task's own files: the ticket, or its directory without nested tasks."""
+def _task_files(paths: TicketPaths, env: dict[str, str]) -> list[str]:
+    """Select tracked and non-ignored ticket paths using the publication index."""
     if not paths.task_is_dir:
         return [paths.ticket_rel] if paths.ticket.is_file() else []
-    root = paths.top / paths.task_rel
-    files: list[str] = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        here = Path(dirpath)
-        dirnames[:] = sorted(
-            d for d in dirnames
-            if not (here / d / "ticket.md").is_file() and d != "__pycache__"
-        )
-        for name in sorted(filenames):
-            files.append((here / name).relative_to(paths.top).as_posix())
-    return files
-
-
-def _nested_task_prefixes(paths: TicketPaths, tree_entries: list[str]) -> set[str]:
-    prefix = paths.task_rel + "/"
-    return {
-        entry[: -len("ticket.md")]
-        for entry in tree_entries
-        if entry.startswith(prefix) and entry.endswith("/ticket.md")
-        and entry != paths.ticket_rel
+    entries = set(out(
+        "ls-files", "--cached", "--others", "--exclude-standard", "--full-name",
+        "-z", "--", f":(top,literal){paths.task_rel}/", env=env,
+    ).split("\0"))
+    root = Path(paths.task_rel)
+    nested = {
+        Path(entry).parent for entry in entries
+        if entry.endswith("/ticket.md") and entry != paths.ticket_rel
     }
+    selection = []
+    for entry in sorted(entries):
+        if not entry or entry.endswith("/"):
+            continue
+        parents = Path(entry).parents
+        if any(
+            parent in nested or (paths.top / parent / "ticket.md").is_file()
+            for parent in parents if root in parent.parents
+        ):
+            continue
+        selection.append(entry)
+    return selection
 
 
 def publish_ticket(paths: TicketPaths, *, slug: str, remote: str, base: str) -> str | None:
@@ -243,24 +242,10 @@ def publish_ticket(paths: TicketPaths, *, slug: str, remote: str, base: str) -> 
     with tempfile.TemporaryDirectory() as tmp:
         env = dict(os.environ, GIT_INDEX_FILE=str(Path(tmp) / "index"))
         out("read-tree", parent, env=env)
-        entries = out("ls-files", "-z", env=env).split("\0")
-        nested = _nested_task_prefixes(paths, entries)
-        own_prefix = paths.task_rel + "/" if paths.task_is_dir else None
-        stale = [
-            entry for entry in entries
-            if entry and (
-                entry == paths.task_rel
-                or (own_prefix and entry.startswith(own_prefix)
-                    and not any(entry.startswith(n) for n in nested))
-            )
-        ]
-        if stale:
-            out("update-index", "--force-remove", "-z", "--stdin", env=env,
-                input="\0".join(stale) + "\0")
-        for rel in _task_files(paths):
-            blob = out("hash-object", "-w", "--", str(paths.top / rel))
-            mode = "100755" if os.access(paths.top / rel, os.X_OK) else "100644"
-            out("update-index", "--add", "--cacheinfo", f"{mode},{blob},{rel}", env=env)
+        selected = _task_files(paths, env)
+        if selected:
+            out("add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul", env=env,
+                input="".join(f":(top,literal){rel}\0" for rel in selected))
 
         base_log = git("show", f"{parent}:{paths.log_rel}", check=False)
         base_log_text = base_log.stdout if base_log.returncode == 0 else ""
@@ -298,11 +283,23 @@ def fast_forward_base(paths: TicketPaths, base: str, commit: str) -> bool:
     if current_branch() != base:
         out("update-ref", f"refs/heads/{base}", commit, local)
         return True
-    saved = restore_carried_to_head(paths)
     try:
+        require_unstaged_carried_paths(paths)
+    except TicketGitError as exc:
+        print(f"ticket-exit: published, but left local `{base}` where it is: {exc}",
+              file=sys.stderr)
+        return False
+    saved = {
+        rel: (paths.top / rel).read_bytes() for rel in paths.carried
+        if (paths.top / rel).is_file()
+    }
+    try:
+        for rel in saved:
+            if tracked_in_head(rel):
+                restore_worktree_file(rel)
         merged = git("merge", "--ff-only", "--quiet", commit, check=False)
     finally:
-        write_back(paths, saved)
+        _write_back(paths, saved)
     if merged.returncode != 0:
         # The publish already landed; only the local catch-up failed.
         print(
@@ -327,9 +324,9 @@ __all__ = [
     "out",
     "publish_ticket",
     "ref_tip",
-    "restore_carried_to_head",
+    "require_unstaged_carried_paths",
+    "restore_worktree_file",
     "run_op",
     "switch_carrying",
     "ticket_paths",
-    "write_back",
 ]

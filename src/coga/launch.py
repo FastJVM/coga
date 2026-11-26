@@ -921,10 +921,9 @@ class _LaunchInvocation:
                     self.agent_override if first_step else None,
                 )
 
-            # The workflow's `enter` step script runs before every agent step
-            # this chain starts. It may switch the checkout, so config and the
-            # ticket are read again from what it left.
-            if isinstance(self.ref, TaskRef):
+            # A script phase may have already entered this step before it
+            # handed the same step's remaining work to the agent.
+            if isinstance(self.ref, TaskRef) and self.ticket.step not in self.script_steps_run:
                 try:
                     entered = run_enter_before_step(
                         self.cfg, self.ref, self.ticket.workflow, self.tmp_scope,
@@ -1167,6 +1166,8 @@ class _LaunchInvocation:
 
             _report("Launch: reading task state after agent exit")
             updated_ticket = read_ticket(self.ref)
+            if (failure := exit_failure(self.cfg, self.ref)) is not None:
+                _bail(f"{failure} Stopping before the next step.", exit_code=1)
             stop_reason = _harness_stop_reason(
                 self.ref,
                 self.ticket,
@@ -2258,9 +2259,6 @@ def _harness_stop_reason(
     *,
     chain_agent_override: str | None = None,
 ) -> str | None:
-    failure = exit_failure(cfg, ref)
-    if failure is not None:
-        return f"{failure} Stopping before the next step"
     if after.status != "in_progress":
         if after.status in TERMINAL_STATUSES:
             return f"{ref.id_slug}: task is {after.status}"

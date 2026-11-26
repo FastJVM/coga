@@ -84,12 +84,15 @@ the checkout is the newest one.
 1. On the ticket branch, it commits everything except `coga/tasks/**` and
    `coga/log.md` as `<slug>: handoff at <step>`, pushes the branch when the
    remote lacks its tip, and switches back to the base with the live ticket
-   and log. On the base, or with no branch recorded, it only publishes. On
-   any other branch it refuses.
+   and log. Other tickets' staged changes stay staged. A staged change to
+   the carried ticket or log stops the switch so you can resolve it. On the
+   base, or with no branch recorded, it only publishes. On any other branch
+   it refuses.
 2. It publishes one commit on `<remote>/<base>`, built in a temporary index
-   from that ref: this ticket's files (a directory-form task's whole
-   directory, without nested tasks) and its own new `coga/log.md` lines.
-   Other tickets' edits and unpushed local base commits are never published.
+   from that ref: this ticket's files and its own new `coga/log.md` lines.
+   For a directory-form task it includes tracked and non-ignored attachments
+   and leaves nested tickets alone. Other tickets' edits and unpushed local
+   base commits are never published.
 3. It fast-forwards the local base when it can, and otherwise says so.
 
 `run.py rebase` rebases the ticket branch onto `<remote>/<base>`. It saves the

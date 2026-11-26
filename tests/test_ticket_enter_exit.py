@@ -190,6 +190,91 @@ def test_fast_forwards_local_base_when_it_has_no_local_commits(te, monkeypatch):
     assert _show(repo, "main", ref.ticket_path) == ref.ticket_path.read_text(encoding="utf-8")
 
 
+def test_exit_preserves_another_tickets_staged_and_unstaged_changes(te, monkeypatch):
+    repo, ref, other = te
+    other_rel = _rel(repo, other.ticket_path)
+    original = other.ticket_path.read_text(encoding="utf-8")
+    staged = original + "\nstaged note\n"
+    working = staged + "\nunstaged note\n"
+
+    def action(env):
+        if read_ticket(ref).step == "1 (implement)":
+            other.ticket_path.write_text(staged, encoding="utf-8")
+            repo.git("add", "--", other_rel)
+            other.ticket_path.write_text(working, encoding="utf-8")
+            (repo.root / "feature.txt").write_text("feature\n", encoding="utf-8")
+        _bump_from(env, ref.id_slug)
+
+    _agent(monkeypatch, action)
+    assert launch(ref.id_slug).exit_code == 0
+    branch = read_dev_fields(read_blackboard(ref.ticket_path))["branch"]
+    assert repo.git("diff", "--name-only", f"origin/main...origin/{branch}").splitlines() == [
+        "feature.txt",
+    ]
+    assert repo.git("show", f":{other_rel}") == staged
+    assert other.ticket_path.read_text(encoding="utf-8") == working
+    assert _show(repo, "origin/main", other.ticket_path) == original
+
+
+def test_exit_refuses_a_staged_carried_ticket_without_overwriting_it(te, monkeypatch, capfd):
+    repo, ref, _ = te
+    observed = {}
+
+    def action(env):
+        rel = _rel(repo, ref.ticket_path)
+        repo.git("add", "--", rel)
+        observed["staged"] = repo.git("show", f":{rel}")
+        (repo.root / "feature.txt").write_text("feature\n", encoding="utf-8")
+        result = _invoke("bump", ref.id_slug, env=dict(env))
+        assert result.exit_code == 1
+
+    _agent(monkeypatch, action)
+    with pytest.raises(launch_module.LaunchBail, match="Stopping before the next step"):
+        launch(ref.id_slug)
+    assert "Unstage the carried ticket or log" in capfd.readouterr().err
+    assert _branch(repo) == read_dev_fields(read_blackboard(ref.ticket_path))["branch"]
+    assert repo.git("show", f":{_rel(repo, ref.ticket_path)}") == observed["staged"]
+    assert read_ticket(ref).step == "2 (polish)"
+    assert "feature.txt" not in repo.git("ls-tree", "--name-only", "HEAD")
+
+
+def test_directory_ticket_publishes_git_visible_attachments_and_deletions(te):
+    repo, _, _ = te
+    cfg = load_config(repo.coga_os)
+    created = create_task(
+        cfg=cfg, title="Directory ticket", workflow_name="te", contexts=[],
+        owner=cfg.current_user, agent=cfg.default_agent().name, status="active",
+        force_directory=True,
+    )
+    ref = resolve_task(cfg, created["slug"])
+    directory = ref.ticket_path.parent
+    rel = _rel(repo, directory)
+    notes = directory / "old.md"
+    notes.write_text("old\n", encoding="utf-8")
+    (directory / ".gitignore").write_text("private.txt\n", encoding="utf-8")
+    repo.git("add", "--", rel)
+    repo.git("commit", "-qm", "Seed directory ticket")
+    repo.git("push", "-q", "origin", "main")
+
+    notes.unlink()
+    (directory / "public notes.txt").write_text("public\n", encoding="utf-8")
+    ignored = directory / "private.txt"
+    ignored.write_text("local-only\n", encoding="utf-8")
+    nested = directory / "nested"
+    nested.mkdir()
+    (nested / "ticket.md").write_text("nested\n", encoding="utf-8")
+    (nested / "notes.txt").write_text("nested work\n", encoding="utf-8")
+
+    result = _invoke("mark", "done", ref.id_slug)
+    assert result.exit_code == 0, result.output
+    assert _remote_ticket(repo, ref).status == "done"
+    assert repo.git("ls-tree", "-r", "--name-only", "origin/main", "--", rel).splitlines() == [
+        f"{rel}/.gitignore", f"{rel}/public notes.txt", f"{rel}/ticket.md",
+    ]
+    assert ignored.read_text(encoding="utf-8") == "local-only\n"
+    assert (nested / "notes.txt").read_text(encoding="utf-8") == "nested work\n"
+
+
 def test_resume_switches_to_recorded_branch_with_the_live_ticket(te, monkeypatch):
     repo, ref, _ = te
     seen: list[tuple[str, str]] = []
@@ -271,7 +356,8 @@ def test_rejected_publish_fails_loudly_without_retry(te, monkeypatch):
         codes.append(result.exit_code)
 
     _agent(monkeypatch, action)
-    launch(ref.id_slug)
+    with pytest.raises(launch_module.LaunchBail, match="Stopping before the next step"):
+        launch(ref.id_slug)
     # The bump failed loudly and the supervisor did not start the next step.
     assert codes == [1]
     # The step change was written locally; the base on the remote is unchanged.

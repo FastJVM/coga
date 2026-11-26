@@ -28,6 +28,8 @@ from coga_edge.ticket_git import (
     is_ancestor,
     out,
     ref_tip,
+    require_unstaged_carried_paths,
+    restore_worktree_file,
     run_op,
     switch_carrying,
     ticket_paths,
@@ -116,6 +118,7 @@ def rebase() -> int:
     branch, base, remote = record
     if current_branch() != branch:
         raise TicketGitError(f"HEAD is not on the ticket branch `{branch}`")
+    require_unstaged_carried_paths(paths)
     keep = Path(os.environ.get("COGA_TASK_DATA_DIR") or os.environ["TMPDIR"]) / "rebase-saved"
     keep.mkdir(parents=True, exist_ok=True)
     saved: list[tuple[str, Path]] = []
@@ -127,10 +130,10 @@ def rebase() -> int:
         shutil.copy2(file, copy)
         saved.append((rel, copy))
     run_op(f"git fetch {remote} {base}", "fetch", "--quiet", remote, base)
-    for rel, _ in saved:
-        if tracked_in_head(rel):
-            out("checkout", "HEAD", "--", rel)
     try:
+        for rel, _ in saved:
+            if tracked_in_head(rel):
+                restore_worktree_file(rel)
         run_op(f"git rebase {remote}/{base}", "rebase", f"{remote}/{base}")
     except TicketGitError as exc:
         kept = ", ".join(f"{rel} -> {copy}" for rel, copy in saved)

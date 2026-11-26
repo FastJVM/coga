@@ -23,6 +23,7 @@ from coga.taskfile import TaskFileError
 from coga.ticket import Ticket, TicketError
 from coga_edge.ticket_git import (
     TicketGitError,
+    TicketPaths,
     current_branch,
     dev_record,
     fast_forward_base,
@@ -30,6 +31,7 @@ from coga_edge.ticket_git import (
     out,
     publish_ticket,
     ref_tip,
+    require_unstaged_carried_paths,
     run_op,
     switch_carrying,
     ticket_paths,
@@ -38,7 +40,7 @@ from coga_edge.ticket_git import (
 PREFIX = "ticket-exit"
 
 
-def handoff_message(slug: str, paths) -> str:  # type: ignore[no-untyped-def]
+def handoff_message(slug: str, paths: TicketPaths) -> str:
     try:
         parsed = Ticket.read(paths.ticket)
         step = parsed.current_step()
@@ -49,15 +51,20 @@ def handoff_message(slug: str, paths) -> str:  # type: ignore[no-untyped-def]
     return f"{slug}: handoff ({parsed.status})"
 
 
-def commit_code(paths, slug: str) -> None:  # type: ignore[no-untyped-def]
-    run_op(
-        "git add -A (without ticket state)", "-C", str(paths.top), "add", "-A", "--",
-        ":(top)", f":(top,exclude){paths.tasks_rel}", f":(top,exclude){paths.log_rel}",
+def commit_code(paths: TicketPaths, slug: str) -> None:
+    code_paths = (
+        "--", ":(top)", f":(top,literal,exclude){paths.tasks_rel}",
+        f":(top,literal,exclude){paths.log_rel}",
     )
-    staged = git("-C", str(paths.top), "diff", "--cached", "--quiet", check=False)
+    run_op(
+        "git add -A (without ticket state)", "-C", str(paths.top), "add", "-A",
+        *code_paths,
+    )
+    staged = git("-C", str(paths.top), "diff", "--cached", "--quiet",
+                 *code_paths, check=False)
     if staged.returncode == 1:
-        run_op("git commit", "-C", str(paths.top), "commit", "-q", "-m",
-               handoff_message(slug, paths))
+        run_op("git commit", "-C", str(paths.top), "commit", "--only", "-q", "-m",
+               handoff_message(slug, paths), *code_paths)
     elif staged.returncode:
         raise TicketGitError(f"git diff --cached --quiet failed: {staged.stderr.strip()}")
 
@@ -80,6 +87,7 @@ def exit_() -> int:
                 f"`## Dev` records branch: {branch} without base: or remote:"
             )
         if start == branch:
+            require_unstaged_carried_paths(paths)
             commit_code(paths, slug)
             # Push only what the remote lacks: after a merge the host may have
             # deleted the branch, and a no-op push would recreate it.

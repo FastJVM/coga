@@ -100,9 +100,10 @@ A workflow's `enter` step script runs before each step of the chain, and its
 script's skill into the launch `$TMPDIR` and runs it with the ticket and tmp
 environment and no secrets. A failed `enter` refuses the step before its
 executor starts; after `enter` launch re-reads config and the ticket from
-the checkout the script left. A failed `exit` stops the chain before the next
-step. `--prompt-report` runs neither. A ticket whose frozen workflow still
-declares the removed `git:` mode is refused with the migration's name.
+the checkout the script left. A failed `exit` stops the current chain before
+the next step and makes launch fail. `--prompt-report` runs neither. A ticket
+whose frozen workflow still declares the removed `git:` mode is refused with
+the migration's name.
 
 ## Run state
 

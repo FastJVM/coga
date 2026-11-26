@@ -12,7 +12,7 @@ import coga.launch as launch_module
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
-from coga.launch import launch
+from coga.launch import AgentSessionResult, launch
 from coga.repl_supervisor import ReplOutcome
 from coga.tasks import read_ticket, resolve_task
 from coga.workflow import Workflow, WorkflowError, step_script
@@ -275,6 +275,58 @@ def test_failed_enter_refuses_the_step(ss, monkeypatch):
     assert exc.value.code == 5
     assert _calls(log) == ["enter 1 (prepare) plain"]
     assert read_ticket(ref).step == "1 (prepare)"
+
+
+def test_launch_enters_once_for_a_step_with_script_and_agent_phases(ss, monkeypatch):
+    repo, ref, log = ss
+    advance = repo.coga_os / "skills" / "test" / "advance" / "run.py"
+    advance.write_text("pass\n", encoding="utf-8")
+
+    def fake_run(cmd, env, **kwargs):
+        result = CliRunner().invoke(app, ["bump", ref.id_slug], env=dict(env))
+        assert result.exit_code == 0, result.output
+        return ReplOutcome(0, "natural")
+
+    monkeypatch.setattr(launch_module, "run_with_done_marker", fake_run)
+    assert launch(ref.id_slug).exit_code == 0
+    assert _calls(log) == [
+        "enter 1 (prepare) plain", "exit 2 (implement) plain",
+        "enter 2 (implement) plain", "exit 3 (review) plain",
+    ]
+
+
+@pytest.mark.parametrize("first_step", ["script", "agent"])
+def test_megalaunch_preserves_draft_activation_after_enter(ss, monkeypatch, first_step):
+    from coga_edge.megalaunch import run_megalaunch
+
+    repo, ref, log = ss
+    if first_step == "agent":
+        workflow = repo.coga_os / "workflows" / "ss.md"
+        workflow.write_text(
+            WORKFLOW.replace("    run: test/advance\n", "") + "\n## prepare\nPrepare it.\n",
+            encoding="utf-8",
+        )
+    draft = read_ticket(ref)
+    draft.frontmatter.update(status="draft", workflow="ss")
+    draft.frontmatter.pop("step")
+    draft.write(ref.ticket_path)
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
+
+    def fake_spawn(cfg, agent_ref, ticket, agent, *, env, **kwargs):
+        assert ticket.step is not None
+        assert read_ticket(ref).status == "in_progress"
+        result = CliRunner().invoke(app, ["bump", agent_ref.id_slug], env=dict(env))
+        assert result.exit_code == 0, result.output
+        return AgentSessionResult(0, "natural", done_signalled=True)
+
+    monkeypatch.setattr("coga_edge.megalaunch.spawn_agent_session", fake_spawn)
+    run = run_megalaunch(load_config(repo.coga_os), selection=[ref.id_slug])
+    assert run.counts["completed"] == 1, run.results
+    assert read_ticket(ref).step == "3 (review)"
+    assert _calls(log) == [
+        "enter - plain", "exit 2 (implement) plain",
+        "enter 2 (implement) plain", "exit 3 (review) plain",
+    ]
 
 
 def test_recurring_template_with_step_scripts_is_refused(ss):

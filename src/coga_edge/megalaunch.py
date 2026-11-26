@@ -1245,6 +1245,11 @@ def _launch_chain(
         try:
             if run_enter_before_step(cfg, ref, ticket.workflow, tmp_scope):
                 ticket = read_ticket(ref)
+                if prior in {"draft", "paused"}:
+                    prepared = _prepare_for_launch(cfg, ref, ticket)
+                    if isinstance(prepared, MegalaunchResult):
+                        return replace(prepared, launched=launched)
+                    ticket = prepared
         except (StepScriptError, TicketError, OSError) as exc:
             return _result(ref, "failed", f"enter script: {exc}", launch_agent,
                            launched=launched)
