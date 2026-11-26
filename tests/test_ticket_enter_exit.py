@@ -15,7 +15,7 @@ from coga.blackboard import read_dev_fields
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
-from coga.launch import launch
+from coga.launch import AgentSessionResult, launch
 from coga.repl_supervisor import ReplOutcome
 from coga.taskfile import read_blackboard
 from coga.tasks import read_ticket, resolve_task
@@ -374,6 +374,30 @@ def test_rejected_publish_fails_loudly_without_retry(te, monkeypatch):
     assert result.exit_code == 0, result.output
     assert exit_failure(cfg, ref) is None
     assert _remote_ticket(repo, ref).status == "blocked"
+
+
+def test_megalaunch_stops_when_an_entered_step_leaves_the_branch_checked_out(te, monkeypatch):
+    from coga_edge.megalaunch import run_megalaunch
+
+    repo, ref, other = te
+    monkeypatch.setattr("coga_edge.megalaunch.interactive_stdio_has_tty", lambda: True)
+    started = []
+
+    def fake_spawn(cfg, task, ticket, agent, **kwargs):
+        started.append(task.id_slug)
+        (repo.root / "uncommitted-feature.txt").write_text("wip\n", encoding="utf-8")
+        return AgentSessionResult(0, "natural")
+
+    monkeypatch.setattr("coga_edge.megalaunch.spawn_agent_session", fake_spawn)
+    run = run_megalaunch(load_config(repo.coga_os), selection=[ref.id_slug, other.id_slug])
+
+    assert started == [ref.id_slug]
+    (result,) = run.results
+    assert result.outcome == "failed"
+    assert result.stops_run
+    assert _branch(repo) == read_dev_fields(read_blackboard(ref.ticket_path))["branch"]
+    assert (repo.root / "uncommitted-feature.txt").is_file()
+    assert read_ticket(other).status == "active"
 
 
 def test_rebase_keeps_the_live_ticket(te, monkeypatch):

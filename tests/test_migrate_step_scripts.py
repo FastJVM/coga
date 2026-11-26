@@ -6,8 +6,10 @@ import os
 
 import pytest
 
+from coga.blackboard import set_dev_fields
 from coga.config import load_config
 from coga.create import create_task
+from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import resolve_task
 from coga.ticket import Ticket
 from coga_edge import migrate_step_scripts as migrate
@@ -75,11 +77,12 @@ def repo(git_repo, monkeypatch):
 
 
 def _ticket(repo, title: str, workflow: str, *, status: str = "active", step: int | None = None,
-            edit=None):  # type: ignore[no-untyped-def]
+            edit=None, force_directory: bool = False):  # type: ignore[no-untyped-def]
     cfg = load_config(repo.coga_os)
     created = create_task(
         cfg=cfg, title=title, workflow_name=workflow, contexts=[],
         owner=cfg.current_user, agent=cfg.default_agent().name, status=status,
+        force_directory=force_directory,
     )
     path = resolve_task(cfg, created["slug"]).ticket_path
     ticket = Ticket.read(path)
@@ -206,3 +209,94 @@ def test_path_rewrites_one_work_tree_ticket_in_place(repo, capsys):
     assert Ticket.read(path).step == "1 (implement)"
     assert migrate.main(["--path", str(path)]) == 0
     assert "needs no change" in capsys.readouterr().out
+
+
+def _advance_legacy_branch(repo, path, *, base="main"):
+    repo.git("switch", "-c", "legacy")
+    ticket = Ticket.read(path)
+    ticket.frontmatter.update(status="in_progress", step="3 (review)")
+    ticket.write(path)
+    replace_blackboard(
+        path, set_dev_fields(read_blackboard(path), branch="legacy", base=base, remote="origin"),
+    )
+    slug = "legacy-branch"
+    with (repo.coga_os / "log.md").open("a", encoding="utf-8") as stream:
+        stream.write(f"2026-11-25 14:00 v1 [{slug}] [system] advanced from the branch\n")
+        stream.write("2026-11-25 14:00 v1 [unrelated] [system] unrelated note\n")
+    (repo.root / "feature.txt").write_text("feature\n", encoding="utf-8")
+    if path.name == "ticket.md":
+        (path.parent / "old.txt").unlink()
+        (path.parent / "new.txt").write_text("new attachment\n", encoding="utf-8")
+    repo.git("add", "-A")
+    repo.git("commit", "-qm", "Advance a legacy branch ticket")
+    repo.git("push", "-q", "origin", "legacy")
+    repo.git("switch", "main")
+
+
+@pytest.mark.parametrize("directory", [False, True])
+def test_migration_moves_live_branch_state_and_keeps_only_code_in_pr(repo, directory):
+    path = _ticket(repo, "Legacy branch", "old", step=1, force_directory=directory)
+    rel = path.relative_to(repo.root).as_posix()
+    if directory:
+        (path.parent / "old.txt").write_text("old attachment\n", encoding="utf-8")
+    _seed(repo)
+    _advance_legacy_branch(repo, path)
+    old_branch = repo.git("rev-parse", "origin/legacy").strip()
+    old_base = repo.git("rev-parse", "origin/main").strip()
+
+    assert migrate.main(["--apply"]) == 0
+
+    live = Ticket.parse(repo.git("show", f"origin/main:{rel}"))
+    assert live.status == "in_progress"
+    assert live.step == "2 (review)"
+    assert live.workflow["enter"] == "git/ticket-enter"
+    assert repo.git("rev-parse", "origin/legacy^").strip() == old_branch
+    assert repo.git("rev-parse", "origin/main^").strip() == old_base
+    assert repo.git("rev-parse", "legacy").strip() == repo.git("rev-parse", "origin/legacy").strip()
+    assert repo.git("diff", "--name-only", "origin/main...origin/legacy").splitlines() == [
+        "feature.txt",
+    ]
+    log = repo.git("show", "origin/main:coga/log.md")
+    assert "[legacy-branch] [system] advanced from the branch" in log
+    assert "unrelated note" not in log
+    if directory:
+        prefix = path.parent.relative_to(repo.root).as_posix()
+        assert repo.git("show", f"origin/main:{prefix}/new.txt") == "new attachment\n"
+        assert "old.txt" not in repo.git("ls-tree", "origin/main", f"{prefix}/")
+    assert migrate.main([]) == 0
+
+
+@pytest.mark.parametrize("case", ["different base", "changed base"])
+def test_migration_refuses_ambiguous_live_branch_state(repo, capsys, case):
+    path = _ticket(repo, "Legacy branch", "old", step=1)
+    _seed(repo)
+    _advance_legacy_branch(repo, path, base="missing" if case == "different base" else "main")
+    if case == "changed base":
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write("\nA newer note on the base.\n")
+        _seed(repo)
+    old_base = repo.git("rev-parse", "origin/main")
+    old_branch = repo.git("rev-parse", "origin/legacy")
+
+    assert migrate.main(["--apply"]) == 1
+    error = capsys.readouterr().err
+    assert ("recorded base 'missing'" if case == "different base" else "both the base") in error
+    assert repo.git("rev-parse", "origin/main") == old_base
+    assert repo.git("rev-parse", "origin/legacy") == old_branch
+
+
+def test_migration_keeps_both_remote_refs_if_the_branch_update_is_rejected(repo):
+    path = _ticket(repo, "Legacy branch", "old", step=1)
+    _seed(repo)
+    _advance_legacy_branch(repo, path)
+    old_base = repo.git("rev-parse", "main", cwd=repo.origin)
+    old_branch = repo.git("rev-parse", "legacy", cwd=repo.origin)
+    hook = repo.origin / "hooks" / "update"
+    hook.write_text(
+        '#!/bin/sh\n[ "$1" != refs/heads/legacy ]\n', encoding="utf-8",
+    )
+    hook.chmod(0o755)
+
+    assert migrate.main(["--apply"]) == 1
+    assert repo.git("rev-parse", "main", cwd=repo.origin) == old_base
+    assert repo.git("rev-parse", "legacy", cwd=repo.origin) == old_branch

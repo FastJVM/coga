@@ -12,11 +12,10 @@ Run from the repo, after upgrading coga::
     python -m coga_edge.migrate_step_scripts --apply    # publish one commit
     python -m coga_edge.migrate_step_scripts --path coga/tasks/<slug>.md
 
-The default form reads every ticket on `<remote>/<base>` and reports what it
-would rewrite; `--apply` pushes those rewrites as one commit built in a
-temporary index, so local work and other branches are untouched. `--path`
-rewrites one work-tree ticket in place: use it for a live copy that sits on a
-checked-out branch.
+The default form reads the base tickets and checks their branches for newer
+state. `--apply` publishes the rewrites on the base and removes legacy ticket
+state from affected code branches in the same atomic push. `--path` rewrites
+one work-tree ticket in place.
 
 For each ticket that is not done or canceled and whose snapshot still has an
 `open-branch` step or `git: ticket-branch`, or whose workflow definition now
@@ -28,8 +27,9 @@ declares step scripts the snapshot lacks, the rewrite:
 - removes `open-branch` steps and renumbers `step`, so a ticket at
   `open-branch` resumes at the step after it.
 
-Everything else in the ticket is kept. It never edits a branch: a branch that
-still carries ticket state is named in the report for a person to clean.
+The branch's copy wins when the base still matches the branch point.
+Reconcile conflicts, unpublished branch work, or a different recorded base
+before applying the migration.
 """
 
 from __future__ import annotations
@@ -40,11 +40,14 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
-from coga.config import ConfigError, load_config
+from coga.blackboard import read_dev_fields
+from coga.config import Config, ConfigError, load_config
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import resolve_workflow_path
+from coga.taskfile import TaskFileError, split_body
 from coga.ticket import Ticket, TicketError
 from coga.workflow import Workflow, WorkflowError
 from coga_edge.ticket_git import (
@@ -52,6 +55,7 @@ from coga_edge.ticket_git import (
     current_branch,
     git,
     is_ancestor,
+    merged_log,
     out,
     ref_tip,
     run_op,
@@ -61,13 +65,25 @@ PREFIX = "migrate-step-scripts"
 BRANCH_STEP = "open-branch"
 BRANCH_MODE = "ticket-branch"
 DEFAULT_SCRIPTS = ("git/ticket-enter", "git/ticket-exit")
-TERMINAL = {"done", "canceled"}
 
 
 @dataclass(frozen=True)
 class Rewrite:
     text: str
     notes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class BranchUpdate:
+    name: str
+    tip: str
+    ancestor: str
+
+
+@dataclass(frozen=True)
+class TreeEntry:
+    mode: str
+    oid: str
 
 
 def _definition_scripts(cfg: Any, name: Any) -> tuple[str | None, str | None]:
@@ -87,7 +103,7 @@ def migrate_text(text: str, cfg: Any) -> Rewrite | None:
     except TicketError:
         return None
     wf = ticket.workflow
-    if ticket.status in TERMINAL or not isinstance(wf, dict):
+    if ticket.status in TERMINAL_STATUSES or not isinstance(wf, dict):
         return None
     steps = wf.get("steps")
     if not isinstance(steps, list):
@@ -161,27 +177,195 @@ def plan_base(cfg: Any, rev: str, tasks_rel: str) -> dict[str, Rewrite]:
     return plan
 
 
-def publish(plan: dict[str, Rewrite], *, remote: str, base: str, parent: str) -> str:
+def _show_text(rev: str, rel: str) -> str | None:
+    shown = git("show", f"{rev}:{rel}", check=False)
+    return shown.stdout if shown.returncode == 0 else None
+
+
+def _branch_fields(ticket: Ticket) -> dict[str, str]:
+    _, blackboard = split_body(ticket.body, blackboard_required=False)
+    return read_dev_fields(blackboard or "")
+
+
+def _tree_entry(rev: str, rel: str) -> TreeEntry | None:
+    row = out("ls-tree", "-z", "--full-tree", rev, "--", rel)
+    if not row:
+        return None
+    mode, _, oid = row.partition("\t")[0].split()
+    return TreeEntry(mode, oid)
+
+
+def _attachments(
+    rel: str, changed: list[str], branch: str, ancestor: str,
+) -> list[str]:
+    if PurePosixPath(rel).name != "ticket.md":
+        return []
+    root = PurePosixPath(rel).parent
+    result = []
+    for path in changed:
+        if path == rel or not path.startswith(f"{root}/"):
+            continue
+        if any(
+            _tree_entry(rev, str(parent / "ticket.md")) is not None
+            for parent in PurePosixPath(path).parents if root in parent.parents
+            for rev in (branch, ancestor)
+        ):
+            continue
+        result.append(path)
+    return result
+
+
+def plan_branches(
+    cfg: Config,
+    plan: dict[str, Rewrite],
+    *,
+    parent: str,
+    tasks_rel: str,
+    log_rel: str,
+    remote: str,
+    base: str,
+) -> tuple[list[BranchUpdate], dict[str, TreeEntry | None], str, list[str]]:
+    """Use branch-only state when it can move to the base without ambiguity."""
+    remote_prefix = f"refs/remotes/{remote}/"
+    local_prefix = "refs/heads/"
+    refs = out("for-each-ref", "--format=%(refname)", remote_prefix, local_prefix).splitlines()
+    branches: list[BranchUpdate] = []
+    attachments: dict[str, TreeEntry | None] = {}
+    log = _show_text(parent, log_rel) or ""
+    blockers = []
+    seen: set[str] = set()
+    for ref in refs:
+        local = ref.startswith(local_prefix)
+        name = ref.removeprefix(local_prefix if local else remote_prefix)
+        if name in {base, "HEAD"}:
+            continue
+        tracking = ref_tip(remote_prefix + name)
+        tip = out("rev-parse", ref)
+        if local and tracking and is_ancestor(tip, tracking):
+            continue
+        common = git("merge-base", parent, tip, check=False)
+        if common.returncode != 0:
+            continue
+        ancestor = common.stdout.strip()
+        changed = out(
+            "diff", "--no-renames", "--name-only", "-z", ancestor, tip, "--", tasks_rel,
+        ).rstrip("\0").split("\0")
+        for rel in changed:
+            if not rel.endswith(".md"):
+                continue
+            text = _show_text(tip, rel)
+            if text is None:
+                continue
+            try:
+                ticket = Ticket.parse(text)
+                fields = _branch_fields(ticket)
+            except (TicketError, TaskFileError):
+                continue
+            if fields.get("branch") != name or fields.get("remote") != remote:
+                continue
+            rewrite = migrate_text(text, cfg)
+            if rewrite is None and rel not in plan:
+                continue
+            label = f"{rel} on {name}"
+            if rewrite is None:
+                if ticket.status in TERMINAL_STATUSES or (
+                    isinstance(ticket.workflow, dict)
+                    and any(key in ticket.workflow for key in ("enter", "exit"))
+                ):
+                    rewrite = Rewrite(text, ())
+                else:
+                    blockers.append(f"{label}: the branch workflow could not be migrated")
+                    continue
+            if local:
+                blockers.append(f"{label}: reconcile the local branch with {remote} first")
+                continue
+            if fields.get("base") != base:
+                recorded = fields.get("base")
+                blockers.append(
+                    f"{label} ({ticket.status}, {ticket.step}): "
+                    f"recorded base {recorded!r} differs from {base!r}"
+                )
+                continue
+            at_base = _show_text(parent, rel)
+            if at_base is not None:
+                try:
+                    if Ticket.parse(at_base).status in TERMINAL_STATUSES:
+                        continue
+                except TicketError:
+                    blockers.append(f"{label}: the base copy cannot be read as a ticket")
+                    continue
+            own_attachments = _attachments(rel, changed, tip, ancestor)
+            if rel in seen or any(
+                _tree_entry(parent, path) not in {
+                    _tree_entry(ancestor, path), _tree_entry(tip, path),
+                }
+                for path in (rel, *own_attachments)
+            ):
+                blockers.append(f"{label}: both the base and branch changed ticket state")
+                continue
+            plan[rel] = Rewrite(rewrite.text, (f"used live state from {name}", *rewrite.notes))
+            seen.add(rel)
+            for attachment in own_attachments:
+                attachments[attachment] = _tree_entry(tip, attachment)
+            log = merged_log(log, _show_text(tip, log_rel) or "", ticket_slug(rel, tasks_rel))
+            update = BranchUpdate(name, tip, ancestor)
+            if update not in branches:
+                branches.append(update)
+    return branches, attachments, log, blockers
+
+
+def ticket_slug(rel: str, tasks_rel: str) -> str:
+    path = PurePosixPath(rel).relative_to(tasks_rel)
+    return path.parent.as_posix() if path.name == "ticket.md" else path.with_suffix("").as_posix()
+
+
+def _base_commit(
+    plan: dict[str, Rewrite],
+    attachments: dict[str, TreeEntry | None],
+    log: str,
+    *,
+    log_rel: str,
+    parent: str,
+) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         env = dict(os.environ, GIT_INDEX_FILE=str(Path(tmp) / "index"))
         out("read-tree", parent, env=env)
         for rel, rewrite in plan.items():
             blob = out("hash-object", "-w", "--stdin", input=rewrite.text)
-            out("update-index", "--cacheinfo", f"100644,{blob},{rel}", env=env)
+            out("update-index", "--add", "--cacheinfo", f"100644,{blob},{rel}", env=env)
+        for rel, entry in attachments.items():
+            if entry is None:
+                out("update-index", "--force-remove", "--", rel, env=env)
+            else:
+                out("update-index", "--add", "--cacheinfo",
+                    f"{entry.mode},{entry.oid},{rel}", env=env)
+        if log != (_show_text(parent, log_rel) or ""):
+            blob = out("hash-object", "-w", "--stdin", input=log)
+            out("update-index", "--add", "--cacheinfo", f"100644,{blob},{log_rel}", env=env)
         tree = out("write-tree", env=env)
-    commit = out(
+    return out(
         "commit-tree", tree, "-p", parent, "-m",
         f"Migrate {len(plan)} branch tickets to enter/exit step scripts",
     )
-    run_op(f"git push {remote} {commit[:12]}:{base}", "push", "--quiet", remote,
-           f"{commit}:refs/heads/{base}")
-    out("update-ref", f"refs/remotes/{remote}/{base}", commit)
-    return commit
+
+
+def _branch_commit(update: BranchUpdate, tasks_rel: str, log_rel: str) -> str:
+    with tempfile.TemporaryDirectory() as tmp:
+        env = dict(os.environ, GIT_INDEX_FILE=str(Path(tmp) / "index"))
+        out("read-tree", update.tip, env=env)
+        out("reset", "--quiet", update.ancestor, "--", tasks_rel, log_rel, env=env)
+        tree = out("write-tree", env=env)
+    return out(
+        "commit-tree", tree, "-p", update.tip, "-m",
+        "Keep migrated ticket state off the code branch",
+    )
 
 
 def catch_up_local(base: str, commit: str) -> None:
     local = ref_tip(f"refs/heads/{base}")
-    if local is None or not is_ancestor(local, commit):
+    if local is None:
+        return
+    if not is_ancestor(local, commit):
         print(f"{PREFIX}: local `{base}` was left where it is; pull it", file=sys.stderr)
         return
     if current_branch() != base:
@@ -230,18 +414,40 @@ def main(argv: list[str] | None = None) -> int:
         top = Path(out("-C", str(cfg.repo_root), "rev-parse", "--show-toplevel")).resolve()
         os.chdir(top)
         tasks_rel = (cfg.repo_root / "tasks").resolve().relative_to(top).as_posix()
-        out("fetch", "--quiet", args.remote, args.base)
+        log_rel = (cfg.repo_root / "log.md").resolve().relative_to(top).as_posix()
+        out("fetch", "--quiet", "--prune", args.remote)
         parent = ref_tip(f"refs/remotes/{args.remote}/{args.base}")
         if parent is None:
             raise TicketGitError(f"`{args.remote}/{args.base}` does not exist after fetch")
         plan = plan_base(cfg, parent, tasks_rel)
+        branches, attachments, log, blockers = plan_branches(
+            cfg, plan, parent=parent, tasks_rel=tasks_rel, log_rel=log_rel,
+            remote=args.remote, base=args.base,
+        )
         report(plan)
+        for update in branches:
+            print(f"{update.name}: remove legacy ticket state from the code branch")
+        if blockers:
+            for blocker in blockers:
+                print(f"{PREFIX}: {blocker}", file=sys.stderr)
+            print(f"{PREFIX}: reconcile the listed branches before applying", file=sys.stderr)
+            return 1
         if not plan or not args.apply:
             if plan:
                 print(f"{PREFIX}: report only; rerun with --apply to publish")
             return 0
-        commit = publish(plan, remote=args.remote, base=args.base, parent=parent)
-        catch_up_local(args.base, commit)
+        commit = _base_commit(plan, attachments, log, log_rel=log_rel, parent=parent)
+        updates = {args.base: commit}
+        for update in branches:
+            updates[update.name] = _branch_commit(update, tasks_rel, log_rel)
+        run_op(
+            f"git push {args.remote} (migration)",
+            "push", *(["--atomic"] if branches else []), "--quiet", args.remote,
+            *(f"{oid}:refs/heads/{name}" for name, oid in updates.items()),
+        )
+        for name, oid in updates.items():
+            out("update-ref", f"refs/remotes/{args.remote}/{name}", oid)
+            catch_up_local(name, oid)
         print(f"{PREFIX}: published {commit[:12]} to `{args.remote}/{args.base}`")
         return 0
     except TicketGitError as exc:

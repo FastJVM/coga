@@ -109,9 +109,12 @@ mark again, or rerun the script with the ticket environment.
 
 Tickets frozen before these scripts existed (an `open-branch` step or
 `git: ticket-branch`) are rewritten by
-`python -m coga_edge.migrate_step_scripts`: it reports by default and
-publishes the rewrites to the base with `--apply`; `--path <ticket>` rewrites
-one live copy in place.
+`python -m coga_edge.migrate_step_scripts`. Review the report before running
+with `--apply`. When a branch holds the live ticket, the migration publishes
+that state to the base and restores the branch's task and audit-log paths to
+their merge-base versions in one atomic push. Reconcile any reported
+conflicts, unpublished branch work or different recorded base first.
+`--path <ticket>` rewrites a ticket in the working tree for manual recovery.
 
 ## Shared audit log
 

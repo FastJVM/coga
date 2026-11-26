@@ -28,6 +28,9 @@ The queue reads local tickets. A workflow script runs before the agent
 phase. A script that bumps chains to the next step, and one that leaves
 its step open hands it to the agent. The queue stops a ticket when it
 reaches an owner-held step or a script or agent failure.
+If a workflow's step script fails or a step ends after `enter` without
+completing its handoff, Megalaunch stops the queue so the operator can
+recover the checkout before another ticket starts.
 
 ## Owner filter
 
