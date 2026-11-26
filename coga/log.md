@@ -3918,3 +3918,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-25 21:56 v1 [run-a-workflow-step-script-that-publishes-only-the] [human:nicktoper] created (status=draft)
 2026-11-25 22:31 v1 [remove-the-in-progress-status] [human:nicktoper] created (status=draft)
 2026-11-25 22:33 v1 [add-coga-sync-to-run-a-ticket-s-exit-script-manual] [human:nicktoper] created (status=draft)
+2026-11-25 22:40 v1 [give-recurring-runs-their-own-enter-and-exit-step] [human:nicktoper] created (status=draft)
