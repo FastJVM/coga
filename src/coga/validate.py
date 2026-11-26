@@ -923,6 +923,7 @@ def _check_frontmatter_schema(
                     message="workflow.name missing or not a string",
                     severity="error",
                 ))
+            out.extend(_check_frozen_git_mode(cfg, task_label, wf))
             steps = wf.get("steps")
             if not isinstance(steps, list) or not steps:
                 out.append(Issue(
@@ -1179,6 +1180,35 @@ def _check_step_run(
             kind="bad-shape",
             task=task_label,
             message=f"workflow step #{index}: {exc}",
+            severity="error",
+        )]
+    return []
+
+
+def _check_frozen_git_mode(cfg: Config, task_label: str, wf: dict) -> list[Issue]:
+    """A frozen `git:` must name a registered mode whose hook resolves."""
+    from coga.workflow import GIT_MODES
+
+    if "git" not in wf:
+        return []
+    mode = wf["git"]
+    if not isinstance(mode, str) or mode not in GIT_MODES:
+        return [Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"workflow.git {mode!r} must be one of {sorted(GIT_MODES)}",
+            severity="error",
+        )]
+    hook = GIT_MODES[mode]
+    if hook is None:
+        return []
+    try:
+        resolve_step_script(cfg, hook)
+    except (ConfigError, OSError, ValueError) as exc:
+        return [Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"workflow.git {mode!r} hook {hook!r}: {exc}",
             severity="error",
         )]
     return []
@@ -1540,6 +1570,17 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         except WorkflowError:
             continue
         out.extend(_check_workflow_runs(cfg, f"recurring/{path.name}", workflow))
+        if workflow.git != "main":
+            out.append(Issue(
+                kind="bad-shape",
+                task=f"recurring/{path.name}",
+                message=(
+                    f"recurring template {path.name!r} declares workflow "
+                    f"{workflow_name!r} with `git: {workflow.git}`; recurring "
+                    "work runs with `git: main`"
+                ),
+                severity="error",
+            ))
         # Report the delegated bound on the *template*, so an ineligible
         # combination is visible in a sweep rather than only when the sweep that
         # fires it refuses to materialize a period.

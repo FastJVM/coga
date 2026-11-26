@@ -41,6 +41,17 @@ VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset(
     {"owner", "agent", "other-agent"}
 )
 
+# Launch Git modes a workflow may declare under top-level `git:`. Each mode
+# maps to the skill ref whose `run.py` launch runs around the whole launch
+# (`enter` before classification, `exit` after the chain), or `None` for no
+# hook. The kernel only reads the frozen mode and runs the mapped script; every
+# Git command lives in that edge script. An omitted field means `main`.
+DEFAULT_GIT_MODE = "main"
+GIT_MODES: dict[str, str | None] = {
+    "main": None,
+    "ticket-branch": "git/ticket-branch",
+}
+
 @dataclass(frozen=True)
 class WorkflowStep:
     name: str
@@ -59,6 +70,7 @@ class Workflow:
     description: str
     steps: list[WorkflowStep] = field(default_factory=list)
     body: str = ""
+    git: str = DEFAULT_GIT_MODE  # launch Git mode; see GIT_MODES
     # step name -> markdown section body (used when step has no skills ref)
     inline_instructions: dict[str, str] = field(default_factory=dict)
     # other `## <heading>` sections; a ticket frozen before a step rename
@@ -103,6 +115,12 @@ class Workflow:
         if "steps" not in fm or not isinstance(fm["steps"], list) or not fm["steps"]:
             raise WorkflowError(f"{path}: `steps` must be a non-empty list")
 
+        git = fm.get("git", DEFAULT_GIT_MODE)
+        if not isinstance(git, str) or git not in GIT_MODES:
+            raise WorkflowError(
+                f"{path}: `git` {git!r} must be one of {sorted(GIT_MODES)}"
+            )
+
         steps = [_parse_step(s, path) for s in fm["steps"]]
         step_names = {s.name for s in steps}
         inline = _parse_inline_sections(body, step_names)
@@ -116,6 +134,7 @@ class Workflow:
             name=fm["name"],
             description=fm.get("description", ""),
             steps=steps,
+            git=git,
             body=body,
             inline_instructions=inline,
             other_sections=other,
@@ -127,8 +146,10 @@ class Workflow:
         """Snapshot suitable for ticket frontmatter."""
         out: dict[str, Any] = {
             "name": self.name,
-            "steps": [],
         }
+        if self.git != DEFAULT_GIT_MODE:
+            out["git"] = self.git
+        out["steps"] = []
         for step in self.steps:
             entry: dict[str, Any] = {"name": step.name, "skills": list(step.skills)}
             if step.assignee:
@@ -139,6 +160,29 @@ class Workflow:
                 entry["run"] = step.run
             out["steps"].append(entry)
         return out
+
+
+def git_mode(workflow: Any, cfg: Any) -> str:
+    """The launch Git mode a ticket's `workflow:` selects.
+
+    A frozen mapping carries its own `git:` (absent means `main`). A draft's
+    string reference loads the definition it would freeze, as
+    `launch_script.script_entry_point` does for a draft's first step. A
+    missing workflow is `main`. An unknown frozen value raises
+    `WorkflowError`; `coga validate` reports it as `bad-shape`.
+    """
+    if isinstance(workflow, str):
+        from coga.paths import resolve_workflow_path
+
+        return Workflow.load(resolve_workflow_path(cfg, workflow)).git
+    if not isinstance(workflow, dict):
+        return DEFAULT_GIT_MODE
+    mode = workflow.get("git", DEFAULT_GIT_MODE)
+    if not isinstance(mode, str) or mode not in GIT_MODES:
+        raise WorkflowError(
+            f"frozen workflow `git` {mode!r} must be one of {sorted(GIT_MODES)}"
+        )
+    return mode
 
 
 # --- helpers ------------------------------------------------------------------
@@ -217,5 +261,5 @@ def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
 
 __all__ = [
     "Workflow", "WorkflowStep", "WorkflowError", "WorkflowNotFoundError",
-    "VALID_ASSIGNEE_ROLES",
+    "VALID_ASSIGNEE_ROLES", "GIT_MODES", "DEFAULT_GIT_MODE", "git_mode",
 ]

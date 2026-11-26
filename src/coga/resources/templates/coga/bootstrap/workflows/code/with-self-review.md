@@ -1,6 +1,7 @@
 ---
 name: code/with-self-review
 description: Code change with an agent self-QA pass (direct review, fixes committed in place) before the PR is opened, so the human reviewer sees one clean diff. Three agent steps then human PR review.
+git: ticket-branch
 steps:
   - name: open-branch
     run: git/open-branch

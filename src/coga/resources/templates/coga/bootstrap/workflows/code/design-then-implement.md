@@ -1,6 +1,7 @@
 ---
 name: code/design-then-implement
 description: A thin ticket is designed into a spec, cold-reviewed by another agent, approved by the owner, then implemented, code-reviewed by the other agent, and opened as a PR for final owner review.
+git: ticket-branch
 steps:
   - name: design
     assignee: agent

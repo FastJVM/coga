@@ -1,6 +1,7 @@
 ---
 name: code/with-review
 description: Code change implemented by the main agent, then reviewed by its configured peer before a PR is opened for the human's final review.
+git: ticket-branch
 steps:
   - name: open-branch
     run: git/open-branch

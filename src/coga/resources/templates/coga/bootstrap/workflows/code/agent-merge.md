@@ -1,6 +1,7 @@
 ---
 name: code/agent-merge
 description: Code change implemented by the main agent, reviewed by its configured peer, then published and merged by the main agent with no owner gate. The owner audits after the merge and can revert.
+git: ticket-branch
 steps:
   - name: open-branch
     run: git/open-branch
