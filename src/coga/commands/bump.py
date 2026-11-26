@@ -22,7 +22,7 @@ from coga.bump import (
 from coga.config import ConfigError, load_config
 from coga.mark import mark_done
 from coga.notification import preflight_post
-from coga.paths import resolve_workflow_path
+from coga.paths import load_workflow
 from coga.step_gate import gate_unmet_reason
 from coga.taskfile import split_body
 from coga.task_env import is_script_task
@@ -38,7 +38,7 @@ from coga.tasks import (
     resolve_task,
 )
 from coga.validate import TaskValidationError
-from coga.workflow import Workflow, WorkflowError
+from coga.workflow import WorkflowError
 
 if TYPE_CHECKING:
     from coga.config import Config
@@ -137,7 +137,7 @@ def bump(
     # in-place so the rest of bump (and future bumps) sees a normal shape.
     if isinstance(ticket.workflow, str):
         try:
-            wf_def = Workflow.load(resolve_workflow_path(cfg, ticket.workflow))
+            wf_def = load_workflow(cfg, ticket.workflow)
         except WorkflowError as exc:
             _bail(str(exc))
         ticket.frontmatter["workflow"] = wf_def.freeze()

@@ -17,7 +17,7 @@ from coga.paths import (
     resolve_context_path,
     resolve_skill_path,
     skill_unresolved,
-    resolve_workflow_path,
+    load_workflow,
     tasks_dir,
 )
 from coga.slugify import slugify
@@ -137,7 +137,7 @@ def create_task(
 
     wf: Workflow | None = None
     if workflow_name:
-        wf = Workflow.load(resolve_workflow_path(cfg, workflow_name))
+        wf = load_workflow(cfg, workflow_name)
         missing_step_skills: list[str] = []
         for s in wf.steps:
             for ref in s.skills:

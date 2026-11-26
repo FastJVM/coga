@@ -3009,7 +3009,7 @@ def test_template_deduction_unresolvable_workflow_is_agent(
     scan = scan_due(
         cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
     )
-    assert "Workflow not found" in dict(scan.errors)["ghost-workflow"]
+    assert "Unknown workflow 'does/not-exist'" in dict(scan.errors)["ghost-workflow"]
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:

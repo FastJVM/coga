@@ -13,7 +13,7 @@ import yaml
 from coga.config import Config
 from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.logfile import append_log
-from coga.paths import recurring_dir, resolve_workflow_path
+from coga.paths import recurring_dir, load_workflow
 from coga.recurring import (
     RecurringError,
     Template,
@@ -24,7 +24,7 @@ from coga.recurring import (
 from coga.taskfile import join_task_body, split_body
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket
-from coga.workflow import Workflow, WorkflowError
+from coga.workflow import WorkflowError
 
 
 class RetainedPromotionError(RecurringError):
@@ -274,7 +274,7 @@ def _validate_promoted_workflow(
             "promoted template `workflow:` must be a workflow name"
         )
     try:
-        Workflow.load(resolve_workflow_path(cfg, workflow_name))
+        load_workflow(cfg, workflow_name)
     except WorkflowError as exc:
         raise RecurringError(
             f"cannot promote task with workflow {workflow_name!r}: {exc}"

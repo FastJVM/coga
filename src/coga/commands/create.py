@@ -35,6 +35,7 @@ from coga.config import ConfigError, load_config
 from coga.create import create_task, description_structure_problem
 from coga.paths import RepoResourceUnreadable
 from coga.validate import TaskValidationError
+from coga.workflow import WorkflowError
 
 
 def create(
@@ -143,7 +144,9 @@ def create_draft(
             directory=directory,
             description=description,
         )
-    except (TaskValidationError, ValueError, RepoResourceUnreadable) as exc:
+    except (
+        TaskValidationError, ValueError, RepoResourceUnreadable, WorkflowError,
+    ) as exc:
         _bail(str(exc))
 
     slug = result["slug"]

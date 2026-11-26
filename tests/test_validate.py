@@ -1065,6 +1065,33 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     report = run(cfg)
     kinds = [i.kind for i in report.issues]
     assert "unfrozen-workflow" in kinds
+    assert "broken-workflow" not in kinds
+
+
+def test_unfrozen_workflow_group_name_reports_members(repo: Path) -> None:
+    """A hand-authored `workflow: code` names a workflow group, not a
+    workflow; validate reports it as an error listing the members instead
+    of passing silently until activation fails."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.ticket_path)
+    t.frontmatter["workflow"] = "code"
+    t.write(ref.ticket_path)
+    report = run(cfg)
+    broken = [i for i in report.issues if i.kind == "broken-workflow"]
+    assert len(broken) == 1
+    assert broken[0].severity == "error"
+    assert "'code' is a workflow group; use one of: " in broken[0].message
+    assert "code/with-review" in broken[0].message
 
 
 @pytest.mark.parametrize(

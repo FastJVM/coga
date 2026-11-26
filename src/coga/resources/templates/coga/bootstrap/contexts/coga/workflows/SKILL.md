@@ -20,6 +20,14 @@ genuinely absent definition is distinguished from a malformed or unreadable
 one, which names its path and cause and refuses launch; only absence composes
 the missing-definition placeholder.
 
+An absent ref is reported in one line, never a traceback, by every command
+that resolves a name (`coga create --workflow`, activation, `bump`, launch,
+`validate`, recurring templates). A ref naming a workflow directory, such as
+`code`, lists the workflows inside it (`code/with-review`, ...); any other
+unknown ref suggests close matches. Both searches cover local and bundled
+workflows; names starting with `_` are authoring starters and are never
+suggested.
+
 ## Definition format
 
 A workflow lists ordered steps in Markdown frontmatter. A step names its

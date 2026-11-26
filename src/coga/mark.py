@@ -24,7 +24,7 @@ from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_opera
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
-from coga.paths import log_path, resolve_workflow_path
+from coga.paths import log_path, load_workflow
 from coga.period_state import (
     StateSnapshot,
     parent_ticket_path,
@@ -36,7 +36,7 @@ from coga.taskfile import TaskFileError, split_body
 from coga.tasks import TaskRef, TargetRef
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError, assert_task_valid
-from coga.workflow import Workflow, WorkflowError
+from coga.workflow import WorkflowError
 from coga.paths import RepoResourceUnreadable
 
 # Workflows with no push/PR step: finishing one with committed product code
@@ -291,7 +291,7 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
     """
     wf = ticket.workflow
     if isinstance(wf, str):
-        wf_def = Workflow.load(resolve_workflow_path(cfg, wf))
+        wf_def = load_workflow(cfg, wf)
         ticket.frontmatter["workflow"] = wf_def.freeze()
     if not ticket.step:
         frozen = ticket.workflow or {}

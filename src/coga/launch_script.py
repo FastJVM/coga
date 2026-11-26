@@ -21,8 +21,7 @@ from coga.bump import OperatorResolutionError, effective_step_role, resolve_oper
 from coga.config import Config, ConfigError, build_launch_env, load_config, find_repo_root
 from coga.logfile import append_log
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.paths import bootstrap_skill_dir, resolve_workflow_path, skill_dir
-from coga.workflow import Workflow
+from coga.paths import bootstrap_skill_dir, load_workflow, skill_dir
 from coga.notification import post
 from coga.repl_supervisor import (
     EXPECTED_AGENT_ENV,
@@ -103,7 +102,7 @@ def script_entry_point(
         if step is None and ticket.status in {"draft", "paused"}:
             workflow = ticket.workflow
             if isinstance(workflow, str):
-                workflow = Workflow.load(resolve_workflow_path(cfg, workflow)).freeze()
+                workflow = load_workflow(cfg, workflow).freeze()
             if isinstance(workflow, dict) and workflow.get("steps"):
                 steps = workflow["steps"]
                 step = steps[0]

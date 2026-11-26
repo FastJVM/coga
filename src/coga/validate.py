@@ -93,7 +93,7 @@ from coga.paths import (
     resolve_context_path,
     resolve_skill_path,
     skill_unresolved,
-    resolve_workflow_path,
+    load_workflow,
 )
 from coga.service_order import leading_number
 from coga.skill_manager import bundled_skills_root, skills_root
@@ -1292,9 +1292,14 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
             severity="warn",
         ))
         try:
-            workflow = Workflow.load(resolve_workflow_path(cfg, wf))
-        except WorkflowError:
-            pass
+            workflow = load_workflow(cfg, wf)
+        except WorkflowError as exc:
+            out.append(Issue(
+                kind="broken-workflow",
+                task=task_label,
+                message=str(exc),
+                severity="error",
+            ))
         else:
             out.extend(_check_workflow_runs(cfg, task_label, workflow))
 
@@ -1566,7 +1571,7 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         if not isinstance(workflow_name, str):
             continue
         try:
-            workflow = Workflow.load(resolve_workflow_path(cfg, workflow_name))
+            workflow = load_workflow(cfg, workflow_name)
         except WorkflowError:
             continue
         out.extend(_check_workflow_runs(cfg, f"recurring/{path.name}", workflow))
@@ -1750,9 +1755,7 @@ def _check_workflow_shape(
             # Match compose's degradation boundary: every load failure drops
             # the current workflow's inline instructions from the prompt.
             try:
-                current_workflow = Workflow.load(
-                    resolve_workflow_path(cfg, workflow_name)
-                )
+                current_workflow = load_workflow(cfg, workflow_name)
             except Exception as exc:
                 out.append(Issue(
                     kind="broken-workflow",

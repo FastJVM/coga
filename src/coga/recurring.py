@@ -37,7 +37,7 @@ from coga.paths import (
     recurring_dir,
     resolve_skill_path,
     skill_unresolved,
-    resolve_workflow_path,
+    load_workflow,
 )
 from coga.period_state import write_snapshot
 from coga.recurring_state import (
@@ -233,7 +233,7 @@ def assert_template_delegation(cfg: Config, template: "Template") -> BootstrapRe
     target = resolve_agent_delegate(cfg, template.delegate or "")
     name = template.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
     try:
-        workflow = Workflow.load(resolve_workflow_path(cfg, name))
+        workflow = load_workflow(cfg, name)
     except WorkflowError as exc:
         raise RecurringError(
             f"delegating template declares workflow {name!r}, which does not "
@@ -252,7 +252,7 @@ def _has_template_script(cfg: Config, template: "Template") -> bool:
         return True
     name = template.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
     try:
-        workflow = Workflow.load(resolve_workflow_path(cfg, name))
+        workflow = load_workflow(cfg, name)
         run = workflow.steps[0].run
         return run is not None and resolve_step_script(cfg, run).is_file()
     except (WorkflowError, ConfigError, OSError, ValueError) as exc:
@@ -270,7 +270,7 @@ def assert_template_git_mode(cfg: Config, template: "Template") -> None:
     if not isinstance(name, str):
         return
     try:
-        workflow = Workflow.load(resolve_workflow_path(cfg, name))
+        workflow = load_workflow(cfg, name)
     except WorkflowError:
         return  # assert_template_workflow reports an unloadable workflow
     if workflow.git != "main":
@@ -290,7 +290,7 @@ def assert_template_workflow(cfg: Config, template: "Template") -> None:
     """
     name = template.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
     try:
-        workflow = Workflow.load(resolve_workflow_path(cfg, name))
+        workflow = load_workflow(cfg, name)
     except WorkflowError as exc:
         raise RecurringError(
             f"template declares workflow {name!r}, which does not load: {exc}"

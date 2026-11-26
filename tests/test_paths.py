@@ -10,12 +10,14 @@ from coga.paths import (
     bootstrap_context_path,
     bootstrap_skill_path,
     bootstrap_workflow_path,
+    load_workflow,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
+    workflow_not_found_message,
     workflow_path,
 )
-from coga.workflow import WorkflowError
+from coga.workflow import WorkflowError, WorkflowNotFoundError
 
 
 def _cfg(repo_root, contexts_root=None):
@@ -125,6 +127,54 @@ def test_resolve_workflow_path_falls_back_to_local_when_neither_exists(tmp_path)
     cfg = SimpleNamespace(repo_root=tmp_path)
 
     assert resolve_workflow_path(cfg, "code/nope") == workflow_path(cfg, "code/nope")
+
+
+def test_workflow_not_found_lists_group_members_local_and_bundled(tmp_path):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+    local = tmp_path / "workflows" / "code" / "house-style.md"
+    local.parent.mkdir(parents=True)
+    local.write_text("local\n", encoding="utf-8", newline="\n")
+
+    message = workflow_not_found_message(cfg, "code")
+
+    assert "'code' is a workflow group" in message
+    assert "code/house-style" in message  # local member
+    assert "code/with-review" in message  # bundled member
+
+
+def test_workflow_not_found_suggests_close_matches_across_sources(tmp_path):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+    local = tmp_path / "workflows" / "ops" / "deploy.md"
+    local.parent.mkdir(parents=True)
+    local.write_text("local\n", encoding="utf-8", newline="\n")
+
+    assert "did you mean: ops/deploy" in workflow_not_found_message(cfg, "ops/deplyo")
+    assert "code/with-review" in workflow_not_found_message(cfg, "code/with-reveiw")
+    # A bare leaf points at every workflow sharing it.
+    leaf = workflow_not_found_message(cfg, "with-review")
+    assert "code/with-review" in leaf and "docs/with-review" in leaf
+
+
+def test_workflow_not_found_without_matches_names_local_path(tmp_path):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+
+    starter = tmp_path / "workflows" / "_template.md"
+    starter.parent.mkdir(parents=True)
+    starter.write_text("starter\n", encoding="utf-8", newline="\n")
+
+    message = workflow_not_found_message(cfg, "zzz-qqq")
+    assert "_template" not in workflow_not_found_message(cfg, "template")
+
+    assert "did you mean" not in message
+    assert str(workflow_path(cfg, "zzz-qqq")) in message
+
+
+def test_load_workflow_raises_not_found_with_diagnosis(tmp_path):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+
+    with pytest.raises(WorkflowNotFoundError, match="is a workflow group"):
+        load_workflow(cfg, "code")
+    assert load_workflow(cfg, "code/with-review").name == "code/with-review"
 
 
 @pytest.mark.parametrize("kind", ["directory", "broken-symlink"])

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from difflib import get_close_matches
 from importlib.resources import files
 from pathlib import Path
 import errno
@@ -9,7 +10,7 @@ import os
 import stat
 
 from coga.config import Config, find_checkout_root, require_context_artifact
-from coga.workflow import WorkflowError
+from coga.workflow import Workflow, WorkflowError, WorkflowNotFoundError
 
 
 _REMOVED_BUNDLED_SKILL_MESSAGES = {
@@ -195,6 +196,92 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
         # diagnosed by the loader rather than silently selecting other text.
         return candidate
     return local
+
+
+def _workflow_roots(cfg: Config) -> tuple[Path, Path]:
+    return (
+        cfg.repo_root / "workflows",
+        packaged_template_path("bootstrap", "workflows"),
+    )
+
+
+def _workflow_names_under(root: Path) -> set[str]:
+    try:
+        if not root.is_dir():
+            return set()
+        found = root.rglob("*.md")
+        return {
+            p.relative_to(root).with_suffix("").as_posix()
+            for p in found
+            # `_template.md` and similar are authoring starters, not workflows.
+            if p.is_file() and not p.name.startswith("_")
+        }
+    except OSError:
+        return set()
+
+
+def available_workflow_names(cfg: Config) -> list[str]:
+    """Every workflow ref resolvable from local `workflows/` or bundled ones."""
+    names: set[str] = set()
+    for root in _workflow_roots(cfg):
+        names |= _workflow_names_under(root)
+    return sorted(names)
+
+
+def workflow_not_found_message(cfg: Config, name: str) -> str:
+    """One-line diagnosis for a workflow ref that resolves to no definition.
+
+    A ref naming a workflow directory (`code`) lists the workflows inside it;
+    any other ref suggests close matches. Both cover local and bundled
+    workflows, matching `resolve_workflow_path`'s search order.
+    """
+    clean = name.strip().strip("/")
+    if clean:
+        members: set[str] = set()
+        for root in _workflow_roots(cfg):
+            group = root / clean
+            try:
+                is_group = group.is_dir()
+            except OSError:
+                is_group = False
+            if is_group:
+                members |= {
+                    f"{clean}/{leaf}" for leaf in _workflow_names_under(group)
+                }
+        if members:
+            return (
+                f"Unknown workflow {name!r}: {clean!r} is a workflow group; "
+                f"use one of: {', '.join(sorted(members))}"
+            )
+    available = available_workflow_names(cfg)
+    leaf_matches = [n for n in available if clean and n.rsplit("/", 1)[-1] == clean]
+    close = get_close_matches(clean, available, n=3, cutoff=0.6)
+    suggestions = list(dict.fromkeys(leaf_matches + close))
+    if suggestions:
+        return (
+            f"Unknown workflow {name!r}; did you mean: "
+            f"{', '.join(suggestions)}?"
+        )
+    return (
+        f"Unknown workflow {name!r}: no {workflow_path(cfg, name)} and no "
+        "bundled workflow of that name"
+    )
+
+
+def load_workflow(cfg: Config, name: str) -> Workflow:
+    """Resolve and load a workflow ref, diagnosing an absent definition.
+
+    Raises `WorkflowNotFoundError` with `workflow_not_found_message` when no
+    local or bundled definition exists, and `WorkflowError` for one that
+    exists but cannot be read or parsed.
+    """
+    path = resolve_workflow_path(cfg, name)
+    try:
+        return Workflow.load(path)
+    except WorkflowNotFoundError as exc:
+        raise WorkflowNotFoundError(
+            workflow_not_found_message(cfg, name)
+        ) from exc
 
 
 def skill_path(cfg: Config, ref: str) -> Path:
@@ -403,6 +490,9 @@ __all__ = [
     "workflow_path",
     "bootstrap_workflow_path",
     "resolve_workflow_path",
+    "load_workflow",
+    "available_workflow_names",
+    "workflow_not_found_message",
     "skill_path",
     "skill_dir",
     "bootstrap_skill_path",

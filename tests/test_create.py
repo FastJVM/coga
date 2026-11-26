@@ -1107,6 +1107,35 @@ def test_cli_create_workflow_flag_attaches_workflow(
     assert t.step == "1 (implement)"
 
 
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        (
+            "code",
+            "Unknown workflow 'code': 'code' is a workflow group; use one of: "
+            "code/agent-merge, code/design-then-implement, code/with-review, "
+            "code/with-self-review",
+        ),
+        ("code/with-reveiw", "did you mean: code/with-review"),
+        ("zzz-no-such-flow", "Unknown workflow 'zzz-no-such-flow': no "),
+    ],
+    ids=["group-directory", "typo-close-match", "unknown"],
+)
+def test_cli_create_unknown_workflow_reports_one_line_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, name: str, expected: str
+) -> None:
+    """An unresolvable `--workflow` exits non-zero with one line, no traceback,
+    and writes nothing."""
+    monkeypatch.chdir(repo)
+    result = CliRunner().invoke(app, ["create", "Bad workflow", "--workflow", name])
+    assert result.exit_code == 2, result.output
+    assert isinstance(result.exception, SystemExit)
+    assert expected in result.output
+    assert "Traceback" not in result.output
+    assert len(result.output.strip().splitlines()) == 1
+    assert not (repo / "tasks" / "bad-workflow.md").exists()
+
+
 def test_cli_create_allows_no_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
