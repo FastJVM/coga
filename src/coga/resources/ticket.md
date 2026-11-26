@@ -41,16 +41,15 @@ do not rewrite a live snapshot or advance it by editing YAML. Frozen example:
 
     workflow:
       name: code/with-review                # Selected workflow name.
+      enter: git/ticket-enter              # Optional step scripts: run.py before each step,
+      exit: git/ticket-exit                #   and after each step change.
       steps:
-        - name: open-branch
-          run: git/open-branch               # Local-first skill directory containing run.py.
-          assignee: agent
         - name: implement                  # Ordered step name.
           skills:                          # Optional procedures for this step; plural, never skill.
             - code/implement
           assignee: agent                  # Role: owner, agent, or other-agent (the configured peer).
           requires: branch                 # Optional completion gate: branch or pr.
-    step: 1 (open-branch)                    # One-based position plus name; CLI removes this on completion.
+    step: 1 (implement)                      # One-based position plus name; CLI removes this on completion.
 
 An omitted step assignee inherits the previous role; the first defaults to
 owner. The current step determines who holds the ticket. There is no top-level

@@ -259,8 +259,8 @@ def _has_template_script(cfg: Config, template: "Template") -> bool:
         raise RecurringError(f"template {template.name!r}: {exc}") from exc
 
 
-def assert_template_git_mode(cfg: Config, template: "Template") -> None:
-    """Refuse a template whose workflow declares a launch Git mode.
+def assert_template_step_scripts(cfg: Config, template: "Template") -> None:
+    """Refuse a template whose workflow declares `enter`/`exit` step scripts.
 
     Runs before any period is created, reused, reactivated or prepared, so a
     refusal leaves the period and its serviced record untouched. Recurring
@@ -273,11 +273,6 @@ def assert_template_git_mode(cfg: Config, template: "Template") -> None:
         workflow = Workflow.load(resolve_workflow_path(cfg, name))
     except WorkflowError:
         return  # assert_template_workflow reports an unloadable workflow
-    if workflow.git != "main":
-        raise RecurringError(
-            f"template {template.name!r} declares workflow {name!r} with "
-            f"`git: {workflow.git}`; recurring work runs with `git: main`"
-        )
     if workflow.enter is not None or workflow.exit is not None:
         raise RecurringError(
             f"template {template.name!r} declares workflow {name!r} with "
@@ -1534,7 +1529,7 @@ def create_template(
     `retain_paused` lets a scan inspect parked periods without an agent-capable
     terminal. The scanner must retain that admission refusal if force-running.
     """
-    assert_template_git_mode(cfg, template)
+    assert_template_step_scripts(cfg, template)
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
     target_slug = _recurring_slug(template.name)

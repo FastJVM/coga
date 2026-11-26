@@ -540,11 +540,11 @@ LAUNCH_HOOK_DIR = "launch-hook"
 
 
 def prepare_launch_hook(cfg: Config, hook_ref: str, tmp_scope: TmpScope) -> Path:
-    """Copy the mode's hook skill into the launch tmp scope; return its run.py.
+    """Copy a step script's skill into the launch tmp scope; return its run.py.
 
-    The hook is resolved once, local-first like a step's `run:`, and copied so
-    that `exit` runs the same code as `enter` even if the branch switch changes
-    or removes a local override.
+    The skill is resolved local-first like a step's `run:` and copied, so a
+    script that switches branches keeps running the code it started with even
+    if the switch changes or removes a local override.
     """
     import shutil
 
@@ -558,15 +558,11 @@ def prepare_launch_hook(cfg: Config, hook_ref: str, tmp_scope: TmpScope) -> Path
     return target / "run.py"
 
 
-def run_launch_hook(
-    cfg: Config, ref: TaskRef, script: Path, phase: str | None, tmp_scope: TmpScope,
-) -> int:
-    """Run one hook script as a subprocess, with `phase` as its argument.
+def run_launch_hook(cfg: Config, ref: TaskRef, script: Path, tmp_scope: TmpScope) -> int:
+    """Run one workflow step script (`enter` / `exit`) as a subprocess.
 
-    Serves the legacy launch-boundary hook (`enter` / `exit` phases) and the
-    workflow step scripts (no argument). Git-free: the kernel only supplies
-    the ticket and tmp environment and returns the child's exit status. The
-    script gets no secrets.
+    Git-free: the kernel only supplies the ticket and tmp environment and
+    returns the child's exit status. The script gets no secrets.
     """
     env = apply_task_env(os.environ.copy(), cfg, ref)
     for key in ("COGA_SUPERVISED", SENTINEL_ENV, EXPECTED_TASK_ENV,
@@ -574,7 +570,7 @@ def run_launch_hook(
         env.pop(key, None)
     env = apply_tmp_env(env, tmp_scope)
     completed = subprocess.run(
-        [sys.executable, str(script), *([phase] if phase else [])],
+        [sys.executable, str(script)],
         cwd=host_repo_root(cfg),
         env=env, check=False,
     )

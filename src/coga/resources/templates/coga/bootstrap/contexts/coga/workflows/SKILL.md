@@ -32,20 +32,32 @@ A step with no script or skill can use an inline `## <step>` section. Owner
 steps hand work to the human. See [script tickets](../script-tickets/SKILL.md)
 for deterministic dispatch.
 
-An optional top-level `git:` selects the launch Git mode for the whole
-workflow. `main`, also used when the field is omitted, does no Git work in
-launch. `ticket-branch` runs the packaged `git/ticket-branch` hook around
-every launch of the ticket ([coga/git](../git/SKILL.md#ticket-branch-mode)).
-Any other value is a load error. The shipped `code/*` workflows declare
-`git: ticket-branch`. Recurring templates must stay on `main`.
+## Step scripts
+
+Optional top-level `enter: <skill-ref>` and `exit: <skill-ref>` name step
+scripts: launch runs the selected skill's `run.py` the same way it runs a
+`run:` step, with the ticket environment and no secrets.
+
+- `enter` runs before each step starts: the first step of a launch, each
+  step the supervisor or megalaunch chains, and each script step. A failure
+  refuses the step before its executor starts.
+- `exit` runs once after `coga bump`, `coga mark done|canceled` and
+  `coga block` have written the ticket. A failure keeps that write, makes
+  the command exit non-zero and stops the launch chain until a later `exit`
+  succeeds. A session that ends without a step change runs no `exit`.
+
+The kernel only runs the named scripts; the Git work lives in them. The
+shipped `code/*` and `docs/with-review` workflows declare `git/ticket-enter`
+and `git/ticket-exit` ([coga/git](../git/SKILL.md#branch-step-scripts)).
+Recurring templates cannot declare step scripts. The removed `git:` launch
+mode is a load error except for its old `main` default.
 
 ## Frozen snapshot, live content
 
 Creation and activation freeze the ordered step names, roles, skills, run
-refs and requirements in the ticket. A non-`main` `git:` is frozen after
-`name`; `main` is not written, so snapshots without the field keep today's
-bytes and behave as `main`. Validation reports an unregistered frozen `git:`
-as `bad-shape`. A later workflow edit affects newly
+refs and requirements in the ticket, with `enter`/`exit` after `name`.
+Validation reports a frozen step script whose `run.py` does not resolve,
+and a leftover frozen `git:` mode, as `bad-shape`. A later workflow edit affects newly
 frozen tickets. Attached skills, script files and inline instructions resolve
 from current definitions. Older snapshots retain their positions and step
 names. Legacy checkout-policy keys are ignored and validation reports them

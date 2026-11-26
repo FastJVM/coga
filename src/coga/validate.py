@@ -1187,32 +1187,17 @@ def _check_step_run(
 
 
 def _check_frozen_git_mode(cfg: Config, task_label: str, wf: dict) -> list[Issue]:
-    """A frozen `git:` must name a registered mode whose hook resolves."""
-    from coga.workflow import GIT_MODES
+    """A frozen `git:` other than the old `main` default was removed."""
+    from coga.workflow import REMOVED_GIT_FIELD_HINT
 
-    if "git" not in wf:
+    if wf.get("git", "main") == "main":
         return []
-    mode = wf["git"]
-    if not isinstance(mode, str) or mode not in GIT_MODES:
-        return [Issue(
-            kind="bad-shape",
-            task=task_label,
-            message=f"workflow.git {mode!r} must be one of {sorted(GIT_MODES)}",
-            severity="error",
-        )]
-    hook = GIT_MODES[mode]
-    if hook is None:
-        return []
-    try:
-        resolve_step_script(cfg, hook)
-    except (ConfigError, OSError, ValueError) as exc:
-        return [Issue(
-            kind="bad-shape",
-            task=task_label,
-            message=f"workflow.git {mode!r} hook {hook!r}: {exc}",
-            severity="error",
-        )]
-    return []
+    return [Issue(
+        kind="bad-shape",
+        task=task_label,
+        message=f"workflow.git {wf['git']!r}: {REMOVED_GIT_FIELD_HINT}",
+        severity="error",
+    )]
 
 
 def _check_frozen_step_scripts(cfg: Config, task_label: str, wf: dict) -> list[Issue]:
@@ -1241,13 +1226,6 @@ def _check_frozen_step_scripts(cfg: Config, task_label: str, wf: dict) -> list[I
                 message=f"workflow.{key} {ref!r}: {exc}",
                 severity="error",
             ))
-    if wf.get("git", "main") != "main" and any(k in wf for k in STEP_SCRIPT_KEYS):
-        out.append(Issue(
-            kind="bad-shape",
-            task=task_label,
-            message="workflow.git cannot be combined with enter/exit step scripts",
-            severity="error",
-        ))
     return out
 
 
@@ -1607,17 +1585,6 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         except WorkflowError:
             continue
         out.extend(_check_workflow_runs(cfg, f"recurring/{path.name}", workflow))
-        if workflow.git != "main":
-            out.append(Issue(
-                kind="bad-shape",
-                task=f"recurring/{path.name}",
-                message=(
-                    f"recurring template {path.name!r} declares workflow "
-                    f"{workflow_name!r} with `git: {workflow.git}`; recurring "
-                    "work runs with `git: main`"
-                ),
-                severity="error",
-            ))
         if workflow.enter is not None or workflow.exit is not None:
             out.append(Issue(
                 kind="bad-shape",

@@ -4,10 +4,9 @@ description: Implement and verify the change on the ticket branch.
 ---
 
 1. Read the ticket, its contexts and the recorded Git fields under `## Dev`.
-   Follow `coga/git`. On an older frozen snapshot without `branch:`, run the
-   local or packaged `git/open-branch/run.py --no-bump` with the ticket
-   environment. Keep the current `implement` step open. If a branch is
-   already recorded, switch to it if needed and stop if Git refuses.
+   Follow `coga/git`. The workflow's `enter` script has switched to the
+   recorded branch; if `branch:` is missing or HEAD is elsewhere, stop and
+   report it rather than opening a branch by hand.
    When adding codebase facts to `## Context`, cite the module and symbol
    and describe how it affects the ticket.
 2. Implement the requested behavior and update its canonical documentation.

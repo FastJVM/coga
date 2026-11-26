@@ -333,5 +333,5 @@ def test_shipped_branch_workflows_declare_enter_and_exit():
     for name in ("code/with-review", "code/with-self-review", "code/design-then-implement",
                  "code/agent-merge", "docs/with-review"):
         wf = Workflow.load(root / f"{name}.md")
-        assert (wf.git, wf.enter, wf.exit) == ("main", "git/ticket-enter", "git/ticket-exit"), name
+        assert (wf.enter, wf.exit) == ("git/ticket-enter", "git/ticket-exit"), name
         assert "open-branch" not in [step.name for step in wf.steps], name

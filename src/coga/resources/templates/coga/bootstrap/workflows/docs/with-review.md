@@ -21,10 +21,11 @@ steps:
 
 ## open-branch
 
-On a frozen ticket with this earlier step, run `git/open-branch` from the
-intended base and record the branch in the ticket. Current snapshots open the
-branch in the `git/ticket-enter` step script instead. See
-[coga/git](../../contexts/coga/git/SKILL.md).
+A ticket frozen with this earlier step predates the step scripts: run
+`python -m coga_edge.migrate_step_scripts --path <ticket>`, which drops the
+step and adds `enter`/`exit`, then launch again. Current snapshots open the
+branch in the `git/ticket-enter` step script. See
+[coga/git](../../contexts/coga/git/SKILL.md#branch-step-scripts).
 
 ## push-and-open-pr
 

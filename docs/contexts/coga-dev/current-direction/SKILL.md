@@ -27,15 +27,19 @@ is `coga status` and the ticket bodies; stage posture is
   cancels the `git-sync/` group. Until implemented, the current topics still
   describe today's behavior. Design and decisions:
   [`v1/03-use-git-like-everyone-remove-coga-s-publication-ab`](../../../../coga/tasks/v1/03-use-git-like-everyone-remove-coga-s-publication-ab.md).
-  **Amended 2026-11-24/25 (owner):** a workflow may declare a launch Git mode
-  (`git: ticket-branch`). The kernel stays Git-agnostic: it reads the frozen
-  mode, maps it to a packaged hook skill and runs that script's `enter`
-  before classification and `exit` after the chain, as it runs a step's
-  `run:`. All Git commands, including the exit commit and push, live in the
-  edge hook. This is the one sanctioned launch-boundary publication;
-  `main` (the default) keeps the plain behavior. Design and decisions:
-  [`in-workflwo-manage-beter-on-off-better-it-s-creati`](../../../../coga/tasks/in-workflwo-manage-beter-on-off-better-it-s-creati.md);
-  contract: [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#ticket-branch-mode).
+  **Amended 2026-11-25 (owner):** a workflow may declare `enter:` / `exit:`
+  step scripts. The kernel stays Git-agnostic: it runs the named skill's
+  `run.py` before each step starts and once after each step change (`coga
+  bump`, `coga mark done|canceled`, `coga block`), as it runs a step's
+  `run:`. The packaged branch workflows declare `git/ticket-enter` /
+  `git/ticket-exit`: code goes to the ticket branch, and only the current
+  ticket and its log lines are published to the base at each step change, so
+  ticket state no longer rides the PR. This replaces the earlier
+  `git: ticket-branch` launch mode and reverses v1/03's "the final bump on
+  the branch reaches main with the PR merge" and C3's ticket commit in the PR
+  script. Design:
+  [`run-a-workflow-step-script-that-publishes-only-the`](../../../../coga/tasks/run-a-workflow-step-script-that-publishes-only-the.md);
+  contract: [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md#branch-step-scripts).
 
 - **Keep Coga work visible and in the repository (2026-11-23).** The
   [filesystem policy](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md#keep-work-visible)

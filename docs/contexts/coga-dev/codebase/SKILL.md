@@ -52,9 +52,12 @@ The repo separates implementation from the OS it operates:
   table's allowlist and the [coga/configuration](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md)
   table in the same change. Only `_resolve_secret_value` runs `env:`
   indirection, for the two Slack webhook keys.
-- The Git workflow scripts live in the packaged `git/open-branch`,
-  `git/push-and-open-pr` and `code/merge-pr` skills. The PR and merge scripts
-  share helpers in `coga_edge/git_workflow.py`. The user procedure is in
+- The Git workflow scripts live in the packaged `git/ticket-enter`,
+  `git/ticket-exit`, `git/push-and-open-pr` and `code/merge-pr` skills
+  (`git/open-branch` remains for older snapshots). The step scripts share
+  helpers in `coga_edge/ticket_git.py`; the PR and merge scripts share
+  `coga_edge/git_workflow.py`. `coga_edge/migrate_step_scripts.py` rewrites
+  tickets frozen before the step scripts. The user procedure is in
   [coga/git](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   such as `delete_task.py`.

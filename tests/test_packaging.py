@@ -1061,7 +1061,6 @@ def test_packaged_workflow_scripts_have_their_canonical_paths() -> None:
         "bootstrap/skills/code/merge-pr/run.py",
         "bootstrap/skills/git/open-branch/run.py",
         "bootstrap/skills/git/push-and-open-pr/run.py",
-        "bootstrap/skills/git/ticket-branch/run.py",
         "bootstrap/skills/git/ticket-enter/run.py",
         "bootstrap/skills/git/ticket-exit/run.py",
     }

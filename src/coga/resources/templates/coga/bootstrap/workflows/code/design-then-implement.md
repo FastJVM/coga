@@ -43,16 +43,17 @@ anything under `## Open Questions` on the blackboard. If an
 `## Evaluator review` section is present, resolve every must-fix finding; record
 a disposition when one is intentionally rejected. Edit the ticket directly to
 correct scope or approach. When the spec is right, run `coga bump` to hand off
-to `open-branch`. If the design is wrong enough to redo, rewind with
+to `implement`. If the design is wrong enough to redo, rewind with
 `coga bump <slug> --to 1` (`design` is step 1) instead of bumping; if the premise itself is
 wrong, cancel and open a new ticket (`coga/lifecycle`).
 
 ## open-branch
 
-On a frozen ticket with this earlier step, run `git/open-branch` from the
-intended base and record the branch in the ticket. Current snapshots open the
-branch in the `git/ticket-enter` step script instead. See
-[coga/git](../../contexts/coga/git/SKILL.md).
+A ticket frozen with this earlier step predates the step scripts: run
+`python -m coga_edge.migrate_step_scripts --path <ticket>`, which drops the
+step and adds `enter`/`exit`, then launch again. Current snapshots open the
+branch in the `git/ticket-enter` step script. See
+[coga/git](../../contexts/coga/git/SKILL.md#branch-step-scripts).
 
 ## push-and-open-pr
 

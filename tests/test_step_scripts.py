@@ -114,11 +114,45 @@ def test_malformed_step_script_ref_is_refused(tmp_path, bad):
         Workflow.load(path)
 
 
-def test_git_mode_cannot_combine_with_step_scripts(tmp_path):
+@pytest.mark.parametrize("mode", ["ticket-branch", "trunk"])
+def test_removed_git_field_is_refused_with_the_migration(tmp_path, mode):
     path = tmp_path / "w.md"
-    path.write_text(WORKFLOW.replace("enter:", "git: ticket-branch\nenter:"), encoding="utf-8")
-    with pytest.raises(WorkflowError, match="cannot be combined"):
+    path.write_text(WORKFLOW.replace("enter:", f"git: {mode}\nenter:"), encoding="utf-8")
+    with pytest.raises(WorkflowError, match="names the migration"):
         Workflow.load(path)
+
+
+def test_git_main_is_still_accepted_and_not_frozen(tmp_path):
+    path = tmp_path / "w.md"
+    path.write_text(WORKFLOW.replace("enter:", "git: main\nenter:"), encoding="utf-8")
+    assert "git" not in Workflow.load(path).freeze()
+
+
+def _leftover_git_mode(ref) -> None:  # type: ignore[no-untyped-def]
+    ticket = read_ticket(ref)
+    ticket.frontmatter["workflow"] = {"name": "ss", "git": "ticket-branch",
+                                      "steps": ticket.workflow["steps"]}
+    ticket.write(ref.ticket_path)
+
+
+def test_leftover_frozen_git_mode_is_reported_and_refused(ss):
+    from coga.validate import run as validate_run
+    from coga_edge.megalaunch import _candidate_result
+
+    repo, ref, log = ss
+    _leftover_git_mode(ref)
+    cfg = load_config(repo.coga_os)
+    assert any(
+        issue.kind == "bad-shape" and "workflow.git 'ticket-branch'" in issue.message
+        and "names the migration" in issue.message
+        for issue in validate_run(cfg).issues
+    )
+    with pytest.raises(launch_module.LaunchBail, match="names the migration"):
+        launch(ref.id_slug)
+    result = _candidate_result(cfg, ref, read_ticket(ref))
+    assert result is not None and result.outcome == "skipped-unlaunchable"
+    assert "names the migration" in result.detail
+    assert _calls(log) == []
 
 
 def test_step_script_reads_frozen_and_draft(ss):
@@ -244,7 +278,7 @@ def test_failed_enter_refuses_the_step(ss, monkeypatch):
 
 
 def test_recurring_template_with_step_scripts_is_refused(ss):
-    from coga.recurring import RecurringError, Template, assert_template_git_mode
+    from coga.recurring import RecurringError, Template, assert_template_step_scripts
 
     repo, _, _ = ss
     cfg = load_config(repo.coga_os)
@@ -252,4 +286,4 @@ def test_recurring_template_with_step_scripts_is_refused(ss):
     object.__setattr__(template, "name", "nightly")
     object.__setattr__(template, "frontmatter", {"workflow": "ss"})
     with pytest.raises(RecurringError, match="step scripts"):
-        assert_template_git_mode(cfg, template)
+        assert_template_step_scripts(cfg, template)

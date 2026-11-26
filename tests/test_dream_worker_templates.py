@@ -643,7 +643,7 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
         .split()
     )
     assert "Mark abandoned or superseded work `canceled`" in lifecycle
-    assert "records `done` on the branch" in lifecycle
+    assert "on the branch workflows it publishes the ticket to the base" in lifecycle
 
 
 def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:

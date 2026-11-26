@@ -75,7 +75,7 @@ def _run(cfg: Config, ref: TaskRef, skill: str, key: str, scope: TmpScope) -> No
     except (ConfigError, OSError) as exc:
         raise StepScriptError(f"{key} script {skill!r}: {exc}") from exc
     try:
-        code = run_launch_hook(cfg, ref, script, None, scope)
+        code = run_launch_hook(cfg, ref, script, scope)
     except OSError as exc:
         raise StepScriptError(f"cannot run {key} script {skill!r}: {exc}") from exc
     if code != 0:

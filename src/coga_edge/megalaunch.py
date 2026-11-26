@@ -1082,20 +1082,16 @@ def _candidate_result(
     explicit: bool = False,
     blockers: list[Blocker] | None = None,
 ) -> MegalaunchResult | None:
-    # Megalaunch runs its own chain, not `coga launch`, so it never runs a
-    # workflow's launch Git hook. Refuse a non-`main` mode explicitly.
-    from coga.workflow import WorkflowError, git_mode
+    # A frozen snapshot still declaring the removed `git:` launch mode would
+    # run without the branch it expects; the migration rewrites it.
+    from coga.workflow import REMOVED_GIT_FIELD_HINT
 
-    try:
-        mode = git_mode(ticket.workflow, cfg)
-    except WorkflowError as exc:
-        return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
-    if mode != "main":
+    workflow = ticket.workflow
+    if isinstance(workflow, dict) and workflow.get("git", "main") != "main":
         return _result(
             ref,
             "skipped-unlaunchable",
-            f"workflow declares `git: {mode}`; megalaunch does not run launch "
-            f"Git hooks. Run `coga launch {ref.id_slug}`",
+            f"workflow.git {workflow['git']!r}: {REMOVED_GIT_FIELD_HINT}",
             _operator_name(cfg, ref, ticket),
         )
     if blockers is None:
