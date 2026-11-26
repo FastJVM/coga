@@ -119,8 +119,9 @@ every path. Preparation coverage is still checked per path, and the snapshot
 stays literal. If the grouped body still exceeds the limit, publication refuses
 before creating the PR. Shorten the preparation prose or receipts.
 The closure marker remains machine-readable outside that snapshot.
-The file table includes the ticket and audit log. These workflow state paths
-need no per-file explanation. A prepared head remains the evidence head when
+A branch workflow's PR carries no ticket state; when an older branch's diff
+includes the ticket or audit log, those workflow state paths need no
+per-file explanation. A prepared head remains the evidence head when
 it is an ancestor of the PR head and every intervening commit touches only
 those paths. The recorded diff base and each receipt must still match.
 
