@@ -163,6 +163,10 @@ def bootstrap_workflow_path(cfg: Config, name: str) -> Path:
     return packaged_template_path("bootstrap", "workflows", f"{name}.md")
 
 
+def _display_workflow_ref(ref: str) -> str:
+    return ref if ref.isprintable() else repr(ref)
+
+
 def resolve_workflow_path(cfg: Config, name: str) -> Path:
     """Resolve a workflow ref from local workflows first, then bundled bootstrap.
 
@@ -187,11 +191,15 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
                             errno.ENOTDIR, "Not a directory", str(parent),
                         )
                         raise WorkflowError(
-                            f"Cannot inspect workflow {candidate}: {exc}"
+                            "Cannot inspect workflow "
+                            f"{_display_workflow_ref(str(candidate))}: {exc}"
                         ) from exc
             continue
         except OSError as exc:
-            raise WorkflowError(f"Cannot inspect workflow {candidate}: {exc}") from exc
+            raise WorkflowError(
+                "Cannot inspect workflow "
+                f"{_display_workflow_ref(str(candidate))}: {exc}"
+            ) from exc
         except ValueError as exc:
             raise WorkflowError(f"Invalid workflow name {name!r}: {exc}") from exc
         # Existing entries, including directories and broken links, must be
@@ -231,7 +239,7 @@ def _available_workflow_names(cfg: Config) -> list[str]:
 
 
 def _format_workflow_options(names: list[str]) -> str:
-    return ", ".join(name if name.isprintable() else repr(name) for name in names)
+    return ", ".join(_display_workflow_ref(name) for name in names)
 
 
 def workflow_not_found_message(cfg: Config, name: str) -> str:
@@ -268,10 +276,8 @@ def workflow_not_found_message(cfg: Config, name: str) -> str:
             f"Unknown workflow {name!r}; did you mean: "
             f"{_format_workflow_options(suggestions)}?"
         )
-    return (
-        f"Unknown workflow {name!r}: no {str(workflow_path(cfg, name))!r} and no "
-        "bundled workflow of that name"
-    )
+    local = _display_workflow_ref(str(workflow_path(cfg, name)))
+    return f"Unknown workflow {name!r}: no {local} and no bundled workflow of that name"
 
 
 def load_workflow(cfg: Config, name: str) -> Workflow:

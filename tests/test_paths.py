@@ -166,7 +166,7 @@ def test_workflow_not_found_without_matches_names_local_path(tmp_path):
     assert "_template" not in workflow_not_found_message(cfg, "template")
 
     assert "did you mean" not in message
-    assert repr(str(workflow_path(cfg, "zzz-qqq"))) in message
+    assert str(workflow_path(cfg, "zzz-qqq")) in message
 
 
 def test_load_workflow_raises_not_found_with_diagnosis(tmp_path):
