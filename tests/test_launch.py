@@ -2813,13 +2813,15 @@ def test_launch_auto_activate_bails_without_workflow(
     assert Ticket.read(ref.ticket_path).status == "draft"
 
 
-def test_launch_reports_unknown_draft_workflow_before_activation(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("status", ["draft", "active"])
+def test_launch_reports_unknown_workflow_before_start(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, status: str,
 ) -> None:
     ref = list_tasks(load_config(active_task))[0]
     ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter.update(status="draft", workflow="code")
-    ticket.frontmatter.pop("step")
+    ticket.frontmatter.update(status=status, workflow="code")
+    if status == "draft":
+        ticket.frontmatter.pop("step")
     ticket.write(ref.ticket_path)
     original = ref.ticket_path.read_bytes()
     calls = _launch_single_spawn(monkeypatch)

@@ -628,9 +628,6 @@ class _LaunchInvocation:
         try:
             mode = git_mode(workflow, self.cfg)
         except WorkflowError as exc:
-            if isinstance(workflow, str):
-                # A draft's unloadable reference fails at activation, as today.
-                return None
             _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
         hook_ref = GIT_MODES[mode]
         if hook_ref is None:
