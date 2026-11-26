@@ -223,6 +223,27 @@ def test_sweep_removes_read_only_orphans_without_touching_link_targets(
         outside.chmod(0o755)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows junctions")
+def test_permission_retry_does_not_chmod_a_windows_junction_target(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    kept = outside / "kept.txt"
+    kept.write_text("x")
+    kept.chmod(0o444)
+    orphan = tmp_path / "orphan"
+    orphan.mkdir()
+    try:
+        subprocess.run(
+            ["cmd", "/d", "/c", "mklink", "/J", str(orphan / "junction"), str(outside)],
+            capture_output=True,
+            check=True,
+        )
+        run_state._make_owner_writable(orphan)
+        assert kept.stat().st_mode & 0o200 == 0
+    finally:
+        kept.chmod(0o644)
+
+
 def test_validate_fix_removes_read_only_orphans(repo: Path) -> None:
     cfg = load_config(repo)
     orphan = _orphan(repo / ".coga" / "tmp", "aaaaaaaa")
@@ -233,23 +254,29 @@ def test_validate_fix_removes_read_only_orphans(repo: Path) -> None:
     assert not orphan.exists()
 
 
+@pytest.mark.parametrize("entry_point", ["sweep", "validate"])
 def test_unremovable_orphan_reports_one_failure_per_area(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, entry_point: str
 ) -> None:
     root = repo / ".coga" / "tmp"
-    _orphan(root, "aaaaaaaa")
-    _orphan(root, "bbbbbbbb")
+    _orphan(root, "aaaaaaaa", age=3600)
+    _orphan(root, "bbbbbbbb", age=3600)
     monkeypatch.setattr(
-        run_state, "_remove_tree",
-        lambda path: [f"{path}/{name}: denied" for name in ("a", "b", "c")],
+        run_state,
+        "_remove_tree",
+        lambda path: [f"{path}/{name}: denied" for name in ("a\nb", "c", "d")],
     )
-    failures = run_state.sweep_orphans(load_config(repo)).failures
-    assert len(failures) == 2
-    for token, failure in zip(("aaaaaaaa", "bbbbbbbb"), sorted(failures)):
-        assert failure == (
-            f"could not remove orphan tmp {root / token}: "
-            f"{root / token}/a: denied (and 2 more)"
-        )
+    cfg = load_config(repo)
+    if entry_point == "validate":
+        report = validate_run(cfg, fix=True)
+        failures = [issue.message for issue in report.issues if issue.kind == "orphan-tmp"]
+    else:
+        failures = run_state.sweep_orphans(cfg).failures
+    expected = []
+    for token in ("aaaaaaaa", "bbbbbbbb"):
+        first = f"could not remove orphan tmp {root / token}: {root / token}/a\nb: denied"
+        expected.append(f"{first!r} (and 2 more)")
+    assert sorted(failures) == expected
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX inode permissions")

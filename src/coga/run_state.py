@@ -200,7 +200,7 @@ def launch_tmp_scope(cfg: Config, *, sweep: bool = True) -> Iterator[TmpScope]:
             lock_problems = _retire_lock(fd, lock_path)
         problems.extend(lock_problems)
         if problems:
-            _warn(f"could not fully remove launch tmp {path}: {_summarize(problems)}")
+            _warn(_summarize(f"could not fully remove launch tmp {path}", problems))
 
 
 def _create_locked_token(root: Path) -> tuple[int, str]:
@@ -275,11 +275,14 @@ def _remove_tree(path: Path) -> list[str]:
     return problems
 
 
-def _summarize(problems: list[str]) -> str:
+def _summarize(message: str, problems: list[str]) -> str:
     """One line per tmp area: the first failure plus how many others remain."""
-    if len(problems) == 1:
-        return problems[0]
-    return f"{problems[0]} (and {len(problems) - 1} more)"
+    line = f"{message}: {problems[0]}"
+    if not line.isprintable():
+        line = repr(line)
+    if len(problems) > 1:
+        line += f" (and {len(problems) - 1} more)"
+    return line
 
 
 def _make_owner_writable(root: Path) -> None:
@@ -294,8 +297,12 @@ def _make_owner_writable(root: Path) -> None:
     while pending:
         current = pending.pop()
         try:
-            mode = os.lstat(current).st_mode
-            if stat.S_ISLNK(mode):
+            info = os.lstat(current)
+            mode = info.st_mode
+            if (
+                stat.S_ISLNK(mode)
+                or (os.name == "nt" and info.st_reparse_tag == stat.IO_REPARSE_TAG_MOUNT_POINT)
+            ):
                 continue
             if stat.S_ISDIR(mode):
                 os.chmod(current, stat.S_IMODE(mode) | stat.S_IRWXU)
@@ -421,8 +428,11 @@ def sweep_orphans(cfg: Config) -> SweepResult:
                 continue
             # The original directory may have been replaced before we claimed it.
             if not _grace_expired(orphan.path, now):
-                for problem in _retire_lock(fd, orphan.lock_path):
-                    result.failures.append(f"could not retire orphan lock: {problem}")
+                problems = _retire_lock(fd, orphan.lock_path)
+                if problems:
+                    result.failures.append(
+                        _summarize("could not retire orphan lock", problems)
+                    )
                 continue
         try:
             problems = _remove_tree(orphan.path)
@@ -431,7 +441,7 @@ def sweep_orphans(cfg: Config) -> SweepResult:
         problems.extend(lock_problems)
         if problems:
             result.failures.append(
-                f"could not remove orphan tmp {orphan.path}: {_summarize(problems)}"
+                _summarize(f"could not remove orphan tmp {orphan.path}", problems)
             )
         else:
             result.removed.append(orphan)

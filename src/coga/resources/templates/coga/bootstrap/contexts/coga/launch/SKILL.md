@@ -145,14 +145,14 @@ the lock, then retires the lock file (POSIX unlinks it while held; Windows
 closes, then unlinks). Launch purge and the sweep below also remove
 read-only content a tool left in the area (a copied package tree, a Go
 module cache): on a permission error they grant the owner write access
-to directories inside the area (and, on Windows, to files), never through a
-symlink and never changing a POSIX file's mode, and retry once. A removal it
-cannot complete gives one line per area, naming the first failure and how
-many more remain: a purge warns on stderr and leaves the rest for the sweep,
-and a sweep warns at launch or reports one `orphan-tmp` warning under
-`coga validate --fix`. Neither fails the launch. On POSIX a file a
-background process still holds open is unlinked but keeps its disk space
-until that process exits.
+to directories inside the area (and, on Windows, to files) and retry once.
+The permission change skips symlinks and Windows junctions and preserves
+POSIX file modes. An incomplete removal gives one line per area with the
+first failure and the remaining count. A purge warns on stderr and leaves
+the rest for the sweep. A sweep warns at launch or reports one `orphan-tmp`
+warning under `coga validate --fix`. Cleanup warnings allow launch to
+continue. On POSIX, an unlinked file that a background process still holds
+open keeps its disk space until that process exits.
 
 A launch first sweeps sibling tokens whose lock it can take without blocking,
 including lock files with no directory. It claims a lock before removing a

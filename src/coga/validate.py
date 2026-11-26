@@ -281,7 +281,8 @@ def run(
     report.issues.extend(_check_shebang_executables(cfg))
     report.issues.extend(_check_repo_resources(cfg))
     report.state = run_state.usage(cfg)
-    report.issues.extend(_check_run_state(cfg, report.state, orphans=True))
+    # A repair run already reported any orphan the sweep could not remove.
+    report.issues.extend(_check_run_state(cfg, report.state, orphans=not fix))
 
     report.ok_count = _ok_count(refs, report.issues)
     return report
