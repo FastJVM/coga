@@ -65,13 +65,12 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
 - **Recipes report to the repo under test.** Pass the discovered root to
   `task_env.blackboard_from_env(coga_os_root)`; it refuses a blackboard
   outside that root's `tasks/` tree and fails closed to stdout.
-- **Shipped recurring `ticket.py` shims are edge shims, not registry shims.**
-  Each imports its `coga_edge` module's `main` and calls it; none calls
-  `run_recipe`, and none has a `runner.RECIPES` entry. blackboard-size,
-  blocker-reminders and skill-update reach `runner.run_entry`, which reports
-  the run and then bumps a launched script task once. phone-home and trim-log
-  call `runner.run_reported` and bump their own step. Do not turn a shim into a
-  registry entry ([coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
+- **Shipped recurring `ticket.py` shims call `coga_edge` modules.**
+  Each imports its module's `main` and calls it. `blackboard-size`,
+  `blocker-reminders` and `skill-update` reach `runner.run_entry`, which reports
+  the run and bumps a launched script task once on success. `phone-home` and
+  `trim-log` call `runner.run_reported` and bump their own step. The placement
+  rule is in [coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations).
   `tests/test_recurring_shims.py` pins the import-and-call shape only for the
   templates in `EDGE_SHIMMED_TEMPLATES` (blocker-reminders and skill-update)
   and tests phone-home's failure report separately.

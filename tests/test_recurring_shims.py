@@ -48,8 +48,8 @@ EDGE_SHIMMED_TEMPLATES = (
 def test_edge_shim_runs_its_installed_module_main(template: str, module: str, worker: str) -> None:
     """The shim holds no job logic and no completion of its own.
 
-    `main` is the module's `runner.run_entry` sequence: report, publish, then
-    bump only a launched script task. The removed recipe name is not
+    `main` uses `runner.run_entry` to run and report the job, then bump a
+    launched script task on success. The removed recipe name is not
     registered, so `coga run <name>` takes the unknown-recipe exit.
     """
     script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT

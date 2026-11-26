@@ -820,15 +820,10 @@ class CreateOutcome:
     create is idempotent, so two `coga recurring` runs converge on the
     stable `tasks/recurring/<name>/` directory. `replaced_done` identifies a
     prior-period completed task that was deleted before this fresh creation.
-    `replaced_done_ticket_bytes` freezes the exact stale completed ticket that
-    a replacement removed. The control-plane create may replace only that
-    observed generation; a concurrently reactivated or rematerialized task at
-    the stable path remains protected. `period_key` is the period this create
-    call decided, whether it created or reused the stable task.
-    `prior_serviced_period` is the target-bounded
-    ledger answer captured before this call can append its own record; the
-    recurring runner uses that pre-create snapshot for its pinned control
-    check after a successful pre-scan catch-up.
+    `replaced_done_ticket_bytes` holds the bytes of the completed ticket that
+    was removed. `period_key` identifies the period this call chose, whether
+    it created or reused the stable task. `prior_serviced_period` records the
+    ledger's answer for this template before the call could append its own record.
     """
 
     ref: TaskRef
@@ -978,9 +973,7 @@ class DueScan:
     inactive_since: str | None = None
     # `(template, last_fire, reason)` for each due agent-backed template this
     # run could not spawn an agent for. Not a template error: each gets a scan
-    # row reading `skip (<agent_refusal_label>)`, and the caller decides whether
-    # the refusal is a problem (a control-worktree run) or a documented warning
-    # (a headless sweep).
+    # row reading `skip (<agent_refusal_label>)`.
     agent_refusals: list[tuple[str, datetime, str]] = field(default_factory=list)
     agent_refusal_label: str = ""
 
@@ -1076,12 +1069,9 @@ def scan_due(
     invent a separate scratch task; `--force` is a real run, not a sandbox.
 
     `agent_unavailable_reason` replaces the default "requires a TTY" text on
-    every template dropped by `allow_interactive=False`. A caller that excludes
-    agent templates for its own reason — a sweep running from a temporary
-    control worktree, where a TTY may well exist — passes the true one so the
-    reported skip is not a lie, and `agent_unavailable_label` the short scan-row
-    text. Each refused template lands in `DueScan.agent_refusals`, not
-    `errors`, so it keeps its row in the scan table. A frozen `ticket.py`
+    every template dropped by `allow_interactive=False`.
+    `agent_unavailable_label` sets the short scan-row text. Each refusal goes
+    into `DueScan.agent_refusals` for display in the scan table. A frozen `ticket.py`
     admits only that deterministic phase: it may be hybrid and leave agent
     work open, so the caller must carry the same refusal through launch rather
     than treating file presence as proof that the whole period is script-only.

@@ -21,16 +21,10 @@ conflicting heads onto `origin/main`, resolve semantic conflicts with agent
 judgment, verify before an explicit lease-safe force-push, print one line per
 PR, and post the final Slack roll-up.
 
-The `delegate:` field above is the whole delegation. Creation freezes it into
-the period ticket, so sweeps, named retries, and direct
-`coga launch recurring/resolve-conflicts` never consult mutable template
-dispatch. The runner marks the period task `in_progress`, launches
-`bootstrap/resolve-conflicts` in-process (honouring the sweep's `--agent`
-override and selected queue session conduct), and marks the period task
-`done` after the delegated command emits its scoped completion sentinel.
-Preflight, the local start record, completion and the failure path follow
-`coga/recurring/delegation`; an unexpected exit reports failure and leaves the
-period ticket for a retry.
+The period ticket freezes the `delegate:` target it uses for sweeps, named
+retries, and direct `coga launch recurring/resolve-conflicts`. See
+`coga/recurring/delegation` for preflight, lifecycle transitions, and failure
+handling.
 
 The replacement intentionally covers **open PRs only**. The removed
 `rebase-stale-worktrees` task also found pre-PR branches through worktrees and

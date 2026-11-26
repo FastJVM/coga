@@ -204,8 +204,7 @@ def _record_failure(
             stderr=stderr,
             detail=detail,
         )
-        # Containment proved this root owns the target. Its publication barrier
-        # must protect the append even when --cwd selected a different checkout.
+        # Use the root that owns the report, including when --cwd selects it.
         append_blackboard_report(replace(cfg, repo_root=root), blackboard, report)
     except Exception as write_exc:  # never outrank the recipe's own failure
         sys.stderr.write(

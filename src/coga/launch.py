@@ -1823,8 +1823,8 @@ def prepare_agent_launch(
 ) -> PreparedAgentLaunch:
     """Validate CLI, prompt layers, secrets and command without repo writes.
 
-    Ordinary launch defers rendering until it has the final ticket and checkout
-    notice. Queue callers retain the prompt rendered during readiness.
+    Ordinary launch defers rendering until it reads the ticket for the agent
+    session. Queue callers retain the prompt rendered during readiness.
 
     Callers own prospective lifecycle, admission and ticket writes. Secret
     resolution may call an external provider; the result is not cached.
