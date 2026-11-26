@@ -49,11 +49,12 @@ def retire(
 
     A `done` ticket is deleted locally through `coga delete`.
 
-    For a `canceled` ticket, retire creates and launches a one-shot
-    `retire-<slug>` task whose body is the `retire.md` resource. That agent
-    reviews the ticket, moves lasting knowledge to its canonical topic or
-    files follow-ups, records the disposition, and then removes the source
-    through `coga delete`. It does not run Retro (`retro/done-ticket`).
+    For a `canceled` ticket, retire creates a one-shot `retire-<slug>` task
+    from the `retire.md` resource and launches it unless `--no-launch` is set.
+    The default resource asks the agent to review the ticket, move lasting
+    knowledge to its canonical topic or file follow-ups, record the outcome,
+    and remove the source through `coga delete` once its retained work is
+    accounted for. It does not run Retro (`retro/done-ticket`).
     """
     if os.environ.get("COGA_SCRIPT_HELP") == "1":
         raise typer.Exit(2)

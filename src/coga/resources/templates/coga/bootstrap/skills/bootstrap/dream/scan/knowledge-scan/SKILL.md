@@ -156,12 +156,12 @@ inside the subagent. Classify each finding as exactly one of:
   - `source: done+checkout` — `status: done` with a live `## Dev` checkout.
     This is retirement debt that Phase 4 skips, and `coga retire <slug>`
     deletes it without Retro, so Phase 6 opens the proposal PR for it.
-  - `source: canceled` — `status: canceled`. This is retirement debt:
-    `coga retire <slug>` launches a review task (no Retro) that moves its
-    lasting knowledge to the owning topic, so Phase 6 lists the finding under
-    retirement debt rather than opening a PR. A canceled ticket's abandoned
-    design is not durable knowledge; only a reusable fact it discovered along
-    the way — a gotcha, a verified behavior, a measured limit — qualifies.
+  - `source: canceled` — `status: canceled`. Phase 6 reports this as
+    retirement debt. The review task created by `coga retire <slug>` is
+    responsible for carrying forward lasting knowledge from the source
+    ticket. A canceled ticket's abandoned design is not durable knowledge;
+    only a reusable fact it discovered along the way — a gotcha, a verified
+    behavior, a measured limit — qualifies.
     So does an owner decision *not* to act that the ticket recorded (what was
     declined, why, and what would reopen it) when the topic owning that
     subject does not already state it; `coga/knowledge` owns where it lands.

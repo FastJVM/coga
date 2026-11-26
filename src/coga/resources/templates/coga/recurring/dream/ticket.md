@@ -284,15 +284,13 @@ A done ticket is eligible when:
 
 A done ticket with a live checkout is retirement debt, not Retro input. Do
 not delegate it to `retro/done-ticket` and do not invoke `coga retire` from
-Dream: leave the ticket and its `## Dev` evidence on disk so the exact
-human-typed `coga retire <slug>` command remains valid. That command disposes
-of the checkout and deletes the done ticket without a retro agent. A canceled
-ticket is retirement debt too: Phase 4 never takes it, and `coga retire <slug>`
-launches a review task (not Retro) that moves its lasting knowledge to the
-owning topic or files follow-ups before deleting it. List
-both kinds as deferred retirement debt in the run summary. After retirement
-removes the source ticket, the ordinary existence gate makes it disappear from
-Dream's candidate set.
+Dream: leave the ticket and its `## Dev` evidence on disk so the human can
+manage the checkout with Git and delete the ticket with `coga retire <slug>`.
+Phase 4 also leaves canceled tickets for retirement. For these,
+`coga retire <slug>` launches a review task to carry forward lasting
+knowledge or file follow-ups before deletion. List both kinds as deferred
+retirement debt in the run summary. Once retirement removes the source
+ticket, the ordinary existence gate excludes it from Dream's candidate set.
 
 A ticket whose directory is already gone is not a candidate; git history holds
 its record. A processed `## Retro` marker on a still-present directory does not
@@ -629,13 +627,11 @@ Route each remaining Phase 2 and Phase 3 finding by class:
     summary's retirement-debt section so the human can retire it.
   - `canceled` — the source ticket is retirement debt, deliberately left on
     disk so the human-typed `coga retire <slug>` stays valid. That ticket
-    is the durable artifact and retirement is its consumer: `coga retire`
-    launches a review task (not Retro) that reads the ticket and moves what
-    this finding saw to its canonical topic. Open no PR
-    and file no carrier ticket — a second copy decays while the source stays
-    fresh. Instead, list the finding under the run summary's retirement-debt
-    section with its slug, area, and one-line summary, so the human can order
-    retirements by the knowledge they unlock. This is a standing condition
+    is the durable artifact. `coga retire` launches a task to review the
+    source and carry forward lasting knowledge or file follow-ups. Dream
+    lists the finding under the run summary's retirement-debt section with
+    its slug, area, and one-line summary so the human can prioritize the
+    review. Open no PR and file no carrier ticket. This is a standing condition
     while the retirement backlog exists; the same findings recur until the
     tickets are retired, and reporting them again each run is correct.
 - `stale` — open a proposal PR that edits the named context or skill to match

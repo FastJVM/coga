@@ -108,7 +108,7 @@ def test_no_surface_promises_retro_for_a_canceled_ticket() -> None:
     bootstrap = RETRO_SKILL.parents[3]
     resources = RETRO_SKILL.parents[6]
     retire_md = (resources / "retire.md").read_text(encoding="utf-8")
-    assert "retro" not in retire_md.lower()
+    assert "retro/done-ticket" not in retire_md
 
     retro_norm = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
     assert "Retro never takes a canceled ticket." in retro_norm

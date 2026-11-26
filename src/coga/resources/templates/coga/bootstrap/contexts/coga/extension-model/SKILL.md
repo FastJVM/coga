@@ -32,9 +32,8 @@ Reach for the lowest tier the shape allows:
   blackboard, log, and often a PR. Its deterministic half can be a `ticket.py`
   without a registry entry. State decides between ticket and command, not
   parameters: the `coga retire <slug>` command ticket creates a retire task
-  for a canceled ticket because reviewing what to carry forward is agent
-  work, and
-  deletes a done ticket in place because that is not.
+  for a canceled ticket because reviewing what to carry forward needs agent
+  judgment. It deletes a done ticket in place.
 
 Everything else is Coga's kernel, changed only through Coga itself, not a home
 a repo chooses.

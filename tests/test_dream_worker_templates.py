@@ -200,7 +200,7 @@ def test_dream_routes_every_finding_class_to_a_durable_home() -> None:
         assert source in scan_text
     assert "`done+checkout` — the source ticket is retirement debt" in norm
     assert "Open no PR and file no carrier ticket" in norm
-    assert "retirement is its consumer" in norm
+    assert "`coga retire` launches a task to review the source and carry forward lasting knowledge" in norm
     assert "`coga retire` deletes a done ticket without Retro, so this finding is the only route" in norm
     assert "`canceled` — the source ticket is retirement debt" in norm
     assert "Open a proposal PR that edits the target context or skill" in norm
