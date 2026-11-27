@@ -940,6 +940,9 @@ class _LaunchInvocation:
                     except (ConfigError, tomllib.TOMLDecodeError) as exc:
                         _bail(str(exc))
                     self.ticket = self._read(self.ref)
+                    # The preflighted layers were read from the checkout the
+                    # script may have switched away from; compose afresh.
+                    self.resolved_layers = None
 
             # A prior agent or deterministic phase may have changed both the
             # ticket's secret declarations and coga.toml. Mint this step's env

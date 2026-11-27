@@ -368,3 +368,28 @@ def test_recurring_template_with_step_scripts_is_refused(ss):
     object.__setattr__(template, "frontmatter", {"workflow": "ss"})
     with pytest.raises(RecurringError, match="step scripts"):
         assert_template_step_scripts(cfg, template)
+
+
+def test_first_agent_step_recomposes_layers_after_enter(ss, monkeypatch):
+    _, ref, log = ss
+    ticket = read_ticket(ref)
+    ticket.frontmatter["step"] = "2 (implement)"
+    ticket.write(ref.ticket_path)
+    seen_layers: list[object] = []
+    spawn = launch_module.spawn_agent_session
+
+    def spy(*args, **kwargs):  # type: ignore[no-untyped-def]
+        seen_layers.append(kwargs.get("resolved_layers"))
+        return spawn(*args, **kwargs)
+
+    def fake(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        result = CliRunner().invoke(app, ["bump", ref.id_slug], env=dict(env))
+        assert result.exit_code == 0, result.output
+        return ReplOutcome(0, "natural")
+
+    monkeypatch.setattr(launch_module, "spawn_agent_session", spy)
+    monkeypatch.setattr(launch_module, "run_with_done_marker", fake)
+    assert launch(ref.id_slug).exit_code == 0
+    assert _calls(log)[0] == "enter 2 (implement) plain"
+    # The enter script may switch checkouts, so the preflighted layers are not reused.
+    assert seen_layers == [None]

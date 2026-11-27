@@ -234,6 +234,8 @@ def plan_branches(
     log = _show_text(parent, log_rel) or ""
     blockers = []
     seen: set[str] = set()
+    changed_on: dict[BranchUpdate, set[str]] = {}
+    moved_from: dict[BranchUpdate, set[str]] = {}
     for ref in refs:
         local = ref.startswith(local_prefix)
         name = ref.removeprefix(local_prefix if local else remote_prefix)
@@ -311,6 +313,17 @@ def plan_branches(
             update = BranchUpdate(name, tip, ancestor)
             if update not in branches:
                 branches.append(update)
+            changed_on[update] = {path for path in changed if path}
+            moved_from.setdefault(update, set()).update((rel, *own_attachments))
+    # Cleaning a branch resets all of its ticket state to the branch point, so
+    # refuse when that would drop ticket state the base does not receive.
+    for update in branches:
+        kept = sorted(changed_on[update] - moved_from[update])
+        if kept:
+            blockers.append(
+                f"{update.name}: branch-only ticket state would be removed: "
+                + ", ".join(kept)
+            )
     return branches, attachments, log, blockers
 
 

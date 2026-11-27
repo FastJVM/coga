@@ -300,3 +300,25 @@ def test_migration_keeps_both_remote_refs_if_the_branch_update_is_rejected(repo)
     assert migrate.main(["--apply"]) == 1
     assert repo.git("rev-parse", "main", cwd=repo.origin) == old_base
     assert repo.git("rev-parse", "legacy", cwd=repo.origin) == old_branch
+
+
+def test_migration_refuses_to_drop_unpublished_branch_ticket_state(repo, capsys):
+    path = _ticket(repo, "Legacy branch", "old", step=1)
+    _seed(repo)
+    _advance_legacy_branch(repo, path)
+    repo.git("switch", "legacy")
+    draft = path.parent / "unrelated-draft.md"
+    draft.write_text("---\ntitle: Unrelated draft\nstatus: draft\n---\n", encoding="utf-8")
+    repo.git("add", "-A")
+    repo.git("commit", "-qm", "Add an unrelated draft on the branch")
+    repo.git("push", "-q", "origin", "legacy")
+    repo.git("switch", "main")
+    old_base = repo.git("rev-parse", "origin/main")
+    old_branch = repo.git("rev-parse", "origin/legacy")
+
+    assert migrate.main(["--apply"]) == 1
+    error = capsys.readouterr().err
+    assert "branch-only ticket state would be removed" in error
+    assert draft.relative_to(repo.root).as_posix() in error
+    assert repo.git("rev-parse", "origin/main") == old_base
+    assert repo.git("rev-parse", "origin/legacy") == old_branch
