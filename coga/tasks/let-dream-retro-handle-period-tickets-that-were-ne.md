@@ -1,6 +1,6 @@
 ---
 title: Let Dream Retro handle period tickets that were never committed
-status: in_progress
+status: draft
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,8 +28,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (implement)
-agent: claude
+step: 1 (open-branch)
 ---
 
 ## Description
@@ -127,11 +126,5 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
-## Dev
-
-branch: coga/let-dream-retro-handle-period-tickets-that-were--625100
-base: coga/run-a-workflow-step-script-that-publishes-only-t
-remote: origin
-
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
