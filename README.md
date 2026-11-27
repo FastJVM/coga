@@ -231,8 +231,9 @@ Coga is built around a few deliberate choices:
 handle work that needs judgment.
 
 **Use tools plainly.** Coga runs tickets in the current directory. Use Git and
-`gh` directly, or select workflow scripts that run them. Tickets and their
-state travel in the same Git changes as the work. [Git conventions](src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)
+`gh` directly, or select workflow scripts that run them. Code travels on its
+branch and PR; the branch workflows' step scripts publish ticket state to the
+base at each step change, so the PR carries only the work. [Git conventions](src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md)
 
 **Fail loud.** When a script or Git operation fails, Coga surfaces the failure
 and keeps the local state so you can recover.

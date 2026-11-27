@@ -41,16 +41,20 @@ VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset(
     {"owner", "agent", "other-agent"}
 )
 
-# Launch Git modes a workflow may declare under top-level `git:`. Each mode
-# maps to the skill ref whose `run.py` launch runs around the whole launch
-# (`enter` before classification, `exit` after the chain), or `None` for no
-# hook. The kernel only reads the frozen mode and runs the mapped script; every
-# Git command lives in that edge script. An omitted field means `main`.
-DEFAULT_GIT_MODE = "main"
-GIT_MODES: dict[str, str | None] = {
-    "main": None,
-    "ticket-branch": "git/ticket-branch",
-}
+# The removed launch Git mode field. `git: main` (the old default) is still
+# accepted and means nothing; any other value names the migration.
+REMOVED_GIT_FIELD_HINT = (
+    "the `git:` launch mode was removed; declare `enter: git/ticket-enter` and "
+    "`exit: git/ticket-exit` instead (coga/git names the migration for "
+    "in-flight tickets)"
+)
+
+# Step scripts a workflow may declare at top level: `enter: <skill-ref>` runs
+# that skill's `run.py` when a step starts (the first step of a launch and each
+# step the supervisor chains); `exit: <skill-ref>` runs it on every step change
+# (`coga bump`, `coga mark done|canceled`, `coga block`). The kernel stays
+# Git-free: it only runs the named scripts. Either may be omitted.
+STEP_SCRIPT_KEYS: tuple[str, ...] = ("enter", "exit")
 
 @dataclass(frozen=True)
 class WorkflowStep:
@@ -70,7 +74,8 @@ class Workflow:
     description: str
     steps: list[WorkflowStep] = field(default_factory=list)
     body: str = ""
-    git: str = DEFAULT_GIT_MODE  # launch Git mode; see GIT_MODES
+    enter: str | None = None  # step-start script skill ref; see STEP_SCRIPT_KEYS
+    exit: str | None = None  # step-change script skill ref
     # step name -> markdown section body (used when step has no skills ref)
     inline_instructions: dict[str, str] = field(default_factory=dict)
     # other `## <heading>` sections; a ticket frozen before a step rename
@@ -115,11 +120,13 @@ class Workflow:
         if "steps" not in fm or not isinstance(fm["steps"], list) or not fm["steps"]:
             raise WorkflowError(f"{path}: `steps` must be a non-empty list")
 
-        git = fm.get("git", DEFAULT_GIT_MODE)
-        if not isinstance(git, str) or git not in GIT_MODES:
-            raise WorkflowError(
-                f"{path}: `git` {git!r} must be one of {sorted(GIT_MODES)}"
-            )
+        if fm.get("git", "main") != "main":
+            raise WorkflowError(f"{path}: `git: {fm['git']}`: {REMOVED_GIT_FIELD_HINT}")
+
+        scripts = {
+            key: _parse_step_script_ref(fm.get(key), f"{path}: `{key}`")
+            for key in STEP_SCRIPT_KEYS
+        }
 
         steps = [_parse_step(s, path) for s in fm["steps"]]
         step_names = {s.name for s in steps}
@@ -134,7 +141,8 @@ class Workflow:
             name=fm["name"],
             description=fm.get("description", ""),
             steps=steps,
-            git=git,
+            enter=scripts["enter"],
+            exit=scripts["exit"],
             body=body,
             inline_instructions=inline,
             other_sections=other,
@@ -147,8 +155,10 @@ class Workflow:
         out: dict[str, Any] = {
             "name": self.name,
         }
-        if self.git != DEFAULT_GIT_MODE:
-            out["git"] = self.git
+        if self.enter is not None:
+            out["enter"] = self.enter
+        if self.exit is not None:
+            out["exit"] = self.exit
         out["steps"] = []
         for step in self.steps:
             entry: dict[str, Any] = {"name": step.name, "skills": list(step.skills)}
@@ -162,30 +172,33 @@ class Workflow:
         return out
 
 
-def git_mode(workflow: Any, cfg: Any) -> str:
-    """The launch Git mode a ticket's `workflow:` selects.
+def step_script(workflow: Any, cfg: Any, key: str) -> str | None:
+    """The `enter` or `exit` step-script skill ref a ticket's workflow names.
 
-    A frozen mapping carries its own `git:` (absent means `main`). A draft's
-    string reference loads the definition it would freeze, as
-    `launch_script.script_entry_point` does for a draft's first step. A
-    missing workflow is `main`. An unknown frozen value raises
-    `WorkflowError`; `coga validate` reports it as `bad-shape`.
+    A frozen mapping carries its own refs; a draft's string reference loads
+    the definition it would freeze. A missing workflow names none. A malformed
+    frozen value raises `WorkflowError`; `coga validate` reports it.
     """
+    if key not in STEP_SCRIPT_KEYS:
+        raise ValueError(f"unknown step script {key!r}")
     if isinstance(workflow, str):
         from coga.paths import resolve_workflow_path
 
-        return Workflow.load(resolve_workflow_path(cfg, workflow)).git
+        return getattr(Workflow.load(resolve_workflow_path(cfg, workflow)), key)
     if not isinstance(workflow, dict):
-        return DEFAULT_GIT_MODE
-    mode = workflow.get("git", DEFAULT_GIT_MODE)
-    if not isinstance(mode, str) or mode not in GIT_MODES:
-        raise WorkflowError(
-            f"frozen workflow `git` {mode!r} must be one of {sorted(GIT_MODES)}"
-        )
-    return mode
+        return None
+    return _parse_step_script_ref(workflow.get(key), f"frozen workflow `{key}`")
 
 
 # --- helpers ------------------------------------------------------------------
+
+
+def _parse_step_script_ref(raw: Any, where: str) -> str | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip() or raw != raw.strip():
+        raise WorkflowError(f"{where} must be a skill ref, got {raw!r}")
+    return raw
 
 
 def _parse_step(raw: Any, source: Path) -> WorkflowStep:
@@ -261,5 +274,6 @@ def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
 
 __all__ = [
     "Workflow", "WorkflowStep", "WorkflowError", "WorkflowNotFoundError",
-    "VALID_ASSIGNEE_ROLES", "GIT_MODES", "DEFAULT_GIT_MODE", "git_mode",
+    "VALID_ASSIGNEE_ROLES", "REMOVED_GIT_FIELD_HINT",
+    "STEP_SCRIPT_KEYS", "step_script",
 ]

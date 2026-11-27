@@ -7,10 +7,14 @@ BOOTSTRAP = (
 )
 
 
-def test_implement_skill_uses_the_ticket_branch_and_legacy_setup() -> None:
-    skill = (BOOTSTRAP / "skills/code/implement/SKILL.md").read_text(encoding="utf-8")
+def test_implement_skill_uses_the_entered_branch_and_keeps_ticket_state_off_it() -> None:
+    skill = " ".join(
+        (BOOTSTRAP / "skills/code/implement/SKILL.md").read_text(encoding="utf-8").split()
+    )
 
     assert "recorded Git fields" in skill
-    assert "git/open-branch/run.py --no-bump" in skill
-    assert "Keep the current `implement` step open." in skill
-    assert "stop if Git refuses" in skill
+    assert "The workflow's `enter` script has switched to the recorded branch" in skill
+    assert "rather than opening a branch by hand" in skill
+    assert "without `coga/tasks/**` or `coga/log.md`" in skill
+    assert "`git/ticket-enter/run.py rebase`" in skill
+    assert "git/open-branch" not in skill

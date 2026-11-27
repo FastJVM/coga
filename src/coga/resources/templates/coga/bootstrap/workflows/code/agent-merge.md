@@ -1,12 +1,9 @@
 ---
 name: code/agent-merge
 description: Code change implemented by the main agent, reviewed by its configured peer, then published and merged by the main agent with no owner gate. The owner audits after the merge and can revert.
-git: ticket-branch
+enter: git/ticket-enter
+exit: git/ticket-exit
 steps:
-  - name: open-branch
-    run: git/open-branch
-    assignee: agent
-    requires: branch
   - name: implement
     assignee: agent
     requires: branch
@@ -27,8 +24,11 @@ steps:
 
 ## open-branch
 
-Run `git/open-branch` from the intended base and record the branch in the ticket.
-See [coga/git](../../contexts/coga/git/SKILL.md).
+A ticket frozen with this earlier step predates the step scripts: run
+`python -m coga_edge.migrate_step_scripts --path <ticket>`, which drops the
+step and adds `enter`/`exit`, then launch again. Current snapshots open the
+branch in the `git/ticket-enter` step script. See
+[coga/git](../../contexts/coga/git/SKILL.md#branch-step-scripts).
 
 ## push-and-open-pr
 
@@ -37,9 +37,9 @@ The script uses the preparation recorded under `## PR`.
 
 ## merge
 
-The merge script verifies the peer-reviewed head and allows only ticket and
-log commits after it. It records and pushes the final state, waits for checks
-and merges the exact pushed head. The owner audits the merged PR.
+The merge script verifies the peer-reviewed head, pushes it, waits for checks
+and merges that exact head. Its final bump publishes the finished ticket to
+the base. The owner audits the merged PR.
 
 ## open-pr
 

@@ -145,9 +145,11 @@ src/coga/resources/templates/coga/bootstrap/recurring-list/ticket.md
 src/coga/resources/templates/coga/bootstrap/recurring-list/ticket.py
 src/coga/resources/templates/coga/bootstrap/skills/git/open-branch/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/git/open-branch/run.py
-src/coga/resources/templates/coga/bootstrap/skills/git/ticket-branch/SKILL.md
-src/coga/resources/templates/coga/bootstrap/skills/git/ticket-branch/run.py
 src/coga/resources/templates/coga/bootstrap/skills/git/push-and-open-pr/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/git/push-and-open-pr/run.py
 src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md
 src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/run.py
+src/coga/resources/templates/coga/bootstrap/skills/git/ticket-enter/SKILL.md
+src/coga/resources/templates/coga/bootstrap/skills/git/ticket-enter/run.py
+src/coga/resources/templates/coga/bootstrap/skills/git/ticket-exit/SKILL.md
+src/coga/resources/templates/coga/bootstrap/skills/git/ticket-exit/run.py

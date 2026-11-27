@@ -163,6 +163,6 @@ The concrete call shape is:
 gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutation-above>'
 ```
 
-Commit and push ticket notes with the branch work when they change. Report the
-addressed threads, pushed commit and exact verification results to the owner.
-Leave the final bump and merge to the owner.
+Record ticket notes in the local ticket. Report the addressed threads, pushed
+commit and exact verification results to the owner. The final bump publishes
+the ticket to the base. Leave the final bump and merge to the owner.

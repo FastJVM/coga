@@ -12,6 +12,7 @@ from coga.commands.common import current_operator
 from coga.config import ConfigError, load_config
 from coga.mark import mark_blocked
 from coga.repl_supervisor import emit_done_marker
+from coga.step_scripts import finish_transition, run_exit_after_transition
 from coga.taskfile import TaskFileError, split_body, with_blackboard
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.validate import TaskValidationError
@@ -84,7 +85,9 @@ def block(
     # `id_slug` (not the resolved path) scopes the signal so it matches the
     # supervisor regardless of which checkout the command runs in. See
     # `bump.py` for the path-drift rationale.
+    exit_code = run_exit_after_transition(cfg, ref, ticket.workflow)
     emit_done_marker(session_id=ref.id_slug)
+    finish_transition(exit_code)
 
 
 def _bail(msg: str, *, exit_code: int = 2) -> None:

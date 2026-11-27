@@ -52,7 +52,6 @@ on the owner's behalf.
 - Material claims were checked against the current repo.
 - `## Evaluator review` contains prioritized, evidenced findings or an explicit
   ready verdict.
-- No ticket-body edits, branch, code, or PR were produced.
 - `coga bump <slug>` advanced the ticket exactly once to owner review.
 
 ## What this skill does NOT do

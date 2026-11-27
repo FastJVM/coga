@@ -183,7 +183,7 @@ def _conduct_step_task(repo: Path) -> tuple[object, object, object]:
     )
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
-    ticket.frontmatter["step"] = "3 (peer-review)"
+    ticket.frontmatter["step"] = "2 (peer-review)"
     ticket.write(ref.ticket_path)
     return cfg, ref, read_ticket(ref)
 
@@ -477,7 +477,7 @@ def test_created_ticket_implement_prompt_includes_code_citation_guidance(
     )
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
-    ticket.frontmatter["step"] = "2 (implement)"
+    ticket.frontmatter["step"] = "1 (implement)"
     prompt = compose_prompt(cfg, ref, ticket)
 
     assert "Current step: implement (skill: code/implement)" in prompt
@@ -567,7 +567,7 @@ def test_design_prompts_remain_accurate_for_pre_evaluator_snapshots(
     [
         (
             "code/with-self-review",
-            "3 (self-qa)",
+            "2 (self-qa)",
             "Review the whole diff",
             "`coga block` — something is off",
         ),

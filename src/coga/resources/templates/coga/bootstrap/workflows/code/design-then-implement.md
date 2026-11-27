@@ -1,7 +1,8 @@
 ---
 name: code/design-then-implement
 description: A thin ticket is designed into a spec, cold-reviewed by another agent, approved by the owner, then implemented, code-reviewed by the other agent, and opened as a PR for final owner review.
-git: ticket-branch
+enter: git/ticket-enter
+exit: git/ticket-exit
 steps:
   - name: design
     assignee: agent
@@ -13,10 +14,6 @@ steps:
       - code/review-design
   - name: review-design
     assignee: owner
-  - name: open-branch
-    run: git/open-branch
-    assignee: agent
-    requires: branch
   - name: implement
     assignee: agent
     requires: branch
@@ -46,14 +43,17 @@ anything under `## Open Questions` on the blackboard. If an
 `## Evaluator review` section is present, resolve every must-fix finding; record
 a disposition when one is intentionally rejected. Edit the ticket directly to
 correct scope or approach. When the spec is right, run `coga bump` to hand off
-to `open-branch`. If the design is wrong enough to redo, rewind with
+to `implement`. If the design is wrong enough to redo, rewind with
 `coga bump <slug> --to 1` (`design` is step 1) instead of bumping; if the premise itself is
 wrong, cancel and open a new ticket (`coga/lifecycle`).
 
 ## open-branch
 
-Run `git/open-branch` from the intended base and record the branch in the ticket.
-See [coga/git](../../contexts/coga/git/SKILL.md).
+A ticket frozen with this earlier step predates the step scripts: run
+`python -m coga_edge.migrate_step_scripts --path <ticket>`, which drops the
+step and adds `enter`/`exit`, then launch again. Current snapshots open the
+branch in the `git/ticket-enter` step script. See
+[coga/git](../../contexts/coga/git/SKILL.md#branch-step-scripts).
 
 ## push-and-open-pr
 
@@ -62,8 +62,9 @@ The script uses the preparation recorded under `## PR`.
 
 ## review
 
-The owner reviews the PR and decides whether to merge. Run the final bump on
-the branch, then commit and push the finished ticket and log before merging.
+The owner reviews the PR and decides whether to merge. The final bump runs
+the `exit` step script, which publishes the finished ticket to the base; the
+PR carries no ticket state, so merge it before or after.
 The owner can launch an assist to handle requested changes.
 
 ## open-pr

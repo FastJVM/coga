@@ -1,15 +1,18 @@
 ---
 name: coga/git
-description: Work with tickets on ordinary Git branches and carry their state through the PR.
+description: Work with tickets on ordinary Git branches; ticket state lives on the base.
 ---
 
 # Working with Git
 
 Coga writes the ticket and the audit log in the current checkout. You can run
-Coga in a directory without Git. Code workflows can explicitly run a Git script
-to open a branch or PR, and a workflow's `git:` mode can run a Git hook around
-each launch ([ticket-branch mode](#ticket-branch-mode)). Use ordinary `git pull`, `git push`, and `gh` to share
-work, and `git branch -d` or GitHub to clean up merged branches.
+Coga in a directory without Git. A workflow can declare `enter:` / `exit:`
+step scripts ([coga/workflows](../workflows/SKILL.md#step-scripts)); the
+packaged branch workflows declare `git/ticket-enter` and `git/ticket-exit`,
+which put code on a ticket branch and ticket state on the base
+([branch step scripts](#branch-step-scripts)). Use ordinary `git pull`,
+`git push`, and `gh` to share work, and `git branch -d` or GitHub to clean up
+merged branches.
 
 ## Checkout policy
 
@@ -17,8 +20,8 @@ Use ordinary Git branches in the checkout where the work started. If a
 branch switch would disrupt work in progress, coordinate with the person using
 the checkout before switching. A [recurring run](../recurring/SKILL.md#checkout-policy)
 is the only Coga workflow that can use a disposable clone or linked Git worktree.
-In ticket-branch mode, launch itself switches to the ticket branch and back,
-so a launch from the starting branch needs a clean tree.
+The branch step scripts switch between the base and the ticket branch, so
+Git's own refusal to switch over conflicting local changes applies.
 
 ## Ticket Git record
 
@@ -33,96 +36,93 @@ reviewed: <full commit OID>
 pr: <full /pull/ URL>
 ```
 
-`git/open-branch` records branch, base and remote. `code/peer-review` records
+`git/ticket-enter` records branch, base and remote. `code/peer-review` records
 the final reviewed head. `git/push-and-open-pr` records the PR URL. Workflow
 gates read branch and PR from this record. If a needed field is missing or
 disagrees with Git or GitHub, stop and resolve the discrepancy.
 
 ## Branch to merge
 
-Start from the intended base. In ticket-branch mode the launch hook opens the
-branch before the first step. Otherwise the branch script switches to the recorded
-branch or creates one from the current HEAD. Once it exists, the ticket on
-that branch is the live copy. For older tickets, the recorded branch may need
-its base and remote backfilled before the PR step.
+Code lives on the ticket branch; the ticket and its `coga/log.md` lines live
+on the base. Commit implementation and review changes without
+`coga/tasks/**` or `coga/log.md`, so a PR carries no ticket state and another
+ticket's edits never block it. The `exit` script publishes the ticket at every
+step change, so `coga status` on a fresh clone of the base shows it current.
 
-On a code step, commit implementation and review changes. The PR script commits
-the ticket and log before opening the PR, then records the URL, advances the
-step, and pushes the handoff. A launch audit line can land locally after that
-push; in ticket-branch mode the exit hook commits and pushes it. After the PR opens, whoever changes the ticket commits and pushes that
-state on the branch. The owner runs the final bump before merging, then commits
-and pushes `status: done` with the log so the merge carries the finished ticket
-to the base. The agent-merge workflow does that in its merge script.
+The PR script pushes the branch, opens or updates the PR, records the URL and
+bumps as its last action. The owner reviews and merges the PR; the final bump
+publishes `status: done` to the base, before or after the merge. The
+agent-merge workflow merges and then bumps in its merge script.
 
-Before handing off code, fetch the base and rebase as appropriate. Inspect
-staged, unstaged and committed work separately. Preserve unique changes on both
-sides. If Git reports a conflict, a failed push, or unexpected dirt, keep local
-state, report the failure, and resolve it before retrying.
+Before handing off code, reconcile with the base: run the local or packaged
+`git/ticket-enter/run.py rebase` with the ticket environment, which rebases
+the branch onto `<remote>/<base>` and keeps the live ticket files and log across it.
+Inspect staged, unstaged and committed work separately. Preserve unique
+changes on both sides. If Git reports a conflict, a failed push, or
+unexpected dirt, keep local state, report the failure, and resolve it before
+retrying.
 
-## Ticket-branch mode
+## Branch step scripts
 
-A workflow that declares `git: ticket-branch` makes `coga launch` run the
-packaged `git/ticket-branch` hook around the whole launch. Launch itself stays
-Git-free: it reads the frozen mode, runs the hook's `run.py enter` before it
-reads the ticket and `run.py exit` when the launch ends, and reports their
-exit codes. `--prompt-report` runs neither. Megalaunch skips these tickets,
-and recurring templates must stay on `main`.
+`git/ticket-enter` runs before each step starts. It switches to the recorded
+branch and carries the checkout's live ticket, attachments and audit log
+across the switch, including any attachment deletions.
 
-`enter` finds the ticket branch, switches to it and lets launch read the live
-copy there:
+- With no `branch:` under `## Dev`, it creates `coga/<slug-part>` from `HEAD`
+  (a suffixed name when taken) and records `branch:`, `base:` (the starting
+  branch) and `remote:` (the base's upstream remote or `origin`).
+- Already on the recorded branch (a session ended without a step change), it
+  does nothing.
+- It refuses a detached `HEAD`, a `branch:` without `base:` or `remote:`, a
+  recorded branch that exists neither locally nor as `<remote>/<branch>`, and
+  local and remote-tracking tips that have diverged. A refusal fails the step
+  before any agent starts.
 
-- A recorded `branch:` in the current copy's `## Dev` wins. Without one,
-  `enter` looks for local or fetched `coga/<slug-part>` and
-  `coga/<slug-part>-<6 hex>` branches whose own ticket copy records that
-  branch. Once a branch matches, divergence checks include its local and
-  remote-tracking refs even if a ref removed the ticket. The local ticket
-  supplies the record when present. To resume a remote-only branch, the
-  remote-tracking copies must agree on the recorded remote and its ref
-  must have been fetched.
-- With no match it creates `coga/<slug-part>` from `HEAD` (a suffixed name
-  when taken) and records `branch:`, `base:` (the starting branch) and
-  `remote:` (the base's upstream remote or `origin`) before the first step.
-  A later `git/open-branch` step reuses that record and adds nothing.
-- It refuses, before any lifecycle write, a detached `HEAD`; more than one
-  matching branch; local and remote-tracking tips that have diverged; a
-  recorded branch that no longer exists; a `## Dev` record with `branch:` but
-  no `base:` or `remote:`; and uncommitted changes when it would switch
-  branches. Run `coga sync`, or commit or stash, then launch again. Launching
-  from the ticket branch itself allows uncommitted changes; `exit` commits
-  them.
+`git/ticket-exit` runs once after `coga bump`, `coga mark done|canceled` and
+`coga block` have written the ticket:
 
-`exit` runs on every path once `enter` has started: a normal end, an owner
-handoff, an agent failure, a timeout, a refusal and Ctrl-C. It takes the
-starting branch, ticket branch, remote and slug from the state `enter` saved,
-so it still publishes when the agent deleted the ticket. It runs `git add -A`
-(every non-ignored change), commits `<slug>: launch handoff at <step>` (or
-`(<status>)`, or `(ticket removed)`) when anything is staged, pushes with
-upstream set, even from a clean tree, and switches back to the starting
-branch. Because `enter` runs before classification, a launch that later
-refuses (a terminal ticket, a failed agent preflight) still publishes the
-checkout's changes.
+1. On the ticket branch, it commits everything except `coga/tasks/**` and
+   `coga/log.md` as `<slug>: handoff at <step>`, pushes the branch when the
+   remote lacks its tip, and switches back to the base with the live ticket
+   files and log. Other tickets' staged changes stay staged. Unstage any
+   changes to the carried ticket files or log before switching. On the
+   base, or with no branch recorded, it only publishes. On any other branch
+   it refuses.
+2. It publishes one commit on `<remote>/<base>`, built in a temporary index
+   from that ref: this ticket's files and its own new `coga/log.md` lines.
+   For a directory-form task it includes tracked and non-ignored attachments
+   and leaves nested tickets alone. Other tickets' edits and unpushed local
+   base commits are never published.
+3. It fast-forwards the local base when it can. The working audit log keeps
+   the base's entries and any unpublished local appends. Edits to existing
+   local log entries require reconciliation before a fast-forward.
 
-If Ctrl-C interrupts enter after creating the branch, exit finishes recording
-the new branch before committing so the next launch can find it.
+`run.py rebase` rebases the ticket branch onto `<remote>/<base>`. It saves the
+live ticket files and log under the ticket's data directory, restores the tracked
+copies so Git sees a clean tree, rebases, and writes them back. On a conflict
+it leaves the rebase and names the saved copies.
 
-On any failure, or when `HEAD` is no longer on the ticket branch, `exit`
-stops where it is with local state intact and names the failed operation.
-Launch exits non-zero; a launch that was already failing keeps its own code
-and reports both. Recovery is manual: finish the push or switch with Git.
+Both scripts stop at the first Git failure, a rejected push included, with
+Git's message and local state intact; nothing retries. A failed `exit` keeps
+the step change written locally and makes the command exit non-zero; launch
+and megalaunch stop before the next step until a later `exit` succeeds.
+Recovery is manual: finish the push or switch with Git, then bump, block or
+mark again, or rerun the script with the ticket environment.
 
-Both phases warn when the ticket is not tracked on the starting branch:
-later launches from there cannot find it. Commit it on that branch, or
-`git switch` to the ticket branch and launch from it. Launch keeps its
-ordinary "not found" for a ticket missing from the current checkout.
-
-Owner-held steps are worked through an assist (`coga launch <ref> --agent
-<type>`), which goes through launch and gets both hooks. `coga bump` and
-`coga mark` are not redirected; run them on the ticket branch.
+Tickets frozen before these scripts existed (an `open-branch` step or
+`git: ticket-branch`) are rewritten by
+`python -m coga_edge.migrate_step_scripts`. Review the report before running
+with `--apply`. When a branch holds the live ticket, the migration publishes
+that state to the base and restores the branch's task and audit-log paths to
+their merge-base versions in one atomic push. Reconcile any reported
+conflicts, unpublished branch work or different recorded base first.
+`--path <ticket>` rewrites a ticket in the working tree for manual recovery.
 
 ## Shared audit log
 
 Lifecycle commands append to `coga/log.md`. The scaffold sets `merge=union`
-so both sides of an append conflict survive. Log compaction snapshots the log
-and preserves bytes appended before its final read. An append between that
-read and the atomic replacement can still be lost. Keep compaction and routine
+so both sides of an append conflict survive; the `exit` script adds only its
+ticket's new lines to the base's log. Log compaction snapshots the log and
+preserves bytes appended before its final read. An append between that read
+and the atomic replacement can still be lost. Keep compaction and routine
 writes apart when possible.

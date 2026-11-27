@@ -6,9 +6,9 @@ description: Agent step that turns a thin ticket into an implementable spec — 
 # Design the change
 
 You are turning a thin ticket into something an implementer can pick up
-without guessing. The output is a *written spec on the ticket itself* —
-no branch, no code, no PR. The later `code/implement` step does the
-build, and it should not have to re-derive intent.
+without guessing. Write the spec on the ticket itself. The workflow's step
+scripts handle its Git handoff. The later `code/implement` step builds it
+from the recorded intent.
 
 ## Order of operations
 
@@ -79,13 +79,12 @@ build, and it should not have to re-derive intent.
   rests on a bare line number.
 - Any unresolved design questions are on the blackboard under
   `## Open Questions`.
-- No branch, no code, no PR.
 - `coga bump <slug>` has been run — the step is not done until it has.
 
 ## What this skill does NOT do
 
-- Write or commit code, create a branch, or open a PR — that is
-  `code/implement` and `code/open-pr`.
+- Write or commit code or open a PR. The workflow reserves those actions for
+  implementation and PR publication.
 - Review or approve its own spec. A later evaluator may review it; the owner
   decides in `review-design`.
 - Invent answers to genuine product decisions — surface them as open

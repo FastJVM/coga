@@ -100,6 +100,7 @@ from coga.mark import (
     mark_in_progress,
     prepare_active,
 )
+from coga.step_scripts import StepScriptError, exit_failure, run_enter_before_step
 from coga.repl_supervisor import build_supervised_step_env, unsignalled_advance_warning
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import WorkflowError
@@ -405,8 +406,8 @@ def _run_sweep(
             attempted += 1
         results.append(result)
         if result.stops_run:
-            # An agent that cannot start is an environment problem every
-            # later launch would hit too: end the run, drain included.
+            # Stop the queue and its dependency drain when the checkout
+            # needs recovery or the agent transport cannot start.
             return results
     return _drain_satisfied_blockers(
         cfg,
@@ -1081,20 +1082,16 @@ def _candidate_result(
     explicit: bool = False,
     blockers: list[Blocker] | None = None,
 ) -> MegalaunchResult | None:
-    # Megalaunch runs its own chain, not `coga launch`, so it never runs a
-    # workflow's launch Git hook. Refuse a non-`main` mode explicitly.
-    from coga.workflow import WorkflowError, git_mode
+    # A frozen snapshot still declaring the removed `git:` launch mode would
+    # run without the branch it expects; the migration rewrites it.
+    from coga.workflow import REMOVED_GIT_FIELD_HINT
 
-    try:
-        mode = git_mode(ticket.workflow, cfg)
-    except WorkflowError as exc:
-        return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
-    if mode != "main":
+    workflow = ticket.workflow
+    if isinstance(workflow, dict) and workflow.get("git", "main") != "main":
         return _result(
             ref,
             "skipped-unlaunchable",
-            f"workflow declares `git: {mode}`; megalaunch does not run launch "
-            f"Git hooks. Run `coga launch {ref.id_slug}`",
+            f"workflow.git {workflow['git']!r}: {REMOVED_GIT_FIELD_HINT}",
             _operator_name(cfg, ref, ticket),
         )
     if blockers is None:
@@ -1243,12 +1240,28 @@ def _launch_chain(
             return _result(ref, "completed", f"handed off to {who}", launched=launched)
         launch_agent = (agent_override or operator.name) if step_count == 0 else operator.name
 
+        if entry is not None and ticket.status == "blocked":
+            return _result(
+                ref, "blocked", "answer with `coga unblock --answer` before running the script",
+                launch_agent, launched=launched,
+            )
+
+        # Until the step hands off successfully, enter may have left this
+        # checkout prepared for this ticket alone.
+        try:
+            entered = run_enter_before_step(cfg, ref, ticket.workflow, tmp_scope)
+            if entered:
+                ticket = read_ticket(ref)
+                if prior in {"draft", "paused"}:
+                    prepared = _prepare_for_launch(cfg, ref, ticket)
+                    if isinstance(prepared, MegalaunchResult):
+                        return replace(prepared, launched=launched, stops_run=True)
+                    ticket = prepared
+        except (StepScriptError, TicketError, OSError) as exc:
+            return _result(ref, "failed", f"enter script: {exc}", launch_agent,
+                           launched=launched, stops_run=True)
+
         if entry is not None:
-            if ticket.status == "blocked":
-                return _result(
-                    ref, "blocked", "answer with `coga unblock --answer` before running the script",
-                    launch_agent, launched=launched,
-                )
             before_step = ticket.step
             try:
                 if prior in {"draft", "paused"}:
@@ -1261,16 +1274,18 @@ def _launch_chain(
                     tmp_scope=tmp_scope,
                 )
             except (OSError, ValueError, TaskValidationError, ConfigError) as exc:
-                return _result(ref, "failed", str(exc), launch_agent, launched=launched)
+                return _result(ref, "failed", str(exc), launch_agent,
+                               launched=launched, stops_run=entered)
             launched = launched or phase.ran
             if phase.exit_code:
                 return _result(ref, "failed", f"script exited with code {phase.exit_code}",
-                               launch_agent, launched=launched)
+                               launch_agent, launched=launched, stops_run=entered)
             if phase.ticket is None:
-                return _result(ref, "completed", "task removed by script", launch_agent, launched=launched)
+                return _result(ref, "completed", "task removed by script", launch_agent,
+                               launched=launched, stops_run=entered)
             cfg = phase.cfg or cfg
             ticket = phase.ticket
-            stop = _chain_stop_result(cfg, ref, ticket)
+            stop = _chain_stop_result(cfg, ref, ticket, entered=entered)
             if stop is not None:
                 return stop
             if ticket.step != before_step:
@@ -1307,20 +1322,19 @@ def _launch_chain(
                 launch_context="megalaunch", composed_prompt=prepared_agent.prompt,
             )
         except (AgentPreparationError, OSError, TaskValidationError) as exc:
-            return _result(ref, "failed", str(exc), launch_agent, launched=launched)
+            return _result(ref, "failed", str(exc), launch_agent,
+                           launched=launched, stops_run=entered)
 
         launched = True
         if getattr(session, "exec_failed", False):
-            return replace(
-                _result(
-                    ref, "failed",
-                    f"agent failed to start (exited with code {session.exit_code})",
-                    launch_agent, launched=True,
-                ),
-                stops_run=True,
+            return _result(
+                ref, "failed",
+                f"agent failed to start (exited with code {session.exit_code})",
+                launch_agent, launched=True, stops_run=True,
             )
         if not ref.ticket_path.exists():
-            return _result(ref, "completed", "task removed by agent", launch_agent, launched=True)
+            return _result(ref, "completed", "task removed by agent", launch_agent,
+                           launched=True, stops_run=entered)
         after = read_ticket(ref)
         warning = unsignalled_advance_warning(
             ref.id_slug,
@@ -1330,12 +1344,11 @@ def _launch_chain(
         )
         if warning:
             typer.secho(warning, fg=typer.colors.YELLOW, err=True)
-        if after.status == "blocked":
-            blockers = open_blockers(ref.ticket_path)
-            detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
-            return _result(
-                ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True,
-            )
+        stop = _chain_stop_result(cfg, ref, after, entered=entered)
+        if stop is not None and (
+            stop.outcome == "blocked" or (stop.outcome == "failed" and stop.stops_run)
+        ):
+            return stop
         if session.termination_kind == "timeout":
             timeout_reason = getattr(session, "termination_reason", None)
             detail = (
@@ -1349,6 +1362,7 @@ def _launch_chain(
                 detail,
                 _operator_name(cfg, ref, after),
                 launched=True,
+                stops_run=entered,
             )
         if session.exit_code != 0:
             return _result(
@@ -1357,8 +1371,8 @@ def _launch_chain(
                 f"agent exited with code {session.exit_code}",
                 _operator_name(cfg, ref, after),
                 launched=True,
+                stops_run=entered,
             )
-        stop = _chain_stop_result(cfg, ref, after)
         if stop is not None:
             return stop
         if (after.step, after.status) == (before.step, before.status):
@@ -1368,6 +1382,7 @@ def _launch_chain(
                 "agent exited without changing task state",
                 _operator_name(cfg, ref, after),
                 launched=True,
+                stops_run=entered,
             )
     return _result(
         ref, "failed", f"exceeded {max_steps_per_task} unattended steps",
@@ -1465,9 +1480,15 @@ def _resolve_partial_dependency_blockers(
 
 
 def _chain_stop_result(
-    cfg: Config, ref: TaskRef, after: Ticket
+    cfg: Config, ref: TaskRef, after: Ticket, *, entered: bool = False,
 ) -> MegalaunchResult | None:
     """Terminal chain state after an agent step, or None to keep chaining."""
+    failure = exit_failure(cfg, ref)
+    if failure is not None:
+        return _result(
+            ref, "failed", failure, _operator_name(cfg, ref, after), launched=True,
+            stops_run=True,
+        )
     if after.status == "blocked":
         blockers = open_blockers(ref.ticket_path)
         detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
@@ -1497,6 +1518,7 @@ def _chain_stop_result(
             f"status is {after.status}",
             _operator_name(cfg, ref, after),
             launched=True,
+            stops_run=entered,
         )
     from coga.bump import OperatorResolutionError, resolve_operator
 
@@ -1542,6 +1564,7 @@ def _result(
     *,
     launched: bool = False,
     drained: bool = False,
+    stops_run: bool = False,
 ) -> MegalaunchResult:
     return MegalaunchResult(
         slug=ref.id_slug,
@@ -1550,6 +1573,7 @@ def _result(
         agent=agent,
         launched=launched,
         drained=drained,
+        stops_run=stops_run,
     )
 
 

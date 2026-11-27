@@ -107,9 +107,13 @@ def test_push_and_open_pr(git_ticket, monkeypatch, mode):
     )
     if mode == "stale":
         source.write_text("unreviewed change", encoding="utf-8")
-        repo.git("commit", "-am", "Change reviewed file")
+        repo.git("commit", "-m", "Change reviewed file", "--", "change.txt")
         source.write_text("reviewed change", encoding="utf-8")
-        repo.git("commit", "-am", "Restore reviewed file")
+        repo.git("commit", "-m", "Restore reviewed file", "--", "change.txt")
+    other_ticket = repo.coga_os / "tasks" / "other-ticket.md"
+    if mode == "create":
+        # Another ticket's uncommitted edit in the shared checkout.
+        other_ticket.write_text("---\ntitle: Other\n---\n", encoding="utf-8")
     script = _script("git/push-and-open-pr")
     real_run = subprocess.run
     real_output = subprocess.check_output
@@ -133,7 +137,7 @@ def test_push_and_open_pr(git_ticket, monkeypatch, mode):
             return subprocess.CompletedProcess(args, 0)
         if args[:2] == ["git", "push"]:
             actual_pushes += 1
-            if fail_push and actual_pushes == 2:
+            if fail_push and actual_pushes == 1:
                 fail_push = False
                 raise subprocess.CalledProcessError(1, args)
         return real_run(args, *positional, **kwargs)
@@ -147,7 +151,8 @@ def test_push_and_open_pr(git_ticket, monkeypatch, mode):
             exists = True
             body = Path(args[args.index("--body-file") + 1]).read_text(encoding="utf-8")
             assert "## Checks" in body
-            assert ref.ticket_path.relative_to(repo.root).as_posix() in body
+            # Ticket state never rides the code branch.
+            assert ref.ticket_path.relative_to(repo.root).as_posix() not in body
             assert "Unexplained path:" not in body
             if mode == "stale":
                 assert "Stale preparation:" in body
@@ -166,7 +171,7 @@ def test_push_and_open_pr(git_ticket, monkeypatch, mode):
         return
     if mode == "retry":
         assert script.main() == 1
-        assert read_ticket(ref).status == "done"
+        assert read_ticket(ref).step == "1 (execute)"
     if mode == "retry-create":
         assert script.main() == 1
         assert read_ticket(ref).step == "1 (execute)"
@@ -176,6 +181,10 @@ def test_push_and_open_pr(git_ticket, monkeypatch, mode):
     assert calls.count("create") == (2 if mode == "retry-create" else int(mode in {"create", "retry", "stale"}))
     assert ("ready" in calls) == (mode == "draft")
     assert repo.git("rev-parse", "HEAD").strip() == repo.git("rev-parse", "work", cwd=repo.origin).strip()
+    if mode == "create":
+        # It neither blocked the PR nor rode along on the branch.
+        assert other_ticket.is_file()
+        assert "other-ticket.md" not in repo.git("ls-tree", "-r", "--name-only", "work", cwd=repo.origin)
 
 
 @pytest.mark.parametrize("condition, message", [
@@ -260,7 +269,7 @@ def test_legacy_implement_dispatch_stays_on_its_step(git_ticket, monkeypatch):
     assert repo.git("branch", "--show-current").strip() == branch
 
 
-def test_merge_script_pushes_done_state_and_merges_that_head(git_ticket, monkeypatch):
+def test_merge_script_merges_the_reviewed_head_then_finishes(git_ticket, monkeypatch):
     repo, ref = git_ticket
     repo.git("switch", "-c", "work")
     reviewed = repo.git("rev-parse", "HEAD").strip()
@@ -274,10 +283,8 @@ def test_merge_script_pushes_done_state_and_merges_that_head(git_ticket, monkeyp
         if argv[:3] == ["gh", "pr", "view"]:
             calls.append("view")
             head = repo.git("rev-parse", "work", cwd=repo.origin).strip()
-            remote_ticket = repo.git(
-                "show", f"work:{ref.ticket_path.relative_to(repo.root).as_posix()}", cwd=repo.origin,
-            )
-            assert "status: done" in remote_ticket
+            assert head == reviewed
+            assert read_ticket(ref).status != "done"
             return json.dumps({
                 "state": "OPEN", "isDraft": False, "baseRefName": "main",
                 "headRefOid": head, "statusCheckRollup": [{}],
@@ -297,10 +304,13 @@ def test_merge_script_pushes_done_state_and_merges_that_head(git_ticket, monkeyp
             head = repo.git("rev-parse", "work", cwd=repo.origin).strip()
             assert argv[3:] == [_PR_URL, "--rebase", "--match-head-commit", head]
             return subprocess.CompletedProcess(argv, 0)
+        if "bump" in argv:
+            calls.append("bump")
         return run_command(argv, *args, **kwargs)
 
     monkeypatch.setattr(subprocess, "check_output", output)
     monkeypatch.setattr(subprocess, "run", run)
     assert script.main() == 0
-    assert calls == ["view", "checks", "method", "merge"]
+    # The final bump (which runs the workflow's exit script) comes last.
+    assert calls == ["view", "checks", "method", "merge", "bump"]
     assert read_ticket(ref).status == "done"

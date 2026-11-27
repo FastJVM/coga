@@ -21,6 +21,7 @@ from coga.bump import (
 )
 from coga.config import ConfigError, load_config
 from coga.mark import mark_done
+from coga.step_scripts import finish_transition, run_exit_after_transition
 from coga.notification import preflight_post
 from coga.paths import resolve_workflow_path
 from coga.step_gate import gate_unmet_reason
@@ -231,7 +232,9 @@ def bump(
                 "— coga launch will stop and return to the caller.",
                 fg=typer.colors.CYAN,
             )
+        exit_code = run_exit_after_transition(cfg, ref, ticket.workflow)
         emit_done_marker(session_id=ref.id_slug)
+        finish_transition(exit_code)
         return
 
     new_step = steps[next_step - 1]
@@ -338,7 +341,12 @@ def bump(
     # checkout of the repo), so a path-scoped marker written from the "wrong"
     # cwd never matched what the supervisor polled for and the REPL hung. The
     # slug is identical from any checkout.
+    #
+    # The workflow's `exit` step script runs first, after the local write: a
+    # step change is where a session's work is published.
+    exit_code = run_exit_after_transition(cfg, ref, ticket.workflow)
     emit_done_marker(session_id=ref.id_slug)
+    finish_transition(exit_code)
 
 
 def _human_completes_active_owner_step(

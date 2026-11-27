@@ -224,13 +224,13 @@ repo chooses from.
   unchanged: deterministic Python stays Python (a recipe or `ticket.py`),
   never agent judgment.
 - **Git workflow scripts.** Branch creation and PR operations live beside
-  their packaged workflow skills and read the ticket's Git record. The
-  launch Git hook follows the same rule: `workflow.GIT_MODES` maps a frozen
-  `git:` mode to a skill ref, and `launch._LaunchHookGuard` only runs that
-  skill's `run.py enter|exit` through `launch_script.run_launch_hook`. Every
-  Git command lives in `git/ticket-branch/run.py`; shared branch naming
-  lives in `coga_edge.git_workflow`. A new mode adds a registry entry and a
-  packaged skill, not kernel Git logic.
+  their packaged workflow skills and read the ticket's Git record. Step
+  scripts follow the same rule: a frozen `enter:` / `exit:` names a skill,
+  and `coga.step_scripts` only runs its `run.py` through
+  `launch_script.run_launch_hook`. Every Git command lives in
+  `git/ticket-enter/run.py` and `git/ticket-exit/run.py`, with shared helpers
+  in `coga_edge.ticket_git` and branch naming in `coga_edge.git_workflow`. A
+  different Git policy is a different pair of skills, not kernel Git logic.
 - **Skill provenance at use is unbuilt.** Compose does not verify loaded
   skills against a provenance digest; that launch-time trust hook would be
   kernel when built.

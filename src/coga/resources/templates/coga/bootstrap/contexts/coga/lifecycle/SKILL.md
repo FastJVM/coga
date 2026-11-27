@@ -39,11 +39,13 @@ Tickets without a workflow move through statuses only via `coga mark`.
 - `--message` adds an FYI to active/paused/done notifications; for canceled
   it is the required audit reason, appended to `coga/log.md`. Cancellation
   leaves the body and blackboard (including open blocker text) untouched.
-- Completion writes the local ticket and audit log. Follow [Git](../git/SKILL.md)
-  to carry branch state through a PR.
-- Mark abandoned or superseded work `canceled` with the reason. A final bump
-  for a PR-backed ticket records `done` on the branch so the merge carries
-  that status to the base. See [coga/git](../git/SKILL.md).
+- Completion writes the local ticket and audit log. `coga bump`,
+  `coga mark done|canceled` and `coga block` then run the workflow's `exit`
+  step script, if any ([coga/workflows](../workflows/SKILL.md#step-scripts));
+  on the branch workflows it publishes the ticket to the base
+  ([coga/git](../git/SKILL.md#branch-step-scripts)). A failed `exit` keeps
+  the local write and makes the command exit non-zero.
+- Mark abandoned or superseded work `canceled` with the reason.
 - A terminal transition is a verdict about the ticket, never a repair of
   validator output. "Clears a validate error" is not a cancellation reason:
   cancelling parked drafts is the cheapest route to a green gate and trades

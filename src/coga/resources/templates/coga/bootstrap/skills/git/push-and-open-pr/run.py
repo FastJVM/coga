@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-from coga_edge.git_workflow import changed_paths, commit_state, git_output, verify_reviewed_tree
+from coga_edge.git_workflow import changed_paths, git_output, verify_reviewed_tree
 from coga.repl_supervisor import SENTINEL_ENV, deferred_done_marker, emit_done_marker
 from coga.blackboard import read_dev_fields, set_dev_fields
 from coga.github_source import github_repository_identity
@@ -372,7 +372,13 @@ def run() -> int:
         current = git_output("branch", "--show-current", cwd=cwd)
         if current != branch:
             raise OpenPrError(f"Current branch {current!r} disagrees with recorded branch {branch!r}")
-        dirty = sorted(set(changed_paths(cwd)) - set(paths))
+        # Ticket state lives on the base, never on the code branch: any
+        # ticket's edit or the log is not this branch's work.
+        tasks_prefix = (coga_root / "tasks").relative_to(cwd).as_posix() + "/"
+        dirty = sorted(
+            p for p in set(changed_paths(cwd)) - set(paths)
+            if not p.startswith(tasks_prefix)
+        )
         if dirty:
             raise OpenPrError("Commit your work first: " + ", ".join(dirty))
         push_urls = git_output("remote", "get-url", "--push", "--all", remote, cwd=cwd).splitlines()
@@ -382,7 +388,6 @@ def run() -> int:
         repository = github_repository_identity(push_urls[0])
         if repository is not None:
             gh_env["GH_REPO"] = "/".join(repository)
-        commit_state(cwd, paths)
         push = ["git", "push", "-u", "--", remote, "HEAD"]
         subprocess.run(push, cwd=cwd, check=True)
         existing = _lookup_pr(branch, cwd, gh_env)
@@ -402,13 +407,13 @@ def run() -> int:
         if existing and existing["isDraft"]:
             subprocess.run(["gh", "pr", "ready", url], cwd=cwd, env=gh_env, check=True)
         replace_blackboard(path, updated)
+        # Last action: the bump runs the workflow's `exit` script, which
+        # switches the checkout to the base and publishes the ticket there.
         if Ticket.read(path).step == expected_step:
             subprocess.run(
                 [sys.executable, "-m", "coga.cli", "bump", slug],
                 cwd=cwd, env={**os.environ, SENTINEL_ENV: ""}, check=True,
             )
-        commit_state(cwd, paths)
-        subprocess.run(push, cwd=cwd, check=True)
     except subprocess.CalledProcessError as exc:
         return exc.returncode if exc.returncode > 0 else 1
     except (OSError, ValueError, KeyError, TicketError, TaskFileError) as exc:

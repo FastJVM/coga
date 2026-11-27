@@ -75,8 +75,6 @@ from coga.config import (
 from coga.dependencies import agent_cli_missing_message
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import (
-    prepare_launch_hook,
-    run_launch_hook,
     run_script_chain,
     run_script_phase,
     script_entry_point,
@@ -120,7 +118,8 @@ from coga.ticket import (
     TicketError,
 )
 from coga.validate import TaskValidationError, assert_task_valid
-from coga.workflow import GIT_MODES, WorkflowError, git_mode
+from coga.workflow import REMOVED_GIT_FIELD_HINT, WorkflowError
+from coga.step_scripts import StepScriptError, exit_failure, run_enter_before_step
 
 
 class LaunchResult(NamedTuple):
@@ -326,13 +325,7 @@ def _launch(
             invocation.tmp_scope = stack.enter_context(
                 run_state.launch_tmp_scope(invocation.cfg)
             )
-        # The workflow's launch Git mode may wrap the whole launch in a hook.
-        # The guard is entered (inside the tmp scope, so `$TMPDIR` outlives
-        # it) before `enter` runs, so `exit` runs on every later path.
-        guard = invocation._launch_hook_guard()
-        if guard is not None:
-            stack.enter_context(guard)
-            guard.enter()
+        invocation._refuse_removed_git_mode()
         for prepare in (
             invocation._classify_target,
             invocation._run_initial_script,
@@ -343,121 +336,7 @@ def _launch(
                 break
         else:
             result = invocation._supervise_steps()
-        if guard is not None:
-            guard.result = result
     return result
-
-
-_HOOK_INTERRUPT_CODE = 130
-
-
-def _exception_exit_code(exc: BaseException) -> int:
-    """The exit status an unwinding exception will become at the boundary."""
-    if isinstance(exc, LaunchBail):
-        return exc.code
-    if isinstance(exc, SystemExit):
-        code = exc.code
-        return code if isinstance(code, int) else (0 if code is None else 1)
-    if isinstance(exc, NotificationExit):
-        return exc.exit_code
-    if isinstance(exc, KeyboardInterrupt):
-        return _HOOK_INTERRUPT_CODE
-    return 1
-
-
-class _LaunchHookGuard:
-    """Run a workflow Git mode's hook around one launch.
-
-    `enter` runs before classification; `exit` runs once `enter` has started,
-    on every later path (normal end, handoff, failure, timeout, bail,
-    interrupt). The guard observes both the returned `LaunchResult` and an
-    unwinding exception, and keeps the first non-zero code: an exit-hook
-    failure only makes an otherwise successful launch fail. The kernel knows
-    only the hook's script and phases; all Git work lives in the edge script.
-    """
-
-    def __init__(
-        self, invocation: "_LaunchInvocation", ref: TaskRef, mode: str, script: Path,
-    ) -> None:
-        self.invocation = invocation
-        self.cfg = invocation.cfg
-        self.ref = ref
-        self.mode = mode
-        self.script = script
-        self.started = False
-        self.result: LaunchResult | None = None
-
-    def __enter__(self) -> "_LaunchHookGuard":
-        return self
-
-    def enter(self) -> None:
-        inv = self.invocation
-        assert inv.tmp_scope is not None
-        self.started = True
-        code = run_launch_hook(self.cfg, self.ref, self.script, "enter", inv.tmp_scope)
-        if code != 0:
-            _bail(
-                f"Cannot launch {inv.ref.id_slug}: its `git: {self.mode}` enter "
-                f"hook failed (exit {code}); no lifecycle state was written.",
-                exit_code=code,
-            )
-        # The hook may have switched the checkout: resolve config, target and
-        # mode again so classification reads the copy now on disk.
-        try:
-            inv.cfg = load_config(self.cfg.repo_root)
-            inv.ref = resolve_task(inv.cfg, self.ref.id_slug)
-            if inv.ref.id_slug != self.ref.id_slug:
-                raise TaskNotFoundError(f"Ticket {self.ref.id_slug!r} is missing after enter.")
-        except (ConfigError, TaskNotFoundError, tomllib.TOMLDecodeError) as exc:
-            _bail(str(exc))
-        try:
-            live_mode = git_mode(read_ticket(inv.ref).workflow, inv.cfg)
-        except (OSError, UnicodeError, TicketError, WorkflowError) as exc:
-            _bail(f"Cannot launch {inv.ref.id_slug}: {exc}")
-        if live_mode != self.mode:
-            _bail(
-                f"Cannot launch {inv.ref.id_slug}: the copy that selected the "
-                f"launch Git mode declares `git: {self.mode}`, but the live copy "
-                f"after the hook declares `git: {live_mode}`. Reconcile the two "
-                "copies, then launch again."
-            )
-
-    def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[no-untyped-def]
-        if not self.started:
-            return False
-        inv = self.invocation
-        assert inv.tmp_scope is not None
-        try:
-            code = run_launch_hook(self.cfg, self.ref, self.script, "exit", inv.tmp_scope)
-        except (KeyboardInterrupt, SystemExit) as interrupted:
-            # The agent phase installs a signal handler that raises SystemExit.
-            # A second interrupt during exit must preserve the first failure.
-            code = _exception_exit_code(interrupted)
-        except OSError as error:
-            _report(f"Launch: cannot run the `git: {self.mode}` exit hook: {error}",
-                    fg='red', err=True)
-            code = 1
-        if code == 0:
-            return False
-        message = (
-            f"Launch: `git: {self.mode}` exit hook failed (exit {code}); the "
-            "checkout was left where the hook stopped. Fix it by hand."
-        )
-        if exc is not None:
-            original = _exception_exit_code(exc)
-            if original != 0:
-                _report(f"{message} The launch had already failed (exit {original}).",
-                        fg='red', err=True)
-                return False
-            raise LaunchBail(code, message) from exc
-        if self.result is not None and self.result.exit_code != 0:
-            _report(
-                f"{message} The launch had already failed "
-                f"(exit {self.result.exit_code}).",
-                fg='red', err=True,
-            )
-            return False
-        raise LaunchBail(code, message)
 
 
 class _LaunchInvocation:
@@ -611,41 +490,23 @@ class _LaunchInvocation:
         self.script_steps_run: set[str | None] = set()
         return None
 
-    def _launch_hook_guard(self) -> "_LaunchHookGuard | None":
-        """Select the launch-boundary hook for the ticket's frozen Git mode.
+    def _refuse_removed_git_mode(self) -> None:
+        """Refuse a frozen snapshot that still declares a removed `git:` mode.
 
-        `main` (also an omitted field) selects no hook. A prompt report runs
-        nothing; bootstrap targets have no workflow; delegated periods have
-        already returned from `_prepare_target`.
+        Running it would skip the branch the ticket expects; the migration
+        rewrites it to `enter`/`exit` step scripts.
         """
         if self.prompt_report or not isinstance(self.ref, TaskRef):
-            return None
+            return
         try:
             workflow = read_ticket(self.ref).workflow
         except (OSError, UnicodeError, TicketError):
-            # Classification reports the unreadable ticket.
-            return None
-        try:
-            mode = git_mode(workflow, self.cfg)
-        except WorkflowError as exc:
-            if isinstance(workflow, str):
-                # A draft's unloadable reference fails at activation, as today.
-                return None
-            _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
-        hook_ref = GIT_MODES[mode]
-        if hook_ref is None:
-            return None
-        if self.ref.directory == "recurring":
+            return  # classification reports the unreadable ticket
+        if isinstance(workflow, dict) and workflow.get("git", "main") != "main":
             _bail(
-                f"Cannot launch {self.ref.id_slug}: a recurring period cannot use "
-                f"`git: {mode}`; recurring work runs with `git: main`."
+                f"Cannot launch {self.ref.id_slug}: workflow.git "
+                f"{workflow['git']!r}: {REMOVED_GIT_FIELD_HINT}"
             )
-        assert self.tmp_scope is not None
-        try:
-            script = prepare_launch_hook(self.cfg, hook_ref, self.tmp_scope)
-        except (ConfigError, OSError) as exc:
-            _bail(f"Cannot launch {self.ref.id_slug}: `git: {mode}` hook: {exc}")
-        return _LaunchHookGuard(self, self.ref, mode, script)
 
     def _classify_target(self) -> LaunchResult | None:
         """Read and classify the ticket in this checkout."""
@@ -1060,6 +921,29 @@ class _LaunchInvocation:
                     self.agent_override if first_step else None,
                 )
 
+            # A script phase may have already entered this step before it
+            # handed the same step's remaining work to the agent.
+            if isinstance(self.ref, TaskRef) and self.ticket.step not in self.script_steps_run:
+                try:
+                    entered = run_enter_before_step(
+                        self.cfg, self.ref, self.ticket.workflow, self.tmp_scope,
+                    )
+                except StepScriptError as exc:
+                    _bail(
+                        f"Cannot start {self.ref.id_slug} step {self.ticket.step}: "
+                        f"{exc}; no agent was started.",
+                        exit_code=exc.code or 1,
+                    )
+                if entered:
+                    try:
+                        self.cfg = load_config(self.cfg.repo_root)
+                    except (ConfigError, tomllib.TOMLDecodeError) as exc:
+                        _bail(str(exc))
+                    self.ticket = self._read(self.ref)
+                    # The preflighted layers were read from the checkout the
+                    # script may have switched away from; compose afresh.
+                    self.resolved_layers = None
+
             # A prior agent or deterministic phase may have changed both the
             # ticket's secret declarations and coga.toml. Mint this step's env
             # from the freshly re-read config/ticket instead of carrying the
@@ -1285,6 +1169,8 @@ class _LaunchInvocation:
 
             _report("Launch: reading task state after agent exit")
             updated_ticket = read_ticket(self.ref)
+            if (failure := exit_failure(self.cfg, self.ref)) is not None:
+                _bail(f"{failure} Stopping before the next step.", exit_code=1)
             stop_reason = _harness_stop_reason(
                 self.ref,
                 self.ticket,

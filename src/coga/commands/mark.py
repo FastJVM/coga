@@ -35,6 +35,7 @@ from coga.mark import mark_canceled as _mark_canceled
 from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
 from coga.repl_supervisor import emit_done_marker
+from coga.step_scripts import finish_transition, run_exit_after_transition
 from coga.paths import RepoResourceUnreadable
 from coga.notification import preflight_post
 from coga.tasks import TaskNotFoundError, TaskRef, read_ticket, resolve_task
@@ -207,7 +208,9 @@ def done(
     # skip the marker. The task's `id_slug` scopes the signal to this
     # ticket (see `emit_done_marker`) — worktree-independent, unlike a
     # resolved path, so it matches whichever checkout the command runs in.
+    exit_code = run_exit_after_transition(cfg, ref, ticket.workflow)
     emit_done_marker(session_id=ref.id_slug)
+    finish_transition(exit_code)
 
 
 @app.command("canceled")
@@ -249,7 +252,9 @@ def canceled(
 
     # Cancellation is terminal and can happen from inside a launched agent
     # session. Release the same supervisor sentinel as `mark done` / `block`.
+    exit_code = run_exit_after_transition(cfg, ref, ticket.workflow)
     emit_done_marker(session_id=ref.id_slug)
+    finish_transition(exit_code)
 
 
 # --- stateless command completion ----------------------------------------------

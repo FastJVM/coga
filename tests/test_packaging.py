@@ -1053,13 +1053,16 @@ def test_packaged_workflow_scripts_have_their_canonical_paths() -> None:
     live = {
         path.relative_to(repo_root / "coga").as_posix()
         for path in (repo_root / "coga").rglob("run.py")
+        # Ignored run state: a live launch copies its step scripts there.
+        if ".coga" not in path.relative_to(repo_root / "coga").parts
     }
 
     assert packaged == {
         "bootstrap/skills/code/merge-pr/run.py",
         "bootstrap/skills/git/open-branch/run.py",
         "bootstrap/skills/git/push-and-open-pr/run.py",
-        "bootstrap/skills/git/ticket-branch/run.py",
+        "bootstrap/skills/git/ticket-enter/run.py",
+        "bootstrap/skills/git/ticket-exit/run.py",
     }
     assert live == set()
 

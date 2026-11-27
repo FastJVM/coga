@@ -94,15 +94,16 @@ task's main agent. New tasks use the configured default at activation; see
 
 Use `coga launch <slug> --prompt-report` to inspect an agent step's context.
 Then `coga launch <slug>` starts the workflow. For the code workflows the
-opening script creates a feature branch from your current HEAD. The agent
+`enter` step script creates a feature branch from your current HEAD, and each
+step change publishes the ticket back to the base. The agent
 implements and verifies the change. The review step records its evidence
 before the PR script runs. [Git](../git/SKILL.md) describes the handoff.
 
 ## 3. Review and merge
 
-Review the open PR. On the feature branch, run the final `coga bump <slug>`
-when satisfied, then commit and push the finished ticket state before merging.
-The ticket reaches the base with the code. Follow [Git](../git/SKILL.md).
+Review and merge the open PR, then run the final `coga bump <slug>`: its
+`exit` step script publishes the finished ticket to the base. The PR carries
+no ticket state, so the order does not matter. Follow [Git](../git/SKILL.md).
 
 ## What you touched
 
