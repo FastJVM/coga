@@ -1,6 +1,6 @@
 ---
 title: Let Dream Retro handle period tickets that were never committed
-status: in_progress
+status: draft
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,8 +28,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (push-and-open-pr)
-agent: claude
+step: 1 (open-branch)
 ---
 
 ## Description
@@ -127,107 +126,5 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
-## Dev
-
-branch: coga/let-dream-retro-handle-period-tickets-that-were--8155fa
-base: coga/stop-the-shipped-bootstrap-import-skill-presenti-4704ec
-remote: origin
-reviewed: 68a5cd74c74d4414b5c1962812a88a29ea227e66
-
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Decision
-
-Option (a), with Retro still classifying. Reasons:
-- (b) keeps the contradiction with "Retro never leaves a processed done ticket
-  on disk" and silently skips any gotcha a period blackboard holds.
-- (c) would make the recurring sweep write Git history every firing, which is a
-  much larger behavior change. Nothing about an untracked ticket needs to land.
-- Deleting an untracked file in Dream's checkout touches no Git state. It is
-  the narrowest exception to "no Retro in Dream's checkout".
-
-Dream snapshots on-base sources and wholly untracked period tickets, then
-passes the latter with a `local-only:` list. Retro classifies them from the
-snapshot and records a `local` handback. Extracted facts go into a theme PR
-with snapshot evidence. Dream verifies durable results and rechecks the exact
-artifact against the base, HEAD, index, and snapshot before calling
-`coga delete recurring/<name>`. Changed artifacts are deferred. An incomplete
-delete preserves the recovery copy.
-
-## Handoff (peer-review → publication)
-
-- Claude implemented the route in d4b4c97a6. Codex corrected the verification,
-  receipt ordering, and affected cleanup instructions in 68a5cd74c. The
-  `complete` format is prompt-only. No production Python parses the receipts.
-- Fetched origin. The recorded stacked base remains local at ff3f11881 and
-  contains the current origin/main, so no rebase was needed. The publication
-  script diffs against the recorded base's remote-tracking ref. That branch
-  must exist on origin before opening the stacked PR.
-- The shared checkout also has pre-existing changes to seven other task files
-  and coga/log.md. The PR script rejects unrelated task edits. Reconcile those
-  on their owning branches before publishing this ticket.
-
-## PR
-
-```yaml
-title: Let Dream Retro handle period tickets that were never committed
-author: claude
-author_evidence: >-
-  Claude (claude-opus-5-5, launch e7cd2941) implemented the route. Codex
-  authored the corrections in the separate peer-review session.
-head: 68a5cd74c74d4414b5c1962812a88a29ea227e66
-base: ff3f1188176012f08d4107ca7a86c5298ac84406
-depth: skim
-rationale: >-
-  The change directs Dream to delete untracked period artifacts after Retro
-  classifies them in isolation. The focused prompt tests, full Linux suite,
-  and disposable Git and CLI probe cover the documented route and guards.
-implementation: >-
-  Dream partitions eligible done tickets by presence on the fetched remote base. Untracked,
-  base-absent recurring period tickets go to Retro as local-only slugs. Retro classifies them
-  from the snapshot and extracts any knowledge into a theme PR. It hands them back with a new
-  `local` progress receipt. Dream then deletes them with coga delete in its own checkout after
-  verification and a fresh comparison of the exact artifact against the base,
-  HEAD, index, and snapshot. Failed prechecks defer the ticket, while a partial
-  deletion preserves the snapshot for recovery.
-deviations: "Uses option (a) from the ticket, with Retro still classifying recurring gotchas."
-limitations: >-
-  The next live Dream run remains the end-to-end acceptance check. The Linux
-  suite used Python 3.12.12. Python 3.11 is installed without pytest in this
-  environment. Native macOS and Windows checks are deferred to release.
-files:
-  src/coga/resources/templates/coga/recurring/dream/ticket.md: "Select local-only periods and verify handbacks before local deletion and snapshot cleanup."
-  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: "Define classification, PR evidence and recovery receipts for snapshot-only sources."
-  tests/test_dream_worker_templates.py: "Check the probes, receipt requirements and ordering of verification, deletion and cleanup."
-review:
-  reviewer: codex
-  kind: independent
-  status: passed
-  head: 68a5cd74c74d4414b5c1962812a88a29ea227e66
-  base: ff3f1188176012f08d4107ca7a86c5298ac84406
-  detail: >-
-    Codex reviewed the full diff from the recorded stacked base in a separate
-    session from Claude's implementation, then authored and reviewed corrections
-    to snapshot lifetime, receipt timing, and whole-artifact verification.
-    A disposable Git and Coga CLI probe verified the index and HEAD checks
-    for a tracked attachment and staged deletion, detected changed snapshot
-    evidence, and removed an ignored period artifact without changing its
-    parent carrier. No unresolved findings in the reviewed diff.
-checks:
-  - command: 'TMPDIR=/tmp PYTHONPATH="$PWD/src" .venv/bin/python -m pytest -q tests/test_dream_worker_templates.py tests/test_retro_skill_template.py'
-    status: passed
-    head: 68a5cd74c74d4414b5c1962812a88a29ea227e66
-    base: ff3f1188176012f08d4107ca7a86c5298ac84406
-    detail: "Pop!_OS 24.04 LTS, CPython 3.12.12. 27 passed in 0.20s."
-  - command: 'git diff --check ff3f1188176012f08d4107ca7a86c5298ac84406...68a5cd74c74d4414b5c1962812a88a29ea227e66'
-    status: passed
-    head: 68a5cd74c74d4414b5c1962812a88a29ea227e66
-    base: ff3f1188176012f08d4107ca7a86c5298ac84406
-    detail: "No whitespace errors."
-  - command: 'TMPDIR=/tmp PYTHONPATH="$PWD/src" .venv/bin/python -m pytest -q'
-    status: passed
-    head: 68a5cd74c74d4414b5c1962812a88a29ea227e66
-    base: ff3f1188176012f08d4107ca7a86c5298ac84406
-    detail: "Pop!_OS 24.04 LTS, CPython 3.12.12. 3259 passed, 30 skipped in 174.88s."
-```
