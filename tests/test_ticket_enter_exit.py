@@ -275,6 +275,66 @@ def test_directory_ticket_publishes_git_visible_attachments_and_deletions(te):
     assert (nested / "notes.txt").read_text(encoding="utf-8") == "nested work\n"
 
 
+def test_enter_carries_published_attachments_and_deletions_into_the_next_step(te, monkeypatch):
+    repo, _, _ = te
+    cfg = load_config(repo.coga_os)
+    created = create_task(
+        cfg=cfg, title="Directory handoff", workflow_name="te", contexts=[],
+        owner=cfg.current_user, agent=cfg.default_agent().name, status="active",
+        force_directory=True,
+    )
+    ref = resolve_task(cfg, created["slug"])
+    directory = ref.ticket_path.parent
+    removed = directory / "remove.txt"
+    removed.write_text("old\n", encoding="utf-8")
+    added = directory / "add.txt"
+    repo.git("add", "--", _rel(repo, directory))
+    repo.git("commit", "-qm", "Seed directory handoff")
+    repo.git("push", "-q", "origin", "main")
+
+    def action(env):
+        if read_ticket(ref).step == "1 (implement)":
+            added.write_text("new\n", encoding="utf-8")
+            removed.unlink()
+        else:
+            assert added.read_text(encoding="utf-8") == "new\n"
+            assert not removed.exists()
+        _bump_from(env, ref.id_slug)
+
+    _agent(monkeypatch, action)
+    assert launch(ref.id_slug).exit_code == 0
+    assert _branch(repo) == "main"
+    assert _show(repo, "origin/main", added) == "new\n"
+    assert not repo.origin_tracks(_rel(repo, removed))
+    branch = read_dev_fields(read_blackboard(ref.ticket_path))["branch"]
+    assert repo.git("diff", "--name-only", f"origin/main...origin/{branch}") == ""
+
+
+def test_fast_forward_keeps_remote_audit_entries_and_pending_local_lines(te, monkeypatch):
+    repo, ref, other = te
+    log = repo.coga_os / "log.md"
+    rel = _rel(repo, log)
+    original = _show(repo, "main", log)
+    remote_entry = f"2026-11-26 10:00 v1 [{other.id_slug}] [system] remote activity\n"
+    pending = f"2026-11-26 10:01 v1 [{other.id_slug}] [system] local activity\n"
+    repo.push_competing_commit(rel, original + remote_entry)
+
+    def action(env):
+        if read_ticket(ref).step == "1 (implement)":
+            with log.open("a", encoding="utf-8") as stream:
+                stream.write(pending)
+        _bump_from(env, ref.id_slug)
+
+    _agent(monkeypatch, action)
+    assert launch(ref.id_slug).exit_code == 0
+    assert _branch(repo) == "main"
+    committed = _show(repo, "main", log)
+    assert remote_entry in committed
+    assert pending not in committed
+    working = log.read_text(encoding="utf-8")
+    assert working.count(remote_entry) == working.count(pending) == 1
+
+
 def test_resume_switches_to_recorded_branch_with_the_live_ticket(te, monkeypatch):
     repo, ref, _ = te
     seen: list[tuple[str, str]] = []

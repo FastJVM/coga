@@ -56,7 +56,7 @@ agent-merge workflow merges and then bumps in its merge script.
 
 Before handing off code, reconcile with the base: run the local or packaged
 `git/ticket-enter/run.py rebase` with the ticket environment, which rebases
-the branch onto `<remote>/<base>` and keeps the live ticket and log across it.
+the branch onto `<remote>/<base>` and keeps the live ticket files and log across it.
 Inspect staged, unstaged and committed work separately. Preserve unique
 changes on both sides. If Git reports a conflict, a failed push, or
 unexpected dirt, keep local state, report the failure, and resolve it before
@@ -65,8 +65,8 @@ retrying.
 ## Branch step scripts
 
 `git/ticket-enter` runs before each step starts. It switches to the recorded
-branch, carrying the live ticket and log bytes across the switch: the copy in
-the checkout is the newest one.
+branch and carries the checkout's live ticket, attachments and audit log
+across the switch, including any attachment deletions.
 
 - With no `branch:` under `## Dev`, it creates `coga/<slug-part>` from `HEAD`
   (a suffixed name when taken) and records `branch:`, `base:` (the starting
@@ -84,8 +84,8 @@ the checkout is the newest one.
 1. On the ticket branch, it commits everything except `coga/tasks/**` and
    `coga/log.md` as `<slug>: handoff at <step>`, pushes the branch when the
    remote lacks its tip, and switches back to the base with the live ticket
-   and log. Other tickets' staged changes stay staged. A staged change to
-   the carried ticket or log stops the switch so you can resolve it. On the
+   files and log. Other tickets' staged changes stay staged. Unstage any
+   changes to the carried ticket files or log before switching. On the
    base, or with no branch recorded, it only publishes. On any other branch
    it refuses.
 2. It publishes one commit on `<remote>/<base>`, built in a temporary index
@@ -93,10 +93,12 @@ the checkout is the newest one.
    For a directory-form task it includes tracked and non-ignored attachments
    and leaves nested tickets alone. Other tickets' edits and unpushed local
    base commits are never published.
-3. It fast-forwards the local base when it can, and otherwise says so.
+3. It fast-forwards the local base when it can. The working audit log keeps
+   the base's entries and any unpublished local appends. Edits to existing
+   local log entries require reconciliation before a fast-forward.
 
 `run.py rebase` rebases the ticket branch onto `<remote>/<base>`. It saves the
-live ticket and log under the ticket's data directory, restores the tracked
+live ticket files and log under the ticket's data directory, restores the tracked
 copies so Git sees a clean tree, rebases, and writes them back. On a conflict
 it leaves the rebase and names the saved copies.
 

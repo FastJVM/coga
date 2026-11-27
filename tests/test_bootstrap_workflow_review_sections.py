@@ -113,7 +113,7 @@ def test_agent_merge_mirrors_with_review_except_the_final_step() -> None:
 
 def test_agent_merge_section_names_head_and_checks() -> None:
     text = AGENT_MERGE.read_text(encoding="utf-8")
-    merge = _parse_inline_sections(text, {"merge"})["merge"]
-    assert "ticket and" in merge and "log commits" in merge
+    merge = " ".join(_parse_inline_sections(text, {"merge"})["merge"].split())
     assert "waits for checks" in merge
-    assert "exact pushed head" in merge
+    assert "merges that exact head" in merge
+    assert "final bump publishes the finished ticket to the base" in merge

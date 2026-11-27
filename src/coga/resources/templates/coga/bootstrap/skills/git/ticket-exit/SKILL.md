@@ -7,14 +7,13 @@ A workflow that declares `exit: git/ticket-exit` makes Coga run this skill's
 `run.py` after every step change: `coga bump` (including the final bump to
 `done` and a human rewind), `coga mark done`, `coga mark canceled` and
 `coga block`. Do not list it as a workflow step. `coga/git`
-("Ticket branches") owns the contract.
+("Branch step scripts") owns the contract.
 
 1. On the recorded ticket branch, it stages everything except
    `<coga root>/tasks/**` and `<coga root>/log.md`, commits
    `<slug>: handoff at <step>` when anything is staged, and pushes the
    branch with upstream set. Ticket state never lands on the code branch.
-2. It switches back to the recorded base, carrying the live ticket and log
-   bytes across the switch.
+2. It switches back to the recorded base with the live ticket files and log.
 3. It fetches the base and builds one commit on `<remote>/<base>` in a
    temporary index holding this task's files and `log.md` as the base's log
    plus this ticket's local lines it lacks, then runs

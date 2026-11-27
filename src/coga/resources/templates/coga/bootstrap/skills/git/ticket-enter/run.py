@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 from coga.blackboard import read_dev_fields, set_dev_fields
@@ -23,17 +24,18 @@ from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard
 from coga_edge.git_workflow import branch_slug_part, fresh_branch_name
 from coga_edge.ticket_git import (
     TicketGitError,
+    clear_carried_changes,
     current_branch,
     dev_record,
     is_ancestor,
     out,
     ref_tip,
     require_unstaged_carried_paths,
-    restore_worktree_file,
+    restore_carried_files,
     run_op,
+    save_carried_files,
     switch_carrying,
     ticket_paths,
-    tracked_in_head,
 )
 
 PREFIX = "ticket-enter"
@@ -119,31 +121,21 @@ def rebase() -> int:
     if current_branch() != branch:
         raise TicketGitError(f"HEAD is not on the ticket branch `{branch}`")
     require_unstaged_carried_paths(paths)
+    run_op(f"git fetch {remote} {base}", "fetch", "--quiet", remote, base)
     keep = Path(os.environ.get("COGA_TASK_DATA_DIR") or os.environ["TMPDIR"]) / "rebase-saved"
     keep.mkdir(parents=True, exist_ok=True)
-    saved: list[tuple[str, Path]] = []
-    for rel in paths.carried:
-        file = paths.top / rel
-        if not file.is_file():
-            continue
-        copy = keep / rel.replace("/", "__")
-        shutil.copy2(file, copy)
-        saved.append((rel, copy))
-    run_op(f"git fetch {remote} {base}", "fetch", "--quiet", remote, base)
+    backup = Path(tempfile.mkdtemp(dir=keep))
+    carried = save_carried_files(paths, backup)
     try:
-        for rel, _ in saved:
-            if tracked_in_head(rel):
-                restore_worktree_file(rel)
+        clear_carried_changes(paths, carried)
         run_op(f"git rebase {remote}/{base}", "rebase", f"{remote}/{base}")
-    except TicketGitError as exc:
-        kept = ", ".join(f"{rel} -> {copy}" for rel, copy in saved)
+        restore_carried_files(paths, backup, carried, switched=True)
+    except (OSError, TicketGitError) as exc:
         raise TicketGitError(
-            f"{exc}; the live copies are kept ({kept}). Finish or abort the "
-            "rebase, then copy them back over the files."
+            f"{exc}. Live files are saved under {backup}. Finish or abort the "
+            "rebase if it started, then restore the saved files."
         ) from exc
-    for rel, copy in saved:
-        shutil.copy2(copy, paths.top / rel)
-        copy.unlink()
+    shutil.rmtree(backup)
     print(f"{PREFIX}: rebased `{branch}` onto `{remote}/{base}`", file=sys.stderr)
     return 0
 

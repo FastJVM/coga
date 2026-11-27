@@ -1,7 +1,8 @@
 ---
 name: _template
 description: Starter workflow. Copy this file to workflows/<namespace>/<your-workflow>.md and edit the steps to match your process.
-# git: ticket-branch  # optional launch Git mode; omitted means `main`
+# enter: git/ticket-enter  # Optional step-start script.
+# exit: git/ticket-exit    # Optional script after a step change.
 steps:
   - name: first-step
     skills:
@@ -42,10 +43,8 @@ A step that omits `assignee:` inherits the nearest *preceding* declared role;
 before any declaration the role is `owner`. That makes forward moves, restarts,
 and human rewinds all derive the same answer from this frozen snapshot.
 
-## On `git:`
+## Step scripts
 
-The optional top-level `git:` selects the launch Git mode for the whole
-workflow. `main`, also used when the field is omitted, does no Git work in
-launch. `ticket-branch` switches to the ticket's branch before every launch
-and commits, pushes and returns to the starting branch when it ends.
-`coga/workflows` and `coga/git` own the contract.
+The optional top-level `enter:` and `exit:` fields name skills with a
+`run.py`. The example pair opens the ticket branch and publishes its state
+after each step change. See `coga/workflows` and `coga/git`.

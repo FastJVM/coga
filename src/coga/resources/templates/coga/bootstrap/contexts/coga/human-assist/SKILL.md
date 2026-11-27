@@ -10,6 +10,8 @@ owner-held step. The override applies to that assist and leaves the workflow
 role and ticket agent intact. Lifecycle audit lines name the assisting agent
 when an in-session command acts on that ticket.
 
-Switch to the ticket branch before launching a PR assist. The agent follows
-the review skill, commits and pushes any requested changes and ticket notes,
-and leaves the final bump and merge to the owner. See [Git](../git/SKILL.md).
+Launch a PR assist from the base. The workflow's `enter` script takes the
+assist to the ticket branch. The agent follows the review skill, pushes any
+requested changes to the PR and records ticket notes locally. The owner runs
+the final bump to publish the ticket and decides when to merge. See
+[Git](../git/SKILL.md).

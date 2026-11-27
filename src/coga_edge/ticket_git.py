@@ -3,8 +3,8 @@
 Ticket state (`<coga root>/tasks/**` and `<coga root>/log.md`) never lands on
 a code branch: it lives on the base, and each step change publishes only the
 current ticket and its log lines there. The checkout carries the live ticket
-and log bytes across every branch switch (save, restore to `HEAD`, switch,
-write back), because the base's copy is always newer than the branch's.
+files and log across each branch switch, including attachment additions and
+deletions.
 
 Every helper stops at the first failure with Git's message and leaves local
 state intact; nothing retries.
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -83,8 +84,9 @@ class TicketPaths:
 
     @property
     def carried(self) -> tuple[str, ...]:
-        """Paths whose live bytes cross every branch switch."""
-        return (self.ticket_rel, self.log_rel)
+        """Ticket state whose working copy crosses a branch switch."""
+        attachments = _task_files(self, with_head=True) if self.task_is_dir else []
+        return tuple(dict.fromkeys((self.ticket_rel, self.log_rel, *attachments)))
 
 
 def ticket_paths() -> TicketPaths:
@@ -133,44 +135,66 @@ def require_unstaged_carried_paths(paths: TicketPaths) -> None:
         )
 
 
-def restore_worktree_file(rel: str) -> None:
-    out("restore", "--source=HEAD", "--worktree", "--", f":(top,literal){rel}")
-
-
 # --- carrying live state across a switch -----------------------------------------
 
 
 def switch_carrying(paths: TicketPaths, target: str, *switch_args: str) -> None:
-    """Run `git switch <switch_args>` (to `target`) keeping live ticket bytes.
-
-    Saves each carried file, restores it to `HEAD` (or moves an untracked one
-    aside), runs `git switch`, and writes the saved bytes back on success and
-    on failure. Any other modified file that blocks the switch fails it with
-    Git's message naming that file.
-    """
+    """Switch branches with the live ticket, attachments and audit log."""
     require_unstaged_carried_paths(paths)
-    saved: dict[str, bytes | None] = {}
-    for rel in paths.carried:
-        file = paths.top / rel
-        saved[rel] = file.read_bytes() if file.is_file() else None
-    try:
-        for rel, data in saved.items():
-            if tracked_in_head(rel):
-                restore_worktree_file(rel)
-            elif data is not None:
-                (paths.top / rel).unlink()
-        run_op(f"git switch {target}", "switch", "--no-overwrite-ignore", *switch_args)
-    finally:
-        _write_back(paths, saved)
+    with tempfile.TemporaryDirectory() as temporary:
+        backup = Path(temporary)
+        carried = save_carried_files(paths, backup)
+        switched = False
+        try:
+            clear_carried_changes(paths, carried)
+            run_op(f"git switch {target}", "switch", "--no-overwrite-ignore", *switch_args)
+            switched = True
+        finally:
+            restore_carried_files(paths, backup, carried, switched=switched)
 
 
-def _write_back(paths: TicketPaths, saved: dict[str, bytes | None]) -> None:
-    for rel, data in saved.items():
-        if data is None:
-            continue
+def save_carried_files(paths: TicketPaths, backup: Path) -> tuple[str, ...]:
+    carried = paths.carried
+    for rel in carried:
+        source = paths.top / rel
+        if source.is_symlink() or source.is_file():
+            destination = backup / rel
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination, follow_symlinks=False)
+    return carried
+
+
+def clear_carried_changes(paths: TicketPaths, carried: tuple[str, ...]) -> None:
+    tracked = []
+    for rel in carried:
         file = paths.top / rel
-        file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_bytes(data)
+        if tracked_in_head(rel):
+            tracked.append(rel)
+        elif file.is_symlink() or file.is_file():
+            file.unlink()
+    if tracked:
+        out("restore", "--source=HEAD", "--worktree", "--",
+            *(f":(top,literal){rel}" for rel in tracked))
+
+
+def restore_carried_files(
+    paths: TicketPaths, backup: Path, carried: tuple[str, ...], *, switched: bool,
+) -> None:
+    # Include attachments present only on the destination. The live copy's
+    # absence of those attachments is a deletion, including across a rebase.
+    candidates = set(carried)
+    if switched:
+        candidates.update(paths.carried)
+    for rel in sorted(candidates):
+        file = paths.top / rel
+        if file.is_symlink() or file.is_file():
+            file.unlink()
+    for rel in carried:
+        source = backup / rel
+        if source.is_symlink() or source.is_file():
+            file = paths.top / rel
+            file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, file, follow_symlinks=False)
 
 
 # --- publishing the ticket to the base ---------------------------------------------
@@ -199,12 +223,15 @@ def merged_log(base_text: str, local_text: str, slug: str) -> str:
     )
 
 
-def _task_files(paths: TicketPaths, env: dict[str, str]) -> list[str]:
+def _task_files(
+    paths: TicketPaths, env: dict[str, str] | None = None, *, with_head: bool = False,
+) -> list[str]:
     """Select tracked and non-ignored ticket paths using the publication index."""
     if not paths.task_is_dir:
         return [paths.ticket_rel] if paths.ticket.is_file() else []
     entries = set(out(
         "ls-files", "--cached", "--others", "--exclude-standard", "--full-name",
+        *(["--with-tree=HEAD"] if with_head else []),
         "-z", "--", f":(top,literal){paths.task_rel}/", env=env,
     ).split("\0"))
     root = Path(paths.task_rel)
@@ -269,8 +296,7 @@ def publish_ticket(paths: TicketPaths, *, slug: str, remote: str, base: str) -> 
 def fast_forward_base(paths: TicketPaths, base: str, commit: str) -> bool:
     """Move the checked-out local base to `commit` when it is an ancestor.
 
-    The carried files are restored to `HEAD` for the merge and written back
-    after, so the live bytes stay in the work tree.
+    Keep the working ticket and carry forward only pending audit appends.
     """
     local = ref_tip(f"refs/heads/{base}")
     if local is None or not is_ancestor(local, commit):
@@ -289,17 +315,35 @@ def fast_forward_base(paths: TicketPaths, base: str, commit: str) -> bool:
         print(f"ticket-exit: published, but left local `{base}` where it is: {exc}",
               file=sys.stderr)
         return False
-    saved = {
-        rel: (paths.top / rel).read_bytes() for rel in paths.carried
-        if (paths.top / rel).is_file()
-    }
-    try:
-        for rel in saved:
-            if tracked_in_head(rel):
-                restore_worktree_file(rel)
-        merged = git("merge", "--ff-only", "--quiet", commit, check=False)
-    finally:
-        _write_back(paths, saved)
+    before = git("show", f"{local}:{paths.log_rel}", check=False).stdout
+    log = paths.top / paths.log_rel
+    working = log.read_text(encoding="utf-8") if log.is_file() else ""
+    if not working.startswith(before):
+        print(f"ticket-exit: published, but local `{base}` has edits to existing audit "
+              f"lines in {paths.log_rel}; reconcile them before fast-forwarding",
+              file=sys.stderr)
+        return False
+    with tempfile.TemporaryDirectory() as temporary:
+        backup = Path(temporary)
+        carried = save_carried_files(paths, backup)
+        merged = None
+        try:
+            clear_carried_changes(paths, carried)
+            merged = git("merge", "--ff-only", "--quiet", commit, check=False)
+            if merged.returncode == 0 and log.is_file():
+                published = log.read_text(encoding="utf-8")
+                present = set(published.splitlines())
+                pending = [line for line in working[len(before):].splitlines()
+                           if line and line not in present]
+                if pending and published and not published.endswith("\n"):
+                    published += "\n"
+                saved_log = backup / paths.log_rel
+                saved_log.parent.mkdir(parents=True, exist_ok=True)
+                saved_log.write_text(published + "".join(f"{line}\n" for line in pending),
+                                     encoding="utf-8")
+        finally:
+            restore_carried_files(paths, backup, carried,
+                                  switched=merged is not None and merged.returncode == 0)
     if merged.returncode != 0:
         # The publish already landed; only the local catch-up failed.
         print(
@@ -314,6 +358,7 @@ def fast_forward_base(paths: TicketPaths, base: str, commit: str) -> bool:
 __all__ = [
     "TicketGitError",
     "TicketPaths",
+    "clear_carried_changes",
     "current_branch",
     "dev_record",
     "fast_forward_base",
@@ -325,8 +370,9 @@ __all__ = [
     "publish_ticket",
     "ref_tip",
     "require_unstaged_carried_paths",
-    "restore_worktree_file",
+    "restore_carried_files",
     "run_op",
+    "save_carried_files",
     "switch_carrying",
     "ticket_paths",
 ]

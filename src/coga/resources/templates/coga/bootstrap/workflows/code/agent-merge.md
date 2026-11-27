@@ -37,9 +37,9 @@ The script uses the preparation recorded under `## PR`.
 
 ## merge
 
-The merge script verifies the peer-reviewed head and allows only ticket and
-log commits after it. It records and pushes the final state, waits for checks
-and merges the exact pushed head. The owner audits the merged PR.
+The merge script verifies the peer-reviewed head, pushes it, waits for checks
+and merges that exact head. Its final bump publishes the finished ticket to
+the base. The owner audits the merged PR.
 
 ## open-pr
 
