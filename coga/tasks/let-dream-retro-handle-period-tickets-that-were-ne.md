@@ -1,6 +1,6 @@
 ---
 title: Let Dream Retro handle period tickets that were never committed
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -28,7 +28,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (open-branch)
+step: 4 (push-and-open-pr)
+agent: claude
 ---
 
 ## Description
@@ -126,5 +127,104 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/let-dream-retro-handbacks-main
+base: main
+remote: origin
+reviewed: 194f25638b0c7ed6afd14423ac5a031103d3e30b
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Decision
+
+Option (a), with Retro still classifying. Reasons:
+- (b) keeps the contradiction with "Retro never leaves a processed done ticket
+  on disk" and silently skips any gotcha a period blackboard holds.
+- (c) would make the recurring sweep write Git history every firing, which is a
+  much larger behavior change. Nothing about an untracked ticket needs to land.
+- Deleting an untracked file in Dream's checkout touches no Git state. It is
+  the narrowest exception to "no Retro in Dream's checkout".
+
+Dream snapshots on-base sources and wholly untracked period tickets, then
+passes the latter with a `local-only:` list. Retro classifies them from the
+snapshot and records a `local` handback. Extracted facts go into a theme PR
+with snapshot evidence. Dream verifies durable results and rechecks the exact
+artifact against the base, HEAD, index, and snapshot before calling
+`coga delete recurring/<name>`. Changed artifacts are deferred. An incomplete
+delete preserves the recovery copy.
+
+## Handoff (peer-review → publication)
+
+Claude implemented the local-only handback in `d4b4c97a6`. Codex
+reviewed and corrected it in `68a5cd74c`. The owner selected this copy
+for the step-script migration. Codex retargeted those changes to `main`
+and resolved the Retro skill conflict so `coga retire` still handles its
+single canceled ticket. Both former branch tips remain in Git history.
+
+The reviewed code is `194f25638b0c7ed6afd14423ac5a031103d3e30b`. The
+migration removes the obsolete branch-opening step and leaves the ticket at
+PR publication. The next live Dream run is the behavioral acceptance check.
+
+## PR
+
+```yaml
+title: Let Dream Retro handle period tickets that were never committed
+author: claude
+author_evidence: Claude (claude-opus-5-5, launch e7cd2941) implemented the route. Codex wrote
+  corrections during peer review and resolved the later conflict against main.
+head: 194f25638b0c7ed6afd14423ac5a031103d3e30b
+base: 9f88e7ef0d21f74f86e0df595883fae3c18f2fa5
+depth: skim
+rationale: The prompt change directs Dream to delete untracked period artifacts after Retro
+  classifies them in isolation. The previously reviewed implementation was retargeted to main
+  and verified again.
+implementation: Dream partitions eligible done tickets by presence on the fetched remote base.
+  Untracked, base-absent recurring period tickets go to Retro as local-only slugs. Retro classifies
+  them from the snapshot and extracts any knowledge into a theme PR. It hands them back with
+  a new `local` progress receipt. Dream then deletes them with coga delete in its own checkout
+  after verification and a fresh comparison of the exact artifact against the base, HEAD,
+  index, and snapshot. Failed prechecks defer the ticket, while a partial deletion preserves
+  the snapshot for recovery.
+deviations: The original stacked branch was replaced with a branch based on main. The resolution
+  preserves the existing canceled-ticket route and the new local-only handback.
+limitations: The next live Dream run remains the end-to-end acceptance check. The Linux suite
+  used Python 3.12.12. Python 3.11 is installed without pytest in this environment. Native
+  macOS and Windows checks are deferred to release.
+files:
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Select local-only periods and
+    verify handbacks before local deletion and snapshot cleanup.
+  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: Define classification,
+    PR evidence and recovery receipts for snapshot-only sources.
+  tests/test_dream_worker_templates.py: Check the probes, receipt requirements and ordering
+    of verification, deletion and cleanup.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 194f25638b0c7ed6afd14423ac5a031103d3e30b
+  base: 9f88e7ef0d21f74f86e0df595883fae3c18f2fa5
+  detail: Codex reviewed the full code diff against main, preserved the canceled-ticket preflight
+    and behavior during conflict resolution, and verified the Git and prompt contracts. Codex
+    also authored the peer-review fixes and the retargeting commit.
+checks:
+- command: PYTHONPATH=$PWD/src python -m pytest -q -p no:cacheprovider tests/test_dream_worker_templates.py
+    tests/test_retro_skill_template.py
+  status: passed
+  head: 194f25638b0c7ed6afd14423ac5a031103d3e30b
+  base: 9f88e7ef0d21f74f86e0df595883fae3c18f2fa5
+  detail: Pop!_OS 24.04 LTS, Python 3.12.12, exported commit with isolated TMPDIR. 26 passed
+    in 0.54s.
+- command: git diff --check 9f88e7ef0d21f74f86e0df595883fae3c18f2fa5..194f25638b0c7ed6afd14423ac5a031103d3e30b
+  status: passed
+  head: 194f25638b0c7ed6afd14423ac5a031103d3e30b
+  base: 9f88e7ef0d21f74f86e0df595883fae3c18f2fa5
+  detail: No whitespace errors.
+- command: TERM=dumb PYTHONPATH=$PWD/src python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: 194f25638b0c7ed6afd14423ac5a031103d3e30b
+  base: 9f88e7ef0d21f74f86e0df595883fae3c18f2fa5
+  detail: Pop!_OS 24.04 LTS, Python 3.12.12, exported commit with isolated TMPDIR. 3242 passed,
+    29 skipped in 295.71s.
+```
