@@ -3929,3 +3929,5 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-25 22:58 v1 [run-a-workflow-step-script-that-publishes-only-the] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-26 14:59 v1 [run-a-workflow-step-script-that-publishes-only-the] [human:nicktoper] advanced to step 2 (peer-review) → codex
 2026-11-26 23:33 v1 [migrate-in-flight-branch-tickets-after-step-script] [human:nicktoper] created (status=draft)
+2026-11-26 18:45 v1 [run-a-workflow-step-script-that-publishes-only-the] [human:nicktoper] launched (operator=codex, agent=codex)
+2026-11-26 23:38 v1 [run-a-workflow-step-script-that-publishes-only-the] [agent:codex] advanced to step 3 (push-and-open-pr) → claude

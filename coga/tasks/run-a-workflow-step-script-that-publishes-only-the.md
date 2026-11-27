@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (push-and-open-pr)
 agent: claude
 ---
 
@@ -279,6 +279,7 @@ ordinary ticket.
 branch: coga/run-a-workflow-step-script-that-publishes-only-t
 base: main
 remote: origin
+reviewed: 809ec3ad5967a92ae1c90402a06a2a407b77d11a
 
 
 Design and migration decisions (2026-11-25) are in the ticket body.
@@ -393,10 +394,10 @@ published to main on their own, and the old hook's
 `$TMPDIR/git-ticket-branch.json` state was removed so this session's end
 runs no old exit.
 
-After merge (owner): run `python -m coga_edge.migrate_step_scripts`, review
-the report, then `--apply`. Do not apply before merge: main's current code
-ignores `enter`/`exit`, so a migrated draft launched from main would
-implement without a branch.
+The live apply is owned by
+[`migrate-in-flight-branch-tickets-after-step-script`](migrate-in-flight-branch-tickets-after-step-script.md),
+published on `main` in `9604f74b4`. Apply after the feature merge so that the
+checkout running migrated tickets has the step-script implementation.
 
 ## PR
 
@@ -405,14 +406,17 @@ title: Run workflow enter/exit step scripts; publish only the current ticket to 
 author: claude
 author_evidence: >-
   Implement sessions 2-3 of this ticket ran Claude (claude-opus-5-5) in an
-  attended launch; the owner approved the plan and the migration scope.
-head: f608f903f24b2d6bea5fd6911969c029214033ac
+  attended launch. The owner approved the plan and the migration scope.
+  Three later commits record Nick Toper as Git author. The ticket does not
+  identify a contributing agent for those commits. Codex authored a
+  corrective commit during peer review.
+head: 809ec3ad5967a92ae1c90402a06a2a407b77d11a
 base: 42f4d94feca4cef02c6e6e565f4ae0ee6d34fe89
 depth: deep
 rationale: >-
-  Changes how every branch ticket publishes state (new lifecycle-command
-  side effect, pushes to the base from exit, removed launch mode) and ships a
-  ticket migration; no independent review yet (peer-review is the next step).
+  Changes how every branch ticket publishes state and ships a ticket
+  migration. Peer review corrected two state-preservation failures, retargeted
+  the owner-selected Dream ticket and verified the migration plan.
 implementation: >-
   Workflows may declare `enter:`/`exit:` step scripts. Launch, the script
   chain and megalaunch run `enter` before each step; bump, mark
@@ -424,18 +428,21 @@ implementation: >-
   its log lines via a temp-index commit. push-and-open-pr and merge-pr no
   longer commit ticket state and bump last. The `git:` launch mode and its
   hook are removed; `coga_edge.migrate_step_scripts` rewrites in-flight
-  tickets.
+  tickets. Branch switches carry Git-visible attachments and deletions.
+  Local base catch-up retains fetched audit lines and pending local appends.
 deviations: >-
   `rebase` keeps saved copies in $COGA_TASK_DATA_DIR, not $TMPDIR (purged at
   launch end). A failed exit writes a `step-exit-failed` record that stops
   the chain. Exit pushes the branch only when the remote lacks its tip. The
-  migration does not edit branches (none carries ticket state). v1/03's owner
-  decisions are reversed in coga-dev/current-direction rather than by editing
-  that in-review ticket's body.
+  migration can move legacy ticket state to the base and clean its branch
+  in an atomic push. coga-dev/current-direction records the reversal of
+  the v1/03 decisions.
 limitations: >-
   A session ending without a step change runs no exit (manual publish is
   draft add-coga-sync-...). Recurring runs cannot use step scripts (draft
-  give-recurring-...). The base migration must be applied after merge.
+  give-recurring-...). The live migration is tracked by
+  migrate-in-flight-branch-tickets-after-step-script for after the feature
+  merge. Native Windows and macOS verification is deferred to release.
 files:
   README.md: Principle now says code rides the PR and ticket state is published to the base.
   docs/contexts/coga-dev/codebase/SKILL.md: Lists the step-script skills, ticket_git and the migration.
@@ -444,18 +451,26 @@ files:
   src/coga/commands/block.py: Runs exit after the block write.
   src/coga/commands/bump.py: Runs exit after advance, rewind and final bump.
   src/coga/commands/mark.py: Runs exit after done and canceled.
+  src/coga/config.py: Tracks secret binding names and scrubs step-script environments.
   src/coga/launch.py: Enter before each supervised step; failed-exit stop; refuses a leftover git mode; hook guard removed.
   src/coga/launch_script.py: Script chain runs enter and stops on a failed exit; hook runner takes no phase.
   src/coga/recurring.py: Templates refuse step scripts.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Walkthrough uses enter/exit publication.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/git/SKILL.md: Rewritten contract for branch step scripts.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md: Explains the owner assist handoff and ticket publication.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Step-script call points in the chain.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Lifecycle commands run exit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Explains when step-script failures stop the queue.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/preparation/SKILL.md: PRs carry no ticket state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: Describes the step-script credential environment.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: New Step scripts section; frozen-snapshot rules.
+  src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKILL.md: Keeps assist notes in the live ticket for the owner's final bump.
+  src/coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md: Explains that the workflow manages Git during the design step.
   src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Branch comes from enter; commit without ticket state; rebase command.
+  src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md: Documents merge before final ticket publication.
   src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/run.py: No ticket commit; final bump last.
   src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Older agent PR step commits code only.
+  src/coga/resources/templates/coga/bootstrap/skills/code/review-design/SKILL.md: Removes the obsolete condition that design review has no branch.
   src/coga/resources/templates/coga/bootstrap/skills/git/push-and-open-pr/run.py: No ticket commit; other tickets' dirt ignored; bump last.
   src/coga/resources/templates/coga/bootstrap/skills/git/ticket-branch/SKILL.md: Removed launch hook.
   src/coga/resources/templates/coga/bootstrap/skills/git/ticket-branch/run.py: Removed launch hook.
@@ -468,6 +483,7 @@ files:
   src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Declares enter/exit; drops open-branch.
   src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Declares enter/exit; drops open-branch.
   src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: Declares enter/exit; drops open-branch.
+  src/coga/resources/templates/coga/workflows/_template.md: Shows how to declare optional step scripts.
   src/coga/resources/ticket.md: Frozen example shows enter/exit.
   src/coga/step_scripts.py: Runs enter/exit and records a failed exit.
   src/coga/validate.py: Checks frozen step scripts; reports a leftover git mode.
@@ -475,6 +491,7 @@ files:
   src/coga_edge/megalaunch.py: Runs enter per step; stops on a failed exit; skips a leftover git mode.
   src/coga_edge/migrate_step_scripts.py: One-time ticket migration.
   src/coga_edge/ticket_git.py: Shared plumbing for the step scripts.
+  tests/conftest.py: Clears inherited launch secret names between tests.
   tests/required_package_resources.txt: New skill files; removed hook files.
   tests/test_bootstrap_workflow_review_sections.py: Review sections name exit publication.
   tests/test_code_implement_skill.py: Pins the new implement contract.
@@ -485,29 +502,106 @@ files:
   tests/test_packaging.py: Canonical script set.
   tests/test_step_scripts.py: Call points, failures, removed git mode.
   tests/test_ticket_branch.py: Removed with the hook.
-  tests/test_ticket_enter_exit.py: Enter/exit against a bare remote.
+  tests/test_ticket_enter_exit.py: Exercises branch handoffs, attachments and audit preservation against a bare remote.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Independent peer review is the next workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 809ec3ad5967a92ae1c90402a06a2a407b77d11a
+  base: 42f4d94feca4cef02c6e6e565f4ae0ee6d34fe89
+  detail: >-
+    Codex entered at peer review after the recorded Claude implementation
+    sessions. Reviewed the base-to-head diff, reproduced the attachment and
+    audit-loss findings, applied corrections and added regressions. Codex also
+    authored the corrective commit. The regressions and full Linux suite
+    pass. Codex also reconciled the owner-selected Dream ticket and verified
+    the live migration report and disposable apply.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+  - command: TERM=dumb PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider
     status: passed
-    head: f608f903f24b2d6bea5fd6911969c029214033ac
+    head: 809ec3ad5967a92ae1c90402a06a2a407b77d11a
     base: 42f4d94feca4cef02c6e6e565f4ae0ee6d34fe89
-    detail: 3243 passed, 29 skipped.
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.12.12, disposable TMPDIR outside the checkout.
+      3258 passed, 29 skipped in 200.14s.
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py
     status: passed
-    head: f608f903f24b2d6bea5fd6911969c029214033ac
+    head: 809ec3ad5967a92ae1c90402a06a2a407b77d11a
     base: 42f4d94feca4cef02c6e6e565f4ae0ee6d34fe89
-    detail: 43 passed.
-  - command: .venv/bin/python -m coga_edge.migrate_step_scripts
+    detail: Pop!_OS 24.04 LTS, Python 3.12.12. 43 passed in 10.57s.
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --json
     status: passed
-    head: f608f903f24b2d6bea5fd6911969c029214033ac
+    head: 809ec3ad5967a92ae1c90402a06a2a407b77d11a
     base: 42f4d94feca4cef02c6e6e565f4ae0ee6d34fe89
-    detail: Report-only dry run against origin/main lists 68 tickets; nothing pushed.
+    detail: Pop!_OS 24.04 LTS, Python 3.12.12. Zero errors, 83 warnings.
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m coga_edge.migrate_step_scripts
+    status: passed
+    head: 809ec3ad5967a92ae1c90402a06a2a407b77d11a
+    base: 42f4d94feca4cef02c6e6e565f4ae0ee6d34fe89
+    detail: >-
+      Pop!_OS 24.04 LTS, Python 3.12.12. Report against origin/main at
+      9604f74b4 listed 67 paths and selected the prepared Dream branch.
+      A disposable bare-remote rehearsal after a simulated feature merge
+      applied all rewrites and found nothing remaining on a second run.
 ```
+
+## Peer review findings
+
+Codex reviewed `1ac15b0f1702a1ce3a342a161951abdf97b29117` against the
+merge base `42f4d94feca4cef02c6e6e565f4ae0ee6d34fe89`. The current
+`origin/main` adds only ticket and audit-log commits beyond that base. Codex
+joined at peer review after Claude's implementation sessions.
+
+- **Attachment loss across steps.** A disposable Git repo reproduced that
+  `switch_carrying` drops a directory ticket's attachment when the base has
+  published it and the code branch does not track it. The following `exit`
+  then sees the absent file as a deletion. Carry attachments and deletions
+  across switches, and exercise the real two-step handoff in a regression test.
+- **Local audit log loses remote entries.** A disposable Git repo reproduced
+  that `fast_forward_base` restores the old working log after a successful
+  merge, hiding entries newly committed on the base. Keep base entries and
+  preserve unpublished local additions in the working log.
+- **Review instructions contradict publication.** `code/address-pr-comments`
+  and `coga/human-assist` still direct an assist to put ticket notes on the
+  code branch. The workflow starter also still teaches the removed `git:`
+  mode, and the agent-merge instructions describe the previous bump order.
+- **Legacy migration source.** A report-only run against `9f88e7ef0`
+  listed 67 ticket paths and exited 1. Two remote branches name different
+  bases for `let-dream-retro-handle-period-tickets-that-were-ne`. The branch
+  ending in `8155fa` has the implementation at step 4 (`push-and-open-pr`)
+  and records the bootstrap-import ticket branch as its base. The branch
+  ending in `625100` is at step 2 (`implement`) and records this feature
+  branch as its base. GitHub listed no PR for either head. Migration published
+  nothing. The owner selected the step-4 `8155fa` copy. A Git trial replay of
+  its two implementation commits (`d4b4c97a6`, `68a5cd74c`) onto `main`
+  reported a conflict in the `retro/done-ticket` skill, where `main` added
+  canceled-ticket handling. The owner approved preparing a clean branch and
+  preserving both legacy branch histories.
+
+The new Dream code commit is `194f25638b0c7ed6afd14423ac5a031103d3e30b`.
+It is based directly on `9f88e7ef0` and changes three paths. The conflict
+resolution preserves the canceled-ticket route from `main` and the selected
+branch's local-only handbacks. A disposable bare-remote rehearsal using the
+actual branch inventory plus the prepared refs planned and applied 67
+rewrites. It selected the step-4 Dream copy, which became step 3
+(`push-and-open-pr`) when the old `open-branch` step was removed. The
+resulting Dream code branch had no task or audit-log diff, and a second run
+found no tickets left to migrate. That apply ran only on the disposable remote.
+
+Focused Dream and Retro tests passed 26 checks in 0.54s on `194f25638`.
+The full Linux suite on that code commit passed 3242 tests and skipped 29
+in 295.71s on Pop!_OS 24.04 LTS with Python 3.12.12. The live Dream branch
+`coga/let-dream-retro-handbacks-main` was pushed at `d541a4277`. Both old refs
+were fast-forwarded with one ticket-copy correction, to `7ee9ddb3e` and
+`3966992a9`. The original tips `9345065ac` and `8bacd07d4` remain their
+respective parents. The live dry run against `9604f74b4` then succeeded with
+67 planned rewrites. The actual apply belongs to the post-merge rollout ticket.
+
+`809ec3ad5967a92ae1c90402a06a2a407b77d11a` addresses the attachment, audit-log
+and documentation findings. The bare-remote suite passed 14 tests, including
+two new regressions. A separate CLI probe ran a deterministic workflow against
+a bare remote. `coga status` in a fresh clone of `main` showed `in_progress`,
+step 2 (`review`). The code branch's diff contained only the probe's code file.
 
 ## Implementation notes
 
@@ -516,4 +610,3 @@ checks:
 - `enter` after switching to the branch must write main's ticket copy into the
   working tree (the branch holds the branch-point copy). Leaves ticket dirty on
   the branch; hence `run.py rebase`.
-
