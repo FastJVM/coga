@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (push-and-open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -276,6 +276,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1293
 branch: coga/run-a-workflow-step-script-that-publishes-only-t
 base: main
 remote: origin
