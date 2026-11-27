@@ -63,6 +63,18 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
     )
     assert "never direct-delete on the ticket's class alone" in norm
 
+    # Never-committed period tickets are absent from the isolated base: Retro
+    # classifies them, then Dream deletes them in its own checkout.
+    assert "#### Untracked period tickets" in text
+    assert "creates period tickets without committing them" in norm
+    assert "`git ls-files -- <resolved task path>` prints nothing" in norm
+    assert "`git cat-file -e <remote>/<base>:<resolved task path>` fails" in norm
+    assert "`untracked: <slug> [<slug> ...]`" in norm
+    assert "This is the only change Phase 4 makes to Dream's checkout" in norm
+    assert "`git status --porcelain -- <resolved task path>` prints nothing" in norm
+    assert "`git restore` cannot recover them" in norm
+    assert "Delete the snapshot only after every local delete has been verified" in norm
+
     # The scanner is the liveness fallback: it deletes an unreaped completed
     # artifact before creating the next period's fresh task. Dream therefore
     # never needs to reactivate or self-delete its predecessor.

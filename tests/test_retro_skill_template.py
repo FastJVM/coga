@@ -99,3 +99,20 @@ def test_retro_reference_pin_route_has_no_markers_or_shared_run_branch() -> None
     assert "its Source omits the Markers bullet (there are no markers)" in norm
     assert "direct-deleted tickets and any reference-pin PR" in norm
     assert "otherwise it leaves in the reference-pin PR" in norm
+
+
+def test_retro_hands_untracked_period_tickets_back_to_the_caller() -> None:
+    """A never-committed period ticket is absent from the isolated base, so
+    Retro classifies it from the snapshot and hands deletion back to Dream."""
+    norm = " ".join(RETRO_SKILL.read_text(encoding="utf-8").replace("**", "").split())
+
+    assert "### Untracked period tickets" in RETRO_SKILL.read_text(encoding="utf-8")
+    assert "`untracked: <slug> [<slug> ...]`" in norm
+    assert "Never run `coga delete` on an untracked slug" in norm
+    assert "Do not add a `## Retro` marker or a source deletion" in norm
+    assert "handoff <slug>" in norm
+    assert "<H> handoffs" in norm
+    assert "no later `pr`, `deleted`, or `handoff`" in norm
+    # The uncommitted-only stop applies only to slugs the caller did not list.
+    assert "the caller did not list it as untracked" in norm
+    assert "never treats a slug as untracked because it is missing" in norm

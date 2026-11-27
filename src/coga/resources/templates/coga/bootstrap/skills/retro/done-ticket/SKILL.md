@@ -83,6 +83,9 @@ checkout.
   the source-task deletion for the tickets that contributed new knowledge;
   no-durable-knowledge tickets removed by direct `coga delete` with no PR,
   except those with inbound references, which leave in one reference-pin PR.
+  Untracked period tickets the caller lists are classified but not deleted.
+  They are handed back as `handoff` receipts, and the caller deletes them from
+  its own checkout (see **Untracked period tickets**).
 - Progress: an append-only `progress.md` beside the read-only `evidence/`
   snapshot in a unique, writable caller-owned run directory outside every
   checkout. Verify it is writable before any remote mutation. It carries one
@@ -282,6 +285,37 @@ Where the repoint lands depends on the source:
   deletes those source tasks, and changes nothing else. It carries no `## Retro`
   marker. A source with no references is direct-deleted as usual.
 
+### Untracked period tickets
+
+The recurring sweep does not commit the period tickets it creates, so a done
+`recurring/<name>` ticket can exist only in the caller's checkout and in the
+snapshot. Dream lists such slugs separately in the delegation message as
+`untracked: <slug> [<slug> ...]` after checking that each one is untracked
+there and absent from the remote base. Only the caller decides this. Retro
+never treats a slug as untracked because it is missing from the isolated
+checkout. A listed slug that is not a `recurring/<name>` task is a
+stop-and-ask.
+
+Classify an untracked slug from its snapshot copy exactly like any other
+ticket. That includes the `## Gotchas` read, **Unresolved adjacent bugs**, and
+**Done is a status, not a receipt**. Then:
+
+- **Knowledge-bearing:** put the knowledge edits, and any bug or unshipped
+  scope it carries, in its theme's knowledge PR as usual. Do not add a
+  `## Retro` marker or a source deletion, because the base has no source to
+  edit. Name the slug in that PR's `pr` receipt and list it in the PR body as
+  `untracked, deleted locally by the caller`.
+- **No durable knowledge:** make no change.
+
+Never run `coga delete` on an untracked slug. Never put one in the
+reference-pin PR, and skip the inbound-reference search for it, because no
+live-tree link can resolve a path the base never had. Once the slug's
+disposition is complete (its knowledge PR is pushed and opened, or it was
+classified `delete`), append `handoff <slug>`. The caller deletes the ticket
+from its own checkout after verifying the run. A `handoff` receipt settles an
+untracked slug for the `complete` line in the same way a `deleted` receipt
+settles a direct delete.
+
 ## Isolation boundary
 
 Run only inside a subagent whose cwd is a dedicated isolated checkout. Use the
@@ -402,19 +436,22 @@ start — <slug>[, <slug> ...]
 read <slug> — <extract | delete>
 pr <theme | pin-references> — <url> — <slug>[, <slug> ...]
 deleted <slug>
-complete — <N> PRs, <M> direct deletes, <K> tickets
+handoff <slug>
+complete — <N> PRs, <M> direct deletes, <H> handoffs, <K> tickets
 ```
 
 `read` is written when a ticket's classification is settled (step 6); `pr`
 when its branch is pushed and the PR exists (step 11), naming every source
-task it deletes; `deleted` after each direct `coga delete` lands (step 9);
+task it deletes or carries knowledge from; `deleted` after each direct
+`coga delete` lands (step 9); `handoff` when an untracked slug's disposition is
+complete (see **Untracked period tickets**);
 `complete` as the run's last action before its final message, only after every
 selected slug has a verified disposition recorded. The final message repeats
 the completion line's numbers.
 
 These receipts are not atomic with remote mutations: a process can die after
 a delete lands or a branch/PR is published but before appending its receipt.
-A `read` line with no later `pr` or `deleted` naming that slug therefore means
+A `read` line with no later `pr`, `deleted`, or `handoff` naming that slug therefore means
 **unknown disposition**, not proof that the source still exists. Before
 retrying, fetch the configured remote base branch and inspect its source
 path and deletion evidence; check remote branches and PRs for any published
@@ -436,7 +473,8 @@ absolute read-only evidence-snapshot path at `<run-dir>/evidence/`, with its
 writable sibling `<run-dir>/progress.md`. Work from the isolated repo root.
 Resolve each slug to its actual task path; tasks may be single files or
 directories at any depth under `coga/tasks/`. `coga retire <slug>` passes one
-canceled slug (it deletes a done ticket itself, without Retro). Dream passes every eligible done ticket in one run; the skill partitions
+canceled slug (it deletes a done ticket itself, without Retro). Dream passes every eligible done ticket in one run, listing untracked period
+tickets separately (see **Untracked period tickets**); the skill partitions
 them into coherent PR batches itself.
 
 Required files:
@@ -460,8 +498,8 @@ Stop and ask if the isolated-checkout preflight or machine-local config setup
 fails, the caller root or snapshot path is missing, any task slug is ambiguous,
 any snapshot task is not `status: done` (a single canceled slug from
 `coga retire` is the one exception), any required evidence file is missing,
-a selected source task does not exist in the isolated base (an uncommitted-only
-task cannot be deleted durably), a single coherent theme cannot be kept within
+a selected source task does not exist in the isolated base and the caller did
+not list it as untracked (an uncommitted-only task cannot be deleted durably), a single coherent theme cannot be kept within
 the per-PR hard limits, or there is already an open PR adding a `## Retro`
 marker for the same source task.
 
@@ -585,6 +623,8 @@ marker for the same source task.
    caller's approved Git handoff and stop if any operation fails. Leave
    unpushed work available for recovery. Use `git restore` to recover files
    from history.
+   An untracked period ticket is never deleted here: record its `handoff`
+   receipt instead (see **Untracked period tickets**).
 
 10. **Self-review the diff.**
    Confirm each knowledge PR changes only context files, warranted skill files,

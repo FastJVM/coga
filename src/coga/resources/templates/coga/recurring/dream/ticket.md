@@ -405,7 +405,8 @@ This run then ends blocked, never `done` — see the closing rule under
 `### Slack`.
 
 A done `recurring/<name>` ticket from this sweep is eligible like any other
-when it records no feature checkout.
+when it records no feature checkout. The recurring sweep creates period tickets
+without committing them, so most of them exist only in Dream's checkout.
 Period tickets *normally* carry nothing durable — their output is the
 notification post or PR they already produced — so Retro normally direct-deletes
 them via `coga delete recurring/<name>` — no PR or marker — while leaving the
@@ -420,8 +421,59 @@ later firing, the recurring scanner deletes it before creating that period's
 fresh task. The previous Dream run is removed by that scanner fallback before
 this Dream task is created, so Dream never sees or deletes its own predecessor.
 
-Summarize each knowledge PR — and the directly-deleted no-knowledge tickets —
-in this run's blackboard.
+#### Untracked period tickets
+
+The isolated checkout starts from the remote base, so it does not contain a
+period ticket that was never committed. Retro cannot delete that ticket there,
+and Dream cannot verify the delete on the remote base. Nothing needs to land
+either, because the remote never had the ticket. Such a ticket still goes
+through Retro, but Dream deletes it in its own checkout. This is the only
+change Phase 4 makes to Dream's checkout.
+
+An eligible done `recurring/<name>` ticket is **untracked** when both of these
+hold in Dream's checkout:
+
+- `git ls-files -- <resolved task path>` prints nothing; and
+- after the fetch, `git cat-file -e <remote>/<base>:<resolved task path>`
+  fails, so the path is absent from the remote base.
+
+A period ticket that is tracked but missing from the remote base (committed
+only on a local branch) is not untracked. Do not pass it to Retro, and do not
+delete it. List it as deferred in the run summary and leave it to the scanner
+fallback. A non-recurring done ticket that is absent from the remote base gets
+the same treatment, because this exception covers only period tickets.
+
+Snapshot untracked period tickets with the other eligible tickets. Pass their
+slugs to Retro in the same run, listed separately in the delegation message as
+`untracked: <slug> [<slug> ...]`. Retro classifies them like any other ticket.
+Knowledge, an unresolved adjacent bug, or unshipped scope goes into its theme's
+knowledge PR or covering ticket, without a source deletion or `## Retro`
+marker. Retro never runs `coga delete` on an untracked slug, never puts one in
+the reference-pin PR, and records a `handoff <slug>` receipt in `progress.md`
+when its disposition is complete. The skill's **Untracked period tickets**
+section owns those rules.
+
+After the post-return verification passes, Dream handles each `handoff` slug
+from its own checkout:
+
+1. If the slug's `read` receipt says `extract`, confirm that every `pr` receipt
+   naming it points to a pushed branch with an open PR.
+2. Re-check that the path is still untracked, then run
+   `coga delete recurring/<name>`.
+3. Verify that the task path is gone and that
+   `git status --porcelain -- <resolved task path>` prints nothing.
+
+The deleted files were never committed, so `git restore` cannot recover them.
+Their content is kept only in the evidence snapshot until cleanup. Delete the
+snapshot only after every local delete has been verified. If any step fails,
+or a slug has a `read` receipt but no `handoff` receipt, do not delete that
+ticket. Record it in the run summary and leave it to the scanner fallback. Do
+not report the phase `partial` for that reason alone. The scanner fallback
+remains the backstop for period tickets that are not handed off.
+
+Summarize each knowledge PR — and the directly-deleted no-knowledge tickets,
+the locally deleted untracked period tickets, and any period ticket left for
+the scanner fallback — in this run's blackboard.
 
 ### Phase 5 — cleanup-orphan-markers
 
