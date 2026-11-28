@@ -440,10 +440,12 @@ this Dream task is created, so Dream never sees or deletes its own predecessor.
 
 An otherwise eligible done `recurring/<name>` ticket absent from the fetched
 base qualifies for the local handoff when
-`git ls-files -- <resolved task path>` succeeds and prints nothing for the
-literal path in Dream's checkout, including any directory attachments.
-Defer a period ticket present in the index but absent from the base to the
-recurring scanner. Report an ordinary ticket missing from the base as
+`git ls-files -- <resolved task path>` and
+`git ls-tree HEAD -- <resolved task path>` both succeed with empty output for
+the literal path, including any directory attachments. Checking `HEAD` covers
+a staged removal of a locally committed ticket.
+Defer a period ticket present in the index or `HEAD` but absent from the base
+to the recurring scanner. Report an ordinary ticket missing from the base as
 `human-needed`, naming the slug and path that need reconciliation. Leave both
 in place and omit them from the delegation.
 
@@ -457,8 +459,9 @@ After the post-return verification passes, Dream handles each `handoff` slug
 from its own checkout:
 
 1. Immediately before deletion, re-resolve the exact slug. Require the same
-   path, `status: done`, successful Git checks for absence from the index and
-   the freshly fetched base, and a byte-for-byte match with the snapshot.
+   path, `status: done`, successful Git checks for absence from the index,
+   local `HEAD`, and the freshly fetched base, and a byte-for-byte match
+   with the snapshot.
    Compare the complete artifact, including hidden attachments and directory
    entries, and the exact slug's creation, launch, completion, and
    serviced-period audit lines in the live and snapshot logs. A rerun may

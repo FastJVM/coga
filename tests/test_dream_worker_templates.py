@@ -61,7 +61,7 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
     # Never-committed period tickets are absent from the isolated base: Retro
     # classifies them, then Dream deletes them in its own checkout.
     assert "#### Untracked period tickets" in text
-    assert "`git ls-files -- <resolved task path>` succeeds and prints nothing" in norm
+    assert "`git ls-files -- <resolved task path>` and `git ls-tree HEAD -- <resolved task path>` both succeed with empty output" in norm
     assert "`git ls-tree <remote>/<base> -- <resolved task path>`" in norm
     assert "A successful empty result establishes absence" in norm
     assert "`untracked: <slug> [<slug> ...]`" in norm
