@@ -28,7 +28,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (push-and-open-pr)
+step: 5 (review)
 agent: claude
 ---
 
@@ -129,6 +129,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1294
 branch: coga/let-dream-retro-handle-period-tickets-that-were--72379e
 base: main
 remote: origin
