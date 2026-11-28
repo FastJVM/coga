@@ -3975,3 +3975,5 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-11-27 20:37 v1 [let-dream-retro-handle-period-tickets-that-were-ne] [system] script exited with code 2
 2026-11-27 22:08 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-27 22:14 v1 [let-dream-retro-handle-period-tickets-that-were-ne] [system] launched as a script (run.py)
+2026-11-27 22:14 v1 [let-dream-retro-handle-period-tickets-that-were-ne] [system] script exited with code 1
+2026-11-27 22:15 v1 [let-dream-retro-handle-period-tickets-that-were-ne] [system] launched as a script (run.py)
