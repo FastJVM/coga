@@ -98,4 +98,25 @@ def test_retro_reference_pin_route_has_no_markers_or_shared_run_branch() -> None
     assert "Never reuse another run's branch" in norm
     assert "its Source omits the Markers bullet (there are no markers)" in norm
     assert "direct-deleted tickets and any reference-pin PR" in norm
-    assert "otherwise it leaves in the reference-pin PR" in norm
+    assert "through the reference-pin PR when referenced" in norm
+
+
+def test_retro_hands_untracked_period_tickets_back_to_the_caller() -> None:
+    """A never-committed period ticket is absent from the isolated base, so
+    Retro classifies it from the snapshot and hands deletion back to Dream."""
+    text = RETRO_SKILL.read_text(encoding="utf-8")
+    norm = " ".join(text.replace("**", "").split())
+
+    assert "### Untracked period tickets" in text
+    assert "`untracked: <slug> [<slug> ...]`" in norm
+    assert "Never run `coga delete` on an untracked slug" in norm
+    assert "Do not add a `## Retro` marker or a source deletion" in norm
+    assert "handoff <slug>" in norm
+    assert "<H> handoffs" in norm
+    assert "a knowledge PR receipt does not replace the required `handoff`" in norm
+    assert "For a `read <slug> — extract`, first push and open its knowledge PR and append the matching `pr` receipt" in norm
+    assert "the caller did not list it as untracked" in norm
+    assert "Only the caller assigns this route." in norm
+    assert "For each source task on the base that contributed new durable knowledge, append or update" in norm
+    assert "Apply this step only to sources on the base. Untracked slugs go to step 12." in norm
+    assert "Append the untracked handoff receipts in the order defined under Untracked period tickets, then append `complete`" in norm
