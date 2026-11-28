@@ -1,6 +1,6 @@
 ---
 name: retro/done-ticket
-description: Extract durable knowledge from every eligible done ticket in a single Dream run, or from one canceled ticket `coga retire` passes, into Coga contexts or skills. A ticket that yields durable knowledge is deleted in its theme's reviewable knowledge PR; a ticket with no durable knowledge leaves through a reference-pin PR when durable references need repointing, otherwise through direct `coga delete`, with no marker.
+description: Extract durable knowledge from done tickets Dream passes or one canceled ticket from coga retire. Delete sources on the base through knowledge PRs, a reference-pin PR, or direct coga delete. Hand untracked period tickets back to Dream for local deletion.
 ---
 
 # Retro Done Ticket
@@ -13,14 +13,14 @@ single run — compare the evidence against the repo's context and skill corpus,
 and decide whether each task contains durable knowledge worth adding to Coga.
 A run loads the corpus once and processes every slug it was given. It then
 partitions the tickets that hold new knowledge into coherent themes and opens
-one reviewable PR per theme, each recording the source-task `## Retro` marker,
-updating the knowledge base, and deleting those source task directories in the
-same PR. A source task with no new durable knowledge is still deleted, but
-**directly**: Retro removes its directory with
-`coga delete <slug>` in the isolated checkout, then record the deletion
-through ordinary Git. A tracked reference instead follows the reference-pin
-PR route under **Inbound references**. Recovery is via
-`git restore`. Retro never leaves a processed done ticket on disk.
+one reviewable PR per theme with the knowledge edits and, for each contributing
+source on the base, its `## Retro` marker and deletion. For a source on the
+base carrying no new durable knowledge, use the reference-pin PR if
+**Inbound references** finds a reference. For an unreferenced source, run
+`coga delete <slug>` in the isolated checkout and record the deletion through
+ordinary Git. Recovery for sources
+on the base is via `git restore`. Dream handles local deletion under
+**Untracked period tickets**.
 
 Retro runs only inside a subagent that works in a dedicated isolated
 checkout: its cwd, or, when the agent's subagents take no cwd (Codex), the
@@ -38,7 +38,7 @@ checkout.
 ## Known Skill Contract
 
 - Purpose: extract durable knowledge from one done ticket or every eligible
-  done ticket in a single run, and delete every processed source task — a
+  done ticket in a single run, and delete every processed source task on the base — a
   knowledge-bearing ticket through its reviewable knowledge PR, a
   no-durable-knowledge ticket through a reference-pin PR when needed, otherwise
   directly via `coga delete`.
@@ -55,8 +55,8 @@ checkout.
   `bootstrap/contexts/` and `bootstrap/skills/` corpus. Load the snapshot and
   packaged corpus once before ticket-by-ticket extraction.
 - May change: warranted context files, warranted skill files, and the exact
-  resolved source task directories under `coga/tasks/` for every processed
-  source task — a knowledge-bearing ticket deleted in its theme's knowledge PR,
+  resolved source task artifacts under `coga/tasks/` that exist on the base —
+  a knowledge-bearing ticket deleted in its theme's knowledge PR,
   a no-durable-knowledge ticket deleted via the reference-pin PR or directly
   via `coga delete` — plus the lines of any tracked file that hold a live-tree reference to a deleted source
   task (see **Inbound references**).
@@ -65,7 +65,7 @@ checkout.
   unreferenced no-durable-knowledge source tasks.
   Every Retro knowledge edit lands in a reviewable PR; the caller's knowledge
   files stay unchanged. Review the scoped diff before committing each batch.
-- Idempotency: for each source task, the task directory is gone, or an open PR
+- Idempotency: for each source task on the base, the task directory is gone, or an open PR
   is deleting the source task directory: a knowledge PR that also adds its
   `## Retro` marker, or the run's reference-pin PR. A
   no-durable-knowledge ticket without inbound references is direct-deleted
@@ -80,18 +80,17 @@ checkout.
   theme still exceeds the per-PR hard limits, or the diff would touch anything
   outside the allowed files or the exact source task directories.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
-  the source-task deletion for the tickets that contributed new knowledge;
+  the deletion of contributing sources on the base;
   no-durable-knowledge tickets removed by direct `coga delete` with no PR,
   except those with inbound references, which leave in one reference-pin PR.
-  Untracked period tickets the caller lists are classified but not deleted.
-  They are handed back as `handoff` receipts, and the caller deletes them from
-  its own checkout (see **Untracked period tickets**).
+  Dream receives a `handoff` receipt for each listed untracked period ticket
+  it can verify and delete locally (see **Untracked period tickets**).
 - Progress: an append-only `progress.md` beside the read-only `evidence/`
   snapshot in a unique, writable caller-owned run directory outside every
   checkout. Verify it is writable before any remote mutation. It carries one
   line per source task as it is classified, one per PR as it is pushed and
-  opened, one per direct delete as it lands, and a final completion line. The
-  caller reads it to tell a run that finished from one that died — see
+  opened, one per direct delete as it lands, one per untracked handoff, and a
+  final completion line. The caller reads it to tell whether the run finished. See
   **Progress on disk** below.
 
 ## Scope
@@ -114,18 +113,19 @@ Do:
 - update, create, split, merge, or delete context blocks when warranted;
 - update or create a skill only when a ticket contains repeatable process
   knowledge that is not already covered;
-- for a knowledge-bearing source task, append or update exactly one `## Retro`
+- for a knowledge-bearing source task on the base, append or update exactly one `## Retro`
   marker in its `ticket.md` blackboard region and delete its directory in the same knowledge
   PR;
-- for a no-durable-knowledge source task, delete its directory directly with
+- for a no-durable-knowledge source task on the base, delete its directory directly with
   `coga delete <slug>` from a linked worktree, or
   ordinary `coga delete <slug>` from an independent clone — no marker or PR,
   and no mutation of the operator's checkout — unless a tracked file still
   references it (see **Inbound references**);
-- before deleting any source task, repoint every live-tree reference to it in
+- before deleting any source task on the base, repoint every live-tree reference to it in
   the same change;
-- open one PR per coherent knowledge theme, containing that theme's
-  knowledge-base changes and the deletion of its contributing source tasks;
+- open one PR per coherent knowledge theme with the knowledge edits and
+  deletion of contributing sources on the base;
+- follow **Untracked period tickets** for the slugs that Dream lists;
 - hand each PR's one-line Slack FYI to the caller (step 12).
   The title should carry the new finding.
 
@@ -136,7 +136,7 @@ Do not:
 - delete local or remote git branches;
 - open a delete-only PR, fold a deletion into a `## Pruned` section, or open any
   PR for a no-durable-knowledge ticket other than the run's reference-pin PR —
-  those are direct-deleted via `coga delete`;
+  those on the base are direct-deleted via `coga delete`;
 - land a deletion that leaves a live-tree reference to the deleted task;
 - open a marker-only PR — a PR whose only change is a blackboard `## Retro`
   marker with the source task directory left in place;
@@ -187,13 +187,14 @@ ticket alone does not preserve the finding. Do not drop it as one-off execution
 noise, as obvious from the code, or because it was outside the finished task's
 scope. Fixing the bug remains follow-up work; Retro preserves the evidence.
 
-An uncovered bug makes its source knowledge-bearing: preserve the finding and
-delete the source in the same reviewable knowledge PR, never by direct delete.
+An uncovered bug makes its source knowledge-bearing. Preserve the finding in
+the reviewable knowledge PR and use its source's disposition route.
 Deduplicate only when the current context/skill corpus already preserves the
 same actionable finding, or this run's delta does. For a duplicate covered by
 the running delta, keep at least one source carrying the evidence in the PR
-that preserves it; that source must remain on the base branch until the
-knowledge and deletion land together. An in-memory note alone is not durable.
+that preserves it. If that source is on the base branch, its deletion lands
+with the knowledge. If it is untracked, use the handoff rules below. An
+in-memory note alone is not durable.
 
 ### Done is a status, not a receipt
 
@@ -210,8 +211,8 @@ When the scoped change is absent or only partly present, the ticket is
 unshipped: do not extract its claimed fix, and do not cite it as delivered.
 Preserve the gap as a known failure mode, exactly as for an **Unresolved
 adjacent bug** above — what the description scoped, what the ticket claimed,
-and what the base tip lacks — so the source is knowledge-bearing and
-leaves only in that knowledge PR, never by direct delete. Report it under
+and what the base tip lacks. Treat the source as knowledge-bearing and
+follow its disposition route. Report it under
 `Unshipped scope` in the PR body and in the run's result so the caller can
 route a follow-up ticket; Retro does not file one.
 
@@ -243,7 +244,7 @@ against the live tree: a `blob/<base>/` GitHub link, a relative
 Markdown link, or a bare path a reader is told to open in a README, doc,
 context, skill, or code comment. The open-PR and live-checkout gates do not
 see these references, and a navigation test goes red on the base branch the
-moment the delete lands. Before choosing a source's deletion path, search the
+moment the delete lands. Before choosing a base source's deletion path, search the
 isolated checkout's tracked files for both the task's path relative to the
 Git root and its final slug component (`<task-leaf>`, without `.md`). The
 leaf search also catches relative links such as `../tasks/<task-leaf>.md`
@@ -267,7 +268,7 @@ Links from other live tickets are out of scope, because tickets are transient.
 Repoint every real reference to a commit permalink of the fresh base
 tip that the isolated branch is based on (`git rev-parse
 <remote>/<base>`, full OID). That commit still contains the task,
-because a selected source must exist in the isolated base. A relative link
+because it is a source on the isolated base. A relative link
 becomes the absolute permalink. Reword a bare path in prose so it reads as
 history and add the permalink. Leave everything else in the sentence as it
 is. Never add a new live-tree link to a source task you are deleting; cite a
@@ -291,10 +292,10 @@ The recurring sweep does not commit the period tickets it creates, so a done
 `recurring/<name>` ticket can exist only in the caller's checkout and in the
 snapshot. Dream lists such slugs separately in the delegation message as
 `untracked: <slug> [<slug> ...]` after checking that each one is untracked
-there and absent from the remote base. Only the caller decides this. Retro
-never treats a slug as untracked because it is missing from the isolated
-checkout. A listed slug that is not a `recurring/<name>` task is a
-stop-and-ask.
+there and absent from the remote base. Only the caller assigns this route.
+Check that every listed slug is a selected `recurring/<name>` task and
+that its source path is absent from the isolated base. Stop and ask if either
+check fails.
 
 Classify an untracked slug from its snapshot copy exactly like any other
 ticket. That includes the `## Gotchas` read, **Unresolved adjacent bugs**, and
@@ -304,17 +305,17 @@ ticket. That includes the `## Gotchas` read, **Unresolved adjacent bugs**, and
   scope it carries, in its theme's knowledge PR as usual. Do not add a
   `## Retro` marker or a source deletion, because the base has no source to
   edit. Name the slug in that PR's `pr` receipt and list it in the PR body as
-  `untracked, deleted locally by the caller`.
+  `untracked period ticket handed back to Dream for local cleanup`.
 - **No durable knowledge:** make no change.
 
 Never run `coga delete` on an untracked slug. Never put one in the
-reference-pin PR, and skip the inbound-reference search for it, because no
-live-tree link can resolve a path the base never had. Once the slug's
-disposition is complete (its knowledge PR is pushed and opened, or it was
-classified `delete`), append `handoff <slug>`. The caller deletes the ticket
-from its own checkout after verifying the run. A `handoff` receipt settles an
-untracked slug for the `complete` line in the same way a `deleted` receipt
-settles a direct delete.
+reference-pin PR. The inbound-reference search applies only to sources on the
+base. At step 12, append one `handoff <slug>` per listed untracked slug.
+For a `read <slug> — extract`, first push and open its knowledge PR and append
+the matching `pr` receipt. For a `read <slug> — delete`, the classification
+and its `read` receipt suffice. A `handoff` receipt settles an untracked
+slug for the `complete` line. Dream verifies these receipts and owns the
+local cleanup.
 
 ## Isolation boundary
 
@@ -443,16 +444,17 @@ complete — <N> PRs, <M> direct deletes, <H> handoffs, <K> tickets
 `read` is written when a ticket's classification is settled (step 6); `pr`
 when its branch is pushed and the PR exists (step 11), naming every source
 task it deletes or carries knowledge from; `deleted` after each direct
-`coga delete` lands (step 9); `handoff` when an untracked slug's disposition is
-complete (see **Untracked period tickets**);
+`coga delete` lands (step 9); `handoff` at step 12 after the untracked slug's
+disposition is complete (see **Untracked period tickets**);
 `complete` as the run's last action before its final message, only after every
 selected slug has a verified disposition recorded. The final message repeats
 the completion line's numbers.
 
 These receipts are not atomic with remote mutations: a process can die after
 a delete lands or a branch/PR is published but before appending its receipt.
-A `read` line with no later `pr`, `deleted`, or `handoff` naming that slug therefore means
-**unknown disposition**, not proof that the source still exists. Before
+A `read` line without its route's required receipt means **unknown
+disposition**. For an untracked slug, a knowledge PR receipt does not
+replace the required `handoff`. Before
 retrying, fetch the configured remote base branch and inspect its source
 path and deletion evidence; check remote branches and PRs for any published
 knowledge batch. Use that inspection only to reconcile actions, not to decide
@@ -499,7 +501,8 @@ fails, the caller root or snapshot path is missing, any task slug is ambiguous,
 any snapshot task is not `status: done` (a single canceled slug from
 `coga retire` is the one exception), any required evidence file is missing,
 a selected source task does not exist in the isolated base and the caller did
-not list it as untracked (an uncommitted-only task cannot be deleted durably), a single coherent theme cannot be kept within
+not list it as untracked, the untracked list fails the checks above, a
+single coherent theme cannot be kept within
 the per-PR hard limits, or there is already an open PR adding a `## Retro`
 marker for the same source task.
 
@@ -554,11 +557,10 @@ marker for the same source task.
 
    Tickets with no new durable knowledge are not a batch theme — they are not
    extracted and not bundled into any knowledge PR. Run the **Inbound
-   references** search for every source task. After settling the knowledge
-   batches, delete every unreferenced no-durable-knowledge source task directly
-   with `coga delete <slug>` (see step 9). Referenced
-   ones go into the run's single reference-pin PR instead. Neither kind gets a
-   `## Retro` marker or appears in a knowledge PR.
+   references** search for every source task on the base. For a
+   no-durable-knowledge source on the base, use the reference-pin PR when
+   referenced or direct `coga delete <slug>` otherwise (step 9). The
+   untracked sources proceed to handoff at step 12.
 
 6. **Classify each candidate.**
    Use this table:
@@ -570,8 +572,8 @@ marker for the same source task.
    | New coherent topic | Create a focused context under `<contexts-dir>/<namespace>/<name>/SKILL.md`. |
    | Duplicate or stale existing context | Merge, rewrite, or delete the obsolete block/file. |
    | Repeatable process knowledge | Update an existing skill, or create a focused skill if none fits. |
-   | Unresolved adjacent bug | Preserve the actionable finding as a known failure mode in a fitting context; delete its source in that knowledge PR. |
-   | Unshipped scope | Preserve the missing scope as a known failure mode in a fitting context; do not extract the claimed fix; delete its source in that knowledge PR. |
+   | Unresolved adjacent bug | Preserve the actionable finding as a known failure mode in a fitting context. |
+   | Unshipped scope | Preserve the missing scope as a known failure mode in a fitting context. Omit the claimed fix. |
    | One-off execution detail | Drop. |
 
    "New and useful" means a future launched agent would make a better decision
@@ -588,7 +590,7 @@ marker for the same source task.
    replaced by the new edit.
 
 8. **Record the Retro markers for knowledge-bearing tickets.**
-   For each source task that contributed new durable knowledge, append or update
+   For each source task on the base that contributed new durable knowledge, append or update
    exactly one `## Retro` section in its `ticket.md` blackboard region:
 
    ```markdown
@@ -600,17 +602,15 @@ marker for the same source task.
    title: <PR title>
    ```
 
-   A source task with no new durable knowledge gets **no** marker — it is
-   deleted by the applicable route in step 9. Never open a marker-only PR that
-   writes the marker and leaves the directory in place. When no source task
-   contributed new durable knowledge, return a one-line result naming the
-   direct-deleted tickets and any reference-pin PR.
+   Reserve markers for these sources. Never open a marker-only PR that
+   writes the marker and leaves the directory in place.
 
-9. **Delete every processed source task.**
-   Before any deletion, verify that every unresolved adjacent bug and every
+9. **Delete processed sources on the base.**
+   Before any deletion or handoff, verify that every unresolved adjacent bug and every
    unshipped scope is preserved as required above. A source with an uncovered
    bug or unshipped scope cannot take the direct-delete path, even when it
    contains no other durable knowledge.
+   Apply this step only to sources on the base. Untracked slugs go to step 12.
    A source task that contributed new durable knowledge is deleted inside the PR
    that records its `## Retro` marker, after recording that marker — in its
    theme's knowledge PR, together with the repoint of its inbound references.
@@ -623,17 +623,15 @@ marker for the same source task.
    caller's approved Git handoff and stop if any operation fails. Leave
    unpushed work available for recovery. Use `git restore` to recover files
    from history.
-   An untracked period ticket is never deleted here: record its `handoff`
-   receipt instead (see **Untracked period tickets**).
 
 10. **Self-review the diff.**
    Confirm each knowledge PR changes only context files, warranted skill files,
    the exact source task directories that contributed knowledge, and inbound
    reference repoints, unless the human explicitly asked for something else.
-   Confirm every knowledge-bearing
-   source task directory is deleted in exactly one PR, that no-durable-knowledge
-   tickets are direct-deleted or ride only in the reference-pin PR, and that no
-   marker-only PR (marker written, directory left in place) is opened. Re-run
+   Confirm every knowledge-bearing source on the base is deleted in exactly
+   one PR, every no-durable-knowledge source on the base is routed to direct
+   deletion or the reference-pin PR, and each untracked source has no marker
+   or deletion in the diff. Re-run
    the inbound-reference search against each branch, and against the tree before
    each direct delete. It must find no live-tree reference to any task that the
    branch or delete removes.
@@ -652,11 +650,11 @@ marker for the same source task.
    `New context: <finding>` or `New skill: <finding>`. When the run has
    referenced no-durable-knowledge tickets, open the reference-pin PR the same
    way, from a unique `codex/retro-pin-references-<run-id>` branch, titled
-   `Pin links to deleted tickets`. Never reuse another run's branch. Other
-   no-durable-knowledge tickets are not part of any branch — after the knowledge branches
-   are committed and pushed, remove each from the isolated checkout's clean
-   temporary branch using the checkout-appropriate `coga delete` form from step
-   9. Never branch-switch or refresh the caller's checkout.
+   `Pin links to deleted tickets`. Never reuse another run's branch. After
+   pushing the knowledge branches, remove the remaining unreferenced
+   no-durable-knowledge sources on the base from the isolated checkout's
+   clean temporary branch using step 9. Never branch-switch or refresh the
+   caller's checkout.
 
 12. **Hand PR FYIs to the caller.**
    Do not run `coga slack` here: it appends to `coga/log.md` in this isolated
@@ -665,6 +663,10 @@ marker for the same source task.
    in `progress.md` is the handoff. If Slack is configured, the caller posts
    one short message per PR from its own checkout, useful without opening
    GitHub: `<PR title>. PR: <url>`.
+   Append the untracked handoff receipts in the order defined under
+   **Untracked period tickets**, then append `complete`. Include the
+   direct-deleted tickets and any reference-pin PR in the result, along with
+   the handoff slugs.
 
 ## PR Body
 
@@ -679,6 +681,7 @@ Knowledge PR — use this shape:
 - Tickets: deleted `<task-dir>`, ...
 - Markers: PR history for each deleted ticket records its `## Retro`
   with `status: processed`.
+- Untracked sources: `<slug>` handed back to Dream for local cleanup, ...
 
 ## Classification
 - Moved into context: <bullets>
@@ -694,13 +697,13 @@ Knowledge PR — use this shape:
   inventory, and the per-PR coherence limits.
 ```
 
-The reference-pin PR uses the same shape. Its Summary names the
+Include the applicable Source bullets. The reference-pin PR uses the same shape. Its Summary names the
 no-durable-knowledge tickets, its Source omits the Markers bullet (there are no
 markers), and its Classification lists only the `Repointed references`. Its
 Test Plan records the repeated inbound-reference search and verification that
 each permalink resolves the original source task.
 
-Other no-durable-knowledge tickets use the direct-deletion route in step 9.
+Other no-durable-knowledge sources on the base use step 9.
 
 ## Quality Bar
 
@@ -708,7 +711,7 @@ Each knowledge PR should make future task prompts better, and must stay small
 enough to review and describe with one clear title — that is what the per-PR
 limits protect. Splitting a run into several focused PRs is correct; a single
 sprawling PR is not. A ticket with no new durable knowledge contributes no
-knowledge edit and is direct-deleted via `coga delete` when unreferenced;
-otherwise it leaves in the reference-pin PR. It never rides in a knowledge PR.
-Never open a marker-only PR that writes a `## Retro` marker and leaves the source task directory on disk; a processed done ticket should not
-survive the run.
+knowledge edit. A source on the base leaves via direct `coga delete` when
+unreferenced or through the reference-pin PR when referenced. Dream cleans up
+untracked period tickets after verifying the handoff. Never open a marker-only
+PR.

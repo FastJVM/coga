@@ -55,25 +55,27 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
 
     # Phase 4 cleans completed recurring tasks produced earlier in this sweep.
     assert "A done `recurring/<name>` ticket from this sweep is eligible" in norm
-    # Direct-delete is the default, not the rule: the blackboard decides. Both
-    # halves are asserted so neither can drift away on its own.
-    assert (
-        "Retro normally direct-deletes them via `coga delete recurring/<name>`"
-        in norm
-    )
-    assert "never direct-delete on the ticket's class alone" in norm
+    assert "Never direct-delete on the ticket's class alone" in norm
+    assert "in Retro's checkout for a source on the base or in Dream's checkout for a verified handoff" in norm
 
     # Never-committed period tickets are absent from the isolated base: Retro
     # classifies them, then Dream deletes them in its own checkout.
     assert "#### Untracked period tickets" in text
-    assert "creates period tickets without committing them" in norm
-    assert "`git ls-files -- <resolved task path>` prints nothing" in norm
-    assert "`git cat-file -e <remote>/<base>:<resolved task path>` fails" in norm
+    assert "`git ls-files -- <resolved task path>` succeeds and prints nothing" in norm
+    assert "`git ls-tree <remote>/<base> -- <resolved task path>`" in norm
+    assert "A successful empty result establishes absence" in norm
     assert "`untracked: <slug> [<slug> ...]`" in norm
-    assert "This is the only change Phase 4 makes to Dream's checkout" in norm
     assert "`git status --porcelain -- <resolved task path>` prints nothing" in norm
-    assert "`git restore` cannot recover them" in norm
-    assert "Delete the snapshot only after every local delete has been verified" in norm
+    assert "Report an ordinary ticket missing from the base as `human-needed`" in norm
+
+    verify_pr = norm.index("An `extract` handoff requires at least one verified knowledge PR receipt")
+    verify_artifact = norm.index("a byte-for-byte match with the snapshot")
+    verify_firing = norm.index("serviced-period audit lines in the live and snapshot logs")
+    delete = norm.index("Run `coga delete recurring/<name>` only for a verified match")
+    verify_delete = norm.index("Verify that the task path is gone")
+    remove_snapshot = norm.index("Delete the snapshot only after every local delete has been verified")
+    assert verify_pr < verify_artifact < verify_firing < delete < verify_delete < remove_snapshot
+    assert "After these checks pass, finish and verify the local cleanup in Untracked period tickets below. Then remove" in norm
 
     # The scanner is the liveness fallback: it deletes an unreaped completed
     # artifact before creating the next period's fresh task. Dream therefore

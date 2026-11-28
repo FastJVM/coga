@@ -261,7 +261,7 @@ no per-run ticket cap and nothing is deferred to a later run. One corpus read
 with one running delta across all tickets is both cheaper than repeated capped
 runs and better at de-duplicating repeated facts.
 
-A done ticket is eligible when:
+A done ticket is eligible when it passes the source checks below and:
 
 - its resolved task directory under `coga/tasks/` still exists; and
 - its blackboard `## Dev` section records no **live checkout**. Check every
@@ -299,11 +299,20 @@ settle the ticket — its deletion PR has not merged, so it stays eligible. Do
 not infer completion from branch names, stale comments, or old Dream notes —
 only the on-disk directory and open-PR state count.
 
-The `retro/done-ticket` skill owns extraction and deletion: knowledge-bearing
-tickets leave in knowledge PRs, and tickets with nothing durable may be
-direct-deleted. Read recurring periods' `## Gotchas` before classifying
-them; unresolved adjacent bugs or unshipped scope are durable knowledge
+The `retro/done-ticket` skill owns extraction and the disposition of sources
+present on the base. Read recurring periods' `## Gotchas` before classifying
+them. Unresolved adjacent bugs or unshipped scope are durable knowledge
 unless the owning corpus already preserves them.
+
+Fetch the configured remote base before selecting sources or creating the
+isolated branch. For each candidate, resolve the exact slug to the complete
+repository-relative task artifact (a Markdown file or a directory). Use
+`git ls-tree <remote>/<base> -- <resolved task path>` with the literal path
+to check whether it exists on that base. A successful empty result establishes
+absence. Route candidates absent from the base through **Untracked period
+tickets** below. Record a failed Git probe as `human-needed` and leave the
+affected ticket in place. If no tickets qualify, skip delegation and record
+the deferrals and unresolved tickets in the run summary.
 
 Before delegation, create a unique writable temporary run directory outside
 every checkout. Copy the live Retro inputs into its read-only `evidence/`
@@ -331,8 +340,8 @@ Delegate the entire Retro pass to one subagent in a dedicated **isolated git
 checkout**, running `retro/done-ticket <slug> [<slug> ...]` there and passing
 every eligible slug. Start it with a fresh context and a self-contained
 delegation message, as for the scan shards (codex: `fork_turns: "none"`).
-Fetch the configured remote base branch first and base
-the checkout's unique temporary branch on that fresh tip. Use native
+Base the checkout's unique temporary branch on the tip fetched for source
+selection. Use native
 `isolation: worktree` when the agent supports it; otherwise create a temporary
 linked checkout with `git worktree add` at `<run-dir>/checkout`, inside the
 temporary run directory above, which is already writable to this session.
@@ -352,10 +361,11 @@ checkout boundary before reading evidence, loads the snapshot/corpus once,
 carries one running delta, and partitions coherent PR batches within the hard
 limits (≤5 source tickets, ≤3 knowledge files, ≤1 new context/skill file, one
 theme). It first appends a `start` line to the writable `progress.md`, before
-any remote mutation, then records each classified ticket, opened PR, and landed
-direct delete, and finally `complete`. Read that file when the subagent returns
-or terminates, before removing any paths. A missing `pr` or `deleted` receipt
-means the outcome is unknown: the remote mutation may have succeeded before
+any remote mutation, then records each classified ticket, opened PR, landed
+direct delete, and untracked handoff, and finally `complete`. Read that file
+when the subagent returns or terminates, before removing any paths. A missing
+required `pr`, `deleted`, or `handoff` receipt means the outcome is unknown:
+the remote mutation may have succeeded before
 the worker stopped. Follow the skill's reconciliation checks against the fresh
 remote base branch and branch/PR state before retrying. Without `complete`,
 report the phase as `partial` with the file's contents and preserve the run
@@ -367,14 +377,13 @@ Retro hands PR FYIs back as `pr` receipts in `progress.md` and never runs
 posts each FYI from its own checkout with
 `coga slack --task <this-dream-task>`, which appends the audit line locally.
 
-Every processed done ticket is deleted: a ticket that contributed durable
+For sources present on the base, a ticket that contributed durable
 knowledge is deleted in its theme's knowledge PR, which also records its
 `## Retro` marker. For an unreferenced ticket carrying no durable knowledge,
 follow Retro's local deletion and explicit Git handoff. Recovery is via
-`git restore`. Retro never leaves a processed done
-ticket on disk and never opens a marker-only PR. Retro also searches tracked
-files for durable references to each source task, such as a README or doc
-link on `blob/<base>`. Before a deletion lands, it repoints each one
+`git restore`. Retro never opens a marker-only PR. Retro also searches tracked
+files for durable references to each source task on the base, such as a README
+or doc link on `blob/<base>`. Before a deletion lands, it repoints each one
 to a commit permalink in a PR. A no-durable-knowledge ticket with such a
 reference therefore leaves in the run's reference-pin PR, not by direct
 delete. The skill's **Inbound references** section owns the rule. The
@@ -382,98 +391,93 @@ eligibility gates above do not cover it.
 
 After the subagent returns, fetch the remote base branch and verify:
 
-- every PR branch is pushed;
+- every PR branch is pushed and the PR is open against that base, or the PR
+  has merged into the fetched base;
 - every direct delete is present on the remote base branch;
 - the isolated checkout holds nothing unlanded, by the check the
-  `retro/done-ticket` skill's **Isolation boundary** defines.
+  `retro/done-ticket` skill's **Isolation boundary** defines;
+- each delegated untracked slug has one valid `read` and one subsequent
+  `handoff` receipt, and every handoff names a delegated untracked slug.
+  An `extract` handoff requires at least one verified knowledge PR receipt
+  naming that exact slug before the handoff. A reference-pin PR receipt or
+  a `deleted` receipt cannot settle an untracked slug.
 
-Then remove the copied `coga.local.toml` and explicitly remove the linked
-worktree and its temporary branch, or delete the exact independent-clone
+After these checks pass, finish and verify the local cleanup in **Untracked
+period tickets** below. Then remove the copied `coga.local.toml` and explicitly
+remove the linked worktree and its temporary branch, or delete the exact independent-clone
 directory. After recording the verified outcome on Dream's blackboard, delete
 the temporary run directory (snapshot and progress file) too. Agent-native
 cleanup is not guaranteed after a mutating run.
 
-If durability or cleanup cannot be verified — or Phase 4 is `partial` — do
-not delete anything: preserve the run directory, the isolated checkout, and
+If durability or cleanup cannot be verified, or Phase 4 is `partial`, stop
+deleting and preserve the run directory, the isolated checkout, and
 its temporary branch, because they may hold the only copy of the work. Record
 under `### Stranded Retro work` on this task's blackboard the temporary branch,
 the checkout or clone path, the run directory, the commits it holds
 (`git log --oneline <remote>/<base>..<branch>`), the unlanded paths
 (`git diff --stat <remote>/<base>...<branch>` plus uncommitted
-changes), and the exact commands a human runs to land and then remove them.
+changes), and the affected slugs. Record the exact commands a human runs to
+reconcile the receipts, recover from the snapshot if needed, and remove
+the temporary paths after verification.
 This run then ends blocked, never `done` — see the closing rule under
 `### Slack`.
 
 A done `recurring/<name>` ticket from this sweep is eligible like any other
 when it records no feature checkout. The recurring sweep creates period tickets
 without committing them, so most of them exist only in Dream's checkout.
-Period tickets *normally* carry nothing durable — their output is the
-notification post or PR they already produced — so Retro normally direct-deletes
-them via `coga delete recurring/<name>` — no PR or marker — while leaving the
-recurring template's serviced-period record untouched. Normally, not always: a
-wrapper run that hit a reusable gotcha writes it to its own blackboard (see
-`## Gotchas`), and that is worth extracting into a knowledge PR before the
-delete. Read the period ticket's blackboard and decide on what is actually
-there; never direct-delete on the ticket's class alone. Keep it cheap — the
-common case really is "nothing durable", so direct-delete as soon as the
-blackboard shows none. If a completed period ticket survives into a
+Period tickets often carry only the notification post or PR they already
+produced. Read the blackboard, including `## Gotchas`, before choosing the
+disposition. Never direct-delete on the ticket's class alone. A period ticket
+with no durable knowledge or inbound references can be deleted with
+`coga delete recurring/<name>`, in Retro's checkout for a source on the base
+or in Dream's checkout for a verified handoff. Leave the template's
+serviced-period record intact. If a completed period ticket survives into a
 later firing, the recurring scanner deletes it before creating that period's
 fresh task. The previous Dream run is removed by that scanner fallback before
 this Dream task is created, so Dream never sees or deletes its own predecessor.
 
 #### Untracked period tickets
 
-The isolated checkout starts from the remote base, so it does not contain a
-period ticket that was never committed. Retro cannot delete that ticket there,
-and Dream cannot verify the delete on the remote base. Nothing needs to land
-either, because the remote never had the ticket. Such a ticket still goes
-through Retro, but Dream deletes it in its own checkout. This is the only
-change Phase 4 makes to Dream's checkout.
-
-An eligible done `recurring/<name>` ticket is **untracked** when both of these
-hold in Dream's checkout:
-
-- `git ls-files -- <resolved task path>` prints nothing; and
-- after the fetch, `git cat-file -e <remote>/<base>:<resolved task path>`
-  fails, so the path is absent from the remote base.
-
-A period ticket that is tracked but missing from the remote base (committed
-only on a local branch) is not untracked. Do not pass it to Retro, and do not
-delete it. List it as deferred in the run summary and leave it to the scanner
-fallback. A non-recurring done ticket that is absent from the remote base gets
-the same treatment, because this exception covers only period tickets.
+An otherwise eligible done `recurring/<name>` ticket absent from the fetched
+base qualifies for the local handoff when
+`git ls-files -- <resolved task path>` succeeds and prints nothing for the
+literal path in Dream's checkout, including any directory attachments.
+Defer a period ticket present in the index but absent from the base to the
+recurring scanner. Report an ordinary ticket missing from the base as
+`human-needed`, naming the slug and path that need reconciliation. Leave both
+in place and omit them from the delegation.
 
 Snapshot untracked period tickets with the other eligible tickets. Pass their
 slugs to Retro in the same run, listed separately in the delegation message as
 `untracked: <slug> [<slug> ...]`. Retro classifies them like any other ticket.
-Knowledge, an unresolved adjacent bug, or unshipped scope goes into its theme's
-knowledge PR or covering ticket, without a source deletion or `## Retro`
-marker. Retro never runs `coga delete` on an untracked slug, never puts one in
-the reference-pin PR, and records a `handoff <slug>` receipt in `progress.md`
-when its disposition is complete. The skill's **Untracked period tickets**
-section owns those rules.
+The skill's **Untracked period tickets** section defines the knowledge PR and
+`handoff <slug>` receipt for this route.
 
 After the post-return verification passes, Dream handles each `handoff` slug
 from its own checkout:
 
-1. If the slug's `read` receipt says `extract`, confirm that every `pr` receipt
-   naming it points to a pushed branch with an open PR.
-2. Re-check that the path is still untracked, then run
-   `coga delete recurring/<name>`.
+1. Immediately before deletion, re-resolve the exact slug. Require the same
+   path, `status: done`, successful Git checks for absence from the index and
+   the freshly fetched base, and a byte-for-byte match with the snapshot.
+   Compare the complete artifact, including hidden attachments and directory
+   entries, and the exact slug's creation, launch, completion, and
+   serviced-period audit lines in the live and snapshot logs. A rerun may
+   reuse the path with identical ticket bytes.
+2. Run `coga delete recurring/<name>` only for a verified match, from Dream's
+   checkout. Keep each check and its delete together in the sequential sweep.
 3. Verify that the task path is gone and that
    `git status --porcelain -- <resolved task path>` prints nothing.
 
-The deleted files were never committed, so `git restore` cannot recover them.
-Their content is kept only in the evidence snapshot until cleanup. Delete the
-snapshot only after every local delete has been verified. If any step fails,
-or a slug has a `read` receipt but no `handoff` receipt, do not delete that
-ticket. Record it in the run summary and leave it to the scanner fallback. Do
-not report the phase `partial` for that reason alone. The scanner fallback
-remains the backstop for period tickets that are not handed off.
+Leave the live ticket in place if it resolves to a different artifact, has
+changed, or fails a recheck before deletion. Record the reason and the
+scanner fallback in the summary. If a delete command or its post-delete check
+fails, stop and use the Phase 4 `partial` recovery path. The snapshot may
+hold the only recoverable copy. Delete the snapshot only after every local
+delete has been verified and the outcome has been recorded.
 
 Summarize each knowledge PR — and the directly-deleted no-knowledge tickets,
-the locally deleted untracked period tickets, and any period ticket left for
-the scanner fallback — in this run's blackboard.
+the locally deleted untracked period tickets, any period tickets left for
+the scanner fallback, and unresolved ordinary tickets — in this run's blackboard.
 
 ### Phase 5 — cleanup-orphan-markers
 
@@ -744,12 +748,11 @@ Keep the message to one line, for example:
 If Phase 4 preserved any path under `### Stranded Retro work`, the run is not
 done: its work is stranded where no downstream consumer can see it. Say so in
 the Slack summary, then end the run with
-`coga block --task <this-dream-task> --reason "Retro work stranded on <branch> at <checkout path>; land it, then remove both — see ### Stranded Retro work"`
+`coga block --task <this-dream-task> --reason "Retro work stranded on <branch> at <checkout path>. Follow the recovery steps under Stranded Retro work."`
 instead of `coga mark done`. In an attended session, first show the human the
-stranded record and ask whether they will land it now; once they have, verify
-it against the fetched remote base branch, remove the preserved paths, and
-close normally. If they do not, this block is the answer the ticket needs:
-it is what makes the sweep count the run as a problem.
+stranded record and ask whether they will resolve it now. Verify the recovery
+before removing the preserved paths and closing normally. If recovery remains
+pending, the block makes the sweep count the run as a problem.
 
 Otherwise, run `coga mark done <this-dream-task>` once the blackboard is up to
 date and the Slack summary is posted. That is the last action — **do not
